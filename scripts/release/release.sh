@@ -7,7 +7,7 @@
 #   pnpm release:build               the disk image, SHA256SUMS, SBOM, release notes, site download data -> dist-release/<version>/
 #   pnpm release:publish             tag + GitHub release (draft first, verified, then published) + download check
 #
-# Options (after `--` when run through pnpm):
+# Options (`pnpm release --dry-run` and `pnpm release -- --dry-run` both work):
 #   --dry-run      print every command that would change something (tag, push, release, build) and run only the checks
 #   --yes          do not ask to type the tag (for a script)
 #   --draft-only   publish: create and verify the draft release, stop before it becomes public
@@ -17,19 +17,24 @@
 #   --version X.Y.Z  default: the version in package.json
 #
 # What it never does: push to main, edit a file other than site/data/release.json, or touch anything outside this repository, dist-release/
-# and .scratch/. The tag is made on the commit the disk image was built from; HEAD may differ from it only in site/data/release.json.
+# and .scratch/. The tag is made on the commit the disk image was built from. HEAD may differ from that commit only in files that are not
+# part of the app (NEUTRAL below: the site, the docs, the community files, the checks and this script); a changed CHANGELOG.md makes
+# `publish` write the release notes again from the finished disk image. Any other change needs `pnpm release:build --rebuild`.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 REPO="ferencfarkas09/IntelyIDE"
 SITE_DATA="site/data/release.json"
+# files whose change cannot change the disk image (the licence files, the UI, the Rust crates, the sidecar and the packaging scripts are not here)
+NEUTRAL='^(site/|docs/|\.github/|scripts/ci/|scripts/release/(release\.sh$|[a-z-]+\.test\.mjs$|check-[a-z-]+\.mjs$|contact-allowlist\.json$|gates/|ci-test/|templates/)|(README|CHANGELOG|SECURITY|SUPPORT|CONTRIBUTING|CODE_OF_CONDUCT|TRADEMARKS)\.md$)'
 
 cmd="${1:-all}"
 [ $# -gt 0 ] && shift
 DRY=0 YES=0 DRAFT_ONLY=0 REBUILD=0 SMOKE=0 SKIP_CI=0 VERSION=""
 while [ $# -gt 0 ]; do
   case "$1" in
+    --) ;; # `pnpm release -- --dry-run` hands the separator on
     --dry-run) DRY=1 ;;
     --yes) YES=1 ;;
     --draft-only) DRAFT_ONLY=1 ;;
@@ -64,6 +69,8 @@ mut() {
 }
 
 head_sha() { git rev-parse HEAD; }
+# the files that changed between the build commit ($1) and HEAD and could change the disk image
+app_changes_since() { git diff --name-only "$1" HEAD | grep -Ev "$NEUTRAL" || true; }
 
 # ---------------------------------------------------------------------------------------------------------------------------------
 check_tools() {
@@ -118,10 +125,10 @@ check_build_commit() {
   git cat-file -e "$rec^{commit}" 2>/dev/null || die "the build commit $rec is not in this repository"
   git merge-base --is-ancestor "$rec" HEAD || die "the build commit is not an ancestor of HEAD"
   local other
-  other="$(git diff --name-only "$rec" HEAD | grep -v "^$SITE_DATA\$" || true)"
-  [ -z "$other" ] || { printf '%s\n' "$other" | head -8; die "files changed since the disk image was built (above): run pnpm release:build --rebuild"; }
+  other="$(app_changes_since "$rec")"
+  [ -z "$other" ] || { printf '%s\n' "$other" | head -8; die "files of the app changed since the disk image was built (above): run pnpm release:build --rebuild"; }
   BUILD_COMMIT="$rec"
-  ok "the disk image was built from ${rec:0:10}; since then only $SITE_DATA may change, and that is all"
+  ok "the disk image was built from ${rec:0:10}; since then only files outside the app changed ($(git diff --name-only "$rec" HEAD | wc -l | tr -d ' '))"
 }
 
 # ---------------------------------------------------------------------------------------------------------------------------------
@@ -131,7 +138,7 @@ artifacts_ok() {
   rec="$(node -p "require('$OUT/build-record.json').commit" 2>/dev/null)" || return 1
   [ -z "$(git status --porcelain)" ] || return 1
   git merge-base --is-ancestor "$rec" HEAD 2>/dev/null || return 1
-  [ -z "$(git diff --name-only "$rec" HEAD | grep -v "^$SITE_DATA\$" || true)" ] || return 1
+  [ -z "$(app_changes_since "$rec")" ] || return 1
   $PACK verify --version "$VERSION" --out "$OUT" --site-data "$SITE_DATA" >/dev/null 2>&1
 }
 
@@ -188,6 +195,20 @@ do_build() {
   fi
 }
 
+# the changelog changed after the build: write the notes (and the sums, the SBOM, the record) again from the same disk image
+refinalize_notes() {
+  [ -f "$OUT/build-record.json" ] || return 0
+  local rec date
+  rec="$(node -p "require('$OUT/build-record.json').commit")"
+  git cat-file -e "$rec^{commit}" 2>/dev/null || return 0
+  if [ -z "$(git diff --name-only "$rec" HEAD -- CHANGELOG.md)" ]; then return 0; fi
+  date="$(node -p "require('$OUT/build-record.json').date")"
+  say "CHANGELOG.md changed since the build: writing the release notes again"
+  if [ "$DRY" = 1 ]; then warn "dry run: not written"; return 0; fi
+  $PACK finalize --version "$VERSION" --dmg "$OUT/$DMG" --out "$OUT" --commit "$rec" --date "$date" --site-data "$SITE_DATA"
+  if [ -n "$(git status --porcelain -- "$SITE_DATA")" ]; then die "$SITE_DATA changed: commit and push it, then run again"; fi
+}
+
 # mount the finished image and look at what a user would get
 verify_dmg() {
   local mnt
@@ -225,6 +246,7 @@ confirm() {
 do_publish() {
   step "publish $TAG"
   [ -d "$OUT" ] || die "no artifacts in dist-release/$VERSION: run pnpm release:build first"
+  refinalize_notes
   $PACK verify --version "$VERSION" --out "$OUT" --site-data "$SITE_DATA" || die "the artifacts do not verify (above): run pnpm release:build --rebuild"
   check_build_commit
   confirm
