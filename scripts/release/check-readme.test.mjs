@@ -24,7 +24,7 @@ const BODY = {
   Features: "- Shared Changes tree.\n- Agents with Rewind and an approval drawer.\n- 53 languages.",
   "Is it right for you?": "For people who change several repositories for one piece of work.",
   "Safety model": "Layered, best-effort protections: policy hard stops do the real work and the git shim is a speed bump that an absolute path bypasses.",
-  "Status and known limitations": "Alpha. Write mode is not judged safe for unattended use.",
+  "Status and known limitations": "Stable. Write mode is not judged safe for unattended use.",
   Install: [
     "<!--dmg:available-->",
     "### macOS installer (DMG)",
@@ -48,9 +48,9 @@ const BODY = {
   Acknowledgements: "Tauri, SolidJS, Rust and Git.",
 };
 
-const ALPHA_BOX = [
-  "> [!WARNING]",
-  "> IntelyIDE is alpha software (0.x): anything may change between releases. The installed app starts in normal mode: like any Git client it can commit, push and save files in the repositories you open. The protections are layered and best-effort, not a guarantee. When started from source with `pnpm dev:app` it is read-only instead.",
+const STATUS_BOX = [
+  "> [!NOTE]",
+  "> IntelyIDE 1.0.1 is a stable release. The installed app starts in normal mode: like any Git client it can commit, push and save files in the repositories you open. The protections are layered and best-effort, not a guarantee. When started from source with `pnpm dev:app` it is read-only instead.",
 ].join("\n");
 
 function readmeText(over = {}) {
@@ -66,9 +66,9 @@ function readmeText(over = {}) {
     "",
     navLine,
     "",
-    "[![License](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](LICENSE) [![Status](https://img.shields.io/badge/status-alpha-orange)](#status-and-known-limitations) [![Platform](https://img.shields.io/badge/platform-macOS-lightgrey)](#requirements)",
+    "[![License](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](LICENSE) [![Status](https://img.shields.io/badge/status-stable-green)](#status-and-known-limitations) [![Platform](https://img.shields.io/badge/platform-macOS-lightgrey)](#requirements)",
     "",
-    ALPHA_BOX,
+    STATUS_BOX,
     "",
   ].join("\n");
   return `${head}\n${names.map((n) => `## ${n}\n\n${sections[n] ?? "Text."}\n`).join("\n")}`;
@@ -152,19 +152,19 @@ describe("structure", () => {
     assert.ok(fired(check(none({ sections: { Features: long } }))).includes("length"));
   });
 
-  it("requires the pitch, the logo picture, the navigation line and the alpha box", () => {
+  it("requires the pitch, the logo picture, the navigation line and the status box", () => {
     const without = (text) => readmeText().replace(text, "");
     assert.ok(fired(check(tree({ readme: applyState(without(PITCH), "none") }))).includes("pitch"));
     assert.ok(fired(check(tree({ readme: applyState(without("assets/brand/lockup-horizontal-dark.svg"), "none") }))).includes("logo"));
     assert.ok(fired(check(tree({ readme: applyState(without("[Contributing](#contributing)"), "none") }))).includes("nav"));
-    assert.ok(fired(check(tree({ readme: applyState(without(ALPHA_BOX), "none") }))).includes("alpha-box"));
+    assert.ok(fired(check(tree({ readme: applyState(without(STATUS_BOX), "none") }))).includes("status-box"));
   });
 
-  it("requires the alpha box to state the writable default and best-effort", () => {
+  it("requires the status box to state the writable default and best-effort", () => {
     const box = (t) => readmeText().replace("The installed app starts in normal mode", t);
-    assert.ok(check(tree({ readme: applyState(box("The installed app starts read-only"), "none") })).some((f) => f.rule === "alpha-box" && /writable/.test(f.detail)));
+    assert.ok(check(tree({ readme: applyState(box("The installed app starts read-only"), "none") })).some((f) => f.rule === "status-box" && /writable/.test(f.detail)));
     const noBest = readmeText().replace("layered and best-effort", "layered");
-    assert.ok(check(tree({ readme: applyState(noBest, "none") })).some((f) => f.rule === "alpha-box" && /best-effort/.test(f.detail)));
+    assert.ok(check(tree({ readme: applyState(noBest, "none") })).some((f) => f.rule === "status-box" && /best-effort/.test(f.detail)));
   });
 
   it("requires the licence strings and the not-affiliated sentence in the License section", () => {
@@ -180,7 +180,7 @@ describe("images and badges", () => {
     readmeText().split("\n## Why IntelyIDE")[0].replace(
       /\[!\[License\][^\n]*/,
       badges ??
-        "[![License](https://img.shields.io/badge/license-GPL-blue)](LICENSE) [![Status](https://img.shields.io/badge/status-alpha-orange)](#status-and-known-limitations) [![Platform](https://img.shields.io/badge/platform-macOS-lightgrey)](#requirements)" + extra,
+        "[![License](https://img.shields.io/badge/license-GPL-blue)](LICENSE) [![Status](https://img.shields.io/badge/status-stable-green)](#status-and-known-limitations) [![Platform](https://img.shields.io/badge/platform-macOS-lightgrey)](#requirements)" + extra,
     );
 
   it("allows at most five badges and none of the banned kinds", () => {
@@ -205,7 +205,7 @@ describe("images and badges", () => {
   });
 
   it("a badge link target must resolve", () => {
-    const f = check(withBody(HEAD("", "[![License](https://img.shields.io/badge/license-GPL-blue)](NOLICENSE) [![Status](https://x.test/status-alpha)](#status-and-known-limitations) [![Platform](https://x.test/macOS)](#requirements)")));
+    const f = check(withBody(HEAD("", "[![License](https://img.shields.io/badge/license-GPL-blue)](NOLICENSE) [![Status](https://x.test/status-stable)](#status-and-known-limitations) [![Platform](https://x.test/macOS)](#requirements)")));
     assert.ok(f.some((x) => x.rule === "link-missing"));
   });
 

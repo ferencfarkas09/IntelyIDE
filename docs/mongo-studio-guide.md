@@ -49,17 +49,17 @@ The preset decides the AI prompt and wording. New connections use the generic pr
 ## 6. Where things are stored, reset and uninstall
 | What | Where |
 |---|---|
-| Secrets (database password, key passphrase, SSH password or passphrase, proxy password) | macOS Keychain, a service whose name contains `intelyswitchide` and ends in `.mongo` (the app's development-era identifier in 0.1.0; a switch to `com.intelyhome.intelyide.mongo` with a migration is planned), one item `sec.<profile id>` per connection; also `tamper-key`, `rev.<id>` and, for connections saved by older builds, `uri.<id>`. Other systems: kept in memory for the session only (Settings says so and disables "Save in the Keychain") |
+| Secrets (database password, key passphrase, SSH password or passphrase, proxy password) | macOS Keychain, the service `com.intelyhome.intelyide.mongo` (secrets stored by earlier versions under `hu.happygastro.intelyswitchide.mongo` are read once and copied; the old items are left in place), one item `sec.<profile id>` per connection; also `tamper-key`, `rev.<id>` and, for connections saved by older builds, `uri.<id>`. Other systems: kept in memory for the session only (Settings says so and disables "Save in the Keychain") |
 | Connections (no secrets) | `~/Library/Application Support/IntelyIDE/settings.json`, namespace `mongo` (host names, user names and file paths are in there; the signature protects the safety fields) |
 | Trusted SSH host keys | `~/Library/Application Support/IntelyIDE/mongo_known_hosts` (your own `~/.ssh/known_hosts` is read, never edited) |
 | Tunnel bookkeeping | `~/Library/Application Support/IntelyIDE/mongo-ssh.pids` |
 | Audit of reads (no bodies, no URIs) | `~/Library/Application Support/IntelyIDE/mongo-audit.jsonl` (+ `.1`, `.2`) |
 | Tunnel control socket (only while a tunnel is up) | `intely-ssh-<uid>-<random>` directory, mode 0700, below `$TMPDIR` (or `/tmp`) |
 
-- The folder `IntelyIDE` in the paths above is the planned name; version 0.1.0 still uses `IntelySwitchIDE` there (see [privacy.md](privacy.md)).
+- The folder `IntelyIDE` in the paths above is the planned name; version 1.0.1 still uses `IntelySwitchIDE` there (see [privacy.md](privacy.md)).
 - Delete one connection: the card menu removes its Keychain item (and its saved host key only if no other connection uses the same bastion).
 - Forget everything: Settings > Database > Reset: type `RESET`; it closes everything, deletes all connections and every Keychain item of the service, `mongo_known_hosts`, `mongo-ssh.pids` and stale tunnel directories; "also delete the audit log" is a separate tick. It works while Studio is off.
-- Uninstall by hand: Keychain Access, search `intelyswitchide`, delete the items whose service ends in `.mongo` (0.1.0 identifier; the planned new service name is `com.intelyhome.intelyide.mongo`); remove the files above; `ls -d "$TMPDIR"/intely-ssh-* /tmp/intely-ssh-*` should be empty (after a crash the next tunnel open sweeps orphans).
+- Uninstall by hand: Keychain Access, search `intelyide` and `intelyswitchide`, delete the items whose service ends in `.mongo` (the `intelyswitchide` ones are the old items of earlier versions); remove the files above; `ls -d "$TMPDIR"/intely-ssh-* /tmp/intely-ssh-*` should be empty (after a crash the next tunnel open sweeps orphans).
 
 ## 7. When something fails
 The test shows the step that failed and a likely cause with fixes. Common ones: Atlas "no suitable servers" means your IP is missing in Network Access or the cluster is paused; authentication failures on Atlas often need auth database `admin`; TLS "unknown issuer" needs the CA file (PEM); "host name does not match" means use the name on the certificate or a tunnel; "signed in, but cannot list databases" means type the database name. "Technical details" has the scrubbed raw text. The error codes are defined in `crates/mongo/src/error.rs`.

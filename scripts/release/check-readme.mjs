@@ -128,15 +128,15 @@ export function checkReadme(opts = {}) {
     }
   }
 
-  // alpha box
-  const box = headerText.match(/(^|\n)> \[!WARNING\]\n((?:>.*(?:\n|$))+)/);
-  if (!box) f("alpha-box", null, "no `> [!WARNING]` alpha box in the header block");
+  // status box
+  const box = headerText.match(/(^|\n)> \[!NOTE\]\n((?:>.*(?:\n|$))+)/);
+  if (!box) f("status-box", null, "no `> [!NOTE]` status box in the header block");
   else {
     const t = box[2].replace(/^>\s?/gm, " ");
-    if (!/\balpha\b/i.test(t)) f("alpha-box", null, 'the box does not say "alpha"');
-    if (!/best[- ]effort/i.test(t)) f("alpha-box", null, 'the box does not say "best-effort"');
-    if (!/\b(?:normal mode|writable)\b/i.test(t)) f("alpha-box", null, "the box does not state the writable default of the installed app");
-    if (!/pnpm dev:app/.test(t)) f("alpha-box", null, "the box does not name `pnpm dev:app` as the read-only launch");
+    if (!/\bstable\b/i.test(t)) f("status-box", null, 'the box does not say "stable"');
+    if (!/best[- ]effort/i.test(t)) f("status-box", null, 'the box does not say "best-effort"');
+    if (!/\b(?:normal mode|writable)\b/i.test(t)) f("status-box", null, "the box does not state the writable default of the installed app");
+    if (!/pnpm dev:app/.test(t)) f("status-box", null, "the box does not name `pnpm dev:app` as the read-only launch");
   }
 
   // badges: linked images in the header block that are not pictures
@@ -155,7 +155,7 @@ export function checkReadme(opts = {}) {
       if (wf && !existsSync(join(run.root, ".github/workflows", wf[1]))) f("badges", null, `badge "${b.alt}" points at .github/workflows/${wf[1]}, which does not exist`);
     }
   }
-  for (const [kind, re] of [["license", /licen[sc]e/i], ["status", /status|alpha/i], ["platform", /platform|macos/i]]) {
+  for (const [kind, re] of [["license", /licen[sc]e/i], ["status", /status|release|version/i], ["platform", /platform|macos/i]]) {
     if (!badges.some((b) => re.test(b.alt) || re.test(b.img))) f("badges", null, `no ${kind} badge`);
   }
 

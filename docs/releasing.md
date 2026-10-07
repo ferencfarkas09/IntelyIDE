@@ -1,6 +1,6 @@
 # Releasing
 
-This is the maintainer's guide to publishing IntelyIDE: how versions and the changelog work, which checks run before a release, how the repository is first published, what the threat model and the trust roots are, and what to do when something goes wrong. Applies to version 0.1.0.
+This is the maintainer's guide to publishing IntelyIDE: how versions and the changelog work, which checks run before a release, how the repository is first published, what the threat model and the trust roots are, and what to do when something goes wrong. Applies to version 1.0.1.
 
 **Status of this guide.** The workflow files under `.github/workflows` (the pull-request workflow with its single required check `ci-ok`, the release workflow, the CodeQL and audit workflows) are not in the repository yet. Every passage below that describes what those workflows do, the action inventory and the repository controls is the planned setup and becomes true when they land; until then the same checks run locally through `scripts/release/gate.sh`. A local `--release` run counts only when its summary table shows no SKIP.
 
@@ -9,12 +9,12 @@ Contributors do not need this page; see [building.md](building.md) and [CONTRIBU
 ## Versioning
 
 - Versions follow Semantic Versioning. Until 1.0 any minor release may change behaviour; the changelog says so.
-- A release is the annotated Git tag `v<major>.<minor>.<patch>`, for example `v0.1.0`. Release candidates use `-rc.<n>`. While the project is alpha, the GitHub release carries the pre-release flag.
+- A release is the annotated Git tag `v<major>.<minor>.<patch>`, for example `v1.0.1`. Release candidates use `-rc.<n>` and carry the pre-release flag; a stable release does not.
 - The version appears in many files: the root `package.json` and the other `package.json` files, every `Cargo.toml` of the workspace, `src-tauri/tauri.conf.json`, the workspace entries of `Cargo.lock` and the top heading of `CHANGELOG.md`. Never edit them by hand:
 
 ```sh
-node scripts/release/bump-version.mjs 0.1.0 --dry-run
-node scripts/release/bump-version.mjs 0.1.0
+node scripts/release/bump-version.mjs 1.0.1 --dry-run
+node scripts/release/bump-version.mjs 1.0.1
 node scripts/release/check-version.mjs --release
 ```
 
@@ -161,4 +161,4 @@ Both files are code-owner protected. A change to either is announced in the rele
 
 ## Signed builds
 
-The 0.x releases are ad-hoc signed: there is no Developer ID certificate and no notarization, and the release notes say so. macOS asks for a one-time confirmation on first launch (see [install-macos.md](install-macos.md)). Do not describe a build as signed or notarized unless the `release-<arch>.json` record of that build says it was.
+The releases so far are ad-hoc signed: there is no Developer ID certificate and no notarization, and the release notes say so. macOS asks for a one-time confirmation on first launch (see [install-macos.md](install-macos.md)). Do not describe a build as signed or notarized unless the `release-<arch>.json` record of that build says it was.

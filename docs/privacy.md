@@ -1,14 +1,14 @@
 # Privacy
 
-This page states what IntelyIDE stores on your Mac, what can leave it and when, and which of these statements a script re-checks. Applies to version 0.1.0.
+This page states what IntelyIDE stores on your Mac, what can leave it and when, and which of these statements a script re-checks. Applies to version 1.0.1.
 
 IntelyIDE has no telemetry: it sends no usage data, identifiers or crash reports to anyone, and there is no account. It does make a few network requests, only when you use the matching feature: your own `claude` installation talks to its vendor, `git` talks to your remotes, and the optional modules you switch on (MongoDB Studio, Remote, Happy) talk to the servers you configure.
 
 Every row of the tables below names the source file that implements it. Where a statement could not be verified in code it says "not verified".
 
-## New-version notice (version 0.1.0)
+## New-version notice (version 1.0.1)
 
-Version 0.1.0 ships a notification only, not the verified in-app update described below. Once a day (the first check about 90 seconds after launch, only while the window is in the foreground) IntelyIDE sends one HTTPS GET to `api.github.com/repos/ferencfarkas09/IntelyIDE/releases` and, when a newer release exists, shows a notice with a link to its release page. You download and install the new version yourself.
+Version 1.0.1 ships a notification only, not the verified in-app update described below. Once a day (the first check about 90 seconds after launch, only while the window is in the foreground) IntelyIDE sends one HTTPS GET to `api.github.com/repos/ferencfarkas09/IntelyIDE/releases` and, when a newer release exists, shows a notice with a link to its release page. You download and install the new version yourself.
 
 - What is sent: the request itself, with the header `User-Agent: IntelyIDE/<version>` and `Accept`, and nothing else. No credentials, cookies, identifiers or project data. GitHub sees your IP address and the time.
 - Before the first automatic check, the app shows a one-time notice that says this. No request is made before that notice has been shown.
@@ -16,9 +16,9 @@ Version 0.1.0 ships a notification only, not the verified in-app update describe
 - Read-only mode allows the check (it is a read). The test jail (`INTELY_E2E`) never makes it. Development builds make no automatic check.
 - The code is `crates/updater/src/notice.rs`: 5 s connect and 15 s total timeout, 1 MiB response limit, redirects only to `api.github.com` over HTTPS. The link it opens must start with `https://github.com/ferencfarkas09/IntelyIDE/releases/`.
 
-## Verified in-app updates (planned, not part of 0.1.0)
+## Verified in-app updates (planned, not part of 1.0.1)
 
-**Status in this version of the source.** Version 0.1.0 contains the new-version notice above and nothing of what this section describes: the network layer, the feed checks and the guarded unpacking exist as the crate `updater`, but the install step is not wired into the app and the update keys are not set. Read the rest of this section as the specified behaviour of the later verified updater, and re-read it when that lands.
+**Status in this version of the source.** Version 1.0.1 contains the new-version notice above and nothing of what this section describes: the network layer, the feed checks and the guarded unpacking exist as the crate `updater`, but the install step is not wired into the app and the update keys are not set. Read the rest of this section as the specified behaviour of the later verified updater, and re-read it when that lands.
 
 By default IntelyIDE downloads one small signed file (`update/stable.json` and its signature) from GitHub (`ferencfarkas09.github.io`, the project's GitHub Pages site, or `raw.githubusercontent.com` if the first is unreachable) once a day, starting a few minutes after launch, and when you choose "Check now". The request is the same for everyone and contains no information about you, your projects or your version; GitHub, which hosts the file, sees your IP address and the time, and macOS may check certificates with their authorities as it does for any HTTPS request.
 
@@ -30,7 +30,7 @@ Nothing is downloaded or installed without your click. The new version is then d
 
 ## What IntelyIDE stores on your Mac
 
-The state folder in 0.1.0 is `~/Library/Application Support/IntelySwitchIDE/` (the product's earlier working name). A rename to `IntelyIDE`, together with a one-time migration of existing data, is planned for a later version; other pages of this documentation may already use the new name for that location. Folders are created with mode 0700 where the code sets a mode (`crates/core/src/registry/fsutil.rs`).
+The state folder in 1.0.1 is `~/Library/Application Support/IntelySwitchIDE/` (the product's earlier working name). A rename to `IntelyIDE`, together with a one-time migration of existing data, is planned for a later version; other pages of this documentation may already use the new name for that location. Folders are created with mode 0700 where the code sets a mode (`crates/core/src/registry/fsutil.rs`).
 
 | Where | What | Written when |
 |---|---|---|
@@ -43,14 +43,14 @@ The state folder in 0.1.0 is `~/Library/Application Support/IntelySwitchIDE/` (t
 | `shims/<agentId>/refusals.log` (`crates/agent_gate/src/shim.rs`, mode 0600, folder 0700) | One line per Git command the guard refused: time, folder and the command line as typed, which can contain a credential if one was typed into it | When an agent runs a refused Git command |
 | `attachments/` (`src-tauri/src/modules/attachments.rs`) | Copies of files and images you attached to a prompt; drafts older than seven days are swept at startup | When you attach a file |
 | `devices.json`, `remote-audit.jsonl` (`crates/remote/src/devices.rs`, `crates/remote/src/audit.rs`, mode 0600) | With the Remote module on: the paired phones and an audit trail of remote actions | When you use Remote |
-| macOS Keychain, two services whose names contain `intelyswitchide`, one for general secrets and the same name with the suffix `.mongo` for MongoDB (`crates/settings/src/secrets.rs`, `crates/mongo/src/profile.rs`) | Provider tokens, integration tokens and per-connection MongoDB credentials, one item per key. If the Keychain refuses (for example a development build without the entitlement), secrets are kept in memory for the session only | When you enter them |
+| macOS Keychain, two services, `com.intelyhome.intelyide` for general secrets and `com.intelyhome.intelyide.mongo` for MongoDB (`crates/settings/src/secrets.rs`, `crates/mongo/src/profile.rs`) | Provider tokens, integration tokens and per-connection MongoDB credentials, one item per key. If the Keychain refuses (for example a development build without the entitlement), secrets are kept in memory for the session only. Secrets stored by earlier versions under the old service names (`hu.happygastro.intelyswitchide` and `.mongo`) are read once and copied to the new names; the old items are left in place, and you may delete them in Keychain Access by searching `intelyswitchide`. | When you enter them |
 | `refs/intely/snapshots/<run>` inside your repositories' `.git` (`crates/agent_gate/src/rewind.rs`) | Rewind snapshots: a Git ref capturing the working tree (tracked files and untracked files that are not ignored) before an agent run | Before each agent run |
 | The webview's local storage (`ui/src/i18n/index.ts`, `ui/src/modules/brief/toggle.ts`, `ui/src/modules/attachments/store.ts`) | Interface preferences such as the language (`intely.locale`), module panels switched on or off and attachment draft ids | During use |
 | Your own `claude` installation, not IntelyIDE (`sidecar/src/history.ts`) | Session transcripts under `~/.claude/projects` (or the folder named by `CLAUDE_CONFIG_DIR`). IntelyIDE reads them for the History view and does not copy them | Written by `claude` |
 
 Notes on the table:
 
-- **The state folder and Keychain names.** Version 0.1.0 still uses its development-era identifiers: the state folder `IntelySwitchIDE` and Keychain services named after the old bundle identifier (`crates/settings/src/secrets.rs`). A switch to the identifier `com.intelyhome.intelyide`, with a migration of the state folder and the Keychain items, is planned and is not part of 0.1.0. After that change this page will name the new locations.
+- **The state folder and Keychain names.** Version 1.0.1 still uses the development-era state folder `IntelySwitchIDE`; a rename with a migration is planned. The Keychain services already use the new names `com.intelyhome.intelyide` and `com.intelyhome.intelyide.mongo`; items from earlier versions are read once, copied and left in place (see the table above).
 - **Run logs are kept until you delete them.** `crates/agent_core/src/events/log.rs` contains a function that deletes run files older than 30 days, but the application does not call it in this version (it is only exercised by tests). Do not rely on automatic deletion.
 - **`refusals.log` is not redacted.** Read both logs before you paste anything from them into a bug report.
 - Rows for files that exist only while a feature is in use (for example the Remote files) can be absent on your machine.
@@ -88,7 +88,7 @@ The Rust crates allowed to depend on a network library are `remote`, `relay_bund
 ## Read, export and delete your data
 
 - Quit the app first. Everything above except the Keychain items, the Rewind refs and the webview storage is in the state folder, and removing the folder removes it.
-- Keychain items: open Keychain Access and delete the items of the two services named in the table.
+- Keychain items: open Keychain Access and search for `intelyide` and `intelyswitchide` and delete the items of the services named in the table (the `intelyswitchide` ones are the old items of earlier versions).
 - Rewind refs: `git for-each-ref refs/intely/` lists them in a repository; `git update-ref -d <ref>` removes one.
 - The full uninstall steps are in the "Uninstall and wipe" part of the README configuration section and in [faq.md](faq.md).
 

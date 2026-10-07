@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Gate G18 assertion ((design notes: release-ci-spec) 4.2): no public sentence says that the packaged app starts read-only.
-// The installed app starts writable with an alpha notice (packaging PD7, release-decisions M1); read-only is true
+// The installed app starts writable with a status notice (packaging PD7, release-decisions M1); read-only is true
 // only for `pnpm dev:app` and INTELY_READONLY from a terminal. A sentence is flagged when it names the packaged
 // app (installed, packaged, DMG, release build, download) and says it starts, opens or defaults to read-only,
 // without a negation. Read-only: it only reads README.md and the public markdown files.

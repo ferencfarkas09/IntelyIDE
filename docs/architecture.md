@@ -2,7 +2,7 @@
 
 This document explains how IntelyIDE is put together: which crates and packages exist, how a commit and an agent run travel through them, what is stored on disk and how the test suites are organised.
 
-Applies to version 0.1.0.
+Applies to version 1.0.1.
 
 IntelyIDE is a desktop app built with Tauri. A Rust engine does the Git work, a SolidJS interface shows it, and a lazily started Node process (the sidecar) talks to AI coding agents. The safety rules that constrain every layer are described in [safety.md](safety.md).
 
@@ -104,7 +104,7 @@ The sidecar itself is not a crate; it is the Node package in `sidecar/`.
 | `l10n` | The localisation checker and release assistant. |
 | `attachments` | The attachment store: dropped, pasted and picked files are copied into the state directory. |
 | `hud` | The resource HUD and menu-bar logic. |
-| `updater` | Verified in-app updates, planned for 0.1.0. Built so far: the signed feed and signature check, the hardened download and the guarded unpack and stage; the atomic swap, rollback, check scheduler and Settings page are not wired in yet. |
+| `updater` | Verified in-app updates, planned for a later version. Built so far: the signed feed and signature check, the hardened download and the guarded unpack and stage; the atomic swap, rollback, check scheduler and Settings page are not wired in yet. |
 
 ## Protocol package
 

@@ -1,6 +1,6 @@
 # FAQ and troubleshooting
 
-This page answers the questions people ask first and lists the fixes for the problems they hit first. Applies to version 0.1.1. Statements about files and behaviour were checked against the source; where something is not verified, the text says so.
+This page answers the questions people ask first and lists the fixes for the problems they hit first. Applies to version 1.0.1. Statements about files and behaviour were checked against the source; where something is not verified, the text says so.
 
 ## About the project
 
@@ -36,7 +36,7 @@ macOS 13.5 or later. There are two DMGs. The `aarch64` DMG is for Apple silicon 
 
 ### macOS shows a warning when I open the app
 
-The 0.1.1 DMG is signed ad hoc unless the release notes say it is notarized. After verifying the download as described in [install-macos.md](install-macos.md), macOS 15 and later: open System Settings > Privacy & Security and choose Open Anyway. macOS 13 and 14: right-click the app and choose Open. Do not weaken Gatekeeper for this.
+The 1.0.1 DMG is signed ad hoc unless the release notes say it is notarized. After verifying the download as described in [install-macos.md](install-macos.md), macOS 15 and later: open System Settings > Privacy & Security and choose Open Anyway. macOS 13 and 14: right-click the app and choose Open. Do not weaken Gatekeeper for this.
 
 ### What does the orange "Read-only" badge mean?
 
@@ -48,7 +48,7 @@ Work in a disposable clone first. Clone the repository to a scratch folder, add 
 
 ### macOS asks for Keychain access, or I see error -34018
 
-Secrets such as provider keys are kept in the macOS Keychain when the app runs writable. A development build is signed ad hoc without the Keychain entitlement, so macOS refuses it with status -34018. The app then keeps secrets in memory for the session and says so under Settings > Safety > Secret store; they are gone after a restart. Choose "Always Allow" in the dialog, unlock the login keychain if it is locked, and press "Try the Keychain again". A read-only start always uses memory only.
+Secrets such as provider keys are kept in the macOS Keychain when the app runs writable. A development build is signed ad hoc without the Keychain entitlement, so macOS refuses it with status -34018. The app then keeps secrets in memory for the session and says so under Settings > Safety > Secret store; they are gone after a restart. Choose "Always Allow" in the dialog, unlock the login keychain if it is locked, and press "Try the Keychain again". A read-only start always uses memory only. The services are named `com.intelyhome.intelyide` and `com.intelyhome.intelyide.mongo`; secrets stored by earlier versions under the old names are read once and copied, and the old items are left in place (delete them in Keychain Access by searching `intelyswitchide`).
 
 ### The Git version is too old
 
@@ -70,7 +70,7 @@ The folder was moved, renamed or sits on an unmounted volume. On Welcome or in t
 
 ### Where does the app keep its state?
 
-In one folder: `~/Library/Application Support/IntelySwitchIDE` in 0.1.1. A rename to `IntelyIDE` with a one-time migration is planned for a later version. Inside it:
+In one folder: `~/Library/Application Support/IntelySwitchIDE` in 1.0.1. A rename to `IntelyIDE` with a one-time migration is planned for a later version. Inside it:
 
 | Path | Content |
 |---|---|
@@ -101,7 +101,7 @@ On the next start the app begins empty (Welcome, default settings). Your reposit
 
 1. Quit the app and drag it from Applications to the Trash.
 2. Delete the state folder described above.
-3. Open Keychain Access and remove the items the app created (search for `intely`), if you had secrets stored there.
+3. Open Keychain Access and remove the items the app created (search for `intelyide` and `intelyswitchide`), if you had secrets stored there.
 4. The Agent SDK you installed yourself lives in its own folder, `~/Library/Application Support/IntelyIDE/sdk`. Delete the folder `~/Library/Application Support/IntelyIDE` too, or run the installer with `--uninstall --yes` first.
 
 Repositories, workspaces' folders and the agent roles in `~/.claude/agents` are yours and stay where they are. Rewind snapshots are Git references under `refs/intely/snapshots/` inside each repository; they stay until you delete them with Git.

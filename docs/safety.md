@@ -2,7 +2,7 @@
 
 This document describes the layers that are meant to keep tests, scripted workflows and AI agents from changing the Git history or the files of repositories you care about, and it states plainly where those layers stop.
 
-Applies to version: 0.1.0 (alpha).
+Applies to version: 1.0.1.
 
 The design goal is that no test, workflow or agent run should be able to commit or push to a real repository or a live branch by accident. The layers below are built to make that hard. They are defence in depth and not a proof, and several of them are best effort. Read "Limits" before you rely on any of them.
 

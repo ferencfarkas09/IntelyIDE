@@ -12,11 +12,11 @@ A desktop Git client for working across several repositories at once, with codin
 [Install](#install) · [First run](#first-run) · [Safety model](#safety-model) · [Documentation](#documentation) · [Contributing](#contributing)
 
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](LICENSE)
-[![Status: alpha](https://img.shields.io/badge/status-alpha-orange)](#status-and-known-limitations)
+[![Release](https://img.shields.io/github/v/release/ferencfarkas09/IntelyIDE)](https://github.com/ferencfarkas09/IntelyIDE/releases)
 [![Platform: macOS](https://img.shields.io/badge/platform-macOS-lightgrey)](#requirements)
 
-> [!WARNING]
-> IntelyIDE is alpha software (0.x): anything may change between releases. The installed app starts in normal mode: like any Git client it can commit, push and save files in the repositories you open, and agent runs can edit files there. The protections described under "Safety model" are layered and best-effort, not a guarantee, and the in-app enforcement chip reads "Weak" until you run the proof suite on your machine. Use it on repositories you can restore, and do not leave agents running unattended. When started from source with `pnpm dev:app` it is read-only instead (it refuses commits, pushes, saves, agent runs and network access).
+> [!NOTE]
+> IntelyIDE 1.0.1 is a stable release. The installed app starts in normal (writable) mode: like any Git client it can commit, push and save files in the repositories you open, and agent runs can edit files there. The protections described under "Safety model" are layered and best-effort, not a guarantee, and the in-app enforcement chip reads "Weak" until you run the proof suite on your machine. Use it on repositories you can restore, and do not leave agents running unattended. When started from source with `pnpm dev:app` it is read-only instead (it refuses commits, pushes, saves, agent runs and network access).
 
 <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/changes-tree-dark.png"><img alt="IntelyIDE Changes view: four repositories in one tree, each file tagged with its repository and branch, with one commit message box for the checked files." src="docs/screenshots/changes-tree-light.png" width="900"></picture>
 
@@ -109,7 +109,7 @@ The full layer table, the enforcement suite and its results are in [docs/safety.
 
 ## Status and known limitations
 
-This is version 0.1.1, an alpha release. It has been used mostly by its author, on an Intel Mac.
+This is version 1.0.1, the first stable release. It has been used mostly by its author, on an Intel Mac.
 
 - Write mode is not judged suitable for unattended daily use on repositories you cannot restore.
 - The agent protections are best-effort. See the safety model above.
@@ -117,7 +117,7 @@ This is version 0.1.1, an alpha release. It has been used mostly by its author, 
 - The embedded preview has not been checked on every macOS version.
 - The contract detector is heuristic.
 - The non-English interface languages other than Hungarian are machine-translated.
-- The first release is an Intel (x64) build. Apple Silicon Macs run it under Rosetta 2, which is slower. A native Apple Silicon build is not available yet.
+- The release is an Intel (x64) build. Apple Silicon Macs run it under Rosetta 2, which is slower. A native Apple Silicon build is not available yet.
 - The app is ad-hoc signed and not notarized, so macOS asks you to confirm the first launch (see Install).
 - The app tells you when a newer release exists (a notice with a link to the release page, checked once a day; see Settings > Updates). It does not download or install updates itself: you replace the app with the new disk image.
 - The Claude Agent SDK is not shipped with the app. You install it once yourself, with the installer that is inside the app (see [docs/getting-started.md](docs/getting-started.md)).
@@ -127,7 +127,7 @@ This is version 0.1.1, an alpha release. It has been used mostly by its author, 
 <!--dmg:available-->
 ### macOS installer (DMG)
 
-1. Download `IntelyIDE_0.1.1_x64.dmg` from the Releases page of this repository. It is built for Intel Macs and also runs on Apple Silicon under Rosetta 2, more slowly. Apple may remove Rosetta in a future macOS. If you are unsure which Mac you have: Apple menu > About This Mac.
+1. Download `IntelyIDE_1.0.1_x64.dmg` from the Releases page of this repository. It is built for Intel Macs and also runs on Apple Silicon under Rosetta 2, more slowly. Apple may remove Rosetta in a future macOS. If you are unsure which Mac you have: Apple menu > About This Mac.
 2. Check the download. `shasum -a 256 --ignore-missing -c SHA256SUMS` in the download folder detects a corrupted download only; the checksums come from the same page as the file, so they cannot prove where it came from.
 3. Open the DMG and drag IntelyIDE to Applications, then open it from there.
 4. First launch. <!--dmg:v:adhoc,developer-id-->This build is not notarized, so macOS refuses the first launch: on macOS 15 and later open System Settings > Privacy & Security, scroll to the message about IntelyIDE, choose Open Anyway and confirm; on macOS 13 and 14 right-click the app and choose Open. Do this only for a file you downloaded from this repository's Releases page.<!--/dmg:v--><!--dmg:v:notarized--><!--The app is notarized and opens normally.--><!--/dmg:v-->
@@ -160,7 +160,7 @@ A macOS installer (DMG) is built from this repository and attached to the Releas
 - `git` 2.30 or newer (the push path uses `--force-if-includes`), for example from the Xcode Command Line Tools.
 - For agent features: Node.js 24 or newer, and your own Claude Code (`claude` command-line tool) installed and logged in. Claude Code is not bundled and is not part of this project.
 - For agent features: the Claude Agent SDK, which you install yourself under Anthropic's terms. See [docs/getting-started.md](docs/getting-started.md).
-- Without Node and Claude Code, the Git features work and the agent features stay unavailable. The disk image contains the agent sidecar (the 0.1.0 image did not), but not Node, Claude Code or the Agent SDK.
+- Without Node and Claude Code, the Git features work and the agent features stay unavailable. The disk image contains the agent sidecar (the 0.1.0 pre-release image did not), but not Node, Claude Code or the Agent SDK.
 
 ## Build from source
 
@@ -176,7 +176,7 @@ You need the Xcode Command Line Tools, Rust 1.96 or newer, Node.js 24 and pnpm 1
 
 ## Configuration
 
-- Settings and the workspace registry live in one state folder under `~/Library/Application Support/`. Version 0.1.1 still uses the folder name `IntelySwitchIDE`; a rename to `IntelyIDE` with a migration is planned. The Agent SDK you install lives in its own folder, `~/Library/Application Support/IntelyIDE/sdk`. See [docs/privacy.md](docs/privacy.md) for every file.
+- Settings and the workspace registry live in one state folder under `~/Library/Application Support/`. Version 1.0.1 still uses the folder name `IntelySwitchIDE`; a rename to `IntelyIDE` with a migration is planned. The Agent SDK you install lives in its own folder, `~/Library/Application Support/IntelyIDE/sdk`. See [docs/privacy.md](docs/privacy.md) for every file.
 - Optional modules (Remote, MongoDB Studio, Happy) are off until you switch them on in Settings.
 - Environment variables that change safety behaviour: `INTELY_READONLY` (refuse writes) and `INTELY_WRITABLE` (allow writes when started with `pnpm dev:app`).
 - To uninstall: move the app to the Trash, delete the state folder (this removes run logs and the refusals log), delete the Keychain items of the app in Keychain Access, and remove Rewind refs from your repositories with `git for-each-ref refs/intely/` and `git update-ref -d <ref>`.
@@ -213,7 +213,13 @@ More questions and troubleshooting: [docs/faq.md](docs/faq.md).
 
 ## Contributing
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) first: contributions are signed off with `git commit -s` (Developer Certificate of Origin), and AI-assisted contributions must be disclosed. Please follow the [Code of Conduct](CODE_OF_CONDUCT.md). Report vulnerabilities as described in [SECURITY.md](SECURITY.md) and ask for help as described in [SUPPORT.md](SUPPORT.md). The changes of each release are in [CHANGELOG.md](CHANGELOG.md).
+Read [CONTRIBUTING.md](CONTRIBUTING.md) first: contributions are signed off with `git commit -s` (Developer Certificate of Origin), and AI-assisted contributions must be disclosed. Please follow the [Code of Conduct](CODE_OF_CONDUCT.md). The changes of each release are in [CHANGELOG.md](CHANGELOG.md).
+
+- Pull requests are welcome. The maintainer reviews and approves every pull request manually; a review is required before anything is merged.
+- Bugs and feature requests: [GitHub Issues](https://github.com/ferencfarkas09/IntelyIDE/issues).
+- Questions and ideas: [GitHub Discussions](https://github.com/ferencfarkas09/IntelyIDE/discussions). More in [SUPPORT.md](SUPPORT.md).
+- Security reports: privately, through [GitHub's private vulnerability reporting](https://github.com/ferencfarkas09/IntelyIDE/security/advisories/new), as described in [SECURITY.md](SECURITY.md).
+- The project's websites are [intelyide.com](https://intelyide.com) and [intelyhome.com](https://intelyhome.com).
 
 ## License
 

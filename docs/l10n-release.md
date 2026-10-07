@@ -1,6 +1,6 @@
 # Localization checker and release assistant
 
-This guide describes two optional extras that check translation catalogs and draft release notes. Applies to version 0.1.0.
+This guide describes two optional extras that check translation catalogs and draft release notes. Applies to version 1.0.1.
 
 Two lazy extras, each behind a Settings toggle (Settings > Localization, Settings > Release assistant). The toggle is mirrored in `localStorage` (`intely.extra.l10n`, `intely.extra.release`) so `register()` reads it synchronously; the durable copy is `settings.json` namespace `extras`. While off, only the Settings section exists: no tab, no badge, no watcher, no command.
 
