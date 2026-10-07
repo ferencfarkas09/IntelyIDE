@@ -1,19 +1,20 @@
 {
   "_comment": "Single source of truth for every download fact on the site. Replace each REPLACE_ME before a production build.",
-  "version": "0.1.0",
-  "status": "alpha",
-  "date": "2026-10-07",
+  "version": "1.0.1",
+  "status": "stable",
+  "date": "2026-10-08",
   "minMacOS": "13.5",
   "signed": false,
   "appleSiliconPlanned": true,
-  "notesUrl": "https://github.com/ferencfarkas09/IntelyIDE/releases/tag/v0.1.0",
+  "notesUrl": "https://github.com/ferencfarkas09/IntelyIDE/releases/tag/v1.0.1",
+  "sha256sumsUrl": "https://github.com/ferencfarkas09/IntelyIDE/releases/download/v1.0.1/SHA256SUMS",
   "assets": [
     {
-      "name": "IntelyIDE_0.1.0_x64.dmg",
-      "url": "https://github.com/ferencfarkas09/IntelyIDE/releases/download/v0.1.0/IntelyIDE_0.1.0_x64.dmg",
+      "name": "IntelyIDE_1.0.1_x64.dmg",
+      "url": "https://github.com/ferencfarkas09/IntelyIDE/releases/download/v1.0.1/IntelyIDE_1.0.1_x64.dmg",
       "arch": "x64",
-      "size": 16247839,
-      "sha256": "1b28d71bef8ca0a2d00cfb9c2c5420a5b2749bb4682a47e8d245e5d413f0e767"
+      "size": 16784825,
+      "sha256": "6bf957750e8aa2c695c0da2a6eadce724a5d7f7b9a87b944b5886d6043f519f5"
     }
   ]
 }
