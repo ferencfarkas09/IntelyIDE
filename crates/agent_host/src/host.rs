@@ -693,6 +693,22 @@ impl AgentHost {
         }
     }
 
+    /// The plan limits of the signed-in Claude account (`usage/limits`): how much of the 5 hour session and the 7 day week is used. The
+    /// sidecar starts the claude CLI for a moment and asks it; nothing goes to the model. It needs no run, but does start the sidecar.
+    /// A missing CLI and the sidecar's own failures are answers with an `error` field, never an `Err`, so the Usage view can say why.
+    pub fn usage_limits(&self) -> Result<Value, EngineError> {
+        let env_vars = scrub_env(&(self.inner.cfg.env)());
+        let all: HashMap<String, String> = env_vars.clone().into_iter().collect();
+        // without the CLI there is nothing to ask, and no reason to start the sidecar for it
+        let Some(bin) = self.inner.cfg.claude_bin.clone().or_else(|| find_on_path("claude", &all)) else {
+            return Ok(json!({"error": "claudeNotFound"}));
+        };
+        // no provider adapter is needed: the limits are asked of the SDK directly
+        let sc = self.inner.ensure_sidecar(None)?;
+        let body = json!({"env": {"claudeBin": bin.to_string_lossy(), "vars": env_vars}, "cwd": self.inner.cfg.data_dir});
+        sc.request("usage/limits", body, Duration::from_secs(40)).map_err(|e| err("usageLimits", e.to_string()))
+    }
+
     /// Switches the permission mode of a run, live when it has a session (permission-modes spec 5.1). Rust is the authority; the SDK follows:
     /// a tightening is applied in Rust first, a loosening only counts once the sidecar took it (otherwise Rust rolls back).
     pub fn set_mode(&self, agent_id: &str, new: PermissionMode, opts: SetModeOpts) -> Result<AgentSummary, EngineError> {

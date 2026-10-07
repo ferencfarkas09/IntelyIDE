@@ -472,6 +472,14 @@ pub async fn agent_note(agents: State<'_, AgentSlot>, agent_id: String, parent_t
     blocking(move || host.note(&agent_id, parent_tool_id, &text)).await
 }
 
+/// How much of the plan's 5 hour session and 7 day week is used, from the signed-in Claude account (the answer of `usage/limits`, with an
+/// `error` field when it cannot be read). Starts the sidecar and the claude CLI for a moment; no model call.
+#[tauri::command]
+pub async fn agent_usage_limits(agents: State<'_, AgentSlot>) -> Res<serde_json::Value> {
+    let host = agents.host.clone();
+    blocking(move || host.usage_limits()).await
+}
+
 /// Asks the session to reconnect one of its MCP servers, then returns the fresh status.
 #[tauri::command]
 pub async fn agent_mcp_reconnect(agents: State<'_, AgentSlot>, agent_id: String, server: String) -> Res<Vec<McpServerStatus>> {

@@ -350,3 +350,25 @@ fn a_note_for_the_lead_waits_for_the_lead_and_a_note_the_agent_can_no_longer_rea
     assert_eq!(host.note(&id, None, "anyone there?").unwrap_err().code, "noteNoTurn");
     host.shutdown();
 }
+
+#[test]
+fn the_plan_limits_say_why_they_cannot_be_read_and_never_touch_the_model() {
+    let dir = tempfile::tempdir().unwrap();
+    // no claude CLI on the login PATH
+    let mut cfg = config(&dir.path().join("data"), sidecar_js());
+    cfg.claude_bin = None;
+    cfg.env = std::sync::Arc::new(|| std::collections::HashMap::from([("PATH".to_string(), "/nonexistent".to_string())]));
+    let (host, sink) = host_with(cfg);
+    assert_eq!(host.usage_limits().unwrap()["error"], "claudeNotFound");
+    host.shutdown();
+
+    // a "CLI" that is not one: the sidecar answers that it failed, with a reason, instead of the request failing
+    let mut cfg = config(&dir.path().join("data2"), sidecar_js());
+    cfg.claude_bin = Some(std::path::PathBuf::from("/nonexistent/claude"));
+    let (host, _sink) = host_with(cfg);
+    let r = host.usage_limits().unwrap();
+    assert_eq!(r["error"], "failed", "{r}");
+    assert!(r["detail"].as_str().is_some_and(|d| !d.is_empty()), "{r}");
+    assert!(sink.all().is_empty(), "no run, no event");
+    host.shutdown();
+}

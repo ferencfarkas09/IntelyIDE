@@ -235,6 +235,8 @@ export interface SidecarMsg {
   'session/mcp-status': { body: { agentId: string; reconnect?: string; toggle?: McpToggle }; reply: { ok: true; servers: McpStatusServer[] } | { error: 'noSession' | 'unsupported' | 'failed'; detail?: string } };
   /** A note for the lead (no `parentToolId`) or the running sub-agent started by that `Agent`/`Task` call; delivered at its next tool call. */
   'session/note': { body: { agentId: string; noteId: string; text: string; parentToolId?: string | null }; reply: { ok: true } | { error: 'noSession' | 'unsupported' | NoteErrorCode; detail?: string } };
+  /** The plan limits of the signed-in Claude account (limits.ts): no open session needed. */
+  'usage/limits': { body: import('./limits.js').LimitsRequest; reply: import('./limits.js').LimitsReply };
   // session history (history.ts): no open session needed
   'history/list': { body: { dir?: string; limit?: number; offset?: number }; reply: { ok: true; sessions: import('./history.js').SessionInfo[] } | { error: string; detail?: string } };
   'history/messages': { body: { sessionId: string; dir?: string; limit?: number; offset?: number }; reply: { ok: true; messages: import('./history.js').HistoryMessage[] } | { error: string; detail?: string } };

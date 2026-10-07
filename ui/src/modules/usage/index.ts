@@ -20,7 +20,7 @@ export function register(): void {
   registerSettingsSection({
     id: "usage",
     get title() { return t("usage.name"); },
-    order: 99,
+    order: 100,
     icon: ChartColumn,
     searchTerms: ["usage", "tokens", "cost", "limit", "weekly", "session", "consumption"],
     component: lazy(() => import("./UsageSection")),

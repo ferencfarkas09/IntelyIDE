@@ -110,6 +110,7 @@ pub fn run() {
             agents::agent_modes,
             agents::agent_mcp_status,
             agents::agent_note,
+            agents::agent_usage_limits,
             agents::agent_mcp_reconnect,
             agents::agent_answer_question,
             agents::agent_list,
