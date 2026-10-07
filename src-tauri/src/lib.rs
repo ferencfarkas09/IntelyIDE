@@ -354,6 +354,7 @@ pub fn run() {
             modules::gitx::gitx_refresh_env,
             // ==== wave4 agent-ux commands ====
             modules::agentux::agentux_search,
+            modules::agentux::agentux_usage,
             modules::agentux::agentux_night_state,
             modules::agentux::agentux_night_add,
             modules::agentux::agentux_night_remove,

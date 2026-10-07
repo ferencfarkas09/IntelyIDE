@@ -36,19 +36,20 @@ import enUpdates from "./locales/en/updates.json";
 import enSlash from "./locales/en/slash.json";
 import enMemory from "./locales/en/memory.json";
 import enNotes from "./locales/en/notes.json";
+import enUsage from "./locales/en/usage.json";
 import { compile, formatNodes, formatNumber, formatRelative, pseudoLocalize, type Params } from "./message";
 import { PSEUDO_LOCALE, detectLanguage, fallbackChain, isReviewed, isRtl, isSupported, languageName } from "./languages";
 
 export { LANGUAGES, PSEUDO_LOCALE, detectLanguage, fallbackChain, isReviewed, isRtl, isSupported, languageInfo, languageName, matchLanguage, pickerLanguages } from "./languages";
 export type { Params } from "./message";
 
-const en = { ...enPlatform, ...enShell, ...enSettings, ...enAbout, ...enComponents, ...enPanels, ...enWorkflow, ...enExtras, ...enPreview, ...enGitx, ...enAgentux, ...enProviders, ...enContract, ...enMongo, ...enMongoStudio, ...enMongoLoud, ...enMongoForm, ...enMongoDiag, ...enMongoManage, ...enLicenses, ...enWorkspace, ...enWorkspaceNew, ...enWorkspacePicker, ...enHappy, ...enModes, ...enMcp, ...enUpdates, ...enMemory, ...enNotes, ...enSlash };
+const en = { ...enPlatform, ...enShell, ...enSettings, ...enAbout, ...enComponents, ...enPanels, ...enWorkflow, ...enExtras, ...enPreview, ...enGitx, ...enAgentux, ...enProviders, ...enContract, ...enMongo, ...enMongoStudio, ...enMongoLoud, ...enMongoForm, ...enMongoDiag, ...enMongoManage, ...enLicenses, ...enWorkspace, ...enWorkspaceNew, ...enWorkspacePicker, ...enHappy, ...enModes, ...enMcp, ...enUpdates, ...enMemory, ...enNotes, ...enUsage, ...enSlash };
 export type MessageKey = keyof typeof en;
 export type Locale = string;
 export type Catalog = Record<string, string>;
 
 /** Namespaces = catalog files. The checker and the extract script read this list, so a new module adds its name here. */
-export const NAMESPACES = ["platform", "shell", "settings", "about", "components", "panels", "workflow", "extras", "preview", "gitx", "agentux", "providers", "contract", "mongo", "mongoStudio", "mongoLoud", "mongoForm", "mongoDiag", "mongoManage", "licenses", "workspace", "workspaceNew", "workspacePicker", "happy", "modes", "mcp", "updates", "memory", "notes", "slash"] as const;
+export const NAMESPACES = ["platform", "shell", "settings", "about", "components", "panels", "workflow", "extras", "preview", "gitx", "agentux", "providers", "contract", "mongo", "mongoStudio", "mongoLoud", "mongoForm", "mongoDiag", "mongoManage", "licenses", "workspace", "workspaceNew", "workspacePicker", "happy", "modes", "mcp", "updates", "memory", "notes", "usage", "slash"] as const;
 
 export const LOCALE_STORAGE_KEY = "intely.locale";
 

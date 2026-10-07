@@ -35,6 +35,7 @@ import { register as search } from "./search";
 import { register as settingsCore } from "./settings-core";
 import { register as terminal } from "./terminal";
 import { register as updates } from "./updates";
+import { register as usage } from "./usage";
 import { register as viewers } from "./viewers";
 
 export interface FeatureModule {
@@ -78,6 +79,7 @@ export const MODULES: readonly FeatureModule[] = [
   { id: "brief", register: brief },
   { id: "licenses", register: licenses },
   { id: "updates", register: updates },
+  { id: "usage", register: usage },
 ];
 
 /** Runs every module's `register()`. A module that throws is logged and skipped: the app and the other modules start anyway. */

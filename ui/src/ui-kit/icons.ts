@@ -47,6 +47,7 @@ export {
   FolderGit2,
   FolderOpen,
   FolderPlus,
+  ChartColumn,
   Gauge,
   GitBranch,
   GitCommitHorizontal,

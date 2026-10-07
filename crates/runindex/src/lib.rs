@@ -6,8 +6,10 @@ pub mod brief;
 pub mod doc;
 pub mod index;
 pub mod night;
+pub mod usage;
 
 pub use brief::{build as build_brief, Brief, DiffSource, GitDiff};
 pub use doc::{extract, parse_log, scrub, RunDoc};
 pub use index::{Facets, Hit, Index, Query, RefreshStats, SearchResult, Snippet};
+pub use usage::{rows_of, DayUsage, ModelUsage, Totals as UsageTotals, UsageIndex, UsageReport, UsageRow};
 pub use night::{Effect, ItemState, NewItem, NightItem, NightPlan, Observation, Paused, Phase, RunObs, MAX_RUNS_PER_NIGHT};
