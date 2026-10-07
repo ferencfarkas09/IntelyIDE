@@ -10,7 +10,7 @@ description = "Staging and Ed25519 signing of the phone PWA bundle, relay and bu
 name = "intely_relay_bundle"
 
 [dependencies]
-base64 = "0.22.1"
+base64 = "0.23.1"
 hex = "0.4.3"
 intely-core = { version = "0.0.0", path = "../core" }
 intely-settings = { version = "0.0.0", path = "../settings" }
