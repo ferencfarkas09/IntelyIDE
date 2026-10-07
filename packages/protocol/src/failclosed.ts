@@ -46,10 +46,11 @@ export async function decideOrDeny(send: PolicySender, request: PolicyRequest, t
 }
 
 /** Which shape a `reply` body has (replies are matched to requests by id and carry no type). */
-export function replyKind(reply: Reply): "error" | "decision" | "lease" | "started" | "ack" {
+export function replyKind(reply: Reply): "error" | "decision" | "lease" | "started" | "mcpStatus" | "ack" {
   if ("error" in reply) return "error";
   if ("decision" in reply) return "decision";
   if ("leaseId" in reply) return "lease";
   if ("nativeId" in reply) return "started";
+  if ("servers" in reply) return "mcpStatus";
   return "ack";
 }

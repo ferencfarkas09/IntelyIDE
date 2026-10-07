@@ -127,7 +127,8 @@ test("safeJoin and assertFreshRoot refuse escapes", () => {
     assert.throws(() => assertFreshRoot(join(base, "sneaky", "sub")), /not under the temp dir/);
     assert.throws(() => assertFreshRoot(here), /not under the temp dir/);
     assert.throws(() => assertFreshRoot("/"), /not under the temp dir/);
-    assert.throws(() => assertFreshRoot(tmpdir()), /not empty/, "the temp dir itself is never a valid (empty) root");
+    // refused as "not empty" where the temp dir sits below a temp root (macOS), as "not under" where it is the root (Linux /tmp)
+    assert.throws(() => assertFreshRoot(tmpdir()), /not empty|not under the temp dir/, "the temp dir itself is never a valid (empty) root");
     assert.throws(() => assertFreshRoot(root + "/../root/../outside/.."), /not empty/);
     assert.equal(assertFreshRoot(join(base, "new", "deep")), join(base, "new", "deep"));
   } finally {

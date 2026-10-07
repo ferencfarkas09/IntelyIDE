@@ -79,7 +79,9 @@ describe("bump-version on the fixture workspace", () => {
   it("--dry-run on the real tree writes nothing and lists exactly the six files", () => {
     const files = [...SET, "pnpm-lock.yaml", "CHANGELOG.md"].filter((f) => existsSync(join(REPO, f)));
     const before = files.map((f) => sha(REPO, f));
-    const r = run(BUMP, ["0.1.0", "--dry-run", "--no-changelog", "--root", REPO]);
+    // A version above whatever the tree is at now: the bump refuses an equal or lower one.
+    const [major, minor, patch] = JSON.parse(readFileSync(join(REPO, "package.json"), "utf8")).version.split(".").map(Number);
+    const r = run(BUMP, [`${major}.${minor}.${patch + 1}`, "--dry-run", "--no-changelog", "--root", REPO]);
     assert.equal(r.status, 0, r.stderr + r.stdout);
     assert.deepEqual(files.map((f) => sha(REPO, f)), before);
     const listed = r.stdout.split("\n").filter((l) => /^ {2}\S+:/.test(l)).map((l) => l.trim().split(":")[0]);

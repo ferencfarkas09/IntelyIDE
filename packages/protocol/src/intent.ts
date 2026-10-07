@@ -64,11 +64,13 @@ export function intentFromClaudeTool(name: string, input: Input = {}): ToolInten
       };
     }
     default: {
-      const rest = name.startsWith("mcp__") ? name.slice(5) : undefined;
-      const split = rest?.indexOf("__") ?? -1;
-      if (rest !== undefined && split >= 0) {
-        const server = rest.slice(0, split);
-        const tool = rest.slice(split + 2);
+      // Anything named `mcp__...` is an MCP call, also a malformed one (`mcp__`, `mcp____x`, `mcp__a__`): the same split as the
+      // Rust mapping, which hands it to the broker (denied there as `mcp.unknown`) instead of the unknown-tool row.
+      if (name.startsWith("mcp__")) {
+        const rest = name.slice(5);
+        const split = rest.indexOf("__");
+        const server = split >= 0 ? rest.slice(0, split) : rest;
+        const tool = split >= 0 ? rest.slice(split + 2) : "";
         return { class: "mcp", tool: name, server, summary: `${server}.${tool}` };
       }
       // Monitor and any other tool that runs a shell string are judged like Bash.

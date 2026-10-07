@@ -116,7 +116,7 @@ describe("sidecar messages written by Rust", () => {
   const messages = sidecarMessages as unknown as SidecarMsg[];
   const TYPES = [
     "hello", "heartbeat", "policy/decide", "slot/acquire", "slot/renew", "slot/release", "events/batch",
-    "session/start", "session/prompt", "session/close", "session/permission", "cancel/request", "cancel/done", "permission/answer", "reply",
+    "session/start", "session/prompt", "session/close", "session/permission", "session/mcp-status", "cancel/request", "cancel/done", "permission/answer", "reply",
   ];
 
   it("cover every type and carry the envelope", () => {
@@ -139,7 +139,7 @@ describe("sidecar messages written by Rust", () => {
 
   it("tell the reply shapes apart", () => {
     const kinds = messages.flatMap((m) => (m.type === "reply" ? [replyKind(m.body)] : []));
-    expect(kinds).toEqual(["decision", "lease", "error", "ack", "started", "ack", "error"]);
+    expect(kinds).toEqual(["decision", "lease", "error", "ack", "started", "ack", "error", "mcpStatus"]);
   });
 
   it("have a policy reply that parses as a decision", () => {
@@ -193,6 +193,29 @@ describe("delegation fields (spec 4.1)", () => {
   });
 });
 
+describe("MCP status (mcp-management spec)", () => {
+  const messages = sidecarMessages as unknown as SidecarMsg[];
+
+  it("session/mcp-status names one agent and optionally reconnects or toggles one server", () => {
+    const bodies = messages.flatMap((m) => (m.type === "session/mcp-status" ? [m.body] : []));
+    expect(bodies).toEqual([
+      { agentId: "a1" },
+      { agentId: "a1", reconnect: "github" },
+      { agentId: "a1", toggle: { server: "github", enabled: false } },
+    ]);
+  });
+
+  it("its reply lists every server with a status, the tools of a connected one and the error of a failed one", () => {
+    const reply = messages.find((m) => m.type === "reply" && m.id === 63);
+    if (reply?.type !== "reply") throw new Error("no mcp-status reply sample");
+    expect(replyKind(reply.body)).toBe("mcpStatus");
+    const servers = "servers" in reply.body ? reply.body.servers : [];
+    expect(servers.map((s) => [s.name, s.status])).toEqual([["github", "connected"], ["docs", "failed"], ["linear", "needsAuth"]]);
+    expect(servers[0]?.tools?.map((t) => t.name)).toEqual(["search_issues", "get_issue"]);
+    expect(servers[1]).toMatchObject({ error: "spawn ENOENT", tools: [] });
+  });
+});
+
 describe("permission modes (spec 4.6, 4.7)", () => {
   const messages = sidecarMessages as unknown as SidecarMsg[];
   const base = { agentId: "a", seq: 1, ts: 1, provider: "claude" };
@@ -202,7 +225,7 @@ describe("permission modes (spec 4.6, 4.7)", () => {
     const req = messages.find((m) => m.type === "session/permission");
     if (req?.type !== "session/permission") throw new Error("no session/permission sample");
     expect(req.body).toEqual({ agentId: "a1", mode: "automatic" });
-    const replies = messages.filter((m) => m.type === "reply" && m.id >= 60);
+    const replies = messages.filter((m) => m.type === "reply" && m.id >= 60 && m.id <= 61);
     expect(replies.map((m) => (m.type === "reply" ? replyKind(m.body) : ""))).toEqual(["ack", "error"]);
     const err = replies[1];
     expect(err?.type === "reply" && err.body).toMatchObject({ error: "unsupported" });

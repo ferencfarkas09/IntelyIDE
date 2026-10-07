@@ -365,10 +365,20 @@ fn fixture_json() -> Value {
     json!({"cases": cases})
 }
 
+/// Every object with its keys in order. `serde_json` keeps the insertion order as soon as any crate of the build turns on
+/// `preserve_order` (the Mongo crate does, so a workspace-wide `cargo test` does too) and the committed file is sorted.
+fn sorted(v: Value) -> Value {
+    match v {
+        Value::Object(map) => Value::Object(map.into_iter().map(|(k, v)| (k, sorted(v))).collect::<BTreeMap<_, _>>().into_iter().collect()),
+        Value::Array(items) => Value::Array(items.into_iter().map(sorted).collect()),
+        other => other,
+    }
+}
+
 /// The fixture file's text; with `INTELY_WRITE_FIXTURES` set it is rewritten from the table first (once per process).
 fn fixture_text() -> (String, String) {
     static WRITE: std::sync::Once = std::sync::Once::new();
-    let want = serde_json::to_string_pretty(&fixture_json()).unwrap() + "\n";
+    let want = serde_json::to_string_pretty(&sorted(fixture_json())).unwrap() + "\n";
     WRITE.call_once(|| {
         if std::env::var("INTELY_WRITE_FIXTURES").is_ok() {
             std::fs::write(fixture_path(), &want).unwrap();

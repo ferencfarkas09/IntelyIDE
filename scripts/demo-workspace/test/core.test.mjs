@@ -115,17 +115,18 @@ test("two runs in different directories give identical refs, status and tree has
   assert.equal(readFileSync(join(base, "a.tar")).equals(readFileSync(join(base, "b.tar"))), true, "the tar cache is byte-identical too");
 });
 
+// git prints a UTC offset as `Z` from version 2.4x on and as `+00:00` before; both are the same instant
 test("commit dates, identities and tags come from the module, not from the environment", () => {
   const log = g(A, ["log", "--all", "--format=%an <%ae> %aI | %cn <%ce> %cI | %s"]).split("\n");
   assert.equal(log.length, 8);
   for (const l of log) {
     assert.match(l, /<[a-z.-]+@fernbank\.example>/);
     assert.doesNotMatch(l, /\bx\b <|Canary/);
-    assert.match(l, /T\d\d:\d\d:\d\dZ/);
+    assert.match(l, /T\d\d:\d\d:\d\d(?:Z|\+00:00)/);
   }
-  assert.match(g(A, ["log", "-1", "--format=%an %aI", "main"]), /^Tomas Lindqvist 2026-08-27T12:00:00Z$/);
+  assert.match(g(A, ["log", "-1", "--format=%an %aI", "main"]), /^Tomas Lindqvist 2026-08-27T12:00:00(?:Z|\+00:00)$/);
   assert.equal(g(A, ["cat-file", "-t", "v0.1.0"]), "tag");
-  assert.match(g(A, ["for-each-ref", "--format=%(taggername) %(creatordate:iso-strict)", "refs/tags/v0.1.0"]), /^Daniel Reyes 2026-08-25T10:30:00Z$/);
+  assert.match(g(A, ["for-each-ref", "--format=%(taggername) %(creatordate:iso-strict)", "refs/tags/v0.1.0"]), /^Daniel Reyes 2026-08-25T10:30:00(?:Z|\+00:00)$/);
 });
 
 test("check-demo passes the outcomes row and the content rules on a fresh root", () => {

@@ -187,13 +187,15 @@ fn detection_uses_a_scrubbed_environment() {
 #[test]
 fn a_hanging_cli_is_killed_at_the_timeout() {
     let f = fixture();
-    script(Path::new(&f.bin), "hang", "exec sleep 30");
+    // the probe's PATH is the fixture directory alone, so `sleep` must be named by its path
+    script(Path::new(&f.bin), "hang", "exec /bin/sleep 30");
     let def = CliDef { bin: "hang", version_args: &["--version"], min_version: None };
     let started = std::time::Instant::now();
     let det = detect_cli(&def, &f.bin, Duration::from_millis(300));
     assert!(started.elapsed() < Duration::from_secs(60));
-    assert!(det.path.is_some() && det.version.is_none());
-    assert!(det.error.unwrap().contains("did not answer"));
+    assert!(det.path.is_some() && det.version.is_none(), "{det:?}");
+    let error = det.error.expect("a probe that timed out says why");
+    assert!(error.contains("did not answer"), "{error}");
 }
 
 #[test]

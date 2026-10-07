@@ -64,11 +64,17 @@ EMPTY="$TOP/empty"; mkdir -p "$EMPTY/.github"
 env -i HOME="$TOP" PATH="$BASE_PATH" bash "$SCRIPT" --root "$EMPTY" >"$TOP/out" 2>&1
 t_rc "no workflows: exit 0" 0 "$?"
 
-# 4. CI=true never trusts the binary on PATH; the shipped pin is PIN-ME, so it fails without running anything.
-exec_case PATH="$TOP/bin:$BASE_PATH" CI=true
-t_nz "CI with the unresolved shipped pin: non-zero" "$RC"
-t_has "CI with the unresolved shipped pin: says PIN-ME" "$ERR" "PIN-ME"
+# 4. CI=true never trusts the binary on PATH; a pin that still says PIN-ME fails without running anything.
+printf 'version=PIN-ME\nurl=PIN-ME\nsha256=PIN-ME\n' > "$TOP/unresolved.pin"
+exec_case PATH="$TOP/bin:$BASE_PATH" CI=true INTELY_CI_TEST=1 ACTIONLINT_PIN="$TOP/unresolved.pin"
+t_nz "CI with an unresolved pin: non-zero" "$RC"
+t_has "CI with an unresolved pin: says PIN-ME" "$ERR" "PIN-ME"
 t_eq "CI never ran the binary from PATH" "" "$(cat "$TOP/fake.log")"
+# The pin that ships is resolved: version, a GitHub release asset of rhysd/actionlint, and a sha256.
+SHIPPED="$ROOT/scripts/ci/actionlint.pin"
+if grep -q 'PIN-ME' "$SHIPPED"; then t_fail "the shipped pin is resolved" "PIN-ME left in scripts/ci/actionlint.pin"; else t_ok "the shipped pin is resolved"; fi
+t_true "the shipped pin names a rhysd/actionlint release asset" grep -Eq '^url=https://github\.com/rhysd/actionlint/releases/download/v[0-9.]+/actionlint_[0-9.]+_linux_amd64\.tar\.gz$' "$SHIPPED"
+t_true "the shipped pin carries a 64-digit sha256" grep -Eq '^sha256=[0-9a-f]{64}$' "$SHIPPED"
 
 # 5. CI=true with a stubbed file:// asset.
 ASSET="$TOP/asset.tar.gz"
