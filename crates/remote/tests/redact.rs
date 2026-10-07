@@ -93,6 +93,16 @@ fn thinking_text_never_leaves_and_tool_diffs_are_not_in_events() {
 }
 
 #[test]
+fn a_note_to_a_working_agent_never_leaves_the_mac() {
+    use intely_agent_core::events::NoteState;
+    let mut r = Redactor::new();
+    for state in [NoteState::Queued, NoteState::Delivered, NoteState::Dropped] {
+        let e = ev(EventKind::Note { note_id: "n1".into(), state, parent_tool_id: None, text: Some("use the staging key".into()), tool_id: None, reason: None });
+        assert!(r.wire_event(&e).is_none(), "{state:?}");
+    }
+}
+
+#[test]
 fn a_tool_that_touched_a_secret_file_has_its_output_hidden() {
     let mut r = Redactor::new();
     let start = ev(EventKind::ToolStart { tool_id: "t1".into(), name: "Read".into(), tool_kind: ToolKind::Read, input: json!({"file_path": "/work/app/.env"}), parent_tool_id: None });

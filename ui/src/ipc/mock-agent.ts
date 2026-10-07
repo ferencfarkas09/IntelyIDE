@@ -25,7 +25,7 @@ import { ACP_SCENARIOS, ACP_SCRIPTS, type AcpScenario } from "./mock-acp";
 import { AFTER_PLAN, isUnattended, MODE_ORDER } from "../store/permissionModes";
 
 /** Scenario names understood by the agent part of the mock (`?scenario=agent-...`); any other scenario plays `agent-normal`. */
-export const AGENT_SCENARIOS = ["agent-normal", "agent-permission", "agent-question", "agent-error", "agent-throttle", "agent-subagents", "agent-delegation", "agent-plan"] as const;
+export const AGENT_SCENARIOS = ["agent-normal", "agent-permission", "agent-question", "agent-error", "agent-throttle", "agent-subagents", "agent-notes", "agent-delegation", "agent-plan"] as const;
 export type AgentScenario = (typeof AGENT_SCENARIOS)[number];
 /** What a run plays: a scenario, or the reviewer script every `reviewer` run gets (the Review UI parses its findings). */
 type ScriptKey = AgentScenario | AcpScenario | "agent-review" | "showcase";
@@ -50,6 +50,7 @@ const CLAUDE_CAPS: ProviderCaps = {
   cancel: { cap: "yes" },
   sandbox: { cap: "partial", note: "did not hold under bypass" },
   attachments: "files",
+  notes: true,
 };
 const HAIKU_CAPS: ProviderCaps = { ...CLAUDE_CAPS, effort: { cap: "no", note: "Haiku 4.5 has no effort control" }, effortLevels: [] };
 
@@ -395,6 +396,18 @@ const SCRIPTS: Record<ScriptKey, Script> = {
     c.usage(3800, 600);
   },
 
+  "agent-notes": async (c) => {
+    c.emit({ kind: "status", state: "running" });
+    await c.stream("m1", ["A researcher will check the order routes. Add a note to it (or to me) while it works.\n"]);
+    c.emit({ kind: "tool.start", toolId: "n1", name: "Agent", toolKind: "other", summary: "researcher: find the order routes in backend", input: { subagent_type: "researcher" } });
+    await c.tool("n2", { name: "Grep", toolKind: "search", summary: "router.get in src/api", input: {}, parentToolId: "n1" }, { output: "src/api/routes/orders.js:12", ms: 10000 }, 10000);
+    await c.tool("n3", { name: "Read", toolKind: "read", summary: "src/api/routes/orders.js", input: {}, parentToolId: "n1" }, { ms: 10000 }, 10000);
+    await c.tool("n4", { name: "Read", toolKind: "read", summary: "src/api/services/orderService.js", input: {}, parentToolId: "n1" }, { ms: 10000 }, 10000);
+    c.emit({ kind: "tool.result", toolId: "n1", status: "ok", output: "The routes live in orders.js; the logic is in orderService.js.", durationMs: 30000 });
+    await c.stream("m2", ["The researcher is done: the routes live in `orders.js`."]);
+    c.usage(5200, 600);
+  },
+
   "agent-subagents": async (c) => {
     c.emit({ kind: "status", state: "running" });
     await c.stream("m1", ["I will check both repos in parallel with two subagents.\n"]);
@@ -443,6 +456,10 @@ interface MockAgent {
   saved: Set<string>;
   /** Requests the run's rules withdrew after a tightening: a late click on one is refused with `modeChanged`. */
   withdrawn?: Set<string>;
+  /** Notes waiting for their target's next tool call (`""` = the lead, else the `Agent` call of the subagent). */
+  notes: { noteId: string; target: string }[];
+  /** `Agent`/`Task` calls that have started and have no result yet. */
+  openAgents: Set<string>;
 }
 
 /** What the card answered with: the decision, and for ExitPlanMode the mode to continue in or the note sent back. */
@@ -470,7 +487,7 @@ function checkMode(provider: string, mode: PermissionMode, confirmBypass: boolea
 
 type AgentApi = Pick<
   Ipc,
-  "agentRoles" | "agentsAutoInfo" | "agentStart" | "agentSend" | "agentInterrupt" | "agentAnswerPermission" | "agentSetPermission" | "agentModes" | "agentMcpStatus" | "agentMcpReconnect" | "agentAnswerQuestion" | "agentList" | "agentHistory" | "agentRewind" | "agentRepoFiles" | "onAgentEvents"
+  "agentRoles" | "agentsAutoInfo" | "agentStart" | "agentSend" | "agentInterrupt" | "agentNote" | "agentAnswerPermission" | "agentSetPermission" | "agentModes" | "agentMcpStatus" | "agentMcpReconnect" | "agentAnswerQuestion" | "agentList" | "agentHistory" | "agentRewind" | "agentRepoFiles" | "onAgentEvents"
 >;
 
 /** Deterministic agent backend for the browser and tests. `scale` multiplies every delay (0 = as fast as the event loop allows). */
@@ -529,17 +546,36 @@ export function createMockAgents(scenarioName: string, scale: number): AgentApi 
       startedAt: Date.now(),
       switchableModes: supportsAllModes(provider) ? [...ALL_MODES] : [],
     };
-    const agent: MockAgent = { summary, log: [], seq: 0, turn: 0, retries: 0, script, running: false, cancelled: false, openTools: new Set(), pending: new Map(), cumulative: { input: 0, output: 0 }, saved: new Set() };
+    const agent: MockAgent = { summary, log: [], seq: 0, turn: 0, retries: 0, script, running: false, cancelled: false, openTools: new Set(), pending: new Map(), cumulative: { input: 0, output: 0 }, saved: new Set(), notes: [], openAgents: new Set() };
     agents.set(id, agent);
     return agent;
   }
 
   function emit(agent: MockAgent, p: MockPayload): void {
+    // what is still waiting when the turn ends is reported first, like the sidecar does
+    if (p.kind === "turn.end") dropNotes(agent, () => true, p.stopReason === "cancelled" ? "cancelled" : "turnEnded");
     const ev = { agentId: agent.summary.agentId, seq: ++agent.seq, ts: Date.now(), turnId: `turn-${agent.turn}`, provider: agent.summary.provider, ...toWire(p) } as AgentEvent;
-    if (ev.kind === "tool.start") agent.openTools.add(ev.toolId);
+    if (ev.kind === "tool.start") {
+      agent.openTools.add(ev.toolId);
+      if (ev.name === "Agent" || ev.name === "Task") agent.openAgents.add(ev.toolId);
+    }
     if (ev.kind === "tool.result") agent.openTools.delete(ev.toolId);
     agent.log.push(ev);
     push(ev);
+    // a note rides on its target's next tool call; a subagent that has its result can read nothing more
+    if (ev.kind === "tool.start") {
+      const target = ev.parentToolId ?? "";
+      const mine = agent.notes.filter((n) => n.target === target);
+      agent.notes = agent.notes.filter((n) => n.target !== target);
+      for (const n of mine) emit(agent, { kind: "note", noteId: n.noteId, state: "delivered", toolId: ev.toolId, ...(target ? { parentToolId: target } : {}) });
+    }
+    if (ev.kind === "tool.result" && agent.openAgents.delete(ev.toolId)) dropNotes(agent, (n) => n.target === ev.toolId, "finished");
+  }
+
+  function dropNotes(agent: MockAgent, pick: (n: { noteId: string; target: string }) => boolean, reason: string): void {
+    const gone = agent.notes.filter(pick);
+    agent.notes = agent.notes.filter((n) => !pick(n));
+    for (const n of gone) emit(agent, { kind: "note", noteId: n.noteId, state: "dropped", reason, ...(n.target ? { parentToolId: n.target } : {}) });
   }
 
   function context(agent: MockAgent, prompt: string): Ctx {
@@ -683,7 +719,7 @@ export function createMockAgents(scenarioName: string, scale: number): AgentApi 
       begin(makeAgent({ role: scenario === "acp-denied" ? "reviewer" : "researcher", repoIds: ["backend"], prompt, provider: "gemini" }, scenario), prompt);
       return;
     }
-    const roleName = scenario === "agent-delegation" ? "auto" : scenario === "agent-subagents" ? "architect" : "developer";
+    const roleName = scenario === "agent-delegation" ? "auto" : scenario === "agent-subagents" || scenario === "agent-notes" ? "architect" : "developer";
     const prompt = scenario === "showcase" ? SHOWCASE_PROMPT : "Show prices with the currency in the order list";
     const agent = makeAgent({ role: roleName, repoIds: ["admin"], prompt }, scenario);
     begin(agent, prompt);
@@ -710,6 +746,20 @@ export function createMockAgents(scenarioName: string, scale: number): AgentApi 
       // Attachments of the composer draft: the mock provider echoes them as chips on the user message.
       const refs = files?.ids.length ? await attachmentRefs(files) : [];
       void runTurn(agent, RETRYING.has(agent.script) ? SCRIPTS[agent.script] : FOLLOW_UP, text, refs);
+    },
+    agentNote: async (agentId, parentToolId, text) => {
+      const agent = agents.get(agentId);
+      if (!agent) throw { code: "unknownAgent", message: `no run ${agentId}` };
+      if (!agent.summary.caps.notes) throw { code: "noteUnsupported", message: `${agent.summary.provider} cannot take a note for a running agent` };
+      if (!agent.running) throw { code: "noteNoTurn", message: "Nothing is working right now: send a message instead" };
+      const body = text.trim();
+      if (!body) throw { code: "noteEmpty", message: "The note is empty" };
+      if (body.length > 4000) throw { code: "noteTooLong", message: "A note is at most 4000 characters" };
+      if (parentToolId && !agent.openAgents.has(parentToolId)) throw { code: "noteUnknownTarget", message: "That subagent is not running" };
+      const noteId = `n-${++counter}`;
+      agent.notes.push({ noteId, target: parentToolId ?? "" });
+      emit(agent, { kind: "note", noteId, state: "queued", text: body, ...(parentToolId ? { parentToolId } : {}) });
+      return noteId;
     },
     agentInterrupt: async (agentId) => {
       const agent = agents.get(agentId);

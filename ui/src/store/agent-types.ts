@@ -33,6 +33,7 @@ export type {
   McpToolInfo,
   ModeChangeReason,
   ModelTokens,
+  NoteState,
   PermissionDecision,
   PermissionMode,
   PermissionOption,

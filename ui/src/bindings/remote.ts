@@ -202,7 +202,17 @@ plan?: string | null;
 /**  The plan was cut at 64 KiB. */
 planTruncated?: boolean | null; 
 /**  ExitPlanMode: the working modes the card offers (ask, edit, automatic). */
-modes?: PermissionMode[] } | { kind: "permission.resolved"; reqId: string; outcome: PermissionOutcome; by: DecidedBy } | { kind: "question.request"; reqId: string; toolId?: string | null; prompt: string; options?: QuestionOption[] } | { kind: "plan"; items: PlanItem[] } | { kind: "usage"; usage: UsageRecord } | { kind: "status"; state: StatusState; retryAfterMs?: number | null; scope?: string | null } | { kind: "error"; class: ErrorClass; message: string; retryable: boolean } | { kind: "turn.end"; stopReason: StopReason } | { kind: "session.info"; title?: string | null; nativeId?: string | null; models?: ModelInfo[]; 
+modes?: PermissionMode[] } | { kind: "permission.resolved"; reqId: string; outcome: PermissionOutcome; by: DecidedBy } | { kind: "question.request"; reqId: string; toolId?: string | null; prompt: string; options?: QuestionOption[] } | { kind: "plan"; items: PlanItem[] } | 
+/**  A note the user added to a running agent, the lead or one sub-agent. One event per state, joined by `note_id`. */
+{ kind: "note"; noteId: string; state: NoteState; 
+/**  The sub-agent's `Agent` tool call; absent for the lead. */
+parentToolId?: string | null; 
+/**  `queued` only: what the user wrote. */
+text?: string | null; 
+/**  `delivered` only: the tool call the note rode on. */
+toolId?: string | null; 
+/**  `dropped` only: `finished`, `turnEnded`, `cancelled` or `error`. */
+reason?: string | null } | { kind: "usage"; usage: UsageRecord } | { kind: "status"; state: StatusState; retryAfterMs?: number | null; scope?: string | null } | { kind: "error"; class: ErrorClass; message: string; retryable: boolean } | { kind: "turn.end"; stopReason: StopReason } | { kind: "session.info"; title?: string | null; nativeId?: string | null; models?: ModelInfo[]; 
 /**  The capability matrix computed for this session (runtime truth beats the static table). */
 caps?: ProviderCaps | null; effective?: EffectiveChange | null; 
 /**  The roles the lead may delegate to, emitted once after init (never the prompts). */
@@ -250,6 +260,15 @@ export type ModelTokens = {
 	model: string,
 	tokens: TokenCounts,
 };
+
+/**  Where a note the user added to a running agent stands. */
+export type NoteState = 
+/**  Accepted; it waits for the target's next tool call. */
+"queued" | 
+/**  Handed to the target together with that tool call. */
+"delivered" | 
+/**  The target can no longer see it (its work ended first). */
+"dropped";
 
 /**  What the Mac UI shows. */
 export type OfferView = {
@@ -322,6 +341,8 @@ export type ProviderCaps = {
 	sandbox: CapEntry,
 	/**  Attachments the provider accepts in a user message; absent = none. */
 	attachments?: AttachmentsCap | null,
+	/**  The provider takes a note for a running agent (`session/note`); absent = no. The UI shows the note input only when `true`. */
+	notes?: boolean | null,
 };
 
 /**  Answer to a `question.request`: the labels of the chosen options (the option label is its identity). */

@@ -87,6 +87,12 @@ export interface Ipc extends IpcNamespaces {
   /** Ends the turn with `turn.end(cancelled)`. */
   agentInterrupt(agentId: string): Promise<void>;
   /**
+   * Adds a note to the turn that is running: for the subagent started by the `Agent` call `parentToolId`, or for the lead when it is absent.
+   * The agent reads it with its next tool call; `note` events report queued, delivered or dropped. Resolves with the note id; rejects with
+   * `noteNoTurn`, `noteUnknownTarget`, `noteUnsupported`, `noteTooLong`, `noteEmpty` or `notRunning`.
+   */
+  agentNote(agentId: string, parentToolId: string | undefined, text: string): Promise<string>;
+  /**
    * `extra.mode`: an ExitPlanMode approval continues the run in this mode (`ask`, `edit` or `automatic`).
    * `extra.feedback`: the user's text when an ExitPlanMode request is rejected.
    */

@@ -24,7 +24,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 export const LOCALES_DIR = join(here, "../ui/src/i18n/locales");
 
 /** Wave 9 (roles and Auto, (design notes: roles-orchestration-spec) section 9): `workflow` and `panels` are pending until the orchestrator runs `pnpm i18n:translate -- --all --only-missing` (outside the per-task Haiku budget, D8) and then removes both names. Wave 5: the six MongoDB Studio namespaces ((design notes: mongo-everyone-spec) T1b) `licenses` ((design notes: licensing-spec) L3a, translated in L9) and the three workspace namespaces ((design notes: workspaces-spec) U0). */
-export const PENDING_NAMESPACES = ["mongo", "mongoStudio", "mongoLoud", "mongoForm", "mongoDiag", "mongoManage", "licenses", "workspace", "workspaceNew", "workspacePicker", "workflow", "panels", "preview", "providers", "happy", "modes", "mcp", "updates", "memory", "slash"];
+export const PENDING_NAMESPACES = ["mongo", "mongoStudio", "mongoLoud", "mongoForm", "mongoDiag", "mongoManage", "licenses", "workspace", "workspaceNew", "workspacePicker", "workflow", "panels", "preview", "providers", "happy", "modes", "mcp", "updates", "memory", "notes", "slash"];
 /** The hand-written languages: never exempt, a pending namespace must be complete in them. */
 const STRICT_LANGS = new Set(["en", "hu"]);
 

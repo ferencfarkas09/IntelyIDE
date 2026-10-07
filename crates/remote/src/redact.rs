@@ -401,6 +401,8 @@ impl Redactor {
         o.raw = None;
         o.kind = match &e.kind {
             EventKind::ThinkingDelta { .. } => return None,
+            // The phone has no notes yet: what the user told a working agent stays on the Mac.
+            EventKind::Note { .. } => return None,
             EventKind::SessionStarted { model, effective, auth, assertions, caps_delta, .. } => EventKind::SessionStarted {
                 native_id: None,
                 model: model.clone(),

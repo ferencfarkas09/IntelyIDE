@@ -134,18 +134,40 @@ describe('delivery through the Claude tool gate', () => {
     expect(ctx(await hook(gate, 'Bash', 'l1'))).toBe(noteContext(['for the lead']));
   });
 
-  it('learns which sub-agent an agent_id is, so a call the stream has not announced yet is still told apart', async () => {
+  it('learns which sub-agent an agent_id is when the stream announces a call the hook had already judged', async () => {
+    const { gate, out } = rig();
+    for (const id of ['ag1', 'ag2']) {
+      gate.noteToolParent(id, null);
+      await hook(gate, 'Agent', id, {}, { subagent_type: 'x', prompt: 'p' });
+    }
+    // the hook of the first call of sub-1 is faster than the stream: nobody knows whose agent that is
+    expect(ctx(await hook(gate, 'Read', 'first', { agent_id: 'sub-1' }, { file_path: '/r/a' }))).toBeUndefined();
+    gate.addNote({ noteId: 'n1', text: 'later', parentToolId: 'ag1' });
+    gate.addNote({ noteId: 'n2', text: 'other agent', parentToolId: 'ag2' });
+    // the stream catches up: the call ran under ag1, so sub-1 IS ag1's sub-agent
+    gate.noteToolParent('first', 'ag1');
+    // its next call, again faster than the stream, is told by the agent_id alone
+    expect(ctx(await hook(gate, 'Read', 'second', { agent_id: 'sub-1' }, { file_path: '/r/a' }))).toBe(noteContext(['later']));
+    expect(states(out, 'n2')).toEqual(['queued']);
+  });
+
+  it('with one subagent running, a call that carries an agent_id can only be its', async () => {
     const { gate } = rig();
     gate.noteToolParent('ag1', null);
     await hook(gate, 'Agent', 'ag1', {}, { subagent_type: 'x', prompt: 'p' });
-    gate.addNote({ noteId: 'sub', text: 'later' , parentToolId: 'ag1' });
-    // the hook is faster than the stream: the call's message has not been read, the agent is not known either -> nothing rides on it
-    expect(ctx(await hook(gate, 'Read', 'early', { agent_id: 'sub-1' }, { file_path: '/r/a' }))).toBeUndefined();
-    // a later call of the same agent is announced: this teaches the gate that sub-1 belongs to ag1
-    gate.noteToolParent('known', 'ag1');
-    expect(ctx(await hook(gate, 'Read', 'known', { agent_id: 'sub-1' }, { file_path: '/r/a' }))).toContain('later');
-    gate.addNote({ noteId: 'sub2', text: 'and again', parentToolId: 'ag1' });
-    expect(ctx(await hook(gate, 'Read', 'unannounced', { agent_id: 'sub-1' }, { file_path: '/r/a' }))).toContain('and again');
+    gate.addNote({ noteId: 'n1', text: 'now', parentToolId: 'ag1' });
+    gate.addNote({ noteId: 'lead', text: 'for the lead' });
+    expect(ctx(await hook(gate, 'Read', 'unannounced', { agent_id: 'sub-1' }, { file_path: '/r/a' }))).toBe(noteContext(['now']));
+  });
+
+  it('with two subagents running, an agent that is not known yet gets nothing rather than the wrong note', async () => {
+    const { gate } = rig();
+    for (const id of ['ag1', 'ag2']) {
+      gate.noteToolParent(id, null);
+      await hook(gate, 'Agent', id, {}, { subagent_type: 'x', prompt: 'p' });
+    }
+    gate.addNote({ noteId: 'n1', text: 'for ag2', parentToolId: 'ag2' });
+    expect(ctx(await hook(gate, 'Read', 'who', { agent_id: 'sub-9' }, { file_path: '/r/a' }))).toBeUndefined();
   });
 
   it('a call without agent_id is not the lead while a sub-agent runs and its origin is unknown', async () => {
@@ -248,7 +270,7 @@ describe('session/note in the host', () => {
       id: 'stub', kind: 'cli', detect: async () => ({ installed: true, auth: 'ok' }), capabilities: () => ({}) as never, listModels: async () => [],
       open: async (_spec: SessionSpec, s: EventSink) => { sink = s; return { nativeId: 'n', prompt: () => undefined, interrupt: async () => {}, answer: () => {}, close: async () => {}, ...session } as AgentSession; },
     };
-    const host = new SidecarHost(proto, new Loader({ stub: async () => ({ default: prov }) }, ['stub']));
+    new SidecarHost(proto, new Loader({ stub: async () => ({ default: prov }) }, ['stub']));
     const orig = proto.request.bind(proto);
     (proto as any).request = (type: string, body: unknown) => (type === 'slot/acquire' ? Promise.resolve({ leaseId: 'L9', ttlMs: 15000 }) : orig(type as never, body as never));
     // a handler's reply is written after a promise tick: `send` waits for it

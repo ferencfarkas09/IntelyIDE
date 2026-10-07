@@ -341,7 +341,7 @@ wire_types! {
             #[serde(default)]
             #[cfg_attr(feature = "specta", specta(optional))]
             tool_id: Option<String>,
-            /// `dropped` only: `finished`, `turnEnded` or `cancelled`.
+            /// `dropped` only: `finished`, `turnEnded`, `cancelled` or `error`.
             #[serde(default)]
             #[cfg_attr(feature = "specta", specta(optional))]
             reason: Option<String>,

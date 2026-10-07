@@ -135,6 +135,9 @@ export function announcement(ev: AgentEvent): string | undefined {
       return ev.stopReason === "endTurn" ? t("chat.announce.finished") : t("chat.announce.stopped");
     case "status":
       return ev.state === "throttled" ? t("chat.announce.throttled") : undefined;
+    case "note":
+      // typing a note is the user's own action; what comes of it is worth hearing
+      return ev.state === "delivered" ? t("notes.announce.delivered") : ev.state === "dropped" ? t("notes.announce.dropped") : undefined;
     case "session.info":
       // A change of the run's mode (a switch, an approved plan, a resume) is worth hearing; every other session.info is silent.
       return ev.effective?.permission ? t("modes.switch.done", { mode: PERMISSION_LABEL[ev.effective.permission] }) : undefined;

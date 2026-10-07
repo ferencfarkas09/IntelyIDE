@@ -4,6 +4,10 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 
 ## [Unreleased]
 
+### Added
+
+- Notes to a working agent. While a run works, the message box adds a note for the lead and a running subagent has its own note field. The agent reads the note with its next tool call; the transcript shows each note as queued, delivered or not delivered, and why. Claude runs only; other providers answer that they cannot take notes.
+
 ## [1.0.1] - 2026-10-08
 
 First stable release. It contains everything of the 0.1.1 that was prepared but never published, and the changes below.

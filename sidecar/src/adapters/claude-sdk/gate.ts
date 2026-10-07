@@ -104,6 +104,8 @@ export class ToolGate {
   private toolParents = new Map<string, string | null>();
   /** agent_id of a hook input -> the `Agent` call it belongs to, learned from the first call whose parent is known. */
   private agentParents = new Map<string, string>();
+  /** tool_use id -> agent_id, for a sub-agent's call that its hook judged before the stream said which `Agent` call it ran under. */
+  private hookAgents = new Map<string, string>();
 
   /**
    * `denied` is shared with the event mapper so a refused tool's error result is reported as "denied". `delegating` turns the
@@ -164,6 +166,7 @@ export class ToolGate {
     if (this.openSpawns.delete(toolUseId)) {
       this.notes.dropTarget(toolUseId, 'finished');
       for (const [agent, parent] of this.agentParents) if (parent === toolUseId) this.agentParents.delete(agent);
+      this.hookAgents.clear();
     }
     if (!this.agentCalls.delete(toolUseId)) return;
     if (this.agentCalls.size === 0) this.clearSubagents();
@@ -174,6 +177,7 @@ export class ToolGate {
     this.dropNotes('turnEnded');
     this.openSpawns.clear();
     this.agentParents.clear();
+    this.hookAgents.clear();
     this.agentCalls.clear();
     this.clearSubagents();
   }
@@ -183,6 +187,13 @@ export class ToolGate {
   noteToolParent(toolId: string, parent: string | null): void {
     this.toolParents.set(toolId, parent);
     if (this.toolParents.size > 1024) this.toolParents.delete(this.toolParents.keys().next().value as string);
+    // The hook is usually faster than this message: it saw an agent_id but not whose agent that is. Now it is known, and every later call of
+    // that agent can be told from the agent_id alone.
+    const agent = this.hookAgents.get(toolId);
+    if (agent !== undefined) {
+      this.hookAgents.delete(toolId);
+      if (parent !== null) this.agentParents.set(agent, parent);
+    }
   }
 
   /** Queues a note for the lead or for a sub-agent that is running; throws `NoteError` otherwise. */
@@ -202,15 +213,22 @@ export class ToolGate {
       return parent ?? LEAD;
     }
     // the message that carries the call has not been read yet (the hook can be faster than the stream)
-    if (agentId) return this.agentParents.get(agentId);
+    if (agentId) {
+      const known = this.agentParents.get(agentId);
+      if (known !== undefined) return known;
+      this.hookAgents.set(toolId, agentId);
+      if (this.hookAgents.size > 512) this.hookAgents.delete(this.hookAgents.keys().next().value as string);
+      // sub-agents run in the foreground, so with one `Agent` call open this call can only be its sub-agent's
+      return this.openSpawns.size === 1 ? this.openSpawns.values().next().value : undefined;
+    }
     return this.openSpawns.size === 0 ? LEAD : undefined;
   }
 
   /** The `additionalContext` for an allowed call: the notes waiting for whoever makes it. */
   private noteContext(agentId: string | undefined, toolId: string): string | undefined {
-    if (!this.notes.size) return undefined;
+    // asked for every call, notes or not: telling whose call this is also teaches the gate which agent_id is which sub-agent
     const target = this.targetOf(agentId, toolId);
-    return target === undefined ? undefined : this.notes.take(target, toolId);
+    return target === undefined || !this.notes.size ? undefined : this.notes.take(target, toolId);
   }
 
   private clearSubagents(): void {

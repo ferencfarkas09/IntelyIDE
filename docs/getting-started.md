@@ -101,6 +101,7 @@ Start with the same throwaway repository. Before an agent run starts, the IDE ta
 - **MCP servers.** A chip in the run header (`MCP 2/3`) shows how many of the run's servers are connected. Its popover lists each server with its state, tool count and last error, refreshes the live status and links to Settings > MCP servers, where servers are added, tested and given per-tool rules.
 - **Your own rules.** The `CLAUDE.md` of your Claude folder (`~/.claude/CLAUDE.md`) and the `CLAUDE.md` files of the run's repositories are added to every Claude run, so your instructions apply there too. Switch the first one off in Settings > Roles ("Include my global CLAUDE.md in agent runs"). The file is read-only to the IDE and size-capped.
 - **Step limit.** When a run reaches its step limit the transcript says so and offers a Continue button.
+- **Notes to a working agent.** While a run works you do not have to stop it to add something. In the message box, "Add note" (or ⌘⏎) sends your text to the lead; a subagent that is running has its own small field under its card. The agent reads the note together with its next tool call, so it can take a moment. The transcript shows each note as *Queued*, *Delivered* or *Not delivered* (the subagent had already finished, or the turn ended first), and a note the turn outlived can be sent as a message of its own. A note is plain text from you: it never approves anything and never lifts a refusal of the policy. Only Claude runs take notes today; other providers say so.
 
 ## Where to go next
 

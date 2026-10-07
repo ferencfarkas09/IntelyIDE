@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildRows, emptyView, isExitPlan, markPermissionAnswered, markPermissionRefused, markQuestionAnswered, pendingPermissions, reduceEvents, runStatus, type AgentView, type PermissionItem, type TextItem, type ToolItem } from "./agent-reducer";
+import { buildRows, emptyView, isExitPlan, markPermissionAnswered, markPermissionRefused, markQuestionAnswered, pendingPermissions, reduceEvents, runStatus, type AgentView, type PermissionItem, type NoteItem, type TextItem, type ToolItem } from "./agent-reducer";
 import type { AgentEvent } from "./agent-types";
 
 /** Tests write payloads in short form; the reducer sees them like the wire ones. */
@@ -302,5 +302,51 @@ describe("mode changes", () => {
     const v = run([started("readOnly"), request("p1", {}, intent), { kind: "permission.resolved", reqId: "p1", outcome: "allow", by: "user" }, { kind: "session.info", effective: { permission: "edit", reason: "planApproved" } }]);
     expect(perms(v)[0].mode).toBe("edit");
     expect(v.session?.effective.permission).toBe("edit");
+  });
+});
+
+describe("notes", () => {
+  const note = (p: Record<string, unknown>): EventPayload => ({ kind: "note", noteId: "n1", ...p });
+
+  it("opens a note as queued with its text and updates the same item when it is delivered", () => {
+    let v = run([{ kind: "user.message", messageId: "u1", text: "go" }, note({ state: "queued", text: "use staging" })]);
+    expect(items<NoteItem>(v, "note")).toMatchObject([{ noteId: "n1", state: "queued", text: "use staging" }]);
+    v = run([note({ state: "delivered", toolId: "t4" })], v);
+    const [n] = items<NoteItem>(v, "note");
+    expect(items<NoteItem>(v, "note")).toHaveLength(1);
+    expect(n).toMatchObject({ state: "delivered", text: "use staging", toolId: "t4" });
+  });
+
+  it("keeps why a note was dropped, and builds the item from a dropped event alone (a log that starts later)", () => {
+    const v = run([note({ state: "queued", text: "x", parentToolId: "ag1" }), note({ state: "dropped", reason: "finished", parentToolId: "ag1" }), note({ noteId: "n2", state: "dropped", reason: "turnEnded" })]);
+    expect(items<NoteItem>(v, "note")).toMatchObject([
+      { noteId: "n1", state: "dropped", reason: "finished", parentToolId: "ag1", text: "x" },
+      { noteId: "n2", state: "dropped", reason: "turnEnded", text: "" },
+    ]);
+  });
+
+  it("puts a subagent's notes under its tool row and a note for the lead in the stream", () => {
+    const v = run([
+      { kind: "tool.start", toolId: "ag1", name: "Agent", toolKind: "other", input: {} },
+      { kind: "tool.start", toolId: "t2", name: "Read", toolKind: "read", input: {}, parentToolId: "ag1" },
+      note({ state: "queued", text: "for the subagent", parentToolId: "ag1" }),
+      note({ noteId: "n2", state: "queued", text: "for the lead" }),
+    ]);
+    const rows = buildRows(v.items);
+    expect(rows.map((r) => r.item.type)).toEqual(["tool", "note"]);
+    expect(rows[0].children.map((c) => c.toolId)).toEqual(["t2"]);
+    expect(rows[0].notes.map((n) => n.text)).toEqual(["for the subagent"]);
+    expect((rows[1].item as NoteItem).text).toBe("for the lead");
+    expect(rows[1].notes).toEqual([]);
+  });
+
+  it("shows a note whose subagent row is unknown as a row of its own", () => {
+    const rows = buildRows(run([note({ state: "queued", text: "orphan", parentToolId: "gone" })]).items);
+    expect(rows.map((r) => r.item.type)).toEqual(["note"]);
+  });
+
+  it("a note still queued when the turn ends was never reported: it reads as not delivered", () => {
+    const v = run([{ kind: "user.message", messageId: "u1", text: "go" }, note({ state: "queued", text: "x" }), { kind: "turn.end", stopReason: "endTurn" }]);
+    expect(items<NoteItem>(v, "note")[0]).toMatchObject({ state: "dropped", reason: "turnEnded" });
   });
 });

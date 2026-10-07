@@ -34,6 +34,9 @@ describe("announcement", () => {
     expect(announcement(ev({ kind: "permission.request", reqId: "r", toolId: "t", intent: { class: "exec", summary: "Run `ls`" }, options: [] }))).toBe("Permission needed: Run ls");
     expect(announcement(ev({ kind: "turn.end", stopReason: "endTurn" }))).toBe("Agent finished");
     expect(announcement(ev({ kind: "turn.end", stopReason: "cancelled" }))).toBe("Agent stopped");
+    expect(announcement(ev({ kind: "note", noteId: "n1", state: "delivered" }))).toBe("Note delivered");
+    expect(announcement(ev({ kind: "note", noteId: "n1", state: "dropped", reason: "turnEnded" }))).toBe("Note not delivered");
+    expect(announcement(ev({ kind: "note", noteId: "n1", state: "queued", text: "x" }))).toBeUndefined();
     expect(announcement(ev({ kind: "status", state: "retrying" }))).toBeUndefined();
     expect(announcement(ev({ kind: "text.delta", messageId: "m", text: "hi" }))).toBeUndefined();
     expect(announcement(ev({ kind: "tool.update", toolId: "t" }))).toBeUndefined();

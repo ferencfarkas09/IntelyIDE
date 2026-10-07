@@ -5,6 +5,7 @@ import type {
   DelegateInfo,
   ErrorClass,
   McpServerInfo,
+  NoteState,
   PermissionDecision,
   PermissionMode,
   PermissionOutcome,
@@ -119,7 +120,20 @@ export interface TurnItem extends ItemBase {
   /** `maxTurns` only: the steps (tool calls of the run itself, not of its delegates) taken since the last message of the user. */
   steps?: number;
 }
-export type TranscriptItem = UserItem | TextItem | ThinkingItem | ToolItem | PermissionItem | QuestionItem | PlanCardItem | ErrorItem | TurnItem;
+/** A note the user added to the lead or to a running subagent; it moves from queued to delivered (or dropped) in place. */
+export interface NoteItem extends ItemBase {
+  type: "note";
+  noteId: string;
+  state: NoteState;
+  text: string;
+  /** The subagent's `Agent` call; absent = the note is for the lead. */
+  parentToolId?: string;
+  /** Delivered: the tool call it rode on. */
+  toolId?: string;
+  /** Dropped: `finished`, `turnEnded`, `cancelled` or `error`. */
+  reason?: string;
+}
+export type TranscriptItem = UserItem | TextItem | ThinkingItem | ToolItem | PermissionItem | QuestionItem | PlanCardItem | ErrorItem | TurnItem | NoteItem;
 
 export interface Throttle {
   /** `throttled` is the provider asking to slow down; `retrying` is a transient failure being retried. */
@@ -172,6 +186,7 @@ const THINK = (id: string) => `think:${id}`;
 const TOOL = (id: string) => `tool:${id}`;
 const PERM = (id: string) => `perm:${id}`;
 const QUEST = (id: string) => `q:${id}`;
+const NOTE = (id: string) => `note:${id}`;
 
 /** Provider wording (`in_progress`, `completed`, ...) in the card's three states. */
 function planEntry(i: PlanItem): PlanEntry {
@@ -302,6 +317,14 @@ function applyOne(v: AgentView, ev: AgentEvent): AgentView {
         upsert<PlanCardItem>("plan", () => ({ ...base("plan"), type: "plan", items }), (p) => ({ ...p, items }));
       }
       break;
+    case "note":
+      // queued carries the text and opens the item; delivered/dropped update it in place (a replay that starts later makes the item from what it has)
+      upsert<NoteItem>(
+        NOTE(ev.noteId),
+        () => ({ ...base(NOTE(ev.noteId)), type: "note", noteId: ev.noteId, state: ev.state, text: ev.text ?? "", ...(ev.parentToolId ? { parentToolId: ev.parentToolId } : {}), ...(ev.toolId ? { toolId: ev.toolId } : {}), ...(ev.reason ? { reason: ev.reason } : {}) }),
+        (n) => ({ ...n, state: ev.state, text: ev.text ?? n.text, ...(ev.parentToolId ? { parentToolId: ev.parentToolId } : {}), ...(ev.toolId ? { toolId: ev.toolId } : {}), ...(ev.reason ? { reason: ev.reason } : {}) }),
+      );
+      break;
     case "usage":
       v.usage = ev.usage;
       break;
@@ -368,6 +391,9 @@ function finishTurn(v: AgentView, stopReason: StopReason, ts: number, seq: numbe
         return item.outcome ? item : { ...item, outcome: "cancelled" as const, by: "user" as const };
       case "question":
         return item.answer || item.cancelled ? item : { ...item, cancelled: true };
+      case "note":
+        // the host reports every waiting note as dropped before the turn ends; one still queued here lost its report (a crashed sidecar)
+        return item.state === "queued" ? { ...item, state: "dropped" as const, reason: "turnEnded" } : item;
       default:
         return item;
     }
@@ -431,23 +457,31 @@ export interface TranscriptRow {
   item: TranscriptItem;
   /** Tool calls made by a subagent started by this tool item. */
   children: ToolItem[];
+  /** Notes the user added to the subagent this tool item started. */
+  notes: NoteItem[];
 }
 
 /** Top-level rows; tool calls with a known parent move under it (subagents). */
 export function buildRows(items: readonly TranscriptItem[]): TranscriptRow[] {
   const parents = new Set(items.filter((i): i is ToolItem => i.type === "tool").map((t) => t.toolId));
   const kids = new Map<string, ToolItem[]>();
+  const notes = new Map<string, NoteItem[]>();
   for (const item of items) {
     if (item.type === "tool" && item.parentToolId && parents.has(item.parentToolId)) {
       const list = kids.get(item.parentToolId) ?? [];
       list.push(item);
       kids.set(item.parentToolId, list);
+    } else if (item.type === "note" && item.parentToolId && parents.has(item.parentToolId)) {
+      const list = notes.get(item.parentToolId) ?? [];
+      list.push(item);
+      notes.set(item.parentToolId, list);
     }
   }
   const rows: TranscriptRow[] = [];
   for (const item of items) {
     if (item.type === "tool" && item.parentToolId && parents.has(item.parentToolId)) continue;
-    rows.push({ key: item.key, item, children: item.type === "tool" ? (kids.get(item.toolId) ?? []) : [] });
+    if (item.type === "note" && item.parentToolId && parents.has(item.parentToolId)) continue;
+    rows.push({ key: item.key, item, children: item.type === "tool" ? (kids.get(item.toolId) ?? []) : [], notes: item.type === "tool" ? (notes.get(item.toolId) ?? []) : [] });
   }
   return rows;
 }

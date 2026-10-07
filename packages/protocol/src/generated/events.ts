@@ -99,7 +99,7 @@ parentToolId?: string | null;
 text?: string | null; 
 /**  `delivered` only: the tool call the note rode on. */
 toolId?: string | null; 
-/**  `dropped` only: `finished`, `turnEnded` or `cancelled`. */
+/**  `dropped` only: `finished`, `turnEnded`, `cancelled` or `error`. */
 reason?: string | null } | { kind: "usage"; usage: UsageRecord } | { kind: "status"; state: StatusState; retryAfterMs?: number | null; scope?: string | null } | { kind: "error"; class: ErrorClass; message: string; retryable: boolean } | { kind: "turn.end"; stopReason: StopReason } | { kind: "session.info"; title?: string | null; nativeId?: string | null; models?: ModelInfo[]; 
 /**  The capability matrix computed for this session (runtime truth beats the static table). */
 caps?: ProviderCaps | null; effective?: EffectiveChange | null; 
