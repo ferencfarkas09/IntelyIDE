@@ -84,7 +84,8 @@ export function parsePnpmLicenses(json, root) {
 /** Production packages of one pnpm root (root, remote-web or remote-relay); runs pnpm offline with the scrubbed env. */
 export function pnpmInventory({ root, run = runTool, env = scrubbedEnv() }) {
   const r = run("pnpm", ["licenses", "list", "--prod", "--json", "--long"], { cwd: root, env, timeoutMs: 120_000 });
-  if (r.status !== 0) throw new LicenseToolError(`pnpm licenses failed: ${firstLine(r.stderr)}`, "pnpm_licenses", 3);
+  // `--json` makes pnpm report some errors on stdout, so a silent stderr is not a silent failure
+  if (r.status !== 0) throw new LicenseToolError(`pnpm licenses failed in ${path.basename(root)} (exit ${r.status}): ${firstLine(r.stderr) || firstLine(r.stdout)}`, "pnpm_licenses", 3);
   // pnpm prints plain text (not JSON) when a root has no production packages, as remote-relay does
   if (/^\s*no licenses/i.test(r.stdout)) return [];
   let json;

@@ -90,7 +90,8 @@ async fn filters_narrow_the_log_and_an_empty_repo_is_an_empty_log() {
     assert_eq!(graph().log_page(&env, &ids, None, &by_text, None).await.expect("text").rows.len(), 1);
     let by_path = LogFilters { path: Some("a/x.txt".into()), ..LogFilters::default() };
     assert_eq!(graph().log_page(&env, &ids, None, &by_path, None).await.expect("path").rows[0].subject, "feat: alpha");
-    let by_time = LogFilters { since_ms: Some(i64::MAX / 4), ..LogFilters::default() };
+    // a date after every commit that git accepts as such (newer versions refuse an absurd one, older ones read it as "now")
+    let by_time = LogFilters { since_ms: Some(4_000_000_000_000), ..LogFilters::default() };
     assert!(graph().log_page(&env, &ids, None, &by_time, None).await.expect("time").rows.is_empty());
     let bad = LogFilters { branch: Some("--output=/tmp/graph-test".into()), ..LogFilters::default() };
     assert_eq!(graph().log_page(&env, &ids, None, &bad, None).await.unwrap_err().code, "invalidArgument");

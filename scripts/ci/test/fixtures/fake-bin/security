@@ -51,7 +51,7 @@ case "$sub" in
     while [ $# -gt 0 ]; do
       case "$1" in -P) pass="$2"; shift 2 ;; *) shift ;; esac
     done
-    mode="$(stat -f %Lp "$file" 2>/dev/null || stat -c %a "$file" 2>/dev/null)"
+    mode="$(stat -c %a "$file" 2>/dev/null || stat -f %Lp "$file" 2>/dev/null)"
     log "import p12mode=$mode p12exists=$([ -s "$file" ] && echo yes || echo no)"
     if [ "${FAKE_SECURITY_FAIL:-}" = "import" ]; then
       echo "SecKeychainItemImport: wrong passphrase: $pass" >&2
