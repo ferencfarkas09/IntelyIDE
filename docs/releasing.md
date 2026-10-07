@@ -50,6 +50,24 @@ A release can be withdrawn but not edited once releases are immutable (see "Repo
 
 `gate.sh --list` prints the gates. Each run writes one log per gate under `.scratch/gate/`. The same script runs in CI, so a green local run means the same as a green CI run.
 
+## Releasing with one command
+
+`pnpm release` runs the steps of the checklist below that a script can do, in this order, and stops at the first problem. The parts can be run alone:
+
+| Command | What it does |
+|---|---|
+| `pnpm release:status` | Shows where you are (version, HEAD, CI of HEAD, whether the artifacts are complete). Changes nothing. |
+| `pnpm release:preflight` | The checks only: tools; the version in every file; the changelog section; `main` with a clean tree that equals `origin/main`; a green CI run for HEAD; the tag and the release do not exist; the contact, README, docs, public-tree and telemetry checks. |
+| `pnpm release:build` | Builds the app from the commit, replaces the builder's path in the executable, checks the bundle against its sources (sidecar, SDK installer, SDK pin files), makes the ad-hoc signed disk image, mounts and verifies it, and writes `dist-release/<version>/`: the disk image, `SHA256SUMS`, the SBOM, `RELEASE_NOTES.md`, `build-record.json`. It also writes `site/data/release.json`: commit that file and push it before publishing. Nothing is rebuilt when the folder is complete for the commit (`--rebuild` forces it). |
+| `pnpm release:publish` | Asks you to type the tag, creates the annotated tag on the commit the image was built from, pushes it, creates a draft release with the three files, checks the files and their sizes, publishes it as the stable latest release and downloads it anonymously to compare with `SHA256SUMS`. |
+| `pnpm release` | Preflight, build and publish. |
+
+Options go after `--`, for example `pnpm release -- --dry-run`: `--dry-run` prints every command that would change something and runs only the checks; `--draft-only` stops after the draft is verified (publish it later with `gh release edit <tag> --draft=false --latest`); `--yes` does not ask for the tag; `--smoke` starts the finished app through the e2e scenarios `a` and `m`; `--skip-ci` skips the CI check.
+
+A usual release: bump the version and write the changelog (see Versioning and Changelog), push, wait for CI. Run `pnpm release:build` the day before, commit and push `site/data/release.json`, wait for CI again. On the day run `pnpm release`, then `pnpm site:deploy` for the website (its download data already points at the release). HEAD may differ from the build commit only in `site/data/release.json`; any other change needs `pnpm release:build --rebuild`.
+
+The script needs a `gh` login with push access to the repository. It never pushes to `main`, never edits a file other than `site/data/release.json`, and never leaves the repository, `dist-release/` and `.scratch/`.
+
 ## Release checklist
 
 In this order, with no other work running on the machine:

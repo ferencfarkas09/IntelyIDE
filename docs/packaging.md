@@ -49,9 +49,9 @@ shasum -a 256 -c SHA256SUMS
 
 The checksum file detects corruption only. It comes from the same page as the download and proves nothing about its origin.
 
-## 5. Publish by hand
+## 5. Publish
 
-Create the annotated tag and the GitHub release yourself and attach the disk image and `SHA256SUMS`; see [release-checklist.md](release-checklist.md). Then switch the README installer block with `node scripts/release/readme-toggle.mjs --dmg adhoc`.
+`pnpm release` does steps 1 to 5 in one command (see [releasing.md](releasing.md)): it builds the app, makes the disk image, writes the checksums and the SBOM, tags the commit and publishes the GitHub release. By hand: create the annotated tag and the GitHub release yourself and attach the disk image and `SHA256SUMS`; see [release-checklist.md](release-checklist.md). Then switch the README installer block with `node scripts/release/readme-toggle.mjs --dmg adhoc`.
 
 ## What does not exist yet
 
