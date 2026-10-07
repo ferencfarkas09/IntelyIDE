@@ -1,13 +1,13 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "IntelyIDE",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "identifier": "hu.happygastro.intelyswitchide",
   "build": {
     "frontendDist": "../ui/dist",
     "devUrl": "http://localhost:1420",
     "beforeDevCommand": "pnpm --filter @intely/ui dev",
-    "beforeBuildCommand": "pnpm --filter @intely/ui build"
+    "beforeBuildCommand": "pnpm --filter @intely/sidecar build && pnpm --filter @intely/ui build"
   },
   "app": {
     "withGlobalTauri": false,
@@ -39,7 +39,16 @@
     "copyright": "Copyright (c) 2026 Ferenc Farkas (IntelyHome) and IntelyIDE contributors",
     "license": "GPL-3.0-or-later",
     "licenseFile": "../LICENSE",
-    "resources": { "../LICENSE": "legal/LICENSE" },
+    "resources": {
+      "../LICENSE": "legal/LICENSE",
+      "../sidecar/dist/index.js": "sidecar/index.js",
+      "../sidecar/dist/sdk-install.js": "sidecar/sdk-install.js",
+      "resources/sidecar-package.json": "sidecar/package.json",
+      "../sidecar/sdk-pin/package.json": "sdk-pin/package.json",
+      "../sidecar/sdk-pin/package-lock.json": "sdk-pin/package-lock.json",
+      "../sidecar/sdk-pin/tree.sha256": "sdk-pin/tree.sha256",
+      "../sidecar/sdk-pin/hash-tree.mjs": "sdk-pin/hash-tree.mjs"
+    },
     "macOS": { "minimumSystemVersion": "13.5" }
   }
 }

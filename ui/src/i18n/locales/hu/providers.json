@@ -261,7 +261,7 @@
   "providers.sdk.lead.sdk_unverified": "Találtunk egy Agent SDK mappát, de a fájljai nem egyeznek az IntelyIDE-vel szállított ellenőrzőösszeg-listával, vagy a mappa nem csak a tiéd. Elutasítottuk, és semmit nem futtattunk belőle.",
   "providers.sdk.lead.sdk_broken": "Találtunk egy Agent SDK mappát, de nem tölthető be, általában egy hiányzó függőség miatt. Vele nem indul Claude-futás.",
   "providers.sdk.detail": "Részlet",
-  "providers.sdk.stepsTitle": "Egyszeri beállítás, a szállított sdk-pin fájlokat tartalmazó mappából",
+  "providers.sdk.stepsTitle": "Egyszeri beállítás: futtasd ezt a két parancsot egy terminálban (a telepítő az appban van)",
   "providers.sdk.stepsAria": "A rögzített Agent SDK-t telepítő parancsok",
   "providers.sdk.copy": "Parancsok másolása",
   "providers.sdk.copied": "Parancsok kimásolva",
@@ -270,9 +270,9 @@
   "providers.sdk.stillIssue": "Újraellenőrizve: még mindig nem használható.",
   "providers.sdk.nowOk": "Újraellenőrizve: az Agent SDK működik.",
   "providers.sdk.recheckFailed": "Az újraellenőrzés nem sikerült",
-  "providers.sdk.note.private": "A mappát te hozd létre 0700 móddal. Az olyan mappát, amelybe mások is írhatnak, elutasítjuk.",
+  "providers.sdk.note.private": "A telepítő 0700 móddal hozza létre a mappát. Az olyan mappát, amelybe mások is írhatnak, elutasítjuk.",
   "providers.sdk.note.verified": "Minden fájlnak egyeznie kell a szállított ellenőrzőösszeg-listával. Az eltérő fájlfát elutasítjuk, nem javítjuk.",
-  "providers.sdk.note.npm": "Egyszer npm és hálózati kapcsolat kell hozzá. Nélkülük telepítsd a rögzített fájlokat egy másik gépen, és másold át a mappát.",
+  "providers.sdk.note.npm": "Egyszer Node 24 és hálózati kapcsolat kell hozzá, kizárólag a registry.npmjs.org felé. Az első parancs csak kiírja, mit töltene le. Kapcsolat nélkül telepítsd a rögzített fájlokat egy másik gépen, és másold át a mappát.",
   "providers.sdk.note.terms": "Az Agent SDK az Anthropic szoftvere, az Anthropic feltételei szerint. Nem része az IntelyIDE-nek, és nem terjesztjük vele.",
   "providers.sdk.note.safe": "Minden más működik tovább: a többi szolgáltató, a Rewind, valamint a commit- és push-tiltások nem igénylik az SDK-t."
 }

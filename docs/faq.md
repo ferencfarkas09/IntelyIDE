@@ -1,6 +1,6 @@
 # FAQ and troubleshooting
 
-This page answers the questions people ask first and lists the fixes for the problems they hit first. Applies to version 0.1.0. Statements about files and behaviour were checked against the source; where something is not verified, the text says so.
+This page answers the questions people ask first and lists the fixes for the problems they hit first. Applies to version 0.1.1. Statements about files and behaviour were checked against the source; where something is not verified, the text says so.
 
 ## About the project
 
@@ -24,9 +24,9 @@ Git operations you start use your normal Git remotes. Agents talk to the provide
 
 No. It can drive Claude through the Claude Agent SDK, and "Claude" is a trademark of Anthropic. See [../TRADEMARKS.md](../TRADEMARKS.md).
 
-### What is the Agent SDK card?
+### What is the Agent SDK, and how do I install it?
 
-The Claude provider needs the Anthropic Agent SDK. It is not distributed with IntelyIDE: you install it yourself with the commands shown on the card in Settings > Providers (see [getting-started.md](getting-started.md)), and until then Claude runs show that card instead of starting. Other providers listed in Settings are detected but have not been run in this release.
+The Claude provider needs the Anthropic Agent SDK. It is not distributed with IntelyIDE: you install it once yourself with the installer inside the app (see [getting-started.md](getting-started.md)), and until then a Claude run stops at the start and names the exact command. Other providers listed in Settings are detected but have not been run in this release.
 
 ### Which Macs and macOS versions are supported?
 
@@ -36,7 +36,7 @@ macOS 13.5 or later. There are two DMGs. The `aarch64` DMG is for Apple silicon 
 
 ### macOS shows a warning when I open the app
 
-The 0.1.0 DMG is signed ad hoc unless the release notes say it is notarized. After verifying the download as described in [install-macos.md](install-macos.md), macOS 15 and later: open System Settings > Privacy & Security and choose Open Anyway. macOS 13 and 14: right-click the app and choose Open. Do not weaken Gatekeeper for this.
+The 0.1.1 DMG is signed ad hoc unless the release notes say it is notarized. After verifying the download as described in [install-macos.md](install-macos.md), macOS 15 and later: open System Settings > Privacy & Security and choose Open Anyway. macOS 13 and 14: right-click the app and choose Open. Do not weaken Gatekeeper for this.
 
 ### What does the orange "Read-only" badge mean?
 
@@ -70,7 +70,7 @@ The folder was moved, renamed or sits on an unmounted volume. On Welcome or in t
 
 ### Where does the app keep its state?
 
-In one folder: `~/Library/Application Support/IntelySwitchIDE` in 0.1.0. A rename to `IntelyIDE` with a one-time migration is planned for a later version. Inside it:
+In one folder: `~/Library/Application Support/IntelySwitchIDE` in 0.1.1. A rename to `IntelyIDE` with a one-time migration is planned for a later version. Inside it:
 
 | Path | Content |
 |---|---|
@@ -102,7 +102,7 @@ On the next start the app begins empty (Welcome, default settings). Your reposit
 1. Quit the app and drag it from Applications to the Trash.
 2. Delete the state folder described above.
 3. Open Keychain Access and remove the items the app created (search for `intely`), if you had secrets stored there.
-4. The Agent SDK you installed yourself lives in the `sdk` folder inside the state folder, so step 2 removes it too.
+4. The Agent SDK you installed yourself lives in its own folder, `~/Library/Application Support/IntelyIDE/sdk`. Delete the folder `~/Library/Application Support/IntelyIDE` too, or run the installer with `--uninstall --yes` first.
 
 Repositories, workspaces' folders and the agent roles in `~/.claude/agents` are yours and stay where they are. Rewind snapshots are Git references under `refs/intely/snapshots/` inside each repository; they stay until you delete them with Git.
 

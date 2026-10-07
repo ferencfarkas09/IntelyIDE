@@ -261,7 +261,7 @@
   "providers.sdk.lead.sdk_unverified": "An Agent SDK folder was found, but its files do not match the checksum list shipped with IntelyIDE, or the folder is not private to you. It was refused and nothing in it was run.",
   "providers.sdk.lead.sdk_broken": "An Agent SDK folder was found, but it cannot be loaded, usually because a dependency is missing. No Claude run starts with it.",
   "providers.sdk.detail": "Detail",
-  "providers.sdk.stepsTitle": "Set it up once, from the folder that holds the shipped sdk-pin files",
+  "providers.sdk.stepsTitle": "Set it up once: run these two commands in a terminal (the installer ships inside the app)",
   "providers.sdk.stepsAria": "Commands that install the pinned Agent SDK",
   "providers.sdk.copy": "Copy commands",
   "providers.sdk.copied": "Commands copied",
@@ -270,9 +270,9 @@
   "providers.sdk.stillIssue": "Checked again: it is still not usable.",
   "providers.sdk.nowOk": "Checked again: the Agent SDK works.",
   "providers.sdk.recheckFailed": "Could not check again",
-  "providers.sdk.note.private": "Create the folder yourself with mode 0700. A folder that others can write to is refused.",
+  "providers.sdk.note.private": "The installer creates the folder with mode 0700. A folder that others can write to is refused.",
   "providers.sdk.note.verified": "Every file must match the shipped checksum list. A tree that differs is refused, never repaired.",
-  "providers.sdk.note.npm": "Needs npm and a network connection once. Without them, install the pinned files on another machine and copy the folder.",
+  "providers.sdk.note.npm": "Needs Node 24 and a network connection once, to registry.npmjs.org and nothing else. The first command only lists what would be downloaded. Without a connection, install the pinned files on another machine and copy the folder.",
   "providers.sdk.note.terms": "The Agent SDK is Anthropic software under Anthropic's terms. It is not part of IntelyIDE and is not distributed with it.",
   "providers.sdk.note.safe": "Everything else keeps working: other providers, Rewind and the commit and push stops do not need the SDK."
 }

@@ -79,15 +79,15 @@ When you are done, delete the folder: `rm -rf /tmp/intely-first`.
 
 ## Agent features: Node, Claude Code and the Agent SDK
 
-The Git features work without any of this. Agent runs with Claude need three things on your Mac, none of which IntelyIDE bundles or distributes:
+The Git features work without any of this. Agent runs with Claude need three things on your Mac. IntelyIDE bundles and distributes none of them; the agent sidecar that drives them ships inside the app (from 0.1.1):
 
 1. **Node.js 24 or newer**, because the agent sidecar runs on it.
 2. **Claude Code** (the `claude` command-line tool), installed and logged in by you. IntelyIDE drives your own installation; it does not proxy or replace it.
 3. **The Claude Agent SDK**, which is Anthropic software under Anthropic's terms.
    - **From source**, `pnpm install` fetches the SDK as a development dependency of the sidecar. Nothing more is needed.
-   - **In a DMG build**, Settings > Providers shows a card "Claude Agent SDK is not installed" with three shell commands and a Copy button. You run them yourself: they create a private folder under the state folder (`~/Library/Application Support/IntelySwitchIDE/sdk` in 0.1.0), copy the pinned lock files into it and run `npm ci --ignore-scripts` there. Nothing in the app installs it for you. Every file must then match the checksum list shipped with the app, otherwise the SDK is refused rather than repaired. After the commands finish, press Recheck on the card.
+   - **In a DMG build**, the first Claude run stops with `sdk_missing: ... is not installed` and the two commands that set it up. You run them yourself in a terminal: `node '/Applications/IntelyIDE.app/Contents/Resources/sidecar/sdk-install.js' --plan` only lists what would be downloaded, and the same command with `--yes` downloads the pinned packages from registry.npmjs.org and nothing else, checks every hash and the whole file tree against the checksum list shipped with the app, and installs them into `~/Library/Application Support/IntelyIDE/sdk` (a private folder, mode 0700). It needs Node.js 24 and a network connection once, and it does not use npm or run any script of the packages. Nothing in the app installs it for you. A tree that differs from the list is refused rather than repaired. After the command finishes, start the run again.
 
-The release notes of each DMG say whether the packaged app contains the sidecar needed for agent runs. If you are unsure, build from source.
+The 0.1.0 disk image did not contain the agent sidecar, so agent runs there need a build from source; from 0.1.1 the disk image contains it.
 
 ## Trying an agent safely
 

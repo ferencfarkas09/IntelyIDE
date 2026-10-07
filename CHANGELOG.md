@@ -4,6 +4,25 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-07
+
+### Fixed
+
+- Agent runs from the disk image. The agent sidecar, the Agent SDK installer and the pin files of the SDK now ship inside the app (`Contents/Resources/sidecar` and `Contents/Resources/sdk-pin`). The 0.1.0 image had no sidecar, so every run stopped at once with "the agent sidecar bundle is missing".
+- The setup text of the Claude Agent SDK named a folder the app does not read (`IntelySwitchIDE/sdk`; the app reads `IntelyIDE/sdk`) and its three commands needed npm and the right working folder. A Claude run that cannot start because the SDK is missing, unverified or of another version now stops with the exact command of the installer inside the app: a plan that only lists what would be downloaded, then the install, which checks every hash and the whole file tree against the shipped list.
+- The protocol package mirrored the old classification of a malformed MCP tool name and did not know the `session/mcp-status` messages; its tests failed.
+- Tests that depended on the machine they ran on: the order of keys in a golden file when another crate turns on `preserve_order`, a probe script that needed `sleep` on its own PATH, the date notation of older git versions, the name of the temp folder on Linux.
+
+### Changed
+
+- A Rust build of the app crate needs the built sidecar (`pnpm --filter @intely/sidecar build`), because the bundle resources are copied on every build. `beforeBuildCommand` builds it for `pnpm tauri build`.
+- CI: the JavaScript and licence jobs install `remote-web` and `remote-relay`, the gates run to the end instead of stopping at the first failure, and a failed job prints the failed steps of the gate logs.
+
+### Known limitations
+
+- The Claude Agent SDK is not shipped with the app. Agent runs need Node.js 24 and Claude Code on the Mac, and the SDK installed once with the installer inside the app. Everything listed under 0.1.0 still applies, except that agent runs now work from the disk image.
+- The Agent SDK card in Settings > Providers does not appear yet: the app does not ask the sidecar for the state of the SDK. A run that cannot start names the command instead.
+
 ## [0.1.0] - 2026-10-07
 
 First public release. This is alpha software.
@@ -36,5 +55,6 @@ First public release. This is alpha software.
 - Providers other than Claude, Happy, MongoDB Studio and Remote are proven only against mocks or on a local machine.
 - Version 0.1.0 still stores its state in the folder `IntelySwitchIDE` and uses Keychain services named after the earlier bundle identifier; a switch to `com.intelyhome.intelyide` with a migration is planned.
 
-[Unreleased]: https://github.com/ferencfarkas09/IntelyIDE/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/ferencfarkas09/IntelyIDE/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/ferencfarkas09/IntelyIDE/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/ferencfarkas09/IntelyIDE/releases/tag/v0.1.0

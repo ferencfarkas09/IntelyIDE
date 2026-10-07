@@ -1,19 +1,23 @@
-import { createSignal, createUniqueId, For, Show } from "solid-js";
+import { resourceDir } from "@tauri-apps/api/path";
+import { createSignal, createUniqueId, For, onMount, Show } from "solid-js";
 import { t, type MessageKey } from "../../i18n";
 import { ipc } from "../../ipc";
 import { errorText } from "../../store/snapshots";
 import { Button, Copy, RefreshCw, toast, TriangleAlert } from "../../ui-kit";
 import type { ProviderInfo } from "../../ipc/providers";
-import { sdkIssue, SDK_SETUP_COMMANDS, type SdkIssue } from "./logic";
+import { DEFAULT_RESOURCES_DIR, sdkIssue, sdkSetupCommands, type SdkIssue } from "./logic";
 
 const NOTES = ["private", "verified", "npm", "terms", "safe"] as const;
 
-/** Shown inside the Claude card while the Agent SDK is missing, of another version, unverified or broken. Nothing here installs anything. */
+/** Shown inside the Claude card while the Agent SDK is missing, of another version, unverified or broken. Nothing here installs anything: it shows the commands of the installer that ships inside the app. */
 export function SdkCard(props: { issue: SdkIssue; onChange: (next: ProviderInfo) => void }) {
   const id = createUniqueId();
   const [busy, setBusy] = createSignal(false);
   const [result, setResult] = createSignal<"still" | "ok" | null>(null);
-  const commands = SDK_SETUP_COMMANDS.join("\n");
+  // the real place of the app's Resources folder; the usual /Applications path until it is known (and in a browser)
+  const [resources, setResources] = createSignal(DEFAULT_RESOURCES_DIR);
+  onMount(() => void resourceDir().then((dir) => dir && setResources(dir), () => undefined));
+  const commands = () => sdkSetupCommands(resources()).join("\n");
 
   async function recheck() {
     setBusy(true);
@@ -31,7 +35,7 @@ export function SdkCard(props: { issue: SdkIssue; onChange: (next: ProviderInfo)
     }
   }
 
-  const copy = () => void navigator.clipboard?.writeText(commands).then(() => toast.info(t("providers.sdk.copied")), () => undefined);
+  const copy = () => void navigator.clipboard?.writeText(commands()).then(() => toast.info(t("providers.sdk.copied")), () => undefined);
 
   return (
     <section class="sdkcard" role="group" aria-labelledby={`${id}-t`} data-code={props.issue.code}>
@@ -45,7 +49,7 @@ export function SdkCard(props: { issue: SdkIssue; onChange: (next: ProviderInfo)
         </p>
       </Show>
       <p class="sdkcard__steps-title">{t("providers.sdk.stepsTitle")}</p>
-      <pre class="sdkcard__code" dir="ltr" tabIndex={0} aria-label={t("providers.sdk.stepsAria")}>{commands}</pre>
+      <pre class="sdkcard__code" dir="ltr" tabIndex={0} aria-label={t("providers.sdk.stepsAria")}>{commands()}</pre>
       <ul class="sdkcard__notes">
         <For each={NOTES}>{(n) => <li>{t(`providers.sdk.note.${n}` as MessageKey)}</li>}</For>
       </ul>

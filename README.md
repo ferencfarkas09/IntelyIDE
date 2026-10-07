@@ -109,7 +109,7 @@ The full layer table, the enforcement suite and its results are in [docs/safety.
 
 ## Status and known limitations
 
-This is version 0.1.0, an alpha release. It has been used mostly by its author, on an Intel Mac.
+This is version 0.1.1, an alpha release. It has been used mostly by its author, on an Intel Mac.
 
 - Write mode is not judged suitable for unattended daily use on repositories you cannot restore.
 - The agent protections are best-effort. See the safety model above.
@@ -120,19 +120,19 @@ This is version 0.1.0, an alpha release. It has been used mostly by its author, 
 - The first release is an Intel (x64) build. Apple Silicon Macs run it under Rosetta 2, which is slower. A native Apple Silicon build is not available yet.
 - The app is ad-hoc signed and not notarized, so macOS asks you to confirm the first launch (see Install).
 - The app tells you when a newer release exists (a notice with a link to the release page, checked once a day; see Settings > Updates). It does not download or install updates itself: you replace the app with the new disk image.
-- The Claude Agent SDK is not shipped with the app. You install it yourself (see [docs/getting-started.md](docs/getting-started.md)).
+- The Claude Agent SDK is not shipped with the app. You install it once yourself, with the installer that is inside the app (see [docs/getting-started.md](docs/getting-started.md)).
 
 ## Install
 
 <!--dmg:available-->
 ### macOS installer (DMG)
 
-1. Download `IntelyIDE_0.1.0_x64.dmg` from the Releases page of this repository. It is built for Intel Macs and also runs on Apple Silicon under Rosetta 2, more slowly. Apple may remove Rosetta in a future macOS. If you are unsure which Mac you have: Apple menu > About This Mac.
+1. Download `IntelyIDE_0.1.1_x64.dmg` from the Releases page of this repository. It is built for Intel Macs and also runs on Apple Silicon under Rosetta 2, more slowly. Apple may remove Rosetta in a future macOS. If you are unsure which Mac you have: Apple menu > About This Mac.
 2. Check the download. `shasum -a 256 --ignore-missing -c SHA256SUMS` in the download folder detects a corrupted download only; the checksums come from the same page as the file, so they cannot prove where it came from.
 3. Open the DMG and drag IntelyIDE to Applications, then open it from there.
 4. First launch. <!--dmg:v:adhoc,developer-id-->This build is not notarized, so macOS refuses the first launch: on macOS 15 and later open System Settings > Privacy & Security, scroll to the message about IntelyIDE, choose Open Anyway and confirm; on macOS 13 and 14 right-click the app and choose Open. Do this only for a file you downloaded from this repository's Releases page.<!--/dmg:v--><!--dmg:v:notarized--><!--The app is notarized and opens normally.--><!--/dmg:v-->
 5. <!--dmg:v:adhoc-->Ad-hoc builds get a new identity with every release, so macOS may ask again for Keychain and folder access after you replace the app.<!--/dmg:v-->
-6. Some features still need files of the source tree and therefore work only in a build from source: agent runs (the agent sidecar is not in the disk image), deploying the Remote relay, the Mongo Studio AI helper and the component preview harness. Everything else, including the Git features, the editor, the terminal, the preview and workspaces, works from the disk image. See Requirements and Build from source.
+6. Some features still need files of the source tree and therefore work only in a build from source: deploying the Remote relay, the Mongo Studio AI helper and the component preview harness. Agent runs work from the disk image once Node.js 24, Claude Code and the Claude Agent SDK are set up (see Requirements). Everything else, including the Git features, the editor, the terminal, the preview and workspaces, works from the disk image. See Build from source.
 
 More detail, including uninstall and where your data lives: [docs/install-macos.md](docs/install-macos.md).
 <!--/dmg:available-->
@@ -160,7 +160,7 @@ A macOS installer (DMG) is built from this repository and attached to the Releas
 - `git` 2.30 or newer (the push path uses `--force-if-includes`), for example from the Xcode Command Line Tools.
 - For agent features: Node.js 24 or newer, and your own Claude Code (`claude` command-line tool) installed and logged in. Claude Code is not bundled and is not part of this project.
 - For agent features: the Claude Agent SDK, which you install yourself under Anthropic's terms. See [docs/getting-started.md](docs/getting-started.md).
-- Without Node and Claude Code, the Git features work and the agent features stay unavailable. The 0.1.0 disk image does not contain the agent runtime at all, so agent features need a build from source for now.
+- Without Node and Claude Code, the Git features work and the agent features stay unavailable. The disk image contains the agent sidecar (the 0.1.0 image did not), but not Node, Claude Code or the Agent SDK.
 
 ## Build from source
 
@@ -176,7 +176,7 @@ You need the Xcode Command Line Tools, Rust 1.96 or newer, Node.js 24 and pnpm 1
 
 ## Configuration
 
-- Settings and the workspace registry live in one state folder under `~/Library/Application Support/`. Version 0.1.0 still uses the folder name `IntelySwitchIDE`; a rename to `IntelyIDE` with a migration is planned. See [docs/privacy.md](docs/privacy.md) for every file.
+- Settings and the workspace registry live in one state folder under `~/Library/Application Support/`. Version 0.1.1 still uses the folder name `IntelySwitchIDE`; a rename to `IntelyIDE` with a migration is planned. The Agent SDK you install lives in its own folder, `~/Library/Application Support/IntelyIDE/sdk`. See [docs/privacy.md](docs/privacy.md) for every file.
 - Optional modules (Remote, MongoDB Studio, Happy) are off until you switch them on in Settings.
 - Environment variables that change safety behaviour: `INTELY_READONLY` (refuse writes) and `INTELY_WRITABLE` (allow writes when started with `pnpm dev:app`).
 - To uninstall: move the app to the Trash, delete the state folder (this removes run logs and the refusals log), delete the Keychain items of the app in Keychain Access, and remove Rewind refs from your repositories with `git for-each-ref refs/intely/` and `git update-ref -d <ref>`.

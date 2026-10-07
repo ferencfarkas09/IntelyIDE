@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ProviderInfo } from "../../ipc/providers";
-import { baseUrlProblem, cardChip, enforcementChip, replaceProvider, sdkIssue, SDK_SETUP_COMMANDS, secretKey, STATE_CHIP } from "./logic";
+import { baseUrlProblem, cardChip, enforcementChip, replaceProvider, sdkIssue, DEFAULT_RESOURCES_DIR, sdkSetupCommands, shellQuote, secretKey, STATE_CHIP } from "./logic";
 
 describe("provider logic", () => {
   it("has a chip for every state and a Keychain key per provider", () => {
@@ -56,10 +56,16 @@ describe("SDK problems from Detection.message", () => {
     expect(cardChip(claude(null)).label).toBe("Ready");
   });
 
-  it("prints lock-based commands, never a floating install", () => {
-    const text = SDK_SETUP_COMMANDS.join("\n");
-    expect(text).toContain("npm ci --ignore-scripts --omit=optional --prefix");
-    expect(text).toContain("mkdir -m 700");
-    expect(text).not.toMatch(/npm (install|i)\b|@\d/);
+  it("sets the SDK up with the installer of the app: a plan first, then the install, never npm or a floating version", () => {
+    const [plan, install] = sdkSetupCommands(DEFAULT_RESOURCES_DIR);
+    expect(plan).toBe("node '/Applications/IntelyIDE.app/Contents/Resources/sidecar/sdk-install.js' --plan");
+    expect(install).toBe("node '/Applications/IntelyIDE.app/Contents/Resources/sidecar/sdk-install.js' --yes");
+    expect(sdkSetupCommands("/x/y/").join("\n")).not.toMatch(/npm|@\d/);
+  });
+
+  it("quotes the app's place as one shell word, also with a space or a quote in it", () => {
+    expect(shellQuote("/Volumes/Disk A/IntelyIDE.app")).toBe("'/Volumes/Disk A/IntelyIDE.app'");
+    expect(shellQuote("/tmp/it's")).toBe("'/tmp/it'\\''s'");
+    expect(sdkSetupCommands("/Volumes/My Disk/IntelyIDE.app/Contents/Resources")[1]).toBe("node '/Volumes/My Disk/IntelyIDE.app/Contents/Resources/sidecar/sdk-install.js' --yes");
   });
 });

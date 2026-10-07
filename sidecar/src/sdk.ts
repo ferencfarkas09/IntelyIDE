@@ -78,6 +78,18 @@ const reports = new Map<string, SdkReport>();
 const inflight = new Map<string, Promise<Sdk>>();
 let last: SdkReport | null = null;
 
+/**
+ * What to tell a person whose run cannot start because the SDK is not usable. In the packaged app the exact command of the installer
+ * that sits next to this file (a plan first, then the install); in a source checkout the step that fetches the SDK.
+ * `file` and `packaged` are for tests; production passes nothing.
+ */
+export function sdkSetupHint(opts: { file?: string; packaged?: boolean } = {}): string {
+  const file = opts.file ?? fileURLToPath(import.meta.url);
+  if (!(opts.packaged ?? isPackagedPath(file))) return 'Run `pnpm install` in the source checkout.';
+  const installer = `'${path.join(path.dirname(file), 'sdk-install.js').replace(/'/g, `'\\''`)}'`;
+  return `Install it once in a terminal: node ${installer} --plan (lists what would be downloaded), then node ${installer} --yes.`;
+}
+
 /** The report of the most recent successful load (version and how it was accepted), or null. */
 export const sdkReport = (): SdkReport | null => last;
 /** Tests only: forget memoized loads. */

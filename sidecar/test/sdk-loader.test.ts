@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  isPackagedPath, loadSdk, parseManifest, resetSdkCache, SDK_NAME, SDK_PIN, SdkBrokenError, SdkError, SdkIncompatibleError, SdkMissingError, sdkReport, SdkUnverifiedError, STATE_DIR_NAME,
+  isPackagedPath, loadSdk, parseManifest, resetSdkCache, SDK_NAME, SDK_PIN, SdkBrokenError, SdkError, SdkIncompatibleError, SdkMissingError, sdkReport, sdkSetupHint, SdkUnverifiedError, STATE_DIR_NAME,
   treeLines, type LoadOptions,
 } from '../src/sdk.js';
 
@@ -529,5 +529,19 @@ describe('packaged mode (PK18)', () => {
     const body = readFileSync(fileURLToPath(new URL('../src/sdk.ts', import.meta.url)), 'utf8').replace(/\/\/.*$/gm, '');
     expect(body).toMatch(/isPackagedPath\(fileURLToPath\(import\.meta\.url\)\)/);
     expect(body).not.toMatch(/process\.(env|argv|execPath)/);
+  });
+});
+
+describe('what a person is told when the SDK is not usable', () => {
+  it('names the installer next to the packaged sidecar, quoted as one shell word', () => {
+    const file = '/Applications/My Mac/IntelyIDE.app/Contents/Resources/sidecar/index.js';
+    const hint = sdkSetupHint({ file });
+    expect(hint).toBe("Install it once in a terminal: node '/Applications/My Mac/IntelyIDE.app/Contents/Resources/sidecar/sdk-install.js' --plan (lists what would be downloaded), then node '/Applications/My Mac/IntelyIDE.app/Contents/Resources/sidecar/sdk-install.js' --yes.");
+    expect(sdkSetupHint({ file: "/Volumes/it's/IntelyIDE.app/Contents/Resources/sidecar/index.js" })).toContain("'/Volumes/it'\\''s/IntelyIDE.app/Contents/Resources/sidecar/sdk-install.js'");
+  });
+
+  it('sends a source checkout to pnpm install', () => {
+    expect(sdkSetupHint({ file: '/work/repo/sidecar/dist/index.js' })).toBe('Run `pnpm install` in the source checkout.');
+    expect(sdkSetupHint()).toBe('Run `pnpm install` in the source checkout.');
   });
 });

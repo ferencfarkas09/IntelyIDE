@@ -40,7 +40,7 @@ describe("<SdkCard> in the Claude card", () => {
     expect(screen.getByText(chip)).toBeTruthy();
     // the CLI exists: never claimed as missing
     expect(screen.queryByText("Not installed")).toBeNull();
-    expect(within(card).getByLabelText("Commands that install the pinned Agent SDK").textContent).toContain("npm ci --ignore-scripts --omit=optional --prefix");
+    expect(within(card).getByLabelText("Commands that install the pinned Agent SDK").textContent).toContain("sidecar/sdk-install.js' --yes");
     expect(within(card).getByText(/Anthropic software under Anthropic's terms/)).toBeTruthy();
     expect(within(card).getByText(/mode 0700/)).toBeTruthy();
   });
@@ -58,7 +58,7 @@ describe("<SdkCard> in the Claude card", () => {
     mount(await claudeWith("sdk_missing: x"));
     fireEvent.click(await screen.findByRole("button", { name: "Copy commands" }));
     await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
-    expect(writeText.mock.calls[0][0]).toContain("mkdir -m 700");
+    expect(writeText.mock.calls[0][0]).toBe("node '/Applications/IntelyIDE.app/Contents/Resources/sidecar/sdk-install.js' --plan\nnode '/Applications/IntelyIDE.app/Contents/Resources/sidecar/sdk-install.js' --yes");
   });
 
   it("Check again calls detect again and shows the card go away once the SDK is there", async () => {

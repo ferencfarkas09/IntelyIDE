@@ -4,6 +4,7 @@ import { execFile } from 'node:child_process';
 import { isWriterMode, UnsupportedModeError } from './abstract.js';
 import { ProviderDisabledError, type Loader } from './loader.js';
 import { redact } from './redact.js';
+import { SdkError, sdkSetupHint } from './sdk.js';
 import type { ProtocolClient } from './protocol.js';
 import { SeqSink, TurnGuard } from './turn.js';
 import type { AgentSession, HostServices, McpSet, ProviderId, SessionSpec, SidecarMsg } from './types.js';
@@ -62,12 +63,14 @@ export class SidecarHost {
     try {
       entry.session = await provider.open(spec, guard, this.proto, services);
     } catch (e) {
+      // A missing or unverified Agent SDK is not fixed by trying again: the message names the command that sets it up.
+      const message = e instanceof SdkError ? `${e.message}. ${sdkSetupHint()}` : (e as Error).message;
       guard.beginTurn();
-      guard.emit({ kind: 'error', class: 'provider', message: (e as Error).message, retryable: false });
+      guard.emit({ kind: 'error', class: 'provider', message, retryable: false });
       guard.endTurn('error');
       this.proto.flush(b.agentId);
       this.release(entry);
-      return { error: 'open', detail: (e as Error).message };
+      return { error: 'open', detail: message };
     }
     this.sessions.set(b.agentId, entry);
     return { ok: true, nativeId: entry.session.nativeId };

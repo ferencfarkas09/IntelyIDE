@@ -90,10 +90,20 @@ export function cardChip(p: Pick<ProviderInfo, "id" | "state" | "message">): { l
   return issue ? { label: t(`providers.state.${SDK_CHIP_KEY[issue.code]}` as MessageKey), tone: "warn" } : STATE_CHIP[p.state];
 }
 
-/** Lock-based setup of the pinned SDK (never a floating `npm install pkg@version`); the shell expands $HOME. */
-export const SDK_DIR = '"$HOME/Library/Application Support/IntelySwitchIDE/sdk"';
-export const SDK_SETUP_COMMANDS: readonly string[] = [
-  `mkdir -m 700 ${SDK_DIR}`,
-  `cp sdk-pin/package.json sdk-pin/package-lock.json ${SDK_DIR}/`,
-  `npm ci --ignore-scripts --omit=optional --prefix ${SDK_DIR}`,
-];
+/** The Resources folder of the app when its real place cannot be asked (a browser, a test): the usual drag-to-Applications install. */
+export const DEFAULT_RESOURCES_DIR = "/Applications/IntelyIDE.app/Contents/Resources";
+
+/** One shell word: single quotes, a quote inside the text closed and reopened. */
+export function shellQuote(text: string): string {
+  return `'${text.replace(/'/g, `'\\''`)}'`;
+}
+
+/**
+ * The two commands that set the SDK up once. The installer ships inside the app (`sidecar/sdk-install.js`): `--plan` only prints what
+ * would be downloaded, `--yes` downloads the pinned packages from registry.npmjs.org, checks every hash and the whole file tree
+ * against the shipped list and installs it into the state folder. No npm, no scripts of the packages are run.
+ */
+export function sdkSetupCommands(resourcesDir: string): string[] {
+  const installer = shellQuote(`${resourcesDir.replace(/\/+$/, "")}/sidecar/sdk-install.js`);
+  return [`node ${installer} --plan`, `node ${installer} --yes`];
+}

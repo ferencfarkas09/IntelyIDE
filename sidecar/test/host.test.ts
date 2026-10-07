@@ -5,6 +5,7 @@ import { Loader } from '../src/loader.js';
 import { ProtocolClient } from '../src/protocol.js';
 import { checkInvariants } from '../src/turn.js';
 import { UnsupportedModeError } from '../src/abstract.js';
+import { SdkMissingError } from '../src/sdk.js';
 import type { AgentProvider, AgentSession, EventSink, PermissionMode, SessionSpec, WireEvent } from '../src/types.js';
 
 function rig(open: (sink: EventSink, spec: SessionSpec) => AgentSession) {
@@ -69,6 +70,16 @@ describe('cancel protocol with an adapter that ignores interrupt()', () => {
     expect(r.sent.find((m) => m.id === 1 && m.type === 'reply').body).toMatchObject({ error: 'open', detail: 'cannot spawn' });
     expect(r.events().map((e) => e.kind)).toEqual(['error', 'turn.end']);
     expect(r.sent.some((m) => m.type === 'slot/release')).toBe(true);
+  });
+
+  it('a missing Agent SDK names the command that sets it up, and keeps the stable code prefix', async () => {
+    const r = rig(() => { throw new SdkMissingError('@anthropic-ai/claude-agent-sdk 0.3.287 is not installed'); });
+    r.send(1, 'session/start', r.start);
+    await wait(30);
+    const detail = r.sent.find((m) => m.id === 1 && m.type === 'reply').body.detail as string;
+    // this test runs from a source checkout, so the hint is the checkout step; the packaged one is in sdk-loader.test.ts
+    expect(detail).toBe('sdk_missing: @anthropic-ai/claude-agent-sdk 0.3.287 is not installed. Run `pnpm install` in the source checkout.');
+    expect(r.events()[0]).toMatchObject({ kind: 'error', class: 'provider', message: detail });
   });
 
   it('close ends an open turn as cancelled and releases the lease', async () => {

@@ -6,11 +6,11 @@ IntelyIDE is alpha software. The installed app starts in normal (writable) mode,
 
 ## Which download
 
-Releases are listed on the Releases page of the repository (`ferencfarkas09/IntelyIDE` on GitHub). Version 0.1.0 ships one disk image:
+Releases are listed on the Releases page of the repository (`ferencfarkas09/IntelyIDE` on GitHub). Version 0.1.1 ships one disk image:
 
 | File | For | Notes |
 |---|---|---|
-| `IntelyIDE_0.1.0_x64.dmg` | Intel Macs | Also runs on Apple Silicon under Rosetta 2 |
+| `IntelyIDE_0.1.1_x64.dmg` | Intel Macs | Also runs on Apple Silicon under Rosetta 2 |
 
 There is no native Apple Silicon build yet. On an Apple Silicon Mac the app runs under Rosetta 2, Apple's translation layer. It works, but it is slower, and Apple may remove Rosetta in a future macOS. If macOS asks you to install Rosetta the first time, accept. If you are unsure which Mac you have: Apple menu > About This Mac.
 
@@ -34,11 +34,11 @@ This detects a corrupted or incomplete download. The checksums come from the sam
 
 ## What the disk image contains
 
-Some features still need files of the source tree and therefore work only in a build from source: agent runs (the agent sidecar is not in the disk image), deploying the Remote relay, the Mongo Studio AI helper and the component preview harness. Everything else, including the Git features, the editor, the terminal, the preview and workspaces, works from the disk image. See [building.md](building.md) for a build from source.
+Some features still need files of the source tree and therefore work only in a build from source: deploying the Remote relay, the Mongo Studio AI helper and the component preview harness. Agent runs work from the disk image once Node.js 24, Claude Code and the Claude Agent SDK are set up (see [getting-started.md](getting-started.md)). Everything else, including the Git features, the editor, the terminal, the preview and workspaces, works from the disk image. See [building.md](building.md) for a build from source.
 
 ## First launch
 
-The 0.1.0 build is signed ad hoc and is not notarized by Apple, so macOS refuses to open it the first time and says it cannot verify the app. This is expected for this build. Confirm once, and only for a file you downloaded from this repository's Releases page:
+The 0.1.1 build is signed ad hoc and is not notarized by Apple, so macOS refuses to open it the first time and says it cannot verify the app. This is expected for this build. Confirm once, and only for a file you downloaded from this repository's Releases page:
 
 - **macOS 15 and later.** Try to open the app, then open System Settings > Privacy & Security, scroll to the message about IntelyIDE, choose Open Anyway and confirm. Control-click no longer works on these versions.
 - **macOS 13 and 14.** Right-click the app and choose Open, then choose Open in the dialog.
@@ -57,7 +57,8 @@ IntelyIDE tells you when a newer release exists: once a day, after a one-time no
 
 | What | Where |
 |---|---|
-| Settings, workspaces, run logs, attachments | One folder below `~/Library/Application Support/`. Version 0.1.0 uses the name `IntelySwitchIDE`; a rename to `IntelyIDE` with a migration is planned |
+| Settings, workspaces, run logs, attachments | One folder below `~/Library/Application Support/`. Version 0.1.1 uses the name `IntelySwitchIDE`; a rename to `IntelyIDE` with a migration is planned |
+| The Claude Agent SDK, if you installed it | `~/Library/Application Support/IntelyIDE/sdk` (its own folder, created by the installer inside the app) |
 | Secrets (tokens, database passwords) | The macOS Keychain, in services whose names contain `intelyswitchide` |
 | Rewind snapshots | Git references under `refs/intely/snapshots/` inside your own repositories |
 | Claude session transcripts | Written by your own Claude Code installation, not by IntelyIDE |
@@ -67,7 +68,7 @@ The full list, with what is plain text and what is not redacted, is in [privacy.
 ## Uninstall
 
 1. Quit IntelyIDE and move it from Applications to the Trash.
-2. Delete the state folder named above. This removes your settings, run logs, the refusals log and the Agent SDK if you installed it there.
+2. Delete the state folder named above. This removes your settings, run logs and the refusals log. If you installed the Agent SDK, delete the folder `~/Library/Application Support/IntelyIDE` as well.
 3. Open Keychain Access, search for `intelyswitchide` and delete the items that remain.
 4. Optional: remove Rewind references from your repositories with `git for-each-ref refs/intely/` and `git update-ref -d` on each one you want gone.
 
