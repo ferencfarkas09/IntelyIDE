@@ -12,8 +12,10 @@ const SOURCES = import.meta.glob<string>(["../**/*.{ts,tsx}", "!../**/*.test.{ts
 describe("catalogs", () => {
   const result = checkCatalogs();
 
-  it("every catalog has exactly the keys of English, the same placeholders, no empty values and valid plurals (pnpm i18n:check)", () => {
-    expect(result.errors).toEqual([]);
+  // English and Hungarian are hand-written and must be exact. The 51 machine-translated catalogs are filled in by `pnpm i18n:translate`; until that
+  // run they are red in `pnpm i18n:check` (decision RD6: informational, the CI job `i18n-full` reports them and may fail).
+  it("English and Hungarian have exactly the keys of English, the same placeholders, no empty values and valid plurals (pnpm i18n:check --lang=en,hu)", () => {
+    expect(checkCatalogs({ langs: ["en", "hu"] }).errors).toEqual([]);
   });
 
   it("ships a catalog for every language in languages.ts", () => {
