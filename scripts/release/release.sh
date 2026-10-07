@@ -234,6 +234,7 @@ smoke() {
 
 confirm() {
   [ "$YES" = 1 ] && return 0
+  [ "$DRY" = 1 ] && { say "dry run: nothing is published, so the tag is not asked for"; return 0; }
   [ -t 0 ] || die "not a terminal: pass --yes to publish without typing the tag"
   printf '\n%sThis makes %s public%s: a tag on GitHub, a stable release, the files below.\n' "$B" "$TAG" "$N"
   ls -l "$OUT/$DMG" "$OUT/SHA256SUMS" "$OUT/$SBOM" | awk '{printf "   %s  %s\n", $5, $NF}'
