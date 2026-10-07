@@ -43,7 +43,7 @@ fn the_wire_shape_follows_the_plan() {
     assert_eq!((tool["kind"].as_str(), tool["toolKind"].as_str(), tool["turnId"].as_str()), (Some("tool.start"), Some("exec"), Some("t1")));
     let raw = serde_json::to_value(&events[5]).unwrap();
     assert_eq!(raw["raw"]["type"], "stream_event");
-    let usage = serde_json::to_value(&events[14]).unwrap();
+    let usage = serde_json::to_value(events.iter().find(|e| e.kind.name() == "usage").unwrap()).unwrap();
     assert_eq!(usage["usage"]["costBasis"], "estimated");
     assert_eq!(usage["usage"]["perTurn"]["inputTokens"], 1200);
 }

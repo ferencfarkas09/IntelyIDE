@@ -116,7 +116,7 @@ describe("sidecar messages written by Rust", () => {
   const messages = sidecarMessages as unknown as SidecarMsg[];
   const TYPES = [
     "hello", "heartbeat", "policy/decide", "slot/acquire", "slot/renew", "slot/release", "events/batch",
-    "session/start", "session/prompt", "session/close", "session/permission", "session/mcp-status", "cancel/request", "cancel/done", "permission/answer", "reply",
+    "session/start", "session/prompt", "session/close", "session/permission", "session/mcp-status", "session/note", "cancel/request", "cancel/done", "permission/answer", "reply",
   ];
 
   it("cover every type and carry the envelope", () => {
@@ -190,6 +190,36 @@ describe("delegation fields (spec 4.1)", () => {
     const intent = intentFromClaudeTool("Bash", { command: "ls" });
     expect(Object.keys(intent)).not.toContain("actor");
     expect(Object.keys(intent)).not.toContain("subagentFlags");
+  });
+});
+
+describe("notes to a working agent", () => {
+  const messages = sidecarMessages as unknown as SidecarMsg[];
+
+  it("session/note names the agent, the note, its text and optionally the subagent's Agent call", () => {
+    const bodies = messages.flatMap((m) => (m.type === "session/note" ? [m.body] : []));
+    expect(bodies).toEqual([
+      { agentId: "a1", noteId: "n1", text: "Use the staging URL, not production.", parentToolId: "toolu_01" },
+      { agentId: "a1", noteId: "n2", text: "Also update the changelog." },
+    ]);
+  });
+
+  it("the sample stream has one note event, with its state and the call it rode on, and the parser takes the three states", () => {
+    const note = sample.find((e) => e.kind === "note");
+    if (note?.kind !== "note") throw new Error("no note sample");
+    expect(note).toMatchObject({ noteId: "n1", state: "delivered", toolId: "t9", text: "Use the staging database, not production" });
+    for (const state of ["queued", "delivered", "dropped"] as const) {
+      expect(() => parseAgentEvent({ ...note, state })).not.toThrow();
+    }
+    expect(() => parseAgentEvent({ ...note, noteId: undefined })).toThrow(/noteId/);
+  });
+
+  it("a note is no part of a turn: one reported after turn.end is no violation", () => {
+    const note = sample.find((e) => e.kind === "note");
+    const last = sample.at(-1)!;
+    const late = { ...note, noteId: "late", state: "dropped", reason: "turnEnded", seq: last.seq + 1, turnId: last.turnId } as AgentEvent;
+    expect(last.kind).toBe("turn.end");
+    expect(check([...sample, late])).toEqual([]);
   });
 });
 
