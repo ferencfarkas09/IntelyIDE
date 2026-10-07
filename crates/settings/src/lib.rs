@@ -15,5 +15,5 @@ pub use error::{code, SettingsError};
 pub use providers::ProviderRegistry;
 #[cfg(target_os = "macos")]
 pub use secrets::{KeychainSecretStore, ScopedKeychainStore};
-pub use secrets::{name_looks_secret, FallbackSecretStore, MemorySecretStore, Secret, SecretStore, SecretsHealth};
+pub use secrets::{name_looks_secret, FallbackSecretStore, LegacyFallbackStore, MemorySecretStore, LEGACY_SERVICE, Secret, SecretStore, SecretsHealth};
 pub use store::{Change, Object, SettingsStore};

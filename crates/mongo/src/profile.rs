@@ -22,7 +22,9 @@ use crate::types::{EffectiveLevel, DEFAULT_MAX_TIME_MS, MAX_TIME_CEILING_MS};
 
 pub const NS: &str = "mongo";
 /// Keychain service of the Mongo secrets (the account is `uri.<profile id>` and `tamper-key`).
-pub const KEYCHAIN_SERVICE: &str = "hu.happygastro.intelyswitchide.mongo";
+pub const KEYCHAIN_SERVICE: &str = "com.intelyhome.intelyide.mongo";
+/// The service name of versions before 1.0. Its items are read once, copied to [`KEYCHAIN_SERVICE`] and never deleted.
+pub const LEGACY_KEYCHAIN_SERVICE: &str = "hu.happygastro.intelyswitchide.mongo";
 const TAMPER_KEY: &str = "tamper-key";
 
 /// The fields a tampering user would flip. Signed.
@@ -1119,6 +1121,22 @@ fn normalize_ai_prefs(p: AiPrefs) -> Result<AiPrefs> {
 mod tests {
     use super::*;
     use intely_settings::MemorySecretStore;
+
+    #[test]
+    fn the_keychain_service_is_the_new_name_and_the_legacy_one_is_kept_for_the_migration() {
+        assert_eq!(KEYCHAIN_SERVICE, "com.intelyhome.intelyide.mongo");
+        assert_eq!(LEGACY_KEYCHAIN_SERVICE, "hu.happygastro.intelyswitchide.mongo");
+    }
+
+    #[test]
+    fn a_secret_stored_under_the_legacy_service_is_found_and_copied() {
+        use intely_settings::{LegacyFallbackStore, Secret, SecretStore};
+        let (current, legacy) = (Arc::new(MemorySecretStore::new()), Arc::new(MemorySecretStore::new()));
+        legacy.set("tamper-key", Secret::new("k")).unwrap();
+        let store = LegacyFallbackStore::new(current.clone(), legacy.clone());
+        assert_eq!(store.get("tamper-key").unwrap().unwrap().expose(), "k");
+        assert!(current.has("tamper-key").unwrap() && legacy.has("tamper-key").unwrap());
+    }
 
     #[test]
     fn a_record_signed_before_the_revision_counter_is_upgraded_without_a_notice() {

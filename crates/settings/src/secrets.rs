@@ -121,6 +121,67 @@ impl SecretStore for MemorySecretStore {
     }
 }
 
+/// Keychain service name used by versions before 1.0 (the development-era bundle identifier). Read only: items found
+/// here are copied to [`SERVICE`] and never deleted by a read.
+pub const LEGACY_SERVICE: &str = "hu.happygastro.intelyswitchide";
+
+/// A store under the current name with a read-only fallback to the store under the legacy name.
+/// `get` asks `current` first; on a miss it asks `legacy`, copies a hit to `current` (best effort: a failed copy is
+/// ignored and the value is still returned) and returns it. A read never deletes anything from `legacy`.
+/// `has` sees both. `set` writes `current` only. `remove` removes from both, so a deleted secret cannot come back from
+/// the legacy item. A failing legacy lookup counts as a miss: it must not break the current store.
+pub struct LegacyFallbackStore {
+    current: Arc<dyn SecretStore>,
+    legacy: Arc<dyn SecretStore>,
+}
+
+impl LegacyFallbackStore {
+    pub fn new(current: Arc<dyn SecretStore>, legacy: Arc<dyn SecretStore>) -> Self {
+        Self { current, legacy }
+    }
+}
+
+impl fmt::Debug for LegacyFallbackStore {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("LegacyFallbackStore")
+    }
+}
+
+impl SecretStore for LegacyFallbackStore {
+    fn has(&self, key: &str) -> Result<bool> {
+        validate_key(key)?;
+        if self.current.has(key)? {
+            return Ok(true);
+        }
+        Ok(self.legacy.has(key).unwrap_or(false))
+    }
+
+    fn set(&self, key: &str, value: Secret) -> Result<()> {
+        self.current.set(key, value)
+    }
+
+    fn remove(&self, key: &str) -> Result<()> {
+        validate_key(key)?;
+        let current = self.current.remove(key);
+        let legacy = self.legacy.remove(key);
+        current.and(legacy)
+    }
+
+    fn get(&self, key: &str) -> Result<Option<Secret>> {
+        validate_key(key)?;
+        if let Some(found) = self.current.get(key)? {
+            return Ok(Some(found));
+        }
+        let Ok(Some(found)) = self.legacy.get(key) else { return Ok(None) };
+        let _ = self.current.set(key, found.clone());
+        Ok(Some(found))
+    }
+
+    fn health(&self) -> SecretsHealth {
+        self.current.health()
+    }
+}
+
 #[cfg(target_os = "macos")]
 pub use keychain::{KeychainSecretStore, ScopedKeychainStore, SERVICE};
 
@@ -129,11 +190,14 @@ mod keychain {
     use security_framework::item::{ItemClass, ItemSearchOptions};
     use security_framework::passwords::{delete_generic_password, get_generic_password, set_generic_password};
 
-    use super::{validate_key, Secret, SecretStore, SecretsHealth};
+    use std::sync::Arc;
+
+    use super::{validate_key, LegacyFallbackStore, Secret, SecretStore, SecretsHealth, LEGACY_SERVICE};
     use crate::error::{code, Result, SettingsError};
 
     /// One Keychain service for the whole IDE; one generic-password item per key (account = key).
-    pub const SERVICE: &str = "hu.happygastro.intelyswitchide";
+    /// Items stored by earlier versions under [`LEGACY_SERVICE`] are read once and copied here.
+    pub const SERVICE: &str = "com.intelyhome.intelyide";
     const ERR_SEC_ITEM_NOT_FOUND: i32 = -25300;
 
     /// Holds no state; every call goes to the user's Keychain.
@@ -145,11 +209,34 @@ mod keychain {
     #[derive(Debug, Clone)]
     pub struct ScopedKeychainStore {
         service: String,
+        legacy: Option<String>,
+    }
+
+    /// The raw Keychain under one service name, with no migration.
+    #[derive(Debug, Clone)]
+    struct RawKeychain {
+        service: String,
+    }
+
+    fn raw(service: &str) -> Arc<dyn SecretStore> {
+        Arc::new(RawKeychain { service: service.to_owned() })
     }
 
     impl ScopedKeychainStore {
         pub fn new(service: impl Into<String>) -> Self {
-            Self { service: service.into() }
+            Self { service: service.into(), legacy: None }
+        }
+
+        /// Like [`Self::new`], with a read-only fallback to the items of an older service name (see [`LegacyFallbackStore`]).
+        pub fn with_legacy(service: impl Into<String>, legacy: impl Into<String>) -> Self {
+            Self { service: service.into(), legacy: Some(legacy.into()) }
+        }
+
+        fn store(&self) -> Arc<dyn SecretStore> {
+            match &self.legacy {
+                Some(legacy) => Arc::new(LegacyFallbackStore::new(raw(&self.service), raw(legacy))),
+                None => raw(&self.service),
+            }
         }
 
         pub fn service(&self) -> &str {
@@ -160,7 +247,7 @@ mod keychain {
     /// A message the user can act on, by OSStatus. The raw status stays in `detail`.
     pub fn keychain_message(status: i32) -> &'static str {
         match status {
-            -128 => "Keychain access was cancelled or denied. Choose \"Always Allow\" in the macOS dialog, or allow IntelySwitchIDE in Keychain Access, and try again.",
+            -128 => "Keychain access was cancelled or denied. Choose \"Always Allow\" in the macOS dialog, or allow IntelyIDE in Keychain Access, and try again.",
             -25293 => "The Keychain rejected the authorisation. Unlock the login keychain (Keychain Access) and try again.",
             -25308 => "The Keychain is locked or cannot show its dialog right now. Unlock the login keychain and try again.",
             -34018 => "This development build is not signed for Keychain access (ad-hoc signature, no entitlement), so macOS refuses it. Secrets are kept in memory for this session.",
@@ -233,8 +320,36 @@ mod keychain {
         };
     }
 
-    keychain_store!(KeychainSecretStore, |_store| SERVICE);
-    keychain_store!(ScopedKeychainStore, |store| store.service.as_str());
+    keychain_store!(RawKeychain, |store| store.service.as_str());
+
+    macro_rules! delegating_store {
+        ($ty:ty, |$s:ident| $inner:expr) => {
+            impl SecretStore for $ty {
+                fn has(&self, key: &str) -> Result<bool> {
+                    let $s = self;
+                    $inner.has(key)
+                }
+                fn set(&self, key: &str, value: Secret) -> Result<()> {
+                    let $s = self;
+                    $inner.set(key, value)
+                }
+                fn remove(&self, key: &str) -> Result<()> {
+                    let $s = self;
+                    $inner.remove(key)
+                }
+                fn get(&self, key: &str) -> Result<Option<Secret>> {
+                    let $s = self;
+                    $inner.get(key)
+                }
+                fn health(&self) -> SecretsHealth {
+                    SecretsHealth { backend: "keychain", degraded: false, message: None }
+                }
+            }
+        };
+    }
+
+    delegating_store!(KeychainSecretStore, |_store| LegacyFallbackStore::new(raw(SERVICE), raw(LEGACY_SERVICE)));
+    delegating_store!(ScopedKeychainStore, |store| store.store());
 }
 
 /// How long a Keychain call may take before the in-memory store takes over. A macOS permission dialog that nobody
@@ -566,6 +681,116 @@ mod tests {
         assert!(!store.health().degraded);
         store.remove("happy.token").unwrap();
         assert!(!primary.has("happy.token").unwrap());
+    }
+
+    /// Two services of one fake Keychain; `fail_set` models a refused write.
+    #[derive(Default)]
+    struct Fake {
+        items: Mutex<HashMap<String, Secret>>,
+        fail_set: bool,
+        removed: Mutex<usize>,
+    }
+
+    impl Fake {
+        fn with(key: &str, v: &str) -> Arc<Self> {
+            let f = Self::default();
+            f.items.lock().unwrap().insert(key.into(), Secret::new(v));
+            Arc::new(f)
+        }
+        fn failing_set() -> Arc<Self> {
+            Arc::new(Self { fail_set: true, ..Self::default() })
+        }
+        fn holds(&self, key: &str) -> bool {
+            self.items.lock().unwrap().contains_key(key)
+        }
+    }
+
+    impl SecretStore for Fake {
+        fn has(&self, key: &str) -> Result<bool> {
+            Ok(self.holds(key))
+        }
+        fn set(&self, key: &str, value: Secret) -> Result<()> {
+            if self.fail_set {
+                return Err(SettingsError::new(code::KEYCHAIN, "Keychain access was cancelled or denied.").with_detail("OSStatus -128"));
+            }
+            self.items.lock().unwrap().insert(key.into(), value);
+            Ok(())
+        }
+        fn remove(&self, key: &str) -> Result<()> {
+            *self.removed.lock().unwrap() += 1;
+            self.items.lock().unwrap().remove(key);
+            Ok(())
+        }
+        fn get(&self, key: &str) -> Result<Option<Secret>> {
+            Ok(self.items.lock().unwrap().get(key).cloned())
+        }
+    }
+
+    const K: &str = "providers.openai:default";
+
+    fn pair(current: &Arc<Fake>, legacy: &Arc<Fake>) -> LegacyFallbackStore {
+        LegacyFallbackStore::new(current.clone(), legacy.clone())
+    }
+
+    #[test]
+    fn the_new_service_wins_and_the_legacy_one_is_not_asked_to_change() {
+        let (cur, old) = (Fake::with(K, "new"), Fake::with(K, "old"));
+        assert_eq!(pair(&cur, &old).get(K).unwrap().unwrap().expose(), "new");
+        assert_eq!(old.get(K).unwrap().unwrap().expose(), "old");
+    }
+
+    #[test]
+    fn a_legacy_hit_is_copied_to_the_new_service_and_kept_in_the_legacy_one() {
+        let (cur, old) = (Arc::new(Fake::default()), Fake::with(K, "old"));
+        let store = pair(&cur, &old);
+        assert!(store.has(K).unwrap(), "has sees legacy items");
+        assert_eq!(store.get(K).unwrap().unwrap().expose(), "old");
+        assert_eq!(cur.get(K).unwrap().unwrap().expose(), "old", "copied");
+        assert!(old.holds(K), "a read never deletes the legacy item");
+        assert_eq!(*old.removed.lock().unwrap(), 0);
+        assert!(store.get("happy.token").unwrap().is_none());
+        assert!(!store.has("happy.token").unwrap());
+    }
+
+    #[test]
+    fn a_failed_copy_still_returns_the_value_and_keeps_the_legacy_item() {
+        let (cur, old) = (Fake::failing_set(), Fake::with(K, "old"));
+        let store = pair(&cur, &old);
+        assert_eq!(store.get(K).unwrap().unwrap().expose(), "old");
+        assert!(old.holds(K) && !cur.holds(K));
+        assert_eq!(*old.removed.lock().unwrap(), 0);
+    }
+
+    #[test]
+    fn set_writes_the_new_service_only() {
+        let (cur, old) = (Arc::new(Fake::default()), Fake::with(K, "old"));
+        pair(&cur, &old).set(K, Secret::new("fresh")).unwrap();
+        assert_eq!(cur.get(K).unwrap().unwrap().expose(), "fresh");
+        assert_eq!(old.get(K).unwrap().unwrap().expose(), "old");
+    }
+
+    #[test]
+    fn remove_deletes_from_both_services_so_the_secret_cannot_come_back() {
+        let (cur, old) = (Fake::with(K, "new"), Fake::with(K, "old"));
+        let store = pair(&cur, &old);
+        store.remove(K).unwrap();
+        assert!(!cur.holds(K) && !old.holds(K));
+        assert!(store.get(K).unwrap().is_none() && !store.has(K).unwrap());
+        store.remove(K).unwrap();
+    }
+
+    #[test]
+    fn the_legacy_store_refuses_invalid_keys_and_no_secret_leaks_into_errors_or_debug() {
+        let (cur, old) = (Fake::failing_set(), Fake::with(K, CANARY));
+        let store = pair(&cur, &old);
+        assert_eq!(store.get("bad key").err().unwrap().code, code::INVALID_KEY);
+        assert_eq!(store.has("bad key").err().unwrap().code, code::INVALID_KEY);
+        assert_eq!(store.remove("bad key").err().unwrap().code, code::INVALID_KEY);
+        let got = store.get(K).unwrap();
+        let err = store.set(K, Secret::new(CANARY)).err().unwrap();
+        for text in [format!("{store:?}"), format!("{got:?}"), format!("{err} {err:?}")] {
+            assert!(!text.contains(CANARY), "{text}");
+        }
     }
 
     #[cfg(target_os = "macos")]

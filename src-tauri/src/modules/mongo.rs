@@ -17,7 +17,7 @@ use intely_mongo::api::{
 };
 use intely_mongo::host::redact;
 use intely_mongo::jail::NetworkPolicy;
-use intely_mongo::profile::{ProfileStore, KEYCHAIN_SERVICE};
+use intely_mongo::profile::{ProfileStore, KEYCHAIN_SERVICE, LEGACY_KEYCHAIN_SERVICE};
 use intely_mongo::studio::{Sink, Studio, TestProgress, TierNames};
 use intely_mongo::error::StudioError;
 use intely_settings::{MemorySecretStore, SecretStore, SettingsStore};
@@ -61,12 +61,12 @@ impl Sink for Events {
     }
 }
 
-/// The Keychain item per connection lives under its own service (`...intelyswitchide.mongo`). Tests, the E2E harness
+/// The Keychain item per connection lives under its own service (`com.intelyhome.intelyide.mongo`, with a read-only fallback to the 0.x name). Tests, the E2E harness
 /// and the read-only smoke never touch the Keychain (a dev build can pop a permission dialog).
 fn secret_store() -> Arc<dyn SecretStore> {
     #[cfg(target_os = "macos")]
     if !["INTELY_E2E", "INTELY_E2E_SCRIPT", "INTELY_READONLY", "INTELY_SECRETS"].iter().any(|v| std::env::var_os(v).is_some_and(|x| !x.is_empty())) {
-        return Arc::new(intely_settings::FallbackSecretStore::new(Arc::new(intely_settings::ScopedKeychainStore::new(KEYCHAIN_SERVICE))));
+        return Arc::new(intely_settings::FallbackSecretStore::new(Arc::new(intely_settings::ScopedKeychainStore::with_legacy(KEYCHAIN_SERVICE, LEGACY_KEYCHAIN_SERVICE))));
     }
     Arc::new(MemorySecretStore::new())
 }
