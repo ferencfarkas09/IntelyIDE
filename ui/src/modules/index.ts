@@ -32,6 +32,7 @@ import { register as roles } from "./roles";
 import { register as run } from "./run";
 import { register as runs } from "./runs";
 import { register as search } from "./search";
+import { register as sentry } from "./sentry";
 import { register as settingsCore } from "./settings-core";
 import { register as terminal } from "./terminal";
 import { register as updates } from "./updates";
@@ -80,6 +81,7 @@ export const MODULES: readonly FeatureModule[] = [
   { id: "licenses", register: licenses },
   { id: "updates", register: updates },
   { id: "usage", register: usage },
+  { id: "sentry", register: sentry },
 ];
 
 /** Runs every module's `register()`. A module that throws is logged and skipped: the app and the other modules start anyway. */

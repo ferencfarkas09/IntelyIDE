@@ -52,9 +52,10 @@ impl SettingsState {
 /// Namespaces and secret-key prefixes that only their own module's commands may write ((design notes: mcp-management-spec) 3.4): the generic
 /// `settings_set`, `secrets_set` and `secrets_remove` would otherwise let the webview skip `mcp_save`'s validation, the secret rules and the
 /// confirmation dialog, and write the Keychain proof of a server. `settings_get`, `secrets_has` and the status commands stay open.
-/// Every future generic write path (a reset, an import of settings or secrets) checks these lists too.
-pub(crate) const RESERVED_NS: [&str; 1] = ["mcp"];
-pub(crate) const RESERVED_SECRET_PREFIXES: [&str; 1] = ["mcp."];
+/// Every future generic write path (a reset, an import of settings or secrets) checks these lists too. `sentry` is on them so the
+/// webview cannot point the saved Sentry token at another address (`sentry_set_config` forgets the token when the address changes).
+pub(crate) const RESERVED_NS: [&str; 2] = ["mcp", "sentry"];
+pub(crate) const RESERVED_SECRET_PREFIXES: [&str; 2] = ["mcp.", "sentry."];
 
 pub(crate) fn check_writable_ns(ns: &str) -> Res<()> {
     if RESERVED_NS.contains(&ns) {
@@ -274,15 +275,17 @@ mod tests {
     }
 
     #[test]
-    fn the_mcp_namespace_and_the_mcp_secret_prefix_are_not_writable_from_the_webview() {
-        assert_eq!(check_writable_ns("mcp").unwrap_err().code, "reservedNamespace");
-        for ok in ["editor", "providers", "agents", "mcp2", "mcpx"] {
+    fn the_mcp_and_sentry_namespaces_and_secret_prefixes_are_not_writable_from_the_webview() {
+        for ns in ["mcp", "sentry"] {
+            assert_eq!(check_writable_ns(ns).unwrap_err().code, "reservedNamespace", "{ns}");
+        }
+        for ok in ["editor", "providers", "agents", "mcp2", "mcpx", "sentry2", "sentryx"] {
             assert!(check_writable_ns(ok).is_ok(), "{ok}");
         }
-        for key in ["mcp.m3f9a1c0b2d4:confirmed", "mcp.x:env.A", "mcp.m1:hdr.Authorization"] {
+        for key in ["mcp.m3f9a1c0b2d4:confirmed", "mcp.x:env.A", "mcp.m1:hdr.Authorization", "sentry.token", "sentry.other"] {
             assert_eq!(check_writable_secret_key(key).unwrap_err().code, "reservedNamespace", "{key}");
         }
-        for ok in [provider_key("openai").as_str(), "happy.token", "mongo.profile:x", "MCP.x"] {
+        for ok in [provider_key("openai").as_str(), "happy.token", "mongo.profile:x", "MCP.x", "sentryx.token"] {
             assert!(check_writable_secret_key(ok).is_ok(), "{ok}");
         }
     }

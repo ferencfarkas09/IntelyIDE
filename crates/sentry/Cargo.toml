@@ -1,0 +1,23 @@
+[package]
+name = "intely-sentry"
+version = "0.0.0"
+edition = "2021"
+rust-version = "1.77"
+license.workspace = true
+publish = false
+
+[lib]
+name = "intely_sentry"
+
+[dependencies]
+intely-checks = { version = "0.0.0", path = "../checks" }
+intely-settings = { version = "0.0.0", path = "../settings" }
+reqwest = { version = "0.13.3", default-features = false, features = ["native-tls"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "sync", "time", "macros"] }
+url = "2.5.8"
+
+[dev-dependencies]
+tempfile = "3.27.0"
+tokio = { version = "1.53.1", features = ["io-util", "net", "test-util"] }

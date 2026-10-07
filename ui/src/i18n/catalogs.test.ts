@@ -59,7 +59,7 @@ describe("pending namespaces", () => {
   const en = { mongo: { "mongo.a": "Hello {name}", "mongo.b": "Bye" }, platform: { "platform.a": "Open the file list" } };
 
   it("lists the six MongoDB Studio namespaces, licenses, the workspace namespaces and workflow and panels (Wave 9, until translated), all registered", () => {
-    expect([...PENDING_NAMESPACES].sort()).toEqual(["happy", "licenses", "mcp", "memory", "modes", "mongo", "mongoDiag", "mongoForm", "mongoLoud", "mongoManage", "mongoStudio", "notes", "panels", "preview", "providers", "slash", "updates", "usage", "workflow", "workspace", "workspaceNew", "workspacePicker"]);
+    expect([...PENDING_NAMESPACES].sort()).toEqual(["happy", "licenses", "mcp", "memory", "modes", "mongo", "mongoDiag", "mongoForm", "mongoLoud", "mongoManage", "mongoStudio", "notes", "panels", "preview", "providers", "sentry", "slash", "updates", "usage", "workflow", "workspace", "workspaceNew", "workspacePicker"]);
     for (const ns of PENDING_NAMESPACES) expect(NAMESPACES).toContain(ns);
   });
 

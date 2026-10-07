@@ -391,6 +391,6 @@ describe("driver and the real tree", () => {
     assert.match(r.stdout, /RESULT verify-no-telemetry OK/);
   });
   it("the allowed crates exist in the real workspace and are all documented here", () => {
-    assert.deepEqual([...ALLOWED_CRATES].sort(), ["happy", "mcp", "mongo", "preview-proxy", "relay_bundle", "relay_deploy", "remote", "updater"]);
+    assert.deepEqual([...ALLOWED_CRATES].sort(), ["happy", "mcp", "mongo", "preview-proxy", "relay_bundle", "relay_deploy", "remote", "sentry", "updater"]);
   });
 });

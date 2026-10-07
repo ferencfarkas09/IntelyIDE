@@ -19,7 +19,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT = resolvePath(HERE, "../..");
 
 // Crates (directory names under crates/) that may use the network. Every one is named in docs/privacy.md.
-export const ALLOWED_CRATES = ["remote", "relay_bundle", "relay_deploy", "happy", "mongo", "mcp", "preview-proxy", "updater"];
+export const ALLOWED_CRATES = ["remote", "relay_bundle", "relay_deploy", "happy", "sentry", "mongo", "mcp", "preview-proxy", "updater"];
 // Root package of the shipped binary in Cargo.lock.
 export const ROOT_PACKAGE = "intely-switch-ide";
 
