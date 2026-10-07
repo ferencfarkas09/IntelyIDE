@@ -125,23 +125,23 @@ This is version 0.1.0, an alpha release. It has been used mostly by its author, 
 ## Install
 
 <!--dmg:available-->
-<!--
 ### macOS installer (DMG)
 
 1. Download `IntelyIDE_0.1.0_x64.dmg` from the Releases page of this repository. It is built for Intel Macs and also runs on Apple Silicon under Rosetta 2, more slowly. Apple may remove Rosetta in a future macOS. If you are unsure which Mac you have: Apple menu > About This Mac.
 2. Check the download. `shasum -a 256 --ignore-missing -c SHA256SUMS` in the download folder detects a corrupted download only; the checksums come from the same page as the file, so they cannot prove where it came from.
 3. Open the DMG and drag IntelyIDE to Applications, then open it from there.
-4. First launch. &lt;!--dmg:v:adhoc,developer-id--&gt;This build is not notarized, so macOS refuses the first launch: on macOS 15 and later open System Settings > Privacy & Security, scroll to the message about IntelyIDE, choose Open Anyway and confirm; on macOS 13 and 14 right-click the app and choose Open. Do this only for a file you downloaded from this repository's Releases page.&lt;!--/dmg:v--&gt;&lt;!--dmg:v:notarized--&gt;The app is notarized and opens normally.&lt;!--/dmg:v--&gt;
-5. &lt;!--dmg:v:adhoc--&gt;Ad-hoc builds get a new identity with every release, so macOS may ask again for Keychain and folder access after you replace the app.&lt;!--/dmg:v--&gt;
+4. First launch. <!--dmg:v:adhoc,developer-id-->This build is not notarized, so macOS refuses the first launch: on macOS 15 and later open System Settings > Privacy & Security, scroll to the message about IntelyIDE, choose Open Anyway and confirm; on macOS 13 and 14 right-click the app and choose Open. Do this only for a file you downloaded from this repository's Releases page.<!--/dmg:v--><!--dmg:v:notarized--><!--The app is notarized and opens normally.--><!--/dmg:v-->
+5. <!--dmg:v:adhoc-->Ad-hoc builds get a new identity with every release, so macOS may ask again for Keychain and folder access after you replace the app.<!--/dmg:v-->
 6. Some features still need files of the source tree and therefore work only in a build from source: agent runs (the agent sidecar is not in the disk image), deploying the Remote relay, the Mongo Studio AI helper and the component preview harness. Everything else, including the Git features, the editor, the terminal, the preview and workspaces, works from the disk image. See Requirements and Build from source.
 
 More detail, including uninstall and where your data lives: [docs/install-macos.md](docs/install-macos.md).
--->
 <!--/dmg:available-->
 <!--dmg:pending-->
+<!--
 ### macOS installer
 
 A macOS installer (DMG) is built from this repository and attached to the Releases page when it has been built, verified and tested. Until then, build from source (below).
+-->
 <!--/dmg:pending-->
 
 ## First run
