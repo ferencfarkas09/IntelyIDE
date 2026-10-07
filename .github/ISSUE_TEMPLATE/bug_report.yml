@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for taking the time to report this. IntelyIDE is alpha software.
+        Thanks for taking the time to report this.
 
         **Before you paste anything:** remove repository names, file paths, tokens, URLs with credentials and any other private data from text and screenshots.
         In particular, `refusals.log` and the `runs/*.jsonl` event logs contain raw command lines, prompts, tool results and file contents. Redact them first, or describe the problem in words instead of attaching them.
@@ -16,13 +16,13 @@ body:
     attributes:
       label: IntelyIDE version or commit
       description: Shown in the About window, or the output of `git rev-parse --short HEAD` if you built from source.
-      placeholder: 0.1.0
+      placeholder: 1.0.1
     validations:
       required: true
   - type: dropdown
     id: macos
     attributes:
-      label: macOS version family
+      label: macOS version
       options:
         - macOS 13 (Ventura)
         - macOS 14 (Sonoma)
@@ -34,10 +34,20 @@ body:
   - type: dropdown
     id: arch
     attributes:
-      label: Architecture
+      label: Mac type
+      description: Apple Silicon Macs run IntelyIDE through Rosetta 2.
       options:
         - Intel
         - Apple Silicon
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How did you install IntelyIDE?
+      options:
+        - DMG from a GitHub release
+        - Built from source
     validations:
       required: true
   - type: dropdown

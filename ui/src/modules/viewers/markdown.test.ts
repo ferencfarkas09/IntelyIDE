@@ -59,7 +59,7 @@ const x = 1;
 describe("links and images are classified, never fetched", () => {
   it("passes only web, mail and relative links", () => {
     expect(safeHref("https://example.com/a")).toBe("https://example.com/a");
-    expect(safeHref("mailto:a@b.hu")).toBe("mailto:a@b.hu");
+    expect(safeHref("mailto:a@example.com")).toBe("mailto:a@example.com");
     expect(safeHref("#section")).toBe("#section");
     expect(safeHref("docs/x.md")).toBe("docs/x.md");
     for (const bad of ["javascript:alert(1)", " JavaScript:alert(1)", "data:text/html,<script>", "file:///etc/passwd", "vbscript:x", "//evil.example/x"]) expect(safeHref(bad), bad).toBeNull();

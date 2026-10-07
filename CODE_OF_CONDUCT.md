@@ -31,7 +31,7 @@ Examples of unacceptable behavior include:
   any kind
 * Trolling, insulting or derogatory comments, and personal or political attacks
 * Public or private harassment
-* Publishing others' private information, such as a physical or email address,
+* Publishing others' private information, such as a physical or e-mail address,
   without their explicit permission
 * Other conduct which could reasonably be considered inappropriate in a
   professional setting
@@ -52,9 +52,8 @@ decisions when appropriate.
 
 This Code of Conduct applies within all community spaces, and also applies when
 an individual is officially representing the community in public spaces.
-Examples of representing our community include using an official e-mail address,
-posting via an official social media account, or acting as an appointed
-representative at an online or offline event.
+Examples of representing our community include using an official project account on GitHub,
+or acting as an appointed representative at an online or offline event.
 
 ## Enforcement
 
@@ -65,6 +64,7 @@ open a private security advisory addressed to the maintainers of
 ferencfarkas09/IntelyIDE
 ([private report](https://github.com/ferencfarkas09/IntelyIDE/security/advisories/new)) and say
 that it is a conduct report.
+If you need to reach the maintainer about a conduct matter without posting details in public, open a [GitHub Discussion](https://github.com/ferencfarkas09/IntelyIDE/discussions) that only says it is a conduct report for the maintainer, and the maintainer will arrange a private way on GitHub to continue.
 All complaints will be reviewed and investigated promptly and fairly.
 
 All community leaders are obligated to respect the privacy and security of the

@@ -45,5 +45,5 @@ body:
     attributes:
       label: Acknowledgement
       options:
-        - label: I understand this is alpha software and requests may take time.
+        - label: I searched existing issues and discussions, and I understand requests are handled by one maintainer and may take time.
           required: true

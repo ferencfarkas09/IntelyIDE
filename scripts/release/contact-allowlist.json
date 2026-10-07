@@ -1,0 +1,86 @@
+{
+  "own": {
+    "domains": [
+      "intelyhome.com",
+      "intelyide.com"
+    ],
+    "githubPrefixes": [
+      "/ferencfarkas09/IntelyIDE"
+    ]
+  },
+  "githubOtherPaths": {
+    "/rust-lang/crates.io-index": "cargo-deny registry index (deny.toml)",
+    "/rhysd/actionlint": "pinned actionlint release download (CI)",
+    "/rsms/inter": "upstream of the bundled Inter font (OFL text)",
+    "/JetBrains/JetBrainsMono": "upstream of the bundled JetBrains Mono font (OFL text)",
+    "/mozilla/diversity": "Contributor Covenant source footnote",
+    "/x/y": "placeholder repository in jail tests",
+    "/ferencfarkas09/Other": "negative case: a different repository in the update-notice test",
+    "/happy/pos": "fictional repository in demo data",
+    "/happy/admin": "fictional repository in demo data",
+    "/example-org/repo": "placeholder repository in mock data"
+  },
+  "emailAllowedLocalParts": [
+    "git"
+  ],
+  "skipFiles": [
+    "ui/src/modules/preview/url-cases.json",
+    "scripts/release/check-contacts.test.mjs"
+  ],
+  "thirdPartyHosts": {
+    "api.github.com": "GitHub REST API, release lookup of the update notice",
+    "ferencfarkas09.github.io": "the project's own GitHub Pages site (update feed)",
+    "cli.github.com": "documentation of the GitHub CLI",
+    "code.claude.com": "Claude Code documentation (technical reference)",
+    "docs.anthropic.com": "Anthropic API and Agent SDK documentation (technical reference)",
+    "crates.io": "Rust package registry (licence data, links)",
+    "docs.rs": "Rust crate documentation",
+    "dash.cloudflare.com": "Cloudflare dashboard link for the optional remote relay setup",
+    "developers.cloudflare.com": "Cloudflare documentation (relay limits, setup)",
+    "developer.mozilla.org": "MDN web documentation",
+    "nodejs.org": "Node.js release and security pages",
+    "registry.npmjs.org": "npm registry used by the Agent SDK installer",
+    "www.npmjs.com": "npm package pages",
+    "img.shields.io": "README badges",
+    "keepachangelog.com": "changelog format reference",
+    "semver.org": "versioning reference",
+    "www.contributor-covenant.org": "Code of Conduct source",
+    "spdx.org": "SPDX licence identifiers",
+    "opensource.org": "open-source licence texts",
+    "reuse.software": "REUSE specification",
+    "api.reuse.software": "REUSE compliance badge",
+    "www.gnu.org": "GPL licence text and FAQ",
+    "gnu.org": "GPL licence text",
+    "fsf.org": "licence text header",
+    "www.apache.org": "Apache-2.0 licence text",
+    "mozilla.org": "MPL-2.0 licence text",
+    "scripts.sil.org": "OFL-1.1 licence text",
+    "unlicense.org": "Unlicense text",
+    "fontsource.org": "font package licence reference",
+    "ns.adobe.com": "XMP XML namespace (not a contact)",
+    "schema.org": "structured-data vocabulary",
+    "schema.tauri.app": "Tauri config JSON schema",
+    "www.sitemaps.org": "sitemap XML namespace",
+    "www.w3.org": "W3C XML/SVG namespaces and specifications",
+    "www.apple.com": "Apple property-list DTD",
+    "api.openai.com": "default endpoint name of an optional third-party provider preset",
+    "a.b.workers.dev": "placeholder relay host in tests",
+    "r.example.workers.dev": "placeholder relay host in tests",
+    "get.example.dev": "placeholder host in mock data"
+  },
+  "allowedText": {
+    "+36 30 123 4567": "synthetic phone number used as sample data of the PII masker",
+    "36 30 123 4567": "synthetic phone number used as sample data of the PII masker",
+    "06 30 123 4567": "synthetic phone number used as sample data of the PII masker",
+    "+36201234567": "synthetic phone number used as sample data",
+    "noreply@anthropic.com": "test input of the AI co-author trailer detector",
+    "a@noreply.github.com": "test input of the publish scanner",
+    "8082@evil.com": "hostile URL test input (preview gate)",
+    "a.b@c.example.hu": "synthetic address, sample data of the PII masker",
+    "(06) 30 123 4567": "synthetic phone number, sample data of the PII masker"
+  },
+  "githubExactPaths": {
+    "/ferencfarkas09": "the owner's GitHub profile (About card)",
+    "/IntelyHome": "the owner's company GitHub organisation (About card)"
+  }
+}

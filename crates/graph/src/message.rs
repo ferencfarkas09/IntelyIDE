@@ -384,7 +384,7 @@ mod tests {
     #[test]
     fn ai_attribution_is_an_error_but_a_human_coauthor_is_not() {
         assert!(codes(&validate("fix: x\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n", &MessageStyle::Conventional)).contains(&"attribution.ai"));
-        assert!(validate("fix: x\n\nCo-Authored-By: Peter D <p@d.hu>\n", &MessageStyle::Conventional).ok);
+        assert!(validate("fix: x\n\nCo-Authored-By: Peter D <p@example.com>\n", &MessageStyle::Conventional).ok);
     }
 
     #[test]

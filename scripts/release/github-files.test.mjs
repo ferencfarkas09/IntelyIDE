@@ -235,32 +235,36 @@ test("config.yml disables blank issues and links discussions, advisories and the
   assert.match(c, /github\.com\/ferencfarkas09\/IntelyIDE\/discussions/);
   assert.match(c, /github\.com\/ferencfarkas09\/IntelyIDE\/security\/advisories\/new/);
   assert.match(c, /docs\/faq\.md/);
+  assert.match(c, /https:\/\/intelyide\.com$/m);
 });
 
 test("bug form warns about refusals.log and run logs and requires the key fields", () => {
   const t = read(FORMS[0]);
   assert.match(t, /refusals\.log/);
   assert.match(t, /runs\/\*\.jsonl/);
-  for (const id of ["version", "macos", "arch", "steps", "actual", "checks"]) {
+  for (const id of ["version", "macos", "arch", "install", "steps", "actual", "checks"]) {
     assert.ok(formIds(t).includes(id), `id ${id}`);
   }
   assert.match(t, /Intel/);
   assert.match(t, /Apple Silicon/);
+  assert.match(t, /placeholder: 1\.0\.1/);
+  assert.ok(!/alpha/i.test(t));
   assert.match(t, /render: shell/);
   const checks = t.slice(t.indexOf("id: checks"));
   assert.equal((checks.match(/required: true/g) || []).length, 2, "two required checkboxes");
   // the version, steps and actual inputs are required
-  for (const id of ["version", "macos", "arch", "steps", "actual"]) {
+  for (const id of ["version", "macos", "arch", "install", "steps", "actual"]) {
     const from = t.indexOf(`id: ${id}`);
     const next = t.indexOf("  - type:", from);
     assert.match(t.slice(from, next === -1 ? undefined : next), /required: true/, `${id} is required`);
   }
 });
 
-test("feature form has the area dropdown and the alpha acknowledgement", () => {
+test("feature form has the area dropdown and the maintainer acknowledgement", () => {
   const t = read(FORMS[1]);
   for (const a of ["Changes and Git", "Agents", "Remote", "Database", "Preview", "i18n", "Other"]) assert.ok(t.includes(`- ${a}`), a);
-  assert.match(t, /alpha software and requests may take time/);
+  assert.match(t, /one maintainer and may take time/);
+  assert.ok(!/alpha|beta/i.test(t));
   assert.ok(!existsSync(join(ROOT, ".github/ISSUE_TEMPLATE/third.yml")));
 });
 
@@ -271,7 +275,7 @@ test("PR template has the sections and checklist of 7.6", () => {
   for (const h of ["Summary", "Linked issue", "Type", "Checklist"]) assert.match(t, new RegExp(`^## ${h}$`, "m"), h);
   for (const needle of [
     "git commit -s", "AI assistance", "Tests were added or updated", "No real repositories, secrets or personal data",
-    "Safety layers", "light and dark screenshots", "`t()`", "CHANGELOG.md", "skip-changelog", "pnpm licenses:check",
+    "Safety layers", "privacy.md", "light and dark screenshots", "`t()`", "CHANGELOG.md", "skip-changelog", "pnpm licenses:check",
   ]) {
     assert.ok(t.includes(needle), `PR template mentions ${needle}`);
   }

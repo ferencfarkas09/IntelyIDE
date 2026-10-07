@@ -360,7 +360,7 @@ mod tests {
         let mk = Masker::new(&[Secret::new("zzzz-top-secret-9")]);
         for line in [
             format!("Bearer {t} and a@b.example.com"),
-            "?code=abc&state=def user x@y.org zzzz-top-secret-9".to_owned(),
+            "?code=abc&state=def user x@example.org zzzz-top-secret-9".to_owned(),
             "plain text".to_owned(),
             format!("cfut_{}", "x".repeat(40)),
         ] {

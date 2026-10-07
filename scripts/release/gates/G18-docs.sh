@@ -13,5 +13,6 @@ for s in release:check-docs release:check-readme release:no-telemetry; do
     skip_or_fail "$s" "no $s script in package.json"
   fi
 done
+step "release:check-contacts" node "$TOOLS/scripts/release/check-contacts.mjs" --root "$ROOT"
 step "no read-only start claim" node "$TOOLS/scripts/release/gates/readonly-claim.mjs" --root "$ROOT"
 finish

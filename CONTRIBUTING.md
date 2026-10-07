@@ -8,7 +8,7 @@ IntelyIDE is released under the GNU General Public License, version 3 or (at you
 
 ## Developer Certificate of Origin
 
-Every commit must carry a `Signed-off-by:` line with your real name and e-mail address, made with `git commit -s`. It certifies the following statement, the Developer Certificate of Origin, version 1.1:
+Every commit must carry a `Signed-off-by:` line with your real name and the e-mail address of your git configuration (a GitHub `users.noreply.github.com` address is fine), made with `git commit -s`. It certifies the following statement, the Developer Certificate of Origin, version 1.1:
 
 ```
 Developer Certificate of Origin
@@ -93,6 +93,8 @@ Name the commands you ran in the pull request description.
 - Commit messages: a short imperative summary line (about 70 characters), then a blank line and a body that says why. Reference the issue as `Fixes #123` when there is one.
 - Sign off every commit (`git commit -s`, see above). The `dco` check fails a pull request with an unsigned commit.
 - Branch names: `fix/short-topic`, `feat/short-topic`, `docs/short-topic` or `chore/short-topic`.
+- Every pull request is reviewed and approved manually by the maintainer; a review is required before merge. Reviews take time, so please be patient and keep changes small.
+- Bugs and feature requests go to [GitHub Issues](https://github.com/ferencfarkas09/IntelyIDE/issues/new/choose), questions to [GitHub Discussions](https://github.com/ferencfarkas09/IntelyIDE/discussions). For a large change, open an issue first so the direction can be agreed before you invest time.
 - Keep a pull request focused on one change. Fill in the pull request template, add a line to `CHANGELOG.md` for user-visible changes (or ask for the `skip-changelog` label), and keep the branch up to date with `main`.
 - Pull requests from forks run in CI with a read-only token and without secrets. A maintainer must approve the first run of a new contributor. CI installs only from the lockfiles (`--frozen-lockfile`, `--locked`), and dependency lifecycle scripts are limited to the list in `pnpm-workspace.yaml`. Your pull request therefore cannot rely on a secret, a signing key or a network service.
 

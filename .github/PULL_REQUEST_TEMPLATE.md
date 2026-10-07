@@ -1,6 +1,10 @@
 ## Summary
 
-<!-- What does this change and why? -->
+<!-- What does this change, and why? -->
+
+## How it was tested
+
+<!-- Commands you ran and what you checked by hand. -->
 
 ## Linked issue
 
@@ -22,6 +26,8 @@
 - [ ] Safety layers are untouched, or reviewed (list the files if touched): <!-- policy, agent_gate, jail, guard, secrets -->
 - [ ] UI changes include light and dark screenshots made from demo data.
 - [ ] User-visible strings go through `t()`.
+- [ ] No new network access, or `docs/privacy.md` lists it.
+- [ ] Docs are updated where behaviour changes.
 - [ ] A `CHANGELOG.md` line is added (or the label `skip-changelog` applies).
 - [ ] `pnpm licenses:check` was run if dependencies changed.
 
