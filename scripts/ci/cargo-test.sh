@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # Gate G04 ((design notes: release-ci-spec) 4.2): `cargo test --workspace --locked -j N --no-fail-fast`, N = 2 locally and 3
 # in CI. When tests fail, only the failed tests are run once more (`-- --exact <names>`); a test that passes the
-# second time is printed as `FLAKY <name>` (known: intely-core env::real_login_shell_resolves_a_path under load) and
+# second time is printed as `FLAKY <name>` (known: intely-core env::real_login_shell_resolves_a_path under load, intely-term
+# pty::non_ascii_output_survives_chunk_boundaries and intely-mongo studio_tunnel::disconnect_and_the_switch_off_close_the_tunnels on a busy
+# CI runner: each failed once in a handful of runs and passed on the re-run) and
 # does not fail the run; a test that fails twice, or a build error, fails it.
 #
-# Only tests named in GATE_KNOWN_FLAKY (space separated substrings; default the one known case) are ever re-run: any
+# Only tests named in GATE_KNOWN_FLAKY (space separated substrings; default the three known cases) are ever re-run: any
 # other failing test fails the run at once, so a nondeterministic regression cannot turn green on a second pass.
 #
 # Output goes to stdout/stderr unchanged (the gate log); the lines `FLAKY <name>` and `FAILED-TWICE <name>` are added.
@@ -26,7 +28,7 @@ if [ -z "$failed" ]; then
   exit "$rc"
 fi
 
-KNOWN_FLAKY="${GATE_KNOWN_FLAKY:-real_login_shell_resolves_a_path}"
+KNOWN_FLAKY="${GATE_KNOWN_FLAKY:-real_login_shell_resolves_a_path non_ascii_output_survives_chunk_boundaries disconnect_and_the_switch_off_close_the_tunnels}"
 unknown=0
 while IFS= read -r n; do
   hit=0

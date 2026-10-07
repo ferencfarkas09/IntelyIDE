@@ -225,15 +225,18 @@ test("child environment carries no credentials and isolates git/npm/cargo config
   process.env.GITHUB_TOKEN = "t";
   process.env.ANTHROPIC_API_KEY = "k";
   process.env.CARGO_REGISTRIES_X_TOKEN = "t";
+  process.env.PNPM_HOME = "/home/runner/setup-pnpm/node_modules/.bin";
   try {
     const e = childEnv();
+    // the pnpm store lives under PNPM_HOME on a runner: without it `pnpm licenses list` finds no index files (ERR_PNPM_MISSING_PACKAGE_INDEX_FILE)
+    assert.equal(e.PNPM_HOME, "/home/runner/setup-pnpm/node_modules/.bin");
     for (const k of Object.keys(e)) assert.ok(!/TOKEN|KEY|SECRET|^NPM_|CARGO_REGISTRIES/.test(k) || k === "NPM_CONFIG_GLOBALCONFIG", k);
     assert.equal(e.GIT_CONFIG_GLOBAL, "/dev/null");
     assert.equal(e.GIT_CONFIG_SYSTEM, "/dev/null");
     assert.equal(e.npm_config_userconfig, "/dev/null");
     assert.equal(e.CARGO_NET_OFFLINE, "true");
   } finally {
-    for (const k of ["NPM_TOKEN", "GITHUB_TOKEN", "ANTHROPIC_API_KEY", "CARGO_REGISTRIES_X_TOKEN"]) delete process.env[k];
+    for (const k of ["NPM_TOKEN", "GITHUB_TOKEN", "ANTHROPIC_API_KEY", "CARGO_REGISTRIES_X_TOKEN", "PNPM_HOME"]) delete process.env[k];
     Object.assign(process.env, saved);
   }
   assert.ok(env);

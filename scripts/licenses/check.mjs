@@ -19,7 +19,8 @@ const DEFAULT_ROOT = resolvePath(HERE, "../..");
 export function childEnv(extra = {}) {
   const env = {};
   for (const [k, v] of Object.entries(process.env)) {
-    if (["PATH", "HOME", "TMPDIR", "LANG", "CARGO_HOME", "RUSTUP_HOME", "RUSTUP_TOOLCHAIN"].includes(k) || k.startsWith("LC_")) env[k] = v;
+    // PNPM_HOME and XDG_DATA_HOME: where pnpm keeps its content store (see lib/env.mjs); plain paths, never credentials
+    if (["PATH", "HOME", "TMPDIR", "LANG", "CARGO_HOME", "RUSTUP_HOME", "RUSTUP_TOOLCHAIN", "PNPM_HOME", "XDG_DATA_HOME"].includes(k) || k.startsWith("LC_")) env[k] = v;
   }
   return {
     ...env,
