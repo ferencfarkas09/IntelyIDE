@@ -8,7 +8,7 @@ export default {
   meta: {
     homeTitle: 'IntelyIDE: every repo, one window, AI you can trust',
     homeDesc:
-      'A free, open-source macOS IDE for working across several git repositories at once, with AI agents that can edit but never commit or push. First public alpha.',
+      'A free, open-source macOS IDE for working across several git repositories at once, with AI agents that can edit but never commit or push.',
     dlTitle: 'Download IntelyIDE for macOS',
     dlDesc: 'Download IntelyIDE for macOS: versions, checksums, release notes and install help.',
     notFoundTitle: 'Page not found | IntelyIDE',
@@ -29,7 +29,7 @@ export default {
   },
   nav: { features: 'Features', trust: 'Trust', open: 'Open source', install: 'Install', faq: 'FAQ', github: 'GitHub' },
   hero: {
-    kicker: 'Free and open source · First public alpha',
+    kicker: 'Free and open source · Stable release',
     title: 'Every repo. One window. <span class="grad">AI you can trust.</span>',
     lead: 'IntelyIDE is a fast, lightweight desktop IDE for people who work across several git repositories at once. AI agents help with the work. They can read and edit, but they never commit or push. You do.',
     shotAlt: 'IntelyIDE main window showing the multi-repository Changes tree next to an editor and an agent panel.',
@@ -39,6 +39,7 @@ export default {
     version: 'Version',
     status: { alpha: 'alpha', beta: 'beta', stable: '' },
     more: 'Other downloads and checksums',
+    sums: 'SHA256SUMS',
     notes: 'Release notes',
     github: 'View on GitHub',
     released: 'Released',
@@ -52,8 +53,8 @@ export default {
     archNote: {
       universal: 'One universal build runs on Intel and Apple Silicon Macs.',
       both: 'Separate builds for Intel and Apple Silicon. Not sure which you have? Choose Apple menu, then About This Mac.',
-      x64Planned: 'This release is an Intel (x64) build. An Apple Silicon build is planned.',
-      x64: 'This release is an Intel (x64) build only.',
+      x64Planned: 'Built for Intel Macs (x64). It also runs on Apple Silicon under Rosetta 2. A native Apple Silicon build is planned.',
+      x64: 'Built for Intel Macs (x64). It also runs on Apple Silicon under Rosetta 2.',
       arm64: 'This release is an Apple Silicon (arm64) build only. Intel Macs are not covered.',
     },
     alsoFor: 'Also available for',
@@ -62,8 +63,8 @@ export default {
     colSize: 'Size',
     colSha: 'SHA-256',
     noAssets: 'No downloads are listed yet.',
-    alpha:
-      'This is the first public alpha. It is built and tested on macOS, Intel first. Expect rough edges. Some features have not yet been verified against real external services such as Cloudflare, Atlas or an iPhone.',
+    // Shown only when data/release.json has status "alpha" or "beta" (never for "stable").
+    preNotice: 'This is a pre-release. Expect rough edges.',
     allDownloads: 'All downloads and checksums',
     signedNote: 'This build is signed and notarized by Apple.',
   },
@@ -147,7 +148,7 @@ export default {
         h: 'Remote: watch from your phone',
         p: 'An optional, end-to-end-encrypted phone companion lets you watch agent runs and answer their questions away from your desk. You can run the relay on your own Cloudflare account.',
         list: ['Optional and off until you set it up', 'End-to-end encrypted', 'Relay on your own Cloudflare account'],
-        pill: 'Alpha: not yet verified against a real Cloudflare account or iPhone',
+        pill: 'Experimental: not yet verified against a real Cloudflare account or iPhone',
         shots: [['remote', 'The phone companion showing an agent run in progress.']],
       },
       {
@@ -155,7 +156,7 @@ export default {
         h: 'MongoDB Studio',
         p: 'An optional MongoDB browser that is read-only by default. Describe the query you want, in English or in Hungarian, and the AI drafts it for you to review.',
         list: ['Read-only by default', 'AI-assisted query generation, including Hungarian prompts', 'SSH tunnels and TLS'],
-        pill: 'Alpha: not yet verified against every real MongoDB setup, such as Atlas',
+        pill: 'Experimental: not yet verified against every real MongoDB setup, such as Atlas',
         shots: [['mongo-studio', 'MongoDB Studio showing a read-only query and its results.']],
       },
       {
@@ -194,7 +195,7 @@ export default {
       'Non-Claude providers are read-only by default and show an honest safety rating',
       'Your own installs and accounts. IntelyIDE ships none of these tools.',
     ],
-    note: 'Alpha: the experimental providers have not yet been verified against the real programs.',
+    note: 'Experimental: the experimental providers have not yet been verified against the real programs.',
     shotAlt: 'Settings, Providers: the provider cards and the Experimental providers switch.',
   },
   more: {
@@ -236,8 +237,18 @@ export default {
   },
   open: {
     title: 'Free and open source',
-    p: 'IntelyIDE is licensed under GPL-3.0-or-later and free to download. Read the code, build it from source, report a bug or send a patch.',
-    links: { repo: 'Source code', issues: 'Report an issue', contributing: 'How to contribute', license: 'Licence' },
+    p: 'IntelyIDE is licensed under GPL-3.0-or-later and free to download. Read the code, build it from source, report a bug or send a pull request.',
+    links: {
+      repo: 'Source code',
+      issues: 'Report a bug or request a feature (Issues)',
+      discussions: 'Ask a question (Discussions)',
+      security: 'Report a vulnerability privately',
+      pulls: 'Pull requests',
+      contributing: 'How to contribute',
+      license: 'Licence',
+    },
+    contributeH: 'Contribute',
+    contributeP: 'Pull requests are welcome. The maintainer reviews and approves every pull request manually before it is merged.',
   },
   install: {
     title: 'Install in 3 steps',
@@ -251,15 +262,13 @@ export default {
     dragAlt: 'Drag the IntelyIDE icon onto the Applications folder.',
     gk: {
       h: 'About the macOS warning',
-      p: 'This alpha is not signed or notarized yet, so macOS Gatekeeper blocks the first launch. That is expected. To open it:',
+      p: 'IntelyIDE is ad-hoc signed but not notarized by Apple, so macOS asks you to confirm the first launch. That is expected. To open it:',
       steps: [
         'Try to open IntelyIDE once, then close the warning.',
         'Open System Settings, then Privacy &amp; Security.',
         'Scroll down to the message about IntelyIDE and choose <strong>Open Anyway</strong>.',
         'Confirm with your password or Touch ID.',
       ],
-      verify: 'Before you open it, you can verify the download. In Terminal, run:',
-      verifyAfter: 'The result must match the SHA-256 shown next to the download.',
       keep: 'Please do not turn Gatekeeper off. You only need to allow this one app.',
     },
   },
@@ -276,9 +285,9 @@ export default {
         'Yes. Agents are optional. The multi-repo Changes tree, editor, terminal, search, diff and the rest work without one.',
       ],
       ['What do I need for the agents?', 'Your own Claude Code setup. The app guides you through connecting it. Other agent tools, such as Codex or Gemini, can be added as experimental providers. IntelyIDE ships none of them.'],
-      ['Does it run on Apple Silicon?', 'See the architecture note next to the download button. It always reflects what the current release contains.'],
+      ['Does it run on Apple Silicon?', 'Yes. The current build is for Intel Macs (x64) and runs on Apple Silicon under Rosetta 2. See the architecture note next to the download button for the current state.'],
       ['What about Windows and Linux?', 'Not right now. IntelyIDE is built and tested on macOS only.'],
-      ['How do I report a problem?', 'Open an issue on GitHub. Say which version you use and what you did before it happened.'],
+      ['How do I report a problem?', 'Open an issue on GitHub. Say which version you use and what you did before it happened. Questions go to GitHub Discussions. Report security problems privately through GitHub’s private vulnerability reporting.'],
       ['Is it affiliated with Anthropic?', 'No. IntelyIDE is an independent project and is not affiliated with or endorsed by Anthropic.'],
     ],
   },
@@ -287,14 +296,14 @@ export default {
     license: 'Licensed under GPL-3.0-or-later.',
     trademarks:
       'IntelyIDE is an independent project and is not affiliated with or endorsed by Anthropic. Claude is a trademark of Anthropic. macOS is a trademark of Apple Inc. Other product and company names, and their logos, belong to their owners and are shown only to name tools you can connect. No affiliation or endorsement is implied.',
-    links: { org: 'IntelyHome on GitHub', author: 'Author on GitHub', repo: 'Repository', issues: 'Issues', download: 'Download' },
-    contact: 'Contact',
+    links: { repo: 'Repository', issues: 'Issues', discussions: 'Discussions', pulls: 'Pull requests', security: 'Report a vulnerability', download: 'Download' },
   },
   page: {
     dlTitle: 'Download IntelyIDE',
     dlLead: 'Everything about the current release in one place.',
     verifyTitle: 'Verify your download',
-    verifyP: 'Compare the checksum of the file you downloaded with the SHA-256 listed above. In Terminal, run:',
+    verifyP: 'Download the .dmg and the SHA256SUMS file into the same folder, then in Terminal run:',
+    verifyAfter: 'The line for your file must end in OK. You can also compare the file against the SHA-256 listed above.',
     backHome: 'Back to the home page',
     nfTitle: 'Page not found',
     nfP: 'The page you are looking for does not exist or has moved.',

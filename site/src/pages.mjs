@@ -128,6 +128,7 @@ ${alt ? `<p class="dl-alt-wrap"><a class="dl-alt" href="${esc(alt.url)}" data-ar
 <p class="dl-meta">${t.dl.minMac} ${esc(rel.minMac)} ${t.dl.orLater}. ${rel.archNote}</p>
 <ul class="dl-links">
 <li><a href="${esc(rel.notesUrl)}">${t.dl.notes}</a></li>
+${rel.sumsUrl ? `<li><a href="${esc(rel.sumsUrl)}">${t.dl.sums}</a></li>` : ''}
 <li><a href="${cfg.repoUrl}">${icons.github(16)} ${t.dl.github}</a></li>
 </ul>
 </div>`;
@@ -156,14 +157,10 @@ function gatekeeper(ctx) {
   const { t, rel } = ctx;
   if (rel.signed) return `<p class="note">${t.dl.signedNote}</p>`;
   const g = t.install.gk;
-  const file = rel.primary ? esc(rel.primary.name) : 'IntelyIDE.dmg';
   return `<aside class="callout" aria-labelledby="gk-h">
 <h3 id="gk-h">${g.h}</h3>
 <p>${g.p}</p>
 <ol>${g.steps.map((s) => `<li>${s}</li>`).join('')}</ol>
-<p>${g.verify}</p>
-<pre><code>shasum -a 256 ~/Downloads/${file}</code></pre>
-<p>${g.verifyAfter}</p>
 <p><strong>${g.keep}</strong></p>
 </aside>`;
 }
@@ -172,21 +169,23 @@ function footer(ctx) {
   const { t, cfg } = ctx;
   const l = t.footer.links;
   const links = [
-    [cfg.orgUrl, l.org],
-    [cfg.authorUrl, l.author],
     [cfg.repoUrl, l.repo],
     [`${cfg.repoUrl}/issues`, l.issues],
+    [`${cfg.repoUrl}/discussions`, l.discussions],
+    [`${cfg.repoUrl}/pulls`, l.pulls],
+    [`${cfg.repoUrl}/security/advisories/new`, l.security],
+    [cfg.orgUrl, 'intelyhome.com'],
+    [cfg.siteUrl, 'intelyide.com'],
     [href(ctx, dlPath(ctx.lang)), l.download],
   ]
     .map(([u, label]) => `<li><a href="${u}">${label}</a></li>`)
     .join('');
-  // The project publishes no personal contact details: people reach it through GitHub.
-  const contact = `<a href="${esc(cfg.repoUrl)}/issues">GitHub Issues</a> · <a href="${esc(cfg.repoUrl)}/discussions">Discussions</a>`;
+  // The project publishes no personal contact details: people reach it through GitHub, intelyhome.com and intelyide.com.
   return `<footer class="site-footer">
 <div class="wrap">
 <div class="foot-grid">
 <div><p class="brand-line">${logo(ctx, 28)}</p><p>${t.footer.credit}</p><p>${t.footer.license}</p></div>
-<ul class="link-list">${links}<li>${t.footer.contact}: ${contact}</li></ul>
+<ul class="link-list">${links}</ul>
 </div>
 <p class="legal">${t.footer.trademarks}</p>
 </div>
@@ -267,7 +266,7 @@ ${downloadBlock(ctx, { id: 'hero-dl' })}
 ${assetTable(ctx)}
 <p><a href="${dlHome}">${t.dl.allDownloads}</a></p>
 </details>
-<p class="notice">${t.dl.alpha}</p>
+${rel.notice ? `<p class="notice">${rel.notice}</p>` : ''}
 <div class="hero-shot">${frame(picture(ctx.root, 'hero', t.hero.shotAlt, { eager: true, sizes: '(min-width: 1000px) 1040px, 92vw' }))}</div>
 </div>
 </section>
@@ -313,8 +312,15 @@ ${providers(ctx)}
 <ul class="link-list">
 <li><a href="${cfg.repoUrl}">${t.open.links.repo}</a></li>
 <li><a href="${cfg.repoUrl}/issues">${t.open.links.issues}</a></li>
-<li><a href="${cfg.repoUrl}/blob/main/CONTRIBUTING.md">${t.open.links.contributing}</a></li>
+<li><a href="${cfg.repoUrl}/discussions">${t.open.links.discussions}</a></li>
+<li><a href="${cfg.repoUrl}/security/advisories/new">${t.open.links.security}</a></li>
 <li><a href="${cfg.repoUrl}/blob/main/LICENSE">${t.open.links.license}: GPL-3.0-or-later</a></li>
+</ul>
+<h3>${t.open.contributeH}</h3>
+<p>${t.open.contributeP}</p>
+<ul class="link-list">
+<li><a href="${cfg.repoUrl}/pulls">${t.open.links.pulls}</a></li>
+<li><a href="${cfg.repoUrl}/blob/main/CONTRIBUTING.md">${t.open.links.contributing}</a></li>
 </ul>
 </div>
 </div>
@@ -365,7 +371,7 @@ function jsonLd(ctx) {
     license: `${cfg.repoUrl}/blob/main/LICENSE`,
     downloadUrl: rel.primary?.url ?? releasesUrl(cfg),
     url: ctx.abs(homePath(ctx.lang)),
-    author: { '@type': 'Person', name: 'Ferenc Farkas', url: cfg.authorUrl },
+    author: { '@type': 'Person', name: 'Ferenc Farkas' },
     publisher: { '@type': 'Organization', name: 'IntelyHome', url: cfg.orgUrl },
   };
   return `<script type="application/ld+json">${JSON.stringify(data).replace(/</g, '\\u003c')}</script>`;
@@ -373,14 +379,13 @@ function jsonLd(ctx) {
 
 function download(ctx) {
   const { t, rel } = ctx;
-  const file = rel.primary ? esc(rel.primary.name) : 'IntelyIDE.dmg';
   const body = `<section class="section page-head">
 <div class="wrap narrow">
 <h1>${t.page.dlTitle}</h1>
 <p class="lead">${t.page.dlLead}</p>
 <p class="dl-date">${t.dl.released}: ${esc(rel.date)}</p>
 ${downloadBlock(ctx)}
-<p class="notice">${t.dl.alpha}</p>
+${rel.notice ? `<p class="notice">${rel.notice}</p>` : ''}
 </div>
 </section>
 <section class="section soft" aria-labelledby="all-h">
@@ -393,7 +398,9 @@ ${assetTable(ctx)}
 <div class="wrap narrow">
 <h2 id="verify-h">${t.page.verifyTitle}</h2>
 <p>${t.page.verifyP}</p>
-<pre><code>shasum -a 256 ~/Downloads/${file}</code></pre>
+<pre><code>cd ~/Downloads
+shasum -a 256 -c SHA256SUMS</code></pre>
+<p>${t.page.verifyAfter}${rel.sumsUrl ? ` <a href="${esc(rel.sumsUrl)}">${t.dl.sums}</a>` : ''}</p>
 ${gatekeeper(ctx)}
 <p><a href="${href(ctx, homePath(ctx.lang))}">${t.page.backHome}</a></p>
 </div>

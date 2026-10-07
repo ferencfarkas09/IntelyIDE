@@ -17,10 +17,10 @@ const prod = process.argv.includes('--prod') || process.env.NODE_ENV === 'produc
 const cfg = JSON.parse(readFileSync(join(root, 'site.config.json'), 'utf8'));
 const siteUrl = (process.env.SITE_URL ?? cfg.siteUrl).replace(/\/$/, '');
 
-// Allowed external URL prefixes: the project's own GitHub links, the site itself,
+// Allowed external URL prefixes: the project's GitHub repository, the IntelyHome site, the site itself,
 // and XML/JSON-LD namespace identifiers that are never fetched.
 const allowed = [
-  cfg.orgUrl, cfg.authorUrl, siteUrl,
+  cfg.repoUrl, cfg.orgUrl, siteUrl,
   'https://schema.org', 'http://www.w3.org/2000/svg', 'http://www.sitemaps.org/schemas/sitemap/0.9',
 ];
 const textExt = new Set(['.html', '.css', '.js', '.svg', '.xml', '.webmanifest', '.txt']);

@@ -42,6 +42,9 @@ export function prepareRelease(release, t) {
   return {
     version: release.version,
     statusLabel: t.dl.status[release.status] ?? release.status ?? '',
+    // A stable release (or no status) carries no pre-release notice; "alpha"/"beta" still do, for old data.
+    notice: release.status && release.status !== 'stable' ? t.dl.preNotice : '',
+    sumsUrl: release.sha256sumsUrl ?? (primary ? primary.url.replace(/[^/]*$/, 'SHA256SUMS') : ''),
     date: fmtDate(release.date, t.locale),
     minMac: release.minMacOS,
     signed: release.signed === true,

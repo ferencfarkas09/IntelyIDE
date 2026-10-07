@@ -1,9 +1,9 @@
 # Publishing the website
 
 The site is a static folder (`dist/`). It is deployed to Cloudflare as a Worker with static assets: `wrangler.jsonc`
-names the Worker `intelyide`, so the address is `https://intelyide.ferenc-farkas.workers.dev` (the `siteUrl` in
-`site.config.json`). The site collects nothing and publishes no contact details: the footer links to the repository's
-Issues and Discussions.
+names the Worker `intelyide`; the public address is `https://intelyide.com` (the `siteUrl` in `site.config.json`). The site
+collects nothing and publishes no contact details: the footer links only to the GitHub repository (Issues, Discussions,
+pull requests, private vulnerability reporting), intelyhome.com and intelyide.com.
 
 ## Deploy
 

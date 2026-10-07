@@ -7,7 +7,7 @@ export default {
   meta: {
     homeTitle: 'IntelyIDE: minden repó, egy ablak, MI, amiben megbízhatsz',
     homeDesc:
-      'Ingyenes, nyílt forráskódú macOS IDE, amellyel egyszerre több git repóban dolgozhatsz. Az MI-ügynökök szerkeszthetnek, de sosem commitolnak és nem pusholnak. Első nyilvános alfa.',
+      'Ingyenes, nyílt forráskódú macOS IDE, amellyel egyszerre több git repóban dolgozhatsz. Az MI-ügynökök szerkeszthetnek, de sosem commitolnak és nem pusholnak.',
     dlTitle: 'Az IntelyIDE letöltése macOS-re',
     dlDesc: 'Az IntelyIDE letöltése macOS-re: verziók, ellenőrzőösszegek, kiadási jegyzet és telepítési segítség.',
     notFoundTitle: 'Az oldal nem található | IntelyIDE',
@@ -28,7 +28,7 @@ export default {
   },
   nav: { features: 'Funkciók', trust: 'Bizalom', open: 'Nyílt forrás', install: 'Telepítés', faq: 'GYIK', github: 'GitHub' },
   hero: {
-    kicker: 'Ingyenes és nyílt forráskódú · Első nyilvános alfa',
+    kicker: 'Ingyenes és nyílt forráskódú · Stabil kiadás',
     title: 'Minden repó. Egy ablak. <span class="grad">MI, amiben megbízhatsz.</span>',
     lead: 'Az IntelyIDE gyors, könnyű asztali IDE azoknak, akik egyszerre több git repóban dolgoznak. Az MI-ügynökök segítenek a munkában. Olvashatnak és szerkeszthetnek, de sosem commitolnak és nem pusholnak. Azt te teszed.',
     shotAlt: 'Az IntelyIDE főablaka: a több repót összefogó Változások fa a szerkesztő és egy ügynökpanel mellett.',
@@ -38,6 +38,7 @@ export default {
     version: 'Verzió',
     status: { alpha: 'alfa', beta: 'béta', stable: '' },
     more: 'További letöltések és ellenőrzőösszegek',
+    sums: 'SHA256SUMS',
     notes: 'Kiadási jegyzet',
     github: 'Megnyitás GitHubon',
     released: 'Kiadva',
@@ -51,8 +52,8 @@ export default {
     archNote: {
       universal: 'Egyetlen univerzális build fut Intel és Apple Silicon Mac-eken is.',
       both: 'Külön build van Intelhez és Apple Siliconhoz. Nem tudod, melyik a tied? Válaszd az Apple menü, majd a Névjegy ennél a Mac-nél pontot.',
-      x64Planned: 'Ez a kiadás Intel (x64) build. Az Apple Silicon build tervben van.',
-      x64: 'Ez a kiadás csak Intel (x64) build.',
+      x64Planned: 'Intel Mac-ekre (x64) készült. Apple Siliconon is fut, a Rosetta 2-n keresztül. Natív Apple Silicon build tervben van.',
+      x64: 'Intel Mac-ekre (x64) készült. Apple Siliconon is fut, a Rosetta 2-n keresztül.',
       arm64: 'Ez a kiadás csak Apple Silicon (arm64) build. Intel Mac-ekre nem készült.',
     },
     alsoFor: 'Elérhető még',
@@ -61,8 +62,8 @@ export default {
     colSize: 'Méret',
     colSha: 'SHA-256',
     noAssets: 'Még nincs listázott letöltés.',
-    alpha:
-      'Ez az első nyilvános alfa. macOS-en készült és tesztelték, először Intelen. Számíts darabosságra. Néhány funkciót még nem ellenőriztek valódi külső szolgáltatásokkal, például a Cloudflare-rel, az Atlasszal vagy egy iPhone-nal.',
+    // Csak akkor jelenik meg, ha a data/release.json státusza "alpha" vagy "beta" (a "stable" esetén soha).
+    preNotice: 'Ez egy előzetes kiadás. Számíts darabosságra.',
     allDownloads: 'Minden letöltés és ellenőrzőösszeg',
     signedNote: 'Ezt a buildet az Apple aláírta és hitelesítette.',
   },
@@ -146,7 +147,7 @@ export default {
         h: 'Távoli: figyeld telefonról',
         p: 'Egy opcionális, végpontok közt titkosított telefonos társalkalmazással az asztalodtól távol is követheted az ügynökök futását és válaszolhatsz a kérdéseikre. A relét futtathatod a saját Cloudflare fiókodban.',
         list: ['Opcionális, amíg be nem állítod, ki van kapcsolva', 'Végpontok közt titkosított', 'Relé a saját Cloudflare fiókodban'],
-        pill: 'Alfa: valódi Cloudflare fiókkal és iPhone-nal még nem ellenőrizték',
+        pill: 'Kísérleti: valódi Cloudflare fiókkal és iPhone-nal még nem ellenőrizték',
         shots: [['remote', 'A telefonos társalkalmazás egy futó ügynökkel.']],
       },
       {
@@ -154,7 +155,7 @@ export default {
         h: 'MongoDB Studio',
         p: 'Opcionális MongoDB böngésző, amely alapból csak olvasható. Írd le, milyen lekérdezést szeretnél, angolul vagy magyarul, és az MI megfogalmazza, te pedig átnézed.',
         list: ['Alapból csak olvasható', 'MI-támogatott lekérdezésgenerálás, magyar kéréssel is', 'SSH-alagutak és TLS'],
-        pill: 'Alfa: nem minden valódi MongoDB környezettel, például az Atlasszal ellenőrizték',
+        pill: 'Kísérleti: nem minden valódi MongoDB környezettel, például az Atlasszal ellenőrizték',
         shots: [['mongo-studio', 'A MongoDB Studio egy csak olvasható lekérdezéssel és az eredményeivel.']],
       },
       {
@@ -193,7 +194,7 @@ export default {
       'A nem Claude providerek alapból csak olvashatnak, és őszinte biztonsági besorolást mutatnak',
       'A saját telepítéseid és fiókjaid. Az IntelyIDE egyiket sem tartalmazza.',
     ],
-    note: 'Alfa: a kísérleti providereket még nem ellenőrizték a valódi programokkal.',
+    note: 'Kísérleti: a kísérleti providereket még nem ellenőrizték a valódi programokkal.',
     shotAlt: 'Beállítások, Providerek: a providerkártyák és a Kísérleti providerek kapcsoló.',
   },
   more: {
@@ -235,8 +236,18 @@ export default {
   },
   open: {
     title: 'Ingyenes és nyílt forráskódú',
-    p: 'Az IntelyIDE GPL-3.0-or-later licenc alatt áll, és ingyen letölthető. Olvasd a kódot, fordítsd le forrásból, jelents hibát vagy küldj javítást.',
-    links: { repo: 'Forráskód', issues: 'Hiba bejelentése', contributing: 'Hogyan járulj hozzá', license: 'Licenc' },
+    p: 'Az IntelyIDE GPL-3.0-or-later licenc alatt áll, és ingyen letölthető. Olvasd a kódot, fordítsd le forrásból, jelents hibát vagy küldj egy pull requestet.',
+    links: {
+      repo: 'Forráskód',
+      issues: 'Hiba vagy ötlet bejelentése (Issues)',
+      discussions: 'Kérdezz (Discussions)',
+      security: 'Sebezhetőség privát bejelentése',
+      pulls: 'Pull requestek',
+      contributing: 'Hogyan járulj hozzá',
+      license: 'Licenc',
+    },
+    contributeH: 'Közreműködés',
+    contributeP: 'A pull requesteket szívesen fogadjuk. A karbantartó minden pull requestet kézzel átnéz és jóváhagy, mielőtt beolvasztja.',
   },
   install: {
     title: 'Telepítés 3 lépésben',
@@ -250,15 +261,13 @@ export default {
     dragAlt: 'Húzd az IntelyIDE ikont az Alkalmazások mappára.',
     gk: {
       h: 'A macOS figyelmeztetésről',
-      p: 'Ez az alfa még nincs aláírva és hitelesítve, ezért a macOS Gatekeeper az első indításkor blokkolja. Ez várható. A megnyitás módja:',
+      p: 'Az IntelyIDE ad-hoc aláírású, de az Apple nem hitelesítette (notarizálta), ezért a macOS az első indításkor megerősítést kér. Ez várható. A megnyitás módja:',
       steps: [
         'Próbáld meg egyszer megnyitni az IntelyIDE-t, majd zárd be a figyelmeztetést.',
         'Nyisd meg a Rendszerbeállításokat, majd az Adatvédelem és biztonság részt.',
         'Görgess le az IntelyIDE-ről szóló üzenethez, és válaszd a <strong>Megnyitás mindenképp</strong> gombot.',
         'Erősítsd meg a jelszavaddal vagy Touch ID-vel.',
       ],
-      verify: 'Megnyitás előtt ellenőrizheted a letöltést. A Terminálban futtasd:',
-      verifyAfter: 'Az eredménynek meg kell egyeznie a letöltés mellett látható SHA-256 összeggel.',
       keep: 'Kérjük, ne kapcsold ki a Gatekeepert. Csak ezt az egy appot kell engedélyezned.',
     },
   },
@@ -275,9 +284,9 @@ export default {
         'Igen. Az ügynökök opcionálisak. A több repós Változások fa, a szerkesztő, a terminál, a keresés, a diff és a többi ügynök nélkül is működik.',
       ],
       ['Mi kell az ügynökökhöz?', 'A saját Claude Code beállításod. Az app végigvezet a csatlakoztatáson. További ügynökeszközök, például a Codex vagy a Gemini kísérleti providerként adhatók hozzá. Az IntelyIDE egyiket sem tartalmazza.'],
-      ['Fut Apple Siliconon?', 'Nézd meg a letöltés gomb melletti architektúra-megjegyzést. Az mindig az aktuális kiadás tartalmát tükrözi.'],
+      ['Fut Apple Siliconon?', 'Igen. A jelenlegi build Intel Mac-ekre (x64) készült, és Apple Siliconon a Rosetta 2-n keresztül fut. Az aktuális állapotot a letöltés gomb melletti architektúra-megjegyzés mutatja.'],
       ['És Windows vagy Linux?', 'Most nem. Az IntelyIDE csak macOS-en készül és tesztelt.'],
-      ['Hogyan jelezhetek problémát?', 'Nyiss egy hibajegyet GitHubon. Írd meg, melyik verziót használod, és mit tettél előtte.'],
+      ['Hogyan jelezhetek problémát?', 'Nyiss egy hibajegyet GitHubon. Írd meg, melyik verziót használod, és mit tettél előtte. A kérdések a GitHub Discussionsbe valók. A biztonsági hibákat privátban jelezd a GitHub privát sebezhetőség-bejelentésén keresztül.'],
       ['Köze van az Anthropichoz?', 'Nincs. Az IntelyIDE független projekt, nem áll kapcsolatban az Anthropickal, és az nem támogatja.'],
     ],
   },
@@ -286,14 +295,14 @@ export default {
     license: 'GPL-3.0-or-later licenc alatt.',
     trademarks:
       'Az IntelyIDE független projekt, nem áll kapcsolatban az Anthropickal, és az nem támogatja. A Claude az Anthropic védjegye. A macOS az Apple Inc. védjegye. Az egyéb termék- és cégnevek és logóik tulajdonosaikéi, és csak a csatlakoztatható eszközök megnevezésére szerepelnek. Kapcsolatot vagy támogatást nem jelentenek.',
-    links: { org: 'IntelyHome a GitHubon', author: 'Szerző a GitHubon', repo: 'Repó', issues: 'Hibajegyek', download: 'Letöltés' },
-    contact: 'Kapcsolat',
+    links: { repo: 'Repó', issues: 'Hibajegyek', discussions: 'Discussions', pulls: 'Pull requestek', security: 'Sebezhetőség bejelentése', download: 'Letöltés' },
   },
   page: {
     dlTitle: 'Az IntelyIDE letöltése',
     dlLead: 'Az aktuális kiadás minden adata egy helyen.',
     verifyTitle: 'Ellenőrizd a letöltést',
-    verifyP: 'Hasonlítsd össze a letöltött fájl ellenőrzőösszegét a fent listázott SHA-256 összeggel. A Terminálban futtasd:',
+    verifyP: 'Töltsd le a .dmg-t és a SHA256SUMS fájlt ugyanabba a mappába, majd a Terminálban futtasd:',
+    verifyAfter: 'A fájlodhoz tartozó sornak OK-ra kell végződnie. Összevetheted a fájlt a fent listázott SHA-256 összeggel is.',
     backHome: 'Vissza a kezdőlapra',
     nfTitle: 'Az oldal nem található',
     nfP: 'A keresett oldal nem létezik vagy máshová költözött.',
