@@ -5,6 +5,7 @@ edition = "2021"
 rust-version = "1.77"
 license.workspace = true
 description = "Relay kit discovery, wrangler invocation builder and runner with masking, output parsers, config generator and deploy pipeline for the user's own Cloudflare account (docs/remote-cloudflare-spec.md). Nothing runs until a Tauri command calls it."
+publish = false
 
 [lib]
 name = "intely_relay_deploy"

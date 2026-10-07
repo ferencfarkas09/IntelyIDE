@@ -5,6 +5,7 @@ edition = "2021"
 rust-version = "1.77"
 license.workspace = true
 description = "Verified in-app update: signed feed, minisign verification, hardened download, safe unpack, atomic swap and rollback (docs/updater-spec.md). Tauri-free; never reads the environment."
+publish = false
 
 [lib]
 name = "intely_updater"

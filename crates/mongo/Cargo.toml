@@ -5,6 +5,7 @@ edition = "2021"
 rust-version = "1.88"
 license.workspace = true
 description = "MongoDB Studio core (Tauri-free): read-only command set, mongosh literal parser, EJSON, explain walker. The driver is behind feature `mongo` (off by default)."
+publish = false
 
 [lib]
 name = "intely_mongo"

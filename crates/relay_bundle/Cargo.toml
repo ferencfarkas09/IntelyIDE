@@ -5,6 +5,7 @@ edition = "2021"
 rust-version = "1.77"
 license.workspace = true
 description = "Staging and Ed25519 signing of the phone PWA bundle, relay and bundle verification, VAPID and signing-key generation (docs/remote-cloudflare-spec.md). Local files and plain HTTPS GETs only; never spawns wrangler."
+publish = false
 
 [lib]
 name = "intely_relay_bundle"

@@ -3,8 +3,8 @@
 #   version  the release without the leading v (X.Y.Z)
 #   url      the linux amd64 asset of that release (https://github.com/rhysd/actionlint/releases/download/...)
 #   sha256   the asset's line in the release's checksums.txt
-# PIN-ME until a builder with network access fills it from the release page (nobody could verify it offline):
-#   node scripts/ci/check-refs.mjs --strict fails while it is unresolved, and so does the CI step.
-version=PIN-ME
-url=PIN-ME
-sha256=PIN-ME
+# Resolved on 2026-10-07 from the v1.7.12 release page; the digest the GitHub API reports for the asset, the line in
+# actionlint_1.7.12_checksums.txt and the sha256 of a fresh download all agree.
+version=1.7.12
+url=https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz
+sha256=8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8

@@ -317,7 +317,7 @@ export function runChecks({ root: rootArg = DEFAULT_ROOT, release = false, allow
       const r = spawnSync(process.execPath, [gen, "--check"], { cwd: root, env: childEnv(), encoding: "utf8", timeout: 600_000 });
       const code = r.status ?? 3;
       const tail = `${r.stdout ?? ""}${r.stderr ?? ""}`.trim().split("\n").slice(-8).join("\n");
-      if (code === 3) env.push(`gen.mjs --check: environment problem\n${tail}`);
+      if (code === 3) env.push(`gen.mjs --check: environment problem (status=${r.status} signal=${r.signal ?? ""} error=${r.error?.code ?? r.error?.message ?? ""})\n${tail}`);
       else if (code !== 0) err("third-party", "THIRD_PARTY_LICENSES.md", `gen.mjs --check exited ${code}\n${tail}`);
     }
   }

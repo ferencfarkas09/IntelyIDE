@@ -5,6 +5,7 @@ edition = "2021"
 rust-version = "1.77"
 license.workspace = true
 description = "Folder picker core (Tauri-free): path validation, read-only listing, one-time tokens, scan and the pick backend chain."
+publish = false
 
 [lib]
 name = "intely_pathpick"

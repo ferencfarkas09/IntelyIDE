@@ -5,6 +5,7 @@ edition = "2021"
 rust-version = "1.77"
 license.workspace = true
 description = "Tauri-free remote gateway: Noise-encrypted phone supervision of agent runs over an outbound relay (docs/remote-plan.md)"
+publish = false
 
 [lib]
 name = "intely_remote"

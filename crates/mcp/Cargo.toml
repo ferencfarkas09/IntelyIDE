@@ -5,6 +5,7 @@ edition = "2021"
 rust-version = "1.77"
 license.workspace = true
 description = "MCP server management (docs/mcp-management-spec.md): config store, secrets in the Keychain, Test probe, import, and the supplier the agent host consumes. Tauri-free."
+publish = false
 
 [lib]
 name = "intely_mcp"
