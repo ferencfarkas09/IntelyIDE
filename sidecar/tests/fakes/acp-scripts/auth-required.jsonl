@@ -1,0 +1,3 @@
+// Not signed in: session/new fails with auth_required and the agent lists its methods (one needs a terminal).
+{"op":"on","method":"initialize","reply":{"protocolVersion":1,"agentCapabilities":{},"authMethods":[{"id":"oauth","name":"Sign in with Google"},{"id":"cli-login","name":"Run the CLI login","type":"terminal","args":["login"]}]}}
+{"op":"on","method":"session/new","error":{"code":-32000,"message":"Authentication required"}}

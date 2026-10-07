@@ -1,0 +1,64 @@
+[package]
+name = "intely-switch-ide"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.77"
+license.workspace = true
+
+[lib]
+name = "intely_switch_ide_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+intely-core = { version = "0.0.0", path = "../crates/core", features = ["specta"] }
+intely-agent-core = { version = "0.0.0", path = "../crates/agent_core" }
+intely-agent-host = { version = "0.0.0", path = "../crates/agent_host" }
+intely-files = { version = "0.0.0", path = "../crates/files" }
+intely-term = { version = "0.0.0", path = "../crates/term" }
+intely-graph = { version = "0.0.0", path = "../crates/graph" }
+intely-roles = { version = "0.0.0", path = "../crates/roles" }
+intely-settings = { version = "0.0.0", path = "../crates/settings" }
+intely-happy = { version = "0.0.0", path = "../crates/happy" }
+intely-attachments = { version = "0.0.0", path = "../crates/attachments" }
+intely-l10n = { version = "0.0.0", path = "../crates/l10n" }
+intely-runner = { version = "0.0.0", path = "../crates/runner" }
+intely-preview-proxy = { version = "0.0.0", path = "../crates/preview-proxy" }
+intely-remote = { version = "0.0.0", path = "../crates/remote" }
+intely-checks = { version = "0.0.0", path = "../crates/checks" }
+intely-contract = { version = "0.0.0", path = "../crates/contract" }
+intely-gitx = { version = "0.0.0", path = "../crates/gitx" }
+intely-pathpick = { version = "0.0.0", path = "../crates/pathpick" }
+intely-runindex = { version = "0.0.0", path = "../crates/runindex" }
+intely-hud = { version = "0.0.0", path = "../crates/hud" }
+intely-mcp = { version = "0.0.0", path = "../crates/mcp" }
+intely-relay-bundle = { version = "0.0.0", path = "../crates/relay_bundle" }
+intely-relay-deploy = { version = "0.0.0", path = "../crates/relay_deploy" }
+# Native folder dialog (NSOpenPanel); no GUI toolkit backends. (design notes: workspaces-spec) 5.2.
+rfd = { version = "0.16", default-features = false }
+intely-updater = { version = "0.0.0", path = "../crates/updater" }
+# Timers and wake-ups of the update scheduler (modules/updates.rs); the request itself lives in intely-updater (notice).
+tokio = { version = "1.53.1", features = ["time", "sync"] }
+# MongoDB Studio: optional dependency, part of the default (official) build (D2); the in-app switch stays off.
+intely-mongo = { version = "0.0.0", path = "../crates/mongo", optional = true, features = ["mongo"] }
+
+# WKWebView snapshots for the e2e harness (e2e_shot.rs); the versions are the ones tauri/wry already resolve.
+[target.'cfg(target_os = "macos")'.dependencies]
+block2 = "0.6"
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSImage", "NSImageRep", "NSBitmapImageRep"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSData", "NSDictionary", "NSValue", "NSError"] }
+objc2-web-kit = { version = "0.3", default-features = false, features = ["std", "block2", "objc2-app-kit", "WKSnapshotConfiguration", "WKWebView"] }
+
+[features]
+default = ["mongo-studio"]
+custom-protocol = ["tauri/custom-protocol"]
+mongo-studio = ["dep:intely-mongo"]
+
+[dev-dependencies]
+tempfile = "3"

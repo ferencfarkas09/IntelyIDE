@@ -1,0 +1,25 @@
+{
+  "key": "93542353670680e2",
+  "case": "hu17",
+  "round": 0,
+  "source": "live",
+  "tier": "fast",
+  "model": "claude-haiku-4-5-20251001",
+  "reply": {
+    "mode": "find",
+    "collection": "orders",
+    "filter": "{\"type\":\"kiszállítás\",\"total\":{\"$gt\":20000}}",
+    "explanation": "Kiszállításos rendelések keresése, ahol az összeg több mint 20 000 forint.",
+    "assumptions": [
+      "A 'kiszállítás' érték a type mező enum értéke",
+      "A 20 000 forint érték az order total mezőjét szűri az egész összegre"
+    ],
+    "confidence": "high"
+  },
+  "usage": {
+    "inputTokens": 10,
+    "outputTokens": 1753,
+    "costUsd": 0.021092999999999997,
+    "ms": 21008
+  }
+}

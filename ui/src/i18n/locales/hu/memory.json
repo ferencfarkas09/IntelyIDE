@@ -1,0 +1,7 @@
+{
+  "memory.includeUserMemory": "A globális CLAUDE.md felvétele az ügynökfutásokba",
+  "memory.includeUserMemory.hint": "Csak olvasható és méretkorlátos; csak a modell kérésében hagyja el a gépet.",
+  "memory.stepLimit": "A futás elérte a lépéskorlátját ({n} lépés).",
+  "memory.stepLimit.unknown": "A futás elérte a lépéskorlátját.",
+  "memory.stepLimit.continue": "Folytatás"
+}

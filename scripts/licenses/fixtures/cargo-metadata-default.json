@@ -1,0 +1,297 @@
+{
+  "packages": [
+    {
+      "name": "app",
+      "version": "0.0.0",
+      "id": "path+file:///FIXTURE/app#app@0.0.0",
+      "source": null,
+      "license": "GPL-3.0-or-later",
+      "license_file": null,
+      "homepage": null,
+      "repository": null,
+      "manifest_path": "/FIXTURE/src-tauri/Cargo.toml"
+    },
+    {
+      "name": "core",
+      "version": "0.0.0",
+      "id": "path+file:///FIXTURE/core#core@0.0.0",
+      "source": null,
+      "license": "GPL-3.0-or-later",
+      "license_file": null,
+      "homepage": null,
+      "repository": null,
+      "manifest_path": "/FIXTURE/crates/core/Cargo.toml"
+    },
+    {
+      "name": "serde",
+      "version": "1.0.228",
+      "id": "registry+https://github.com/rust-lang/crates.io-index#serde@1.0.228",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "MIT OR Apache-2.0",
+      "license_file": null,
+      "homepage": null,
+      "repository": "https://github.com/serde-rs/serde",
+      "manifest_path": "/FIXTURE/registry/serde-1.0.228/Cargo.toml"
+    },
+    {
+      "name": "cc",
+      "version": "1.2.0",
+      "id": "registry+https://github.com/rust-lang/crates.io-index#cc@1.2.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "MIT OR Apache-2.0",
+      "license_file": null,
+      "homepage": null,
+      "repository": null,
+      "manifest_path": "/FIXTURE/registry/cc-1.2.0/Cargo.toml"
+    },
+    {
+      "name": "proptest",
+      "version": "1.5.0",
+      "id": "registry+https://github.com/rust-lang/crates.io-index#proptest@1.5.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "MIT OR Apache-2.0",
+      "license_file": null,
+      "homepage": null,
+      "repository": null,
+      "manifest_path": "/FIXTURE/registry/proptest-1.5.0/Cargo.toml"
+    },
+    {
+      "name": "windows-sys",
+      "version": "0.59.0",
+      "id": "registry+https://github.com/rust-lang/crates.io-index#windows-sys@0.59.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "MIT OR Apache-2.0",
+      "license_file": null,
+      "homepage": null,
+      "repository": null,
+      "manifest_path": "/FIXTURE/registry/windows-sys-0.59.0/Cargo.toml"
+    },
+    {
+      "name": "openssl",
+      "version": "0.10.81",
+      "id": "registry+https://github.com/rust-lang/crates.io-index#openssl@0.10.81",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "Apache-2.0",
+      "license_file": null,
+      "homepage": null,
+      "repository": null,
+      "manifest_path": "/FIXTURE/registry/openssl-0.10.81/Cargo.toml"
+    },
+    {
+      "name": "ring",
+      "version": "0.17.14",
+      "id": "registry+https://github.com/rust-lang/crates.io-index#ring@0.17.14",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "Apache-2.0 AND ISC",
+      "license_file": null,
+      "homepage": null,
+      "repository": null,
+      "manifest_path": "/FIXTURE/registry/ring-0.17.14/Cargo.toml"
+    },
+    {
+      "name": "cssparser",
+      "version": "0.35.0",
+      "id": "registry+https://github.com/rust-lang/crates.io-index#cssparser@0.35.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "MPL-2.0",
+      "license_file": null,
+      "homepage": null,
+      "repository": null,
+      "manifest_path": "/FIXTURE/registry/cssparser-0.35.0/Cargo.toml"
+    },
+    {
+      "name": "licfile",
+      "version": "0.1.0",
+      "id": "registry+https://github.com/rust-lang/crates.io-index#licfile@0.1.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": null,
+      "license_file": "COPYING.txt",
+      "homepage": null,
+      "repository": null,
+      "manifest_path": "/FIXTURE/registry/licfile-0.1.0/Cargo.toml"
+    },
+    {
+      "name": "evil",
+      "version": "0.1.0",
+      "id": "registry+https://github.com/rust-lang/crates.io-index#evil@0.1.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "license": "MIT OR Apache-2.0",
+      "license_file": null,
+      "homepage": "http://tracker.example/x",
+      "repository": null,
+      "manifest_path": "/FIXTURE/registry/evil-0.1.0/Cargo.toml"
+    }
+  ],
+  "workspace_members": [
+    "path+file:///FIXTURE/app#app@0.0.0",
+    "path+file:///FIXTURE/core#core@0.0.0"
+  ],
+  "resolve": {
+    "nodes": [
+      {
+        "id": "path+file:///FIXTURE/app#app@0.0.0",
+        "deps": [
+          {
+            "name": "core",
+            "pkg": "path+file:///FIXTURE/core#core@0.0.0",
+            "dep_kinds": [
+              {
+                "kind": null,
+                "target": null
+              }
+            ]
+          },
+          {
+            "name": "serde",
+            "pkg": "registry+https://github.com/rust-lang/crates.io-index#serde@1.0.228",
+            "dep_kinds": [
+              {
+                "kind": null,
+                "target": null
+              }
+            ]
+          },
+          {
+            "name": "cc",
+            "pkg": "registry+https://github.com/rust-lang/crates.io-index#cc@1.2.0",
+            "dep_kinds": [
+              {
+                "kind": "build",
+                "target": null
+              }
+            ]
+          },
+          {
+            "name": "proptest",
+            "pkg": "registry+https://github.com/rust-lang/crates.io-index#proptest@1.5.0",
+            "dep_kinds": [
+              {
+                "kind": "dev",
+                "target": null
+              }
+            ]
+          },
+          {
+            "name": "cssparser",
+            "pkg": "registry+https://github.com/rust-lang/crates.io-index#cssparser@0.35.0",
+            "dep_kinds": [
+              {
+                "kind": null,
+                "target": null
+              }
+            ]
+          },
+          {
+            "name": "licfile",
+            "pkg": "registry+https://github.com/rust-lang/crates.io-index#licfile@0.1.0",
+            "dep_kinds": [
+              {
+                "kind": null,
+                "target": null
+              }
+            ]
+          },
+          {
+            "name": "evil",
+            "pkg": "registry+https://github.com/rust-lang/crates.io-index#evil@0.1.0",
+            "dep_kinds": [
+              {
+                "kind": null,
+                "target": null
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "path+file:///FIXTURE/core#core@0.0.0",
+        "deps": [
+          {
+            "name": "ring",
+            "pkg": "registry+https://github.com/rust-lang/crates.io-index#ring@0.17.14",
+            "dep_kinds": [
+              {
+                "kind": null,
+                "target": null
+              }
+            ]
+          },
+          {
+            "name": "windows-sys",
+            "pkg": "registry+https://github.com/rust-lang/crates.io-index#windows-sys@0.59.0",
+            "dep_kinds": [
+              {
+                "kind": null,
+                "target": "cfg(windows)"
+              }
+            ]
+          },
+          {
+            "name": "openssl",
+            "pkg": "registry+https://github.com/rust-lang/crates.io-index#openssl@0.10.81",
+            "dep_kinds": [
+              {
+                "kind": null,
+                "target": "cfg(not(any(target_os = \"windows\", target_vendor = \"apple\")))"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "registry+https://github.com/rust-lang/crates.io-index#serde@1.0.228",
+        "deps": []
+      },
+      {
+        "id": "registry+https://github.com/rust-lang/crates.io-index#cc@1.2.0",
+        "deps": []
+      },
+      {
+        "id": "registry+https://github.com/rust-lang/crates.io-index#proptest@1.5.0",
+        "deps": []
+      },
+      {
+        "id": "registry+https://github.com/rust-lang/crates.io-index#windows-sys@0.59.0",
+        "deps": []
+      },
+      {
+        "id": "registry+https://github.com/rust-lang/crates.io-index#openssl@0.10.81",
+        "deps": []
+      },
+      {
+        "id": "registry+https://github.com/rust-lang/crates.io-index#mongodb@3.9.1",
+        "deps": [
+          {
+            "name": "serde",
+            "pkg": "registry+https://github.com/rust-lang/crates.io-index#serde@1.0.228",
+            "dep_kinds": [
+              {
+                "kind": null,
+                "target": null
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "registry+https://github.com/rust-lang/crates.io-index#ring@0.17.14",
+        "deps": []
+      },
+      {
+        "id": "registry+https://github.com/rust-lang/crates.io-index#cssparser@0.35.0",
+        "deps": []
+      },
+      {
+        "id": "registry+https://github.com/rust-lang/crates.io-index#licfile@0.1.0",
+        "deps": []
+      },
+      {
+        "id": "registry+https://github.com/rust-lang/crates.io-index#evil@0.1.0",
+        "deps": []
+      }
+    ],
+    "root": null
+  },
+  "target_directory": "/FIXTURE/target",
+  "version": 1
+}

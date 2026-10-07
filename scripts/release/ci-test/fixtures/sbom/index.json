@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "generator": { "tool": "scripts/licenses/gen.mjs" },
+  "project": { "name": "IntelyIDE", "license": "GPL-3.0-or-later", "copyright": "fixture", "textIds": [] },
+  "groups": [],
+  "components": [
+    { "id": "npm:@scope/pkg@1.2.3", "kind": "npm", "name": "@scope/pkg", "version": "1.2.3", "expression": "MIT", "chosen": ["MIT"], "copyright": [], "textIds": [], "shippedIn": ["app"], "distributed": true, "sourceUrl": "https://example.test/pkg", "verdict": "ok" },
+    { "id": "cargo:serde@1.0.0", "kind": "cargo", "name": "serde", "version": "1.0.0", "expression": "MIT OR Apache-2.0", "chosen": ["MIT"], "copyright": [], "textIds": [], "shippedIn": ["app"], "distributed": true, "verdict": "ok" },
+    { "id": "cargo:both@0.1.0", "kind": "cargo", "name": "both", "version": "0.1.0", "expression": "MIT AND Zlib", "chosen": ["MIT", "Zlib"], "copyright": [], "textIds": [], "shippedIn": ["app", "sidecar"], "distributed": true, "verdict": "ok" },
+    { "id": "font:sora@5.3.0", "kind": "font", "name": "Sora", "version": "5.3.0", "expression": "OFL-1.1", "chosen": ["OFL-1.1"], "copyright": [], "textIds": [], "shippedIn": ["app"], "distributed": true, "verdict": "ok" },
+    { "id": "npm:relay-only@2.0.0", "kind": "npm", "name": "relay-only", "version": "2.0.0", "expression": "MIT", "chosen": ["MIT"], "copyright": [], "textIds": [], "shippedIn": ["relay"], "distributed": true, "verdict": "ok" },
+    { "id": "manual:claude-agent-sdk", "kind": "manual", "name": "Claude Agent SDK", "version": "9.9.9", "expression": "LicenseRef-Anthropic-Commercial", "chosen": ["LicenseRef-Anthropic-Commercial"], "copyright": [], "textIds": [], "shippedIn": [], "distributed": false, "verdict": "attention" },
+    { "id": "manual:nodejs", "kind": "manual", "name": "Node.js", "version": "24.13.0", "expression": "MIT", "chosen": ["MIT"], "copyright": [], "textIds": [], "shippedIn": ["app"], "distributed": true, "verdict": "ok" }
+  ]
+}

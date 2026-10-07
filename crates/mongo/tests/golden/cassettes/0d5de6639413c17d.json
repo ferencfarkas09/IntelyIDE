@@ -1,0 +1,24 @@
+{
+  "key": "0d5de6639413c17d",
+  "case": "hu21",
+  "round": 0,
+  "source": "live",
+  "tier": "fast",
+  "model": "claude-haiku-4-5-20251001",
+  "reply": {
+    "mode": "find",
+    "collection": "orders",
+    "filter": "{\"table\":\"terasz\"}",
+    "explanation": "Orders associated with terrace tables, filtered by the table field enum value.",
+    "confidence": "high",
+    "assumptions": [
+      "The field 'table' uses 'terasz' as the stored enum value for terrace tables"
+    ]
+  },
+  "usage": {
+    "inputTokens": 10,
+    "outputTokens": 844,
+    "costUsd": 0.016503,
+    "ms": 9901
+  }
+}

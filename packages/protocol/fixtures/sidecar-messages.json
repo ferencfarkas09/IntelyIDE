@@ -1,0 +1,579 @@
+[
+  {
+    "body": {
+      "node": "v24.1.0",
+      "pid": 4242,
+      "providers": [
+        "claude",
+        "mock"
+      ],
+      "version": "0.0.0"
+    },
+    "id": 1,
+    "type": "hello",
+    "v": 1
+  },
+  {
+    "body": {
+      "loaded": [
+        "claude"
+      ],
+      "pid": 4242,
+      "sessions": 1
+    },
+    "id": 2,
+    "type": "heartbeat",
+    "v": 1
+  },
+  {
+    "body": {
+      "agentId": "a1",
+      "intent": {
+        "class": "exec",
+        "paths": [],
+        "rawCommand": "/usr/bin/git push origin HEAD",
+        "summary": "push"
+      },
+      "provider": "claude",
+      "toolId": "t9"
+    },
+    "id": 41,
+    "type": "policy/decide",
+    "v": 1
+  },
+  {
+    "body": {
+      "by": "hardStop",
+      "decision": "deny",
+      "reason": "git push is human-only"
+    },
+    "id": 41,
+    "type": "reply",
+    "v": 1
+  },
+  {
+    "body": {
+      "agentId": "a1",
+      "intent": {
+        "actor": {
+          "agentId": "agent-7",
+          "role": "researcher"
+        },
+        "class": "write",
+        "paths": [
+          "src/a.ts"
+        ],
+        "summary": "edit src/a.ts",
+        "tool": "Edit"
+      },
+      "provider": "claude",
+      "toolId": "t10"
+    },
+    "id": 52,
+    "type": "policy/decide",
+    "v": 1
+  },
+  {
+    "body": {
+      "agentId": "a1",
+      "intent": {
+        "class": "other",
+        "isolation": "worktree",
+        "paths": [],
+        "subagentFlags": {
+          "background": true,
+          "hasModel": true,
+          "subagentType": "researcher"
+        },
+        "subagentType": "researcher",
+        "summary": "Agent",
+        "tool": "Agent"
+      },
+      "provider": "claude",
+      "toolId": "t11"
+    },
+    "id": 53,
+    "type": "policy/decide",
+    "v": 1
+  },
+  {
+    "body": {
+      "agentId": "a1",
+      "provider": "claude",
+      "repoId": "admin",
+      "ttlMs": 15000,
+      "writer": true
+    },
+    "id": 42,
+    "type": "slot/acquire",
+    "v": 1
+  },
+  {
+    "body": {
+      "leaseId": "L7",
+      "treeBudgetMb": 650,
+      "ttlMs": 15000
+    },
+    "id": 42,
+    "type": "reply",
+    "v": 1
+  },
+  {
+    "body": {
+      "detail": "3/3 slots in use",
+      "error": "noSlot"
+    },
+    "id": 42,
+    "type": "reply",
+    "v": 1
+  },
+  {
+    "body": {
+      "leaseId": "L7",
+      "pgids": [
+        48211
+      ],
+      "rssHintMb": 212
+    },
+    "id": 43,
+    "type": "slot/renew",
+    "v": 1
+  },
+  {
+    "body": {
+      "ok": true
+    },
+    "id": 43,
+    "type": "reply",
+    "v": 1
+  },
+  {
+    "body": {
+      "leaseId": "L7"
+    },
+    "id": 44,
+    "type": "slot/release",
+    "v": 1
+  },
+  {
+    "body": {
+      "agentId": "a1",
+      "events": [
+        {
+          "assertions": [],
+          "auth": {
+            "mode": "subscription",
+            "source": "none",
+            "warning": null
+          },
+          "capsDelta": {
+            "effort": {
+              "cap": "no",
+              "note": "Haiku 4.5 has no effort control"
+            }
+          },
+          "effective": {
+            "effort": "high",
+            "permission": "edit",
+            "sandbox": null
+          },
+          "kind": "session.started",
+          "model": "claude-haiku-4-5-20251001",
+          "nativeId": "5f2c1d7e-0000-4000-8000-000000000001",
+          "raw": null,
+          "seq": 1,
+          "ts": 1790000000040,
+          "turnId": null
+        },
+        {
+          "caps": {
+            "attachments": null,
+            "cancel": {
+              "cap": "no",
+              "note": null
+            },
+            "effort": {
+              "cap": "no",
+              "note": null
+            },
+            "effortLevels": [],
+            "fork": {
+              "cap": "no",
+              "note": null
+            },
+            "hooks": {
+              "cap": "no",
+              "note": null
+            },
+            "modelList": {
+              "cap": "no",
+              "note": null
+            },
+            "modelSwitch": {
+              "cap": "no",
+              "note": null
+            },
+            "permissions": {
+              "cap": "no",
+              "note": null
+            },
+            "resume": {
+              "cap": "no",
+              "note": null
+            },
+            "sandbox": {
+              "cap": "no",
+              "note": null
+            },
+            "streaming": {
+              "cap": "no",
+              "note": null
+            },
+            "subagents": {
+              "cap": "no",
+              "note": null
+            },
+            "toolEvents": {
+              "cap": "no",
+              "note": null
+            },
+            "usage": {
+              "cap": "no",
+              "note": null
+            }
+          },
+          "delegates": [
+            {
+              "color": "#4f9cf9",
+              "description": "Reads and searches the code",
+              "disallowedTools": [
+                "Agent",
+                "Task"
+              ],
+              "effort": null,
+              "maxTurns": 25,
+              "model": "claude-haiku-4-5-20251001",
+              "name": "researcher",
+              "permission": "readOnly",
+              "scope": "global",
+              "tools": [
+                "Read",
+                "Grep",
+                "Glob"
+              ]
+            }
+          ],
+          "effective": {
+            "effort": null,
+            "model": "claude-haiku-4-5-20251001",
+            "permission": "edit",
+            "reason": "user"
+          },
+          "kind": "session.info",
+          "mcpServers": [
+            {
+              "error": null,
+              "name": "github",
+              "status": "connected",
+              "tools": 12
+            },
+            {
+              "error": "spawn ENOENT",
+              "name": "docs",
+              "status": "failed",
+              "tools": null
+            }
+          ],
+          "models": [
+            {
+              "caps": {},
+              "contextTokens": 200000,
+              "effortLevels": [],
+              "id": "claude-haiku-4-5-20251001",
+              "label": "Haiku 4.5",
+              "price": null
+            }
+          ],
+          "nativeId": null,
+          "raw": null,
+          "seq": 2,
+          "slashCommands": [
+            "compact",
+            "context",
+            "cost",
+            "review",
+            "init"
+          ],
+          "title": "Fix the status bar",
+          "ts": 1790000000080,
+          "turnId": null
+        }
+      ],
+      "provider": "claude"
+    },
+    "id": 45,
+    "type": "events/batch",
+    "v": 1
+  },
+  {
+    "body": {
+      "addDirs": [],
+      "agentId": "a1",
+      "auth": {
+        "mode": "apiKey"
+      },
+      "cwd": "/work/repo",
+      "env": {
+        "claudeBin": "/usr/local/bin/claude",
+        "shimDir": "/x/shim",
+        "vars": {
+          "PATH": "/usr/bin"
+        }
+      },
+      "mcp": {
+        "github": {
+          "command": "x"
+        }
+      },
+      "nextSeq": 1,
+      "provider": "claude",
+      "repoId": "admin",
+      "role": {
+        "disallowedTools": [],
+        "model": "claude-haiku-4-5-20251001",
+        "name": "developer",
+        "permission": "edit",
+        "tools": []
+      },
+      "settingSources": [],
+      "writer": true
+    },
+    "id": 46,
+    "type": "session/start",
+    "v": 1
+  },
+  {
+    "body": {
+      "addDirs": [],
+      "agentId": "a2",
+      "auth": {
+        "mode": "subscription"
+      },
+      "cwd": "/work/repo",
+      "delegates": [
+        {
+          "color": "#4f9cf9",
+          "description": "Reads and searches the code",
+          "disallowedTools": [
+            "Agent",
+            "Task"
+          ],
+          "maxTurns": 25,
+          "model": "claude-haiku-4-5-20251001",
+          "name": "researcher",
+          "permission": "readOnly",
+          "prompt": "Answer from the code.",
+          "scope": "global",
+          "tools": [
+            "Read",
+            "Grep",
+            "Glob"
+          ]
+        },
+        {
+          "description": "Implements a change",
+          "disallowedTools": [
+            "Agent",
+            "Task"
+          ],
+          "effort": "medium",
+          "maxTurns": 25,
+          "model": "claude-sonnet-5-5",
+          "name": "developer",
+          "permission": "edit",
+          "prompt": "Make the change.",
+          "scope": "builtin",
+          "tools": []
+        }
+      ],
+      "env": {
+        "claudeBin": "/usr/local/bin/claude"
+      },
+      "planDir": "/x/plans",
+      "provider": "claude",
+      "repoId": "admin",
+      "role": {
+        "disallowedTools": [],
+        "effort": "medium",
+        "model": "claude-sonnet-5-5",
+        "name": "auto",
+        "permission": "edit",
+        "tools": []
+      },
+      "writer": true
+    },
+    "id": 54,
+    "type": "session/start",
+    "v": 1
+  },
+  {
+    "body": {
+      "nativeId": "5f2c1d7e-0000-4000-8000-000000000001",
+      "ok": true
+    },
+    "id": 46,
+    "type": "reply",
+    "v": 1
+  },
+  {
+    "body": {
+      "agentId": "a1",
+      "text": "hello"
+    },
+    "id": 47,
+    "type": "session/prompt",
+    "v": 1
+  },
+  {
+    "body": {
+      "agentId": "a1"
+    },
+    "id": 48,
+    "type": "session/close",
+    "v": 1
+  },
+  {
+    "body": {
+      "agentId": "a1",
+      "softMs": 5000,
+      "termMs": 3000
+    },
+    "id": 49,
+    "type": "cancel/request",
+    "v": 1
+  },
+  {
+    "body": {
+      "agentId": "a1",
+      "ms": 812,
+      "stopReason": "cancelled"
+    },
+    "id": 50,
+    "type": "cancel/done",
+    "v": 1
+  },
+  {
+    "body": {
+      "agentId": "a1",
+      "answers": {
+        "Which branch?": "main"
+      },
+      "message": "ok",
+      "outcome": "allow",
+      "reqId": "r1"
+    },
+    "id": 51,
+    "type": "permission/answer",
+    "v": 1
+  },
+  {
+    "body": {
+      "agentId": "a1",
+      "mode": "automatic"
+    },
+    "id": 60,
+    "type": "session/permission",
+    "v": 1
+  },
+  {
+    "body": {
+      "ok": true
+    },
+    "id": 60,
+    "type": "reply",
+    "v": 1
+  },
+  {
+    "body": {
+      "detail": "codex has no live permission switch",
+      "error": "unsupported"
+    },
+    "id": 61,
+    "type": "reply",
+    "v": 1
+  },
+  {
+    "body": {
+      "agentId": "a1"
+    },
+    "id": 63,
+    "type": "session/mcp-status",
+    "v": 1
+  },
+  {
+    "body": {
+      "agentId": "a1",
+      "reconnect": "github"
+    },
+    "id": 64,
+    "type": "session/mcp-status",
+    "v": 1
+  },
+  {
+    "body": {
+      "agentId": "a1",
+      "toggle": {
+        "enabled": false,
+        "server": "github"
+      }
+    },
+    "id": 65,
+    "type": "session/mcp-status",
+    "v": 1
+  },
+  {
+    "body": {
+      "ok": true,
+      "servers": [
+        {
+          "name": "github",
+          "status": "connected",
+          "tools": [
+            {
+              "description": "Search issues",
+              "name": "search_issues"
+            },
+            {
+              "name": "get_issue"
+            }
+          ]
+        },
+        {
+          "error": "spawn ENOENT",
+          "name": "docs",
+          "status": "failed",
+          "tools": []
+        },
+        {
+          "name": "linear",
+          "status": "needsAuth",
+          "tools": []
+        }
+      ]
+    },
+    "id": 63,
+    "type": "reply",
+    "v": 1
+  },
+  {
+    "body": {
+      "agentId": "a1",
+      "mode": "edit",
+      "outcome": "allow",
+      "reqId": "perm-t9"
+    },
+    "id": 62,
+    "type": "permission/answer",
+    "v": 1
+  }
+]

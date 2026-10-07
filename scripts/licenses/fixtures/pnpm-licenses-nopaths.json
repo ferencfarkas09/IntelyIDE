@@ -1,0 +1,31 @@
+{
+  "MIT": [
+    {
+      "name": "solid-js",
+      "versions": [
+        "1.9.15"
+      ],
+      "license": "MIT",
+      "homepage": "https://solidjs.com"
+    }
+  ],
+  "OFL-1.1": [
+    {
+      "name": "@fontsource-variable/inter",
+      "versions": [
+        "5.3.0"
+      ],
+      "license": "OFL-1.1"
+    }
+  ],
+  "(MPL-2.0 OR Apache-2.0)": [
+    {
+      "name": "dompurify",
+      "versions": [
+        "3.4.16"
+      ],
+      "license": "(MPL-2.0 OR Apache-2.0)",
+      "homepage": "javascript:alert(1)"
+    }
+  ]
+}

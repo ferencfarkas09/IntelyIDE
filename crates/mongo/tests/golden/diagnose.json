@@ -1,0 +1,1136 @@
+[
+ {
+  "name": "own config.invalid",
+  "source": "synthetic",
+  "hint": "none",
+  "text": "config.invalid: hosts.0",
+  "ctx": {},
+  "code": "config.invalid"
+ },
+ {
+  "name": "own config.fileMissing",
+  "source": "synthetic",
+  "hint": "none",
+  "text": "config.fileMissing: CA file",
+  "ctx": {},
+  "code": "config.fileMissing"
+ },
+ {
+  "name": "own config.pemInvalid",
+  "source": "synthetic",
+  "hint": "none",
+  "text": "config.pemInvalid: no PEM header",
+  "ctx": {},
+  "code": "config.pemInvalid"
+ },
+ {
+  "name": "own config.unsupportedOption",
+  "source": "synthetic",
+  "hint": "none",
+  "text": "config.unsupportedOption: authMechanism=MONGODB-AWS",
+  "ctx": {},
+  "code": "config.unsupportedOption"
+ },
+ {
+  "name": "own config.needsSecret",
+  "source": "synthetic",
+  "hint": "none",
+  "text": "config.needsSecret",
+  "ctx": {},
+  "code": "config.needsSecret"
+ },
+ {
+  "name": "own config.plainRemote",
+  "source": "synthetic",
+  "hint": "none",
+  "text": "config.plainRemote: PLAIN over TLS Off",
+  "ctx": {},
+  "code": "config.plainRemote"
+ },
+ {
+  "name": "own config.tlsRelaxRefused",
+  "source": "synthetic",
+  "hint": "none",
+  "text": "config.tlsRelaxRefused",
+  "ctx": {},
+  "code": "config.tlsRelaxRefused"
+ },
+ {
+  "name": "own tunnel.noSsh",
+  "source": "synthetic",
+  "hint": "none",
+  "text": "tunnel.noSsh",
+  "ctx": {},
+  "code": "tunnel.noSsh"
+ },
+ {
+  "name": "own tunnel.dropped",
+  "source": "synthetic",
+  "hint": "none",
+  "text": "tunnel.dropped: master exited",
+  "ctx": {},
+  "code": "tunnel.dropped"
+ },
+ {
+  "name": "ssh auth",
+  "source": "synthetic",
+  "hint": "none",
+  "text": "deploy@bastion.example.test: Permission denied (publickey,password).",
+  "ctx": {
+   "hosts": [
+    "db.internal.test:27017"
+   ],
+   "tunnel": "ssh"
+  },
+  "code": "tunnel.auth"
+ },
+ {
+  "name": "ssh hostkey unknown",
+  "source": "synthetic",
+  "hint": "none",
+  "text": "Host key verification failed.",
+  "ctx": {
+   "hosts": [
+    "db.internal.test:27017"
+   ],
+   "tunnel": "ssh"
+  },
+  "code": "tunnel.hostKeyUnknown"
+ },
+ {
+  "name": "ssh hostkey changed",
+  "source": "synthetic",
+  "hint": "none",
+  "text": "@@@ WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED! @@@\nOffending key in /Users/someone/.ssh/known_hosts:3",
+  "ctx": {
+   "hosts": [
+    "db.internal.test:27017"
+   ],
+   "tunnel": "ssh"
+  },
+  "code": "tunnel.hostKeyChanged"
+ },
+ {
+  "name": "ssh unscannable",
+  "source": "synthetic",
+  "hint": "none",
+  "text": "host key for alias prod-bastion could not be scanned (ProxyJump in ssh config)",
+  "ctx": {
+   "hosts": [
+    "db.internal.test:27017"
+   ],
+   "tunnel": "ssh"
+  },
+  "code": "tunnel.hostKeyUnscannable"
+ },
+ {
+  "name": "ssh dns",
+  "source": "synthetic",
+  "hint": "none",
+  "text": "ssh: Could not resolve hostname bastion.example.test: nodename nor servname provided, or not known",
+  "ctx": {
+   "hosts": [
+    "db.internal.test:27017"
+   ],
+   "tunnel": "ssh"
+  },
+  "code": "tunnel.dns"
+ },
+ {
+  "name": "ssh network refused",
+  "source": "synthetic",
+  "hint": "none",
+  "text": "ssh: connect to host bastion.example.test port 22: Connection refused",
+  "ctx": {
+   "hosts": [
+    "db.internal.test:27017"
+   ],
+   "tunnel": "ssh"
+  },
+  "code": "tunnel.network"
+ },
+ {
+  "name": "ssh network timeout",
+  "source": "synthetic",
+  "hint": "none",
+  "text": "ssh: connect to host bastion.example.test port 22: Operation timed out",
+  "ctx": {
+   "hosts": [
+    "db.internal.test:27017"
+   ],
+   "tunnel": "ssh"
+  },
+  "code": "tunnel.network"
+ },
+ {
+  "name": "ssh forwarding",
+  "source": "synthetic",
+  "hint": "none",
+  "text": "channel 2: open failed: administratively prohibited: open failed",
+  "ctx": {
+   "hosts": [
+    "db.internal.test:27017"
+   ],
+   "tunnel": "ssh"
+  },
+  "code": "tunnel.forwardingDisabled"
+ },
+ {
+  "name": "ssh target refused",
+  "source": "synthetic",
+  "hint": "none",
+  "text": "channel 3: open failed: connect failed: Connection refused\nstdio forwarding failed",
+  "ctx": {
+   "hosts": [
+    "db.internal.test:27017"
+   ],
+   "tunnel": "ssh"
+  },
+  "code": "tunnel.targetRefused"
+ },
+ {
+  "name": "ssh keyfile",
+  "source": "synthetic",
+  "hint": "none",
+  "text": "Warning: Identity file /Users/someone/keys/id_missing not accessible: No such file or directory.",
+  "ctx": {
+   "hosts": [
+    "db.internal.test:27017"
+   ],
+   "tunnel": "ssh"
+  },
+  "code": "tunnel.keyFile"
+ },
+ {
+  "name": "ssh keyperms",
+  "source": "synthetic",
+  "hint": "none",
+  "text": "@@@ WARNING: UNPROTECTED PRIVATE KEY FILE! @@@\nPermissions 0644 for '/Users/someone/.ssh/id_ed25519' are too open.",
+  "ctx": {
+   "hosts": [
+    "db.internal.test:27017"
+   ],
+   "tunnel": "ssh"
+  },
+  "code": "tunnel.keyPerms"
+ },
+ {
+  "name": "ssh passphrase",
+  "source": "synthetic",
+  "hint": "none",
+  "text": "Load key \"/Users/someone/.ssh/id_ed25519\": incorrect passphrase supplied to decrypt private key",
+  "ctx": {
+   "hosts": [
+    "db.internal.test:27017"
+   ],
+   "tunnel": "ssh"
+  },
+  "code": "tunnel.passphrase"
+ },
+ {
+  "name": "ssh interactive",
+  "source": "synthetic",
+  "hint": "none",
+  "text": "Authenticated with partial success.\nVerification code: ",
+  "ctx": {
+   "hosts": [
+    "db.internal.test:27017"
+   ],
+   "tunnel": "ssh"
+  },
+  "code": "tunnel.interactive"
+ },
+ {
+  "name": "ssh ipv6",
+  "source": "synthetic",
+  "hint": "none",
+  "text": "IPv6 literal targets are not supported",
+  "ctx": {
+   "hosts": [
+    "db.internal.test:27017"
+   ],
+   "tunnel": "ssh"
+  },
+  "code": "tunnel.ipv6"
+ },
+ {
+  "name": "ssh no binary",
+  "source": "synthetic",
+  "hint": "none",
+  "text": "ssh binary not found in the allowed locations",
+  "ctx": {
+   "hosts": [
+    "db.internal.test:27017"
+   ],
+   "tunnel": "ssh"
+  },
+  "code": "tunnel.noSsh"
+ },
+ {
+  "name": "ssh dropped",
+  "source": "synthetic",
+  "hint": "none",
+  "text": "ssh master exited unexpectedly (control socket gone)",
+  "ctx": {
+   "hosts": [
+    "db.internal.test:27017"
+   ],
+   "tunnel": "ssh"
+  },
+  "code": "tunnel.dropped"
+ },
+ {
+  "name": "relay refused",
+  "source": "synthetic",
+  "hint": "selection",
+  "text": "Server selection timeout: No available servers. Topology: { Type: ReplicaSetNoPrimary, Servers: [ { Address: node-2.internal.test:27017, Type: Unknown } ] }",
+  "ctx": {
+   "hosts": [
+    "node-1.internal.test:27017"
+   ],
+   "tunnel": "ssh",
+   "refusedHosts": [
+    "node-2.internal.test:27017"
+   ]
+  },
+  "code": "tunnel.notAllowed",
+  "params": [
+   [
+    "host",
+    "node-2.internal.test:27017"
+   ]
+  ]
+ },
+ {
+  "name": "proxy refused",
+  "source": "synthetic",
+  "hint": "proxy",
+  "text": "SOCKS5 proxy connect failed: connection refused",
+  "ctx": {
+   "tunnel": "socks5"
+  },
+  "code": "tunnel.network"
+ },
+ {
+  "name": "proxy auth",
+  "source": "synthetic",
+  "hint": "proxy",
+  "text": "SOCKS5 proxy: authentication failed",
+  "ctx": {
+   "tunnel": "socks5"
+  },
+  "code": "tunnel.auth"
+ },
+ {
+  "name": "dns host",
+  "source": "synthetic",
+  "hint": "dns",
+  "text": "failed to lookup address information: nodename nor servname provided, or not known",
+  "ctx": {
+   "hosts": [
+    "db.example.test:27017"
+   ]
+  },
+  "code": "dns.notFound",
+  "params": [
+   [
+    "host",
+    "db.example.test:27017"
+   ]
+  ]
+ },
+ {
+  "name": "dns srv",
+  "source": "synthetic",
+  "hint": "dns",
+  "text": "DNS resolution failed: failed to lookup SRV record _mongodb._tcp.cluster0.example.test",
+  "ctx": {
+   "hosts": [
+    "cluster0.example.test"
+   ],
+   "srv": true
+  },
+  "code": "dns.srv"
+ },
+ {
+  "name": "dns txt",
+  "source": "synthetic",
+  "hint": "dns",
+  "text": "DNS resolution failed: TXT record lookup failed for cluster0.example.test",
+  "ctx": {
+   "hosts": [
+    "cluster0.example.test"
+   ],
+   "srv": true
+  },
+  "code": "dns.txt"
+ },
+ {
+  "name": "dns text only",
+  "source": "synthetic",
+  "hint": "none",
+  "text": "error trying to connect: dns error: failed to lookup address information: Name or service not known",
+  "ctx": {
+   "hosts": [
+    "db.example.test:27017"
+   ]
+  },
+  "code": "dns.notFound"
+ },
+ {
+  "name": "net refused",
+  "source": "synthetic",
+  "hint": "selection",
+  "text": "Server selection timeout: No available servers. Topology: { Type: Unknown, Servers: [ { Address: db.example.test:27017, Type: Unknown, Error: Kind: I/O error: Connection refused (os error 61) } ] }",
+  "ctx": {
+   "hosts": [
+    "db.example.test:27017"
+   ]
+  },
+  "code": "net.refused"
+ },
+ {
+  "name": "net refused io",
+  "source": "synthetic",
+  "hint": "io:refused",
+  "text": "connection refused",
+  "ctx": {
+   "hosts": [
+    "db.example.test:27017"
+   ]
+  },
+  "code": "net.refused"
+ },
+ {
+  "name": "net timeout io",
+  "source": "synthetic",
+  "hint": "io:timedout",
+  "text": "timed out",
+  "ctx": {
+   "hosts": [
+    "db.example.test:27017"
+   ]
+  },
+  "code": "net.timeout"
+ },
+ {
+  "name": "net timeout text",
+  "source": "synthetic",
+  "hint": "none",
+  "text": "Kind: I/O error: connection timed out (os error 60)",
+  "ctx": {
+   "hosts": [
+    "db.example.test:27017"
+   ]
+  },
+  "code": "net.timeout"
+ },
+ {
+  "name": "net unreachable",
+  "source": "synthetic",
+  "hint": "none",
+  "text": "Kind: I/O error: Network is unreachable (os error 51)",
+  "ctx": {
+   "hosts": [
+    "db.example.test:27017"
+   ]
+  },
+  "code": "net.unreachable"
+ },
+ {
+  "name": "net unreachable io",
+  "source": "synthetic",
+  "hint": "io:unreachable",
+  "text": "x",
+  "ctx": {
+   "hosts": [
+    "db.example.test:27017"
+   ]
+  },
+  "code": "net.unreachable"
+ },
+ {
+  "name": "net reset",
+  "source": "synthetic",
+  "hint": "none",
+  "text": "Kind: I/O error: Connection reset by peer (os error 54)",
+  "ctx": {
+   "hosts": [
+    "db.example.test:27017"
+   ]
+  },
+  "code": "net.reset"
+ },
+ {
+  "name": "tls unknown issuer",
+  "source": "synthetic",
+  "hint": "selection",
+  "text": "Server selection timeout: No available servers. Topology: { Type: Unknown, Servers: [ { Address: db.example.test:27017, Type: Unknown, Error: Kind: I/O error: invalid peer certificate: UnknownIssuer } ] }",
+  "ctx": {
+   "hosts": [
+    "db.example.test:27017"
+   ],
+   "tlsMode": "on"
+  },
+  "code": "tls.unknownIssuer"
+ },
+ {
+  "name": "tls hostname",
+  "source": "synthetic",
+  "hint": "selection",
+  "text": "Kind: I/O error: invalid peer certificate: NotValidForName",
+  "ctx": {
+   "hosts": [
+    "10.0.0.5:27017"
+   ],
+   "tlsMode": "on"
+  },
+  "code": "tls.hostname",
+  "params": [
+   [
+    "host",
+    "10.0.0.5:27017"
+   ]
+  ]
+ },
+ {
+  "name": "tls expired",
+  "source": "synthetic",
+  "hint": "selection",
+  "text": "Kind: I/O error: invalid peer certificate: Expired",
+  "ctx": {
+   "hosts": [
+    "db.example.test"
+   ],
+   "tlsMode": "on"
+  },
+  "code": "tls.expired"
+ },
+ {
+  "name": "tls not yet valid",
+  "source": "synthetic",
+  "hint": "none",
+  "text": "invalid peer certificate: NotValidYet",
+  "ctx": {
+   "tlsMode": "on"
+  },
+  "code": "tls.expired"
+ },
+ {
+  "name": "tls client cert required",
+  "source": "synthetic",
+  "hint": "selection",
+  "text": "received fatal alert: CertificateRequired",
+  "ctx": {
+   "tlsMode": "on"
+  },
+  "code": "tls.clientCertRequired"
+ },
+ {
+  "name": "tls handshake failure no client cert",
+  "source": "synthetic",
+  "hint": "selection",
+  "text": "received fatal alert: HandshakeFailure",
+  "ctx": {
+   "tlsMode": "on"
+  },
+  "code": "tls.clientCertRequired"
+ },
+ {
+  "name": "tls handshake failure with client cert",
+  "source": "synthetic",
+  "hint": "selection",
+  "text": "received fatal alert: HandshakeFailure",
+  "ctx": {
+   "tlsMode": "on",
+   "hasClientCert": true
+  },
+  "code": "tls.unknownIssuer"
+ },
+ {
+  "name": "tls server not tls",
+  "source": "synthetic",
+  "hint": "selection",
+  "text": "Kind: I/O error: received corrupt message of type InvalidContentType",
+  "ctx": {
+   "tlsMode": "on"
+  },
+  "code": "tls.serverNotTls"
+ },
+ {
+  "name": "tls handshake eof is a plain server",
+  "source": "synthetic",
+  "hint": "selection",
+  "text": "Kind: I/O error: tls handshake eof",
+  "ctx": {
+   "tlsMode": "on"
+  },
+  "code": "tls.serverNotTls"
+ },
+ {
+  "name": "tls missing close_notify after the handshake is a demanded client certificate (timing variant of the reset)",
+  "source": "synthetic",
+  "hint": "selection",
+  "text": "Kind: I/O error: peer closed connection without sending TLS close_notify: unexpected EOF",
+  "ctx": {
+   "tlsMode": "on",
+   "hasCa": true
+  },
+  "code": "tls.clientCertRequired"
+ },
+ {
+  "name": "tls server requires tls",
+  "source": "synthetic",
+  "hint": "selection",
+  "text": "Kind: I/O error: unexpected end of file (unexpected EOF)",
+  "ctx": {
+   "tlsMode": "off"
+  },
+  "code": "tls.serverRequiresTls"
+ },
+ {
+  "name": "tls pem driver",
+  "source": "synthetic",
+  "hint": "invalidTls",
+  "text": "Invalid TLS configuration: failed to parse the private key: invalid PEM",
+  "ctx": {},
+  "code": "tls.pem"
+ },
+ {
+  "name": "tls pem passphrase",
+  "source": "synthetic",
+  "hint": "invalidTls",
+  "text": "Invalid TLS configuration: could not decrypt private key",
+  "ctx": {},
+  "code": "tls.pem"
+ },
+ {
+  "name": "tls file missing driver",
+  "source": "synthetic",
+  "hint": "invalidTls",
+  "text": "Invalid TLS configuration: No such file or directory (os error 2)",
+  "ctx": {},
+  "code": "config.fileMissing"
+ },
+ {
+  "name": "auth failed kind",
+  "source": "synthetic",
+  "hint": "auth",
+  "text": "Kind: Authentication error: SCRAM failure: bad auth : authentication failed",
+  "ctx": {},
+  "code": "auth.failed"
+ },
+ {
+  "name": "auth failed cmd 18",
+  "source": "synthetic",
+  "hint": "command:18",
+  "text": "Command failed (AuthenticationFailed): Authentication failed.",
+  "ctx": {},
+  "code": "auth.failed"
+ },
+ {
+  "name": "auth mechanism",
+  "source": "synthetic",
+  "hint": "auth",
+  "text": "Kind: Authentication error: no mechanism supported by the server",
+  "ctx": {},
+  "code": "auth.mechanism"
+ },
+ {
+  "name": "auth mechanism cmd 334",
+  "source": "synthetic",
+  "hint": "command:334",
+  "text": "MechanismUnavailable",
+  "ctx": {},
+  "code": "auth.mechanism"
+ },
+ {
+  "name": "auth source",
+  "source": "synthetic",
+  "hint": "auth",
+  "text": "Authentication failed: user not found in authSource",
+  "ctx": {},
+  "code": "auth.source"
+ },
+ {
+  "name": "auth x509",
+  "source": "synthetic",
+  "hint": "auth",
+  "text": "X509 authentication failed: no user with this subject in $external",
+  "ctx": {},
+  "code": "auth.x509Subject"
+ },
+ {
+  "name": "auth text only",
+  "source": "synthetic",
+  "hint": "none",
+  "text": "bad auth : Authentication failed. (code 18)",
+  "ctx": {},
+  "code": "auth.failed"
+ },
+ {
+  "name": "authz listDatabases",
+  "source": "synthetic",
+  "hint": "command:13",
+  "text": "Command failed (Unauthorized): not authorized on admin to execute command { listDatabases: 1, nameOnly: true }",
+  "ctx": {},
+  "code": "authz.listDatabases"
+ },
+ {
+  "name": "authz collection",
+  "source": "synthetic",
+  "hint": "command:13",
+  "text": "Command failed (Unauthorized): not authorized on shop to execute command { find: \"orders\", filter: {} }",
+  "ctx": {},
+  "code": "authz.collection"
+ },
+ {
+  "name": "authz command",
+  "source": "synthetic",
+  "hint": "command:13",
+  "text": "Command failed (Unauthorized): not authorized on admin to execute command { serverStatus: 1 }",
+  "ctx": {},
+  "code": "authz.command"
+ },
+ {
+  "name": "select no server",
+  "source": "synthetic",
+  "hint": "selection",
+  "text": "Server selection timeout: No available servers. Topology: { Type: ReplicaSetNoPrimary, Servers: [ { Address: db.example.test:27017, Type: Unknown } ] }",
+  "ctx": {
+   "hosts": [
+    "db.example.test:27017"
+   ]
+  },
+  "code": "select.noServer",
+  "params": [
+   [
+    "host",
+    "db.example.test:27017"
+   ]
+  ]
+ },
+ {
+  "name": "select replica set name",
+  "source": "synthetic",
+  "hint": "selection",
+  "text": "the server's replica set name 'rs-prod' does not match the expected 'rs0'",
+  "ctx": {
+   "hosts": [
+    "db.example.test:27017"
+   ]
+  },
+  "code": "select.replicaSetName"
+ },
+ {
+  "name": "select direct",
+  "source": "synthetic",
+  "hint": "selection",
+  "text": "directConnection=true but the server is not a standalone",
+  "ctx": {
+   "hosts": [
+    "db.example.test:27017"
+   ]
+  },
+  "code": "select.direct"
+ },
+ {
+  "name": "select member unreachable",
+  "source": "synthetic",
+  "hint": "selection",
+  "text": "Server selection timeout: No available servers. Topology: { Type: ReplicaSetNoPrimary, Servers: [ { Address: seed.example.test:27017, Type: RSSecondary }, { Address: node-7.cluster.local:27017, Type: Unknown, Error: Kind: I/O error: failed to lookup address information: Name or service not known } ] }",
+  "ctx": {
+   "hosts": [
+    "seed.example.test:27017"
+   ]
+  },
+  "code": "select.memberUnreachable",
+  "params": [
+   [
+    "host",
+    "node-7.cluster.local:27017"
+   ]
+  ]
+ },
+ {
+  "name": "timeout total",
+  "source": "synthetic",
+  "hint": "none",
+  "text": "connection test exceeded the total budget of 30 s",
+  "ctx": {},
+  "code": "timeout.total"
+ },
+ {
+  "name": "atlas eof is ip list",
+  "source": "synthetic",
+  "hint": "selection",
+  "text": "Kind: I/O error: peer closed connection without sending TLS close_notify: unexpected EOF",
+  "ctx": {
+   "hosts": [
+    "cluster0-shard-00-00.abcde.mongodb.net:27017"
+   ],
+   "isAtlas": true,
+   "srv": true,
+   "tlsMode": "on"
+  },
+  "code": "net.reset",
+  "hasHint": [
+   "atlas.networkAccess"
+  ]
+ },
+ {
+  "name": "atlas no server",
+  "source": "synthetic",
+  "hint": "selection",
+  "text": "Server selection timeout: No available servers. Topology: { Type: ReplicaSetNoPrimary, Servers: [ { Address: cluster0-shard-00-00.abcde.mongodb.net:27017, Type: Unknown } ] }",
+  "ctx": {
+   "hosts": [
+    "cluster0-shard-00-00.abcde.mongodb.net:27017"
+   ],
+   "isAtlas": true,
+   "srv": true,
+   "tlsMode": "on"
+  },
+  "code": "select.noServer",
+  "hasHint": [
+   "atlas.networkAccess",
+   "atlas.paused"
+  ]
+ },
+ {
+  "name": "atlas auth",
+  "source": "synthetic",
+  "hint": "auth",
+  "text": "bad auth : authentication failed",
+  "ctx": {
+   "hosts": [
+    "cluster0-shard-00-00.abcde.mongodb.net:27017"
+   ],
+   "isAtlas": true,
+   "srv": true,
+   "tlsMode": "on"
+  },
+  "code": "auth.failed",
+  "hasHint": [
+   "atlas.databaseUser",
+   "atlas.authSource"
+  ]
+ },
+ {
+  "name": "atlas srv",
+  "source": "synthetic",
+  "hint": "dns",
+  "text": "failed to lookup SRV record",
+  "ctx": {
+   "hosts": [
+    "cluster0.abcde.mongodb.net"
+   ],
+   "isAtlas": true,
+   "srv": true
+  },
+  "code": "dns.srv",
+  "hasHint": [
+   "atlas.clusterName"
+  ]
+ },
+ {
+  "name": "non-atlas no hints",
+  "source": "synthetic",
+  "hint": "none",
+  "text": "connection timed out (os error 60)",
+  "ctx": {
+   "hosts": [
+    "db.example.test:27017"
+   ]
+  },
+  "code": "net.timeout",
+  "noHint": true
+ },
+ {
+  "name": "tls client cert required as a reset (macOS mongod 8.0)",
+  "source": "synthetic",
+  "hint": "selection",
+  "text": "Kind: Server selection timeout: No available servers. Topology: { Type: Single, Servers: [ { Address: 127.0.0.1:27017, Type: Unknown, Error: Kind: I/O error: Connection reset by peer (os error 54), labels: {}, source: None, server response: None } ] }, labels: {}, source: None, server response: None",
+  "ctx": {
+   "hosts": [
+    "127.0.0.1:27017"
+   ],
+   "tlsMode": "on",
+   "hasCa": true
+  },
+  "code": "tls.clientCertRequired"
+ },
+ {
+  "name": "reset with a client certificate stays a reset",
+  "source": "synthetic",
+  "hint": "selection",
+  "text": "Kind: Server selection timeout: No available servers. Topology: { Type: Single, Servers: [ { Address: 127.0.0.1:27017, Type: Unknown, Error: Kind: I/O error: Connection reset by peer (os error 54), labels: {}, source: None, server response: None } ] }, labels: {}, source: None, server response: None",
+  "ctx": {
+   "hosts": [
+    "127.0.0.1:27017"
+   ],
+   "tlsMode": "on",
+   "hasClientCert": true
+  },
+  "code": "net.reset"
+ },
+ {
+  "name": "plain client against a TLS-only server (unexpected end of file)",
+  "source": "synthetic",
+  "hint": "selection",
+  "text": "Kind: Server selection timeout: No available servers. Topology: { Type: Single, Servers: [ { Address: 127.0.0.1:27017, Type: Unknown, Error: Kind: I/O error: unexpected end of file, labels: {}, source: None, server response: None } ] }, labels: {}, source: None, server response: None",
+  "ctx": {
+   "hosts": [
+    "127.0.0.1:27017"
+   ],
+   "tlsMode": "off"
+  },
+  "code": "tls.serverRequiresTls"
+ },
+ {
+  "name": "end of file behind a tunnel is not a TLS verdict",
+  "source": "synthetic",
+  "hint": "selection",
+  "text": "Kind: Server selection timeout: No available servers. Topology: { Type: Single, Servers: [ { Address: 127.0.0.1:27017, Type: Unknown, Error: Kind: I/O error: unexpected end of file, labels: {}, source: None, server response: None } ] }, labels: {}, source: None, server response: None",
+  "ctx": {
+   "hosts": [
+    "127.0.0.1:27017"
+   ],
+   "tlsMode": "off",
+   "tunnel": "ssh"
+  },
+  "code": "select.noServer"
+ },
+ {
+  "name": "a port that speaks another protocol",
+  "source": "synthetic",
+  "hint": "selection",
+  "text": "Kind: Server selection timeout: No available servers. Topology: { Type: Single, Servers: [ { Address: 127.0.0.1:8080, Type: Unknown, Error: Kind: The server returned an invalid reply to a database operation: Invalid wire protocol opcode: 1684095520, labels: {}, source: None, server response: None } ] }, labels: {}, source: None, server response: None",
+  "ctx": {
+   "hosts": [
+    "127.0.0.1:8080"
+   ]
+  },
+  "code": "select.noServer"
+ },
+ {
+  "name": "unknown text",
+  "source": "synthetic",
+  "hint": "none",
+  "text": "Something nobody has seen before happened",
+  "ctx": {},
+  "code": "other"
+ },
+ {
+  "name": "empty",
+  "source": "synthetic",
+  "hint": "none",
+  "text": "",
+  "ctx": {},
+  "code": "other"
+ },
+ {
+  "name": "OpenSSL server: plain client, the pool was cleared after an end of file",
+  "source": "synthetic",
+  "hint": "selection",
+  "text": "Kind: Server selection timeout: No available servers. Topology: { Type: Single, Servers: [ { Address: 127.0.0.1:27017, Type: Unknown, Error: Kind: Connection pool for 127.0.0.1:27017 cleared because another operation failed with: Kind: I/O error: unexpected end of file, labels: {}, source: None, server response: None } ] }, labels: {}, source: None, server response: None",
+  "ctx": {
+   "hosts": [
+    "127.0.0.1:27017"
+   ],
+   "tlsMode": "off"
+  },
+  "code": "tls.serverRequiresTls"
+ },
+ {
+  "name": "OpenSSL server: plain client, early eof wording",
+  "source": "synthetic",
+  "hint": "selection",
+  "text": "Kind: Server selection timeout: No available servers. Topology: { Type: Single, Servers: [ { Address: 127.0.0.1:27017, Type: Unknown, Error: Kind: I/O error: early eof, labels: {}, source: None, server response: None } ] }, labels: {}, source: None, server response: None",
+  "ctx": {
+   "hosts": [
+    "127.0.0.1:27017"
+   ],
+   "tlsMode": "off"
+  },
+  "code": "tls.serverRequiresTls"
+ },
+ {
+  "name": "OpenSSL server: plain client, the alert record was read as a wire header and the stream ended",
+  "source": "synthetic",
+  "hint": "selection",
+  "text": "Kind: Server selection timeout: No available servers. Topology: { Type: Single, Servers: [ { Address: 127.0.0.1:27017, Type: Unknown, Error: Kind: I/O error: failed to fill whole buffer (unexpected EOF), labels: {}, source: None, server response: None } ] }, labels: {}, source: None, server response: None",
+  "ctx": {
+   "hosts": [
+    "127.0.0.1:27017"
+   ],
+   "tlsMode": "off"
+  },
+  "code": "tls.serverRequiresTls"
+ },
+ {
+  "name": "OpenSSL server: plain client, auto mode on a local host",
+  "source": "synthetic",
+  "hint": "selection",
+  "text": "Kind: Server selection timeout: No available servers. Topology: { Type: Single, Servers: [ { Address: 127.0.0.1:27017, Type: Unknown, Error: Kind: I/O error: unexpected end of file, labels: {}, source: None, server response: None } ] }, labels: {}, source: None, server response: None",
+  "ctx": {
+   "hosts": [
+    "127.0.0.1:27017"
+   ]
+  },
+  "code": "tls.serverRequiresTls"
+ },
+ {
+  "name": "OpenSSL server: client certificate required (TLS 1.3 alert as rustls prints it)",
+  "source": "synthetic",
+  "hint": "selection",
+  "text": "Kind: Server selection timeout: No available servers. Topology: { Type: Single, Servers: [ { Address: 127.0.0.1:27017, Type: Unknown, Error: Kind: I/O error: received fatal alert: CertificateRequired, labels: {}, source: None, server response: None } ] }, labels: {}, source: None, server response: None",
+  "ctx": {
+   "hosts": [
+    "127.0.0.1:27017"
+   ],
+   "tlsMode": "on",
+   "hasCa": true
+  },
+  "code": "tls.clientCertRequired"
+ },
+ {
+  "name": "OpenSSL server: client certificate required (TLS 1.2 handshake_failure)",
+  "source": "synthetic",
+  "hint": "selection",
+  "text": "Kind: Server selection timeout: No available servers. Topology: { Type: Single, Servers: [ { Address: 127.0.0.1:27017, Type: Unknown, Error: Kind: I/O error: received fatal alert: HandshakeFailure, labels: {}, source: None, server response: None } ] }, labels: {}, source: None, server response: None",
+  "ctx": {
+   "hosts": [
+    "127.0.0.1:27017"
+   ],
+   "tlsMode": "on",
+   "hasCa": true
+  },
+  "code": "tls.clientCertRequired"
+ },
+ {
+  "name": "OpenSSL server: client certificate required, Linux reset (os error 104)",
+  "source": "synthetic",
+  "hint": "selection",
+  "text": "Kind: Server selection timeout: No available servers. Topology: { Type: Single, Servers: [ { Address: 127.0.0.1:27017, Type: Unknown, Error: Kind: I/O error: Connection reset by peer (os error 104), labels: {}, source: None, server response: None } ] }, labels: {}, source: None, server response: None",
+  "ctx": {
+   "hosts": [
+    "127.0.0.1:27017"
+   ],
+   "tlsMode": "on",
+   "hasCa": true
+  },
+  "code": "tls.clientCertRequired"
+ },
+ {
+  "name": "OpenSSL server: client certificate required, Linux broken pipe (os error 32)",
+  "source": "synthetic",
+  "hint": "selection",
+  "text": "Kind: Server selection timeout: No available servers. Topology: { Type: Single, Servers: [ { Address: 127.0.0.1:27017, Type: Unknown, Error: Kind: I/O error: Broken pipe (os error 32), labels: {}, source: None, server response: None } ] }, labels: {}, source: None, server response: None",
+  "ctx": {
+   "hosts": [
+    "127.0.0.1:27017"
+   ],
+   "tlsMode": "on",
+   "hasCa": true
+  },
+  "code": "tls.clientCertRequired"
+ },
+ {
+  "name": "OpenSSL server: client certificate required, Windows reset (os error 10054)",
+  "source": "synthetic",
+  "hint": "selection",
+  "text": "Kind: Server selection timeout: No available servers. Topology: { Type: Single, Servers: [ { Address: 127.0.0.1:27017, Type: Unknown, Error: Kind: I/O error: An existing connection was forcibly closed by the remote host. (os error 10054), labels: {}, source: None, server response: None } ] }, labels: {}, source: None, server response: None",
+  "ctx": {
+   "hosts": [
+    "127.0.0.1:27017"
+   ],
+   "tlsMode": "on",
+   "hasCa": true
+  },
+  "code": "tls.clientCertRequired"
+ },
+ {
+  "name": "OpenSSL server: client certificate required, OpenSSL wording of the alert",
+  "source": "synthetic",
+  "hint": "none",
+  "text": "error:0A00045C:SSL routines::tlsv13 alert certificate required",
+  "ctx": {
+   "hosts": [
+    "127.0.0.1:27017"
+   ],
+   "tlsMode": "on",
+   "hasCa": true
+  },
+  "code": "tls.clientCertRequired"
+ },
+ {
+  "name": "OpenSSL server: a certificate was sent and the Linux reset stays a reset",
+  "source": "synthetic",
+  "hint": "selection",
+  "text": "Kind: Server selection timeout: No available servers. Topology: { Type: Single, Servers: [ { Address: 127.0.0.1:27017, Type: Unknown, Error: Kind: I/O error: Connection reset by peer (os error 104), labels: {}, source: None, server response: None } ] }, labels: {}, source: None, server response: None",
+  "ctx": {
+   "hosts": [
+    "127.0.0.1:27017"
+   ],
+   "tlsMode": "on",
+   "hasCa": true,
+   "hasClientCert": true
+  },
+  "code": "net.reset"
+ },
+ {
+  "name": "OpenSSL server: a reset from a plain client is only a reset",
+  "source": "synthetic",
+  "hint": "selection",
+  "text": "Kind: Server selection timeout: No available servers. Topology: { Type: Single, Servers: [ { Address: 127.0.0.1:27017, Type: Unknown, Error: Kind: I/O error: Connection reset by peer (os error 104), labels: {}, source: None, server response: None } ] }, labels: {}, source: None, server response: None",
+  "ctx": {
+   "hosts": [
+    "127.0.0.1:27017"
+   ],
+   "tlsMode": "off"
+  },
+  "code": "net.reset"
+ },
+ {
+  "name": "OpenSSL server: Linux reset behind an ssh tunnel is a reset, not a certificate",
+  "source": "synthetic",
+  "hint": "selection",
+  "text": "Kind: Server selection timeout: No available servers. Topology: { Type: Single, Servers: [ { Address: 127.0.0.1:27017, Type: Unknown, Error: Kind: I/O error: Connection reset by peer (os error 104), labels: {}, source: None, server response: None } ] }, labels: {}, source: None, server response: None",
+  "ctx": {
+   "hosts": [
+    "127.0.0.1:27017"
+   ],
+   "tlsMode": "on",
+   "hasCa": true,
+   "tunnel": "ssh"
+  },
+  "code": "net.reset"
+ },
+ {
+  "name": "OpenSSL server: TLS client, plain server closed the socket (Linux wording)",
+  "source": "synthetic",
+  "hint": "selection",
+  "text": "Kind: Server selection timeout: No available servers. Topology: { Type: Single, Servers: [ { Address: 127.0.0.1:27017, Type: Unknown, Error: Kind: I/O error: tls handshake eof, labels: {}, source: None, server response: None } ] }, labels: {}, source: None, server response: None",
+  "ctx": {
+   "hosts": [
+    "127.0.0.1:27017"
+   ],
+   "tlsMode": "on"
+  },
+  "code": "tls.serverNotTls"
+ },
+ {
+  "name": "OpenSSL server: TLS client, plain server answered with garbage",
+  "source": "synthetic",
+  "hint": "selection",
+  "text": "Kind: Server selection timeout: No available servers. Topology: { Type: Single, Servers: [ { Address: 127.0.0.1:27017, Type: Unknown, Error: Kind: I/O error: received corrupt message of type InvalidContentType, labels: {}, source: None, server response: None } ] }, labels: {}, source: None, server response: None",
+  "ctx": {
+   "hosts": [
+    "127.0.0.1:27017"
+   ],
+   "tlsMode": "on"
+  },
+  "code": "tls.serverNotTls"
+ }
+]

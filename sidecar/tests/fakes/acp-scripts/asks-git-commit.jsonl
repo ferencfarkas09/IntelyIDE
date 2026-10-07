@@ -1,0 +1,8 @@
+// The agent asks permission for `git commit` (an exec the broker must hard-stop) and reports what the client answered.
+{"op":"on","method":"session/prompt","then":[
+  {"op":"update","update":{"sessionUpdate":"tool_call","toolCallId":"c1","title":"git commit -m x","kind":"execute","status":"pending","rawInput":{"command":"git commit -m x"}}},
+  {"op":"request","name":"perm","method":"session/request_permission","params":{"toolCall":{"toolCallId":"c1","title":"git commit -m x","kind":"execute","rawInput":{"command":"git commit -m x"}},"options":[{"optionId":"always","name":"Always","kind":"allow_always"},{"optionId":"allow","name":"Allow","kind":"allow_once"},{"optionId":"reject","name":"Reject","kind":"reject_once"}]}},
+  {"op":"update","update":{"sessionUpdate":"tool_call_update","toolCallId":"c1","status":"failed"}},
+  {"op":"update","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"answer=${perm.result.outcome.outcome}:${perm.result.outcome.optionId}"}}},
+  {"op":"respond","result":{"stopReason":"end_turn"}}
+]}

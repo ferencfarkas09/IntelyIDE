@@ -1,0 +1,8 @@
+// Parent Agent tool with two child tool calls and forwarded subagent text.
+{"op":"start","id":"t1","name":"Agent","toolKind":"other","input":{"subagent_type":"researcher","description":"find usages"}}
+{"op":"tool","dt":30,"id":"t2","parent":"t1","name":"Grep","toolKind":"search","input":{"pattern":"foo"},"output":"3 matches","ms":40}
+{"op":"tool","id":"t3","parent":"t1","name":"Read","toolKind":"read","input":{"file_path":"/work/a.ts"},"output":"export {}","ms":30}
+{"op":"text","id":"s1:0","parent":"t1","text":"Found 3 usages in a.ts."}
+{"op":"emit","event":{"kind":"tool.result","toolId":"t1","status":"ok","output":"3 usages in a.ts","durationMs":120}}
+{"op":"text","dt":20,"id":"m1:0","text":"The researcher found three usages."}
+{"op":"end"}

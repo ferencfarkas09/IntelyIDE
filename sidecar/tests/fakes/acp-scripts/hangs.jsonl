@@ -1,0 +1,2 @@
+// Never answers initialize: the client must time out instead of waiting forever.
+{"op":"on","method":"initialize","then":[{"op":"hang"}]}

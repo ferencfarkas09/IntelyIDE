@@ -1,0 +1,8 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Fixture",
+  "plugins": { "x": { "version": "9.9.9" } },
+  "version": "0.0.0",
+  "identifier": "example.fixture",
+  "bundle": { "macOS": { "minimumSystemVersion": "13.5" } }
+}

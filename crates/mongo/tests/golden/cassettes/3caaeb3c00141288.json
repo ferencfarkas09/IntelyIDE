@@ -1,0 +1,27 @@
+{
+  "key": "3caaeb3c00141288",
+  "case": "hu29",
+  "round": 0,
+  "source": "live",
+  "tier": "fast",
+  "model": "claude-haiku-4-5-20251001",
+  "reply": {
+    "mode": "find",
+    "collection": "products",
+    "filter": "{\"category\":\"ital\",\"price\":{\"$type\":\"number\"}}",
+    "sort": "{\"price\":1}",
+    "limit": 3,
+    "explanation": "Returns the three products in the ital category with the lowest prices, sorted by price in ascending order.",
+    "assumptions": [
+      "The category value ital matches the stored enum value",
+      "Only documents with numeric prices are included to ensure correct sorting of the mixed-type price field"
+    ],
+    "confidence": "high"
+  },
+  "usage": {
+    "inputTokens": 18,
+    "outputTokens": 961,
+    "costUsd": 0.018032,
+    "ms": 11234
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "intelyide-site",
+  "private": true,
+  "type": "module",
+  "description": "Static download website for IntelyIDE. No dependencies; deployed with wrangler (npm run deploy).",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "check": "node scripts/check-site.mjs",
+    "build:prod": "node scripts/build.mjs && node scripts/check-site.mjs --prod",
+    "placeholders": "node scripts/gen-placeholders.mjs",
+    "serve": "node scripts/serve.mjs",
+    "deploy": "node scripts/build.mjs && node scripts/check-site.mjs --prod && npx --yes wrangler@4.147.0 deploy",
+    "deploy:dry": "node scripts/build.mjs && node scripts/check-site.mjs --prod && npx --yes wrangler@4.147.0 deploy --dry-run",
+    "login": "npx --yes wrangler@4.147.0 login"
+  },
+  "license": "GPL-3.0-or-later"
+}

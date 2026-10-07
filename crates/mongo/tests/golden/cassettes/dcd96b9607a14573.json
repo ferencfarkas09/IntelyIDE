@@ -1,0 +1,20 @@
+{
+  "key": "dcd96b9607a14573",
+  "case": "en07",
+  "round": 0,
+  "source": "authored",
+  "tier": "fast",
+  "model": null,
+  "reply": {
+    "mode": "find",
+    "collection": "restaurants",
+    "filter": "{\"active\":true,\"city\":\"Debrecen\"}",
+    "explanation": "Active restaurants located in Debrecen."
+  },
+  "usage": {
+    "inputTokens": null,
+    "outputTokens": null,
+    "costUsd": null,
+    "ms": null
+  }
+}

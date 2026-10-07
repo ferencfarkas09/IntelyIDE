@@ -1,0 +1,12 @@
+# fixture
+/.github/                          @fx
+/scripts/ci/                       @fx
+/scripts/release/                  @fx
+/scripts/licenses/                 @fx
+/deny.toml                         @fx
+/sidecar/sdk-pin/                  @fx
+/REUSE.toml                        @fx
+/src-tauri/tauri.conf.json         @fx
+/src-tauri/tauri.release.conf.json @fx
+/src-tauri/Info.plist              @fx
+/src-tauri/entitlements-node.plist @fx

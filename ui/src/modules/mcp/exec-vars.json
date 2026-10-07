@@ -1,0 +1,13 @@
+{
+  "_comment": "The environment names an MCP server may not be given (docs/mcp-management-spec.md 2.4, `EXEC_VARS` and the refused prefixes of crates/mcp/src/model.rs). One table for the editor's live check and the unit test; the Rust table must equal it.",
+  "exact": [
+    "PATH", "HOME", "SHELL", "TMPDIR", "IFS", "ENV", "BASH_ENV", "BASHOPTS", "SHELLOPTS", "PS4", "PROMPT_COMMAND",
+    "NODE_OPTIONS", "NODE_PATH", "NODE_EXTRA_CA_CERTS", "NODE_TLS_REJECT_UNAUTHORIZED",
+    "PYTHONSTARTUP", "PYTHONPATH", "PYTHONHOME", "PYTHONINSPECT", "RUBYOPT", "RUBYLIB", "PERL5OPT", "PERL5LIB",
+    "JAVA_TOOL_OPTIONS", "_JAVA_OPTIONS", "JDK_JAVA_OPTIONS", "CLASSPATH",
+    "SSL_CERT_FILE", "SSL_CERT_DIR", "REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE", "GOFLAGS", "GOPROXY", "RUSTC_WRAPPER"
+  ],
+  "anyCase": ["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY"],
+  "prefixAnyCase": ["npm_config_"],
+  "refusedPrefixes": ["INTELY_", "DYLD_", "LD_", "GIT_", "ANTHROPIC_", "CLAUDE_"]
+}

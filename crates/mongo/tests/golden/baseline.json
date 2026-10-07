@@ -1,0 +1,19 @@
+{
+  "note": "Gate for the replay run: execution match may not drop more than 2 points. liveMatchPct covers only the 9 normal cases recorded from a real model (Haiku 4.5); the rest are authored answers.",
+  "recorded": "2026-10-03",
+  "matchPct": 96.7,
+  "liveMatchPct": 88.9,
+  "offlineM2": {
+    "recorded": "2026-10-04",
+    "harness": "tests/golden_offline.rs (local NDJSON evaluator, no mongod)",
+    "cases": 62,
+    "matchPct": 100.0,
+    "huNormal": 37,
+    "enNormal": 15,
+    "liveNormal": 21,
+    "liveMatched": 21,
+    "liveHu": 19,
+    "liveEn": 2,
+    "note": "the server-backed gate above was not re-run (no mongod in this session); re-record against a real server before raising it"
+  }
+}

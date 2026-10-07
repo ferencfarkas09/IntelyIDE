@@ -1,0 +1,6 @@
+// The agent tries to push; policy refuses at once (no prompt), the turn continues.
+{"op":"start","id":"t1","name":"Bash","toolKind":"exec","input":{"command":"git push origin HEAD"}}
+{"op":"ask","dt":10,"by":"hardStop","outcome":"deny","id":"t1","intent":{"class":"exec","tool":"Bash","rawCommand":"git push origin HEAD","summary":"push"}}
+{"op":"emit","event":{"kind":"tool.result","toolId":"t1","status":"denied","output":"INTELY-HARDSTOP: git push is human-only (hardStop)"}}
+{"op":"text","dt":20,"id":"m1:0","text":"Pushing is human-only, so I stopped."}
+{"op":"end"}

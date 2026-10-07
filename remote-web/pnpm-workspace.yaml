@@ -1,0 +1,4 @@
+# Own pnpm root: the PWA is served by the relay and keeps its own lockfile so the root pnpm-lock.yaml is not touched.
+packages: []
+allowBuilds:
+  esbuild: true

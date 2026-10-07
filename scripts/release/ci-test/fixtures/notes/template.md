@@ -1,0 +1,15 @@
+Fixture template
+
+{{SUMMARY}}
+
+{{INSTALL}}
+
+{{VERIFY}}
+
+{{WHATS_CHANGED}}
+
+{{KNOWN_LIMITATIONS}}
+
+{{UPGRADE}}
+
+{{SECURITY}}

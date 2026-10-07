@@ -1,0 +1,23 @@
+{
+  "inputs": {
+    "src/index.ts": {
+      "bytes": 10
+    },
+    "../packages/protocol/src/index.ts": {
+      "bytes": 10
+    },
+    "../node_modules/.pnpm/@agentclientprotocol+sdk@1.7.0_zod@4.6.5/node_modules/@agentclientprotocol/sdk/dist/acp.js": {
+      "bytes": 10
+    },
+    "../node_modules/.pnpm/@agentclientprotocol+sdk@1.7.0_zod@4.6.5/node_modules/@agentclientprotocol/sdk/dist/x.js": {
+      "bytes": 10
+    },
+    "../node_modules/.pnpm/zod@4.6.5/node_modules/zod/index.js": {
+      "bytes": 10
+    },
+    "../node_modules/.pnpm/@anthropic-ai+claude-agent-sdk@0.3.287_zod@4.6.5/node_modules/@anthropic-ai/claude-agent-sdk/sdk.mjs": {
+      "bytes": 5
+    }
+  },
+  "outputs": {}
+}

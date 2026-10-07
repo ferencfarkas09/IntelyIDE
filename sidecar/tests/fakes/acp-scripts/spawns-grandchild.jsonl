@@ -1,0 +1,3 @@
+// Leaves a detached grandchild (an MCP server, a shell) behind and ignores cancel; the process-tree walk must find and kill it.
+{"op":"on","method":"session/cancel","ignore":true}
+{"op":"on","method":"session/prompt","then":[{"op":"spawn","cmd":"sleep","args":["600"],"detached":true},{"op":"update","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"spawned"}}},{"op":"hang"}]}

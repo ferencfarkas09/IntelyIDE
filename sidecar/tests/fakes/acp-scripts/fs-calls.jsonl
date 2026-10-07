@@ -1,0 +1,14 @@
+// fs/read_text_file and fs/write_text_file: inside the repo, outside it, through a symlink, into .git.
+{"op":"on","method":"session/prompt","then":[
+  {"op":"request","name":"r1","method":"fs/read_text_file","params":{"path":"${cwd}/README.md"}},
+  {"op":"request","name":"r2","method":"fs/read_text_file","params":{"path":"${cwd}/README.md","line":2,"limit":1}},
+  {"op":"request","name":"r3","method":"fs/read_text_file","params":{"path":"/etc/hosts"}},
+  {"op":"request","name":"r4","method":"fs/read_text_file","params":{"path":"${cwd}/link-out/secret.txt"}},
+  {"op":"request","name":"r5","method":"fs/read_text_file","params":{"path":"${cwd}/../escape.txt"}},
+  {"op":"request","name":"w1","method":"fs/write_text_file","params":{"path":"${cwd}/out/new.txt","content":"written"}},
+  {"op":"request","name":"w2","method":"fs/write_text_file","params":{"path":"${cwd}/.git/hooks/pre-commit","content":"#!/bin/sh"}},
+  {"op":"request","name":"w3","method":"fs/write_text_file","params":{"path":"${cwd}/link-out/pwn.txt","content":"x"}},
+  {"op":"request","name":"w4","method":"fs/write_text_file","params":{"path":"/tmp/intely-acp-outside.txt","content":"x"}},
+  {"op":"update","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"done"}}},
+  {"op":"respond","result":{"stopReason":"end_turn"}}
+]}

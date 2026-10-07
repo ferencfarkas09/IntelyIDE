@@ -1,0 +1,34 @@
+[package]
+name = "intely-pathpick"
+version = "0.0.0"
+edition = "2021"
+rust-version = "1.77"
+license.workspace = true
+description = "Folder picker core (Tauri-free): path validation, read-only listing, one-time tokens, scan and the pick backend chain."
+
+[lib]
+name = "intely_pathpick"
+
+[features]
+specta = ["dep:specta", "dep:specta-typescript", "dep:specta-serde"]
+# Conditional fallback backend (P5); the module is an empty stub until then.
+osascript = []
+
+[dependencies]
+intely-core = { path = "../core" }
+libc = "0.2.190"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+sha2 = "0.11.0"
+specta = { version = "=2.0.0-rc.25", optional = true, features = ["derive"] }
+specta-serde = { version = "0.0.12", optional = true }
+specta-typescript = { version = "0.0.12", optional = true }
+unicode-normalization = "0.1.25"
+uuid = { version = "1.20.0", features = ["v4"] }
+
+[[example]]
+name = "gen_bindings"
+required-features = ["specta"]
+
+[dev-dependencies]
+tempfile = "3.27.0"

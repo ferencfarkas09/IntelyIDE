@@ -1,0 +1,24 @@
+# Dependabot version updates (design notes: release-ci-spec 5.5 and RC7; content constraints: public-release-spec 7.8).
+# Checked by scripts/ci/check-workflows.mjs (version 2, cargo + npm + github-actions, the Agent SDK ignore, every
+# npm directory holds a package.json, /sidecar/sdk-pin is never listed) and by scripts/ci/test/deny.test.mjs.
+# A bump of a `uses:` SHA changes the SHA and its version comment together; there is no pin lock file.
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule: { interval: weekly }
+    groups: { cargo-minor-patch: { update-types: [minor, patch] } }
+    cooldown: { default-days: 7 }
+  - package-ecosystem: npm
+    directories: ["/", "/ui", "/sidecar", "/packages/protocol", "/remote-web", "/remote-relay", "/scripts/mock-happy"]
+    schedule: { interval: weekly }
+    groups: { npm-minor-patch: { update-types: [minor, patch] } }
+    cooldown: { default-days: 7 }
+    ignore:
+      - dependency-name: "@anthropic-ai/claude-agent-sdk"   # exact pin tied to sidecar/sdk-pin; changed by hand (licensing-spec section 6)
+      - dependency-name: "@anthropic-ai/sdk"                # peers pinned together with the SDK
+      - dependency-name: "@modelcontextprotocol/sdk"
+      - dependency-name: "zod"
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }

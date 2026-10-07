@@ -1,0 +1,2 @@
+# not under .github: must never be rewritten
+      - uses: actions/checkout@PIN-ME # v1.0.0

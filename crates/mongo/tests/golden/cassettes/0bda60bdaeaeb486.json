@@ -1,0 +1,20 @@
+{
+  "key": "0bda60bdaeaeb486",
+  "case": "hu37",
+  "round": 0,
+  "source": "authored",
+  "tier": "fast",
+  "model": null,
+  "reply": {
+    "mode": "find",
+    "collection": "orders",
+    "filter": "{\"payments.method\":{\"$ne\":\"cash\"}}",
+    "explanation": "Nem készpénzes fizetésű rendelések."
+  },
+  "usage": {
+    "inputTokens": null,
+    "outputTokens": null,
+    "costUsd": null,
+    "ms": null
+  }
+}

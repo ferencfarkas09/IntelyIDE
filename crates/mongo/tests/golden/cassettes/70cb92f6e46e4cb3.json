@@ -1,0 +1,20 @@
+{
+  "key": "70cb92f6e46e4cb3",
+  "case": "en05",
+  "round": 0,
+  "source": "authored",
+  "tier": "fast",
+  "model": null,
+  "reply": {
+    "mode": "find",
+    "collection": "orders",
+    "filter": "{\"tip\":{\"$gte\":500}}",
+    "explanation": "Orders with a tip of 500 or more."
+  },
+  "usage": {
+    "inputTokens": null,
+    "outputTokens": null,
+    "costUsd": null,
+    "ms": null
+  }
+}

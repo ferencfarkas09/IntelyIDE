@@ -1,0 +1,22 @@
+{
+  "key": "f0aad05d63546829",
+  "case": "en04",
+  "round": 0,
+  "source": "authored",
+  "tier": "fast",
+  "model": null,
+  "reply": {
+    "mode": "find",
+    "collection": "orders",
+    "filter": "{\"status\":\"cancelled\"}",
+    "explanation": "The 10 newest cancelled orders.",
+    "sort": "{\"createdAt\":-1}",
+    "limit": 10
+  },
+  "usage": {
+    "inputTokens": null,
+    "outputTokens": null,
+    "costUsd": null,
+    "ms": null
+  }
+}

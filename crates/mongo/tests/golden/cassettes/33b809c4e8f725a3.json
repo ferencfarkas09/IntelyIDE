@@ -1,0 +1,20 @@
+{
+  "key": "33b809c4e8f725a3",
+  "case": "en08",
+  "round": 0,
+  "source": "authored",
+  "tier": "fast",
+  "model": null,
+  "reply": {
+    "mode": "find",
+    "collection": "users",
+    "filter": "{\"restaurants.1\":{\"$exists\":true}}",
+    "explanation": "Users whose restaurants array has at least two entries."
+  },
+  "usage": {
+    "inputTokens": null,
+    "outputTokens": null,
+    "costUsd": null,
+    "ms": null
+  }
+}

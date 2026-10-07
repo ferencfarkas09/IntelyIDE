@@ -1,0 +1,28 @@
+/* Logo ink follows the --brand-* tokens (theme/tokens.css); data-brand-theme pins a palette. */
+.brand { display: block; flex: none; overflow: visible; }
+.brand__ink { fill: var(--brand-ink, #fff); }
+.brand__ink-stroke { stroke: var(--brand-ink, #fff); }
+.brand__sub { fill: var(--brand-sub, #b7a6e8); }
+.brand__ide-a { stop-color: var(--brand-ide-a, #9b7bff); }
+.brand__ide-b { stop-color: var(--brand-ide-b, #e36bf5); }
+.brand__shadow { flood-color: #0e0419; flood-opacity: var(--brand-shadow, 0.5); }
+
+.brand[data-brand-theme="dark"], .brand-tile[data-brand-theme="dark"] { --brand-ink: #fff; --brand-sub: #b7a6e8; --brand-ide-a: #9b7bff; --brand-ide-b: #e36bf5; --brand-shadow: 0.5; }
+.brand[data-brand-theme="light"] { --brand-ink: #1a0a2e; --brand-sub: #5b4b7a; --brand-ide-a: #6a3bf0; --brand-ide-b: #b82fd0; --brand-shadow: 0.18; }
+
+/* App-icon tile: dark radial ground, 22.5 % corner radius, hairline edge. */
+.brand-tile {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--tile);
+  height: var(--tile);
+  border-radius: 22.5%;
+  background: radial-gradient(circle at 50% 35%, #3d1458 0%, #160823 72%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+/* The logo gradient, used sparingly: primary button hover glow and the active rail indicator. */
+.ui-btn[data-variant="primary"]:hover:not(:disabled) { box-shadow: var(--highlight-accent), 0 0 0 1px rgba(155, 123, 255, 0.35), 0 4px 16px -4px rgba(217, 70, 239, 0.45); }
+.ui-btn[data-variant="primary"]:active:not(:disabled) { box-shadow: var(--shadow-sm); }

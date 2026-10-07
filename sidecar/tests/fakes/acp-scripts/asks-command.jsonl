@@ -1,0 +1,10 @@
+// The agent asks permission for `npm install left-pad` (an exec the broker neither allows nor hard-stops: the user is asked),
+// then reports what the client answered. It runs nothing itself. Played by e2e scenario z as the role mock-acp-asks-command.
+{"op":"on","method":"session/prompt","then":[
+  {"op":"update","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"I need to install a package. "}}},
+  {"op":"update","update":{"sessionUpdate":"tool_call","toolCallId":"c1","title":"npm install left-pad","kind":"execute","status":"pending","rawInput":{"command":"npm install left-pad"}}},
+  {"op":"request","name":"perm","method":"session/request_permission","params":{"toolCall":{"toolCallId":"c1","title":"npm install left-pad","kind":"execute","rawInput":{"command":"npm install left-pad"}},"options":[{"optionId":"allow","name":"Allow","kind":"allow_once"},{"optionId":"reject","name":"Reject","kind":"reject_once"}]}},
+  {"op":"update","update":{"sessionUpdate":"tool_call_update","toolCallId":"c1","status":"completed"}},
+  {"op":"update","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"answer=${perm.result.outcome.outcome}:${perm.result.outcome.optionId}"}}},
+  {"op":"respond","result":{"stopReason":"end_turn"}}
+]}

@@ -1,0 +1,4 @@
+// Provider failure mid-turn: error event, then turn.end(error).
+{"op":"text","dt":30,"id":"m1:0","text":"Working on it"}
+{"op":"error","dt":40,"class":"provider","message":"upstream returned 500","retryable":true}
+{"op":"end","stopReason":"error"}

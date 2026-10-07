@@ -1,0 +1,20 @@
+{
+  "key": "578b3a17b119bf2e",
+  "case": "hu28",
+  "round": 0,
+  "source": "live",
+  "tier": "fast",
+  "model": "claude-haiku-4-5-20251001",
+  "reply": {
+    "mode": "find",
+    "collection": "products",
+    "filter": "{\"active\":true,\"category\":\"desszert\",\"price\":{\"$lt\":1500}}",
+    "explanation": "Aktív termékkategóriájú desszertek, amelyek ára 1500 forint alatt van."
+  },
+  "usage": {
+    "inputTokens": 10,
+    "outputTokens": 1170,
+    "costUsd": 0.016912999999999997,
+    "ms": 14080
+  }
+}

@@ -1,0 +1,159 @@
+.shell { display: flex; flex-direction: column; height: 100%; background: var(--surface-0); color: var(--text-1); }
+.shell__body { display: flex; flex: 1 1 auto; min-height: 0; }
+/* Editor workspace and Agent workspace share the area next to the rail. */
+.shell__mode { display: flex; flex: 1 1 auto; min-width: 0; min-height: 0; }
+.shell__mode[hidden] { display: none; }
+.shell__mode > * { flex: 1 1 auto; min-width: 0; min-height: 0; }
+.shell__split { flex: 1 1 auto; min-width: 0; }
+
+/* Rail */
+.rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  width: 52px;
+  padding: 10px 0;
+  background: var(--surface-0);
+  box-shadow: inset -1px 0 0 var(--border-subtle);
+}
+.rail__grow { flex: 1; }
+.rail__item { position: relative; display: inline-flex; }
+.rail__badge { position: absolute; top: 0; inset-inline-end: 0; min-width: 16px; height: 16px; padding: 0 4px; box-sizing: border-box; border-radius: var(--radius-full); background: var(--warn); color: var(--surface-0); font-size: 10px; font-weight: var(--weight-semibold); line-height: 16px; text-align: center; pointer-events: none; box-shadow: 0 0 0 2px var(--surface-0); }
+.rail__badge[data-tone="urgent"] { background: var(--danger); }
+/* Bigger hit targets than the toolbar buttons, and "soon" items readable instead of ghostly. */
+.rail .ui-icon-btn { --ib: 36px; border-radius: var(--radius-3); color: var(--text-2); }
+.rail .ui-icon-btn:hover { color: var(--text-1); }
+.rail .ui-icon-btn[aria-pressed="true"] { color: var(--accent-text); }
+.rail .ui-icon-btn[aria-disabled="true"] { opacity: 1; color: var(--text-3); }
+/* Active tool window: a short bar in the logo gradient on the rail edge. */
+.rail .ui-icon-btn { position: relative; }
+.rail .ui-icon-btn::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: -8px;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-start-end-radius: 3px;
+  border-end-end-radius: 3px;
+  background: linear-gradient(180deg, #2ee6c5, #7c4dff 55%, #d946ef);
+  transform: scaleY(0);
+  transition: transform var(--dur) var(--ease);
+}
+.rail .ui-icon-btn[aria-pressed="true"]::before { transform: scaleY(1); }
+@media (prefers-reduced-motion: reduce) {
+  .rail .ui-icon-btn::before { transition: none; }
+}
+
+/* Panes: the tool window and the centre share the panel surface, the chrome around them is one step darker. */
+.tool { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--surface-1); }
+.centre { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--surface-1); }
+.centre > * { flex: 1 1 0; min-height: 0; }
+
+/* Title bar content */
+.ttl { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.ttl__workspace { display: inline-flex; align-items: center; flex: none; gap: 6px; margin-inline-end: 6px; padding-inline-end: 12px; border-inline-end: 1px solid var(--border); color: var(--text-2); font-size: var(--text-sm); font-weight: var(--weight-medium); line-height: 16px; white-space: nowrap; }
+/* Pills share what is left: the branch loses its middle first, the repo badge and the counters stay. */
+.ttl .ui-pill { flex: 0 1 auto; min-width: 0; }
+.ttl .ui-pill__text { flex: 0 1 auto; min-width: 0; }
+@media (max-width: 1180px) {
+  .ttl__workspace { display: none; }
+}
+
+/* Branch popup: the body is styled by modules/branches. */
+.bp__loading { width: 340px; height: 120px; }
+
+/* About dialog */
+.about { display: flex; flex-direction: column; align-items: center; gap: 16px; padding-top: 4px; }
+.about__facts { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; width: 100%; margin: 0; padding: 12px 0 0; border-top: 1px solid var(--border-subtle); font-size: var(--text-sm); }
+.about__facts dt { color: var(--text-3); }
+.about__facts dd { margin: 0; min-width: 0; color: var(--text-1); }
+.about__note { margin: 0; color: var(--text-3); font-size: var(--text-sm); }
+.about__lead { margin: 0; color: var(--text-1); font-size: var(--text-md, 14px); font-weight: var(--weight-medium); text-align: center; }
+.about__text { display: flex; flex-direction: column; gap: 10px; width: 100%; color: var(--text-2); font-size: var(--text-sm); line-height: 1.55; max-height: 220px; overflow: auto; }
+.about__text p { margin: 0; }
+.about__text p[lang="hu"] { padding-top: 10px; border-top: 1px solid var(--border-subtle); }
+.about__credit { margin: 0; color: var(--text-3); font-size: var(--text-sm); text-align: center; }
+.about__links { display: flex; gap: var(--space-3, 12px); justify-content: center; flex-wrap: wrap; }
+.about__links a { color: inherit; text-decoration: underline; }
+
+/* Splash: the window opens on this until the first workspace load resolves. */
+.splash {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-dialog);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: var(--surface-0);
+  animation: splash-in 240ms var(--ease) both;
+}
+.splash[data-state="closed"] { opacity: 0; transition: opacity 180ms var(--ease); pointer-events: none; }
+.splash__name { color: var(--text-3); font-size: var(--text-sm); font-weight: var(--weight-medium); letter-spacing: 0.08em; }
+.splash .brand-tile { animation: splash-breathe 1.8s ease-in-out infinite; }
+@keyframes splash-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes splash-breathe { 50% { transform: scale(0.96); opacity: 0.85; } }
+@media (prefers-reduced-motion: reduce) {
+  .splash, .splash .brand-tile { animation: none; }
+}
+
+/* About: hero + feature tiles + spec sheet (shared by the dialog and Settings > About) */
+.about { align-items: stretch; gap: 20px; text-align: start; }
+.about__hero { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; }
+.about__lead { margin: 4px 0 0; font-size: 20px; line-height: 1.25; font-weight: 650; letter-spacing: -0.012em; background: linear-gradient(90deg, var(--brand-ide-a, var(--accent)), var(--brand-ide-b, var(--accent))); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.about__intro { margin: 0; max-width: 52ch; color: var(--text-2); font-size: var(--text-sm); line-height: 1.6; }
+.about__features { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0; padding: 0; list-style: none; }
+@media (max-width: 560px) { .about__features { grid-template-columns: minmax(0, 1fr); } }
+.about__feature { display: flex; gap: 12px; padding: 12px 14px; border-radius: var(--radius-3, 10px); background: var(--surface-1); box-shadow: inset 0 0 0 1px var(--border-subtle); }
+.about__feature-icon { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: var(--radius-2, 8px); color: var(--accent); background: var(--accent-subtle, color-mix(in srgb, var(--accent) 14%, transparent)); }
+.about__feature-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; font-size: 12.5px; line-height: 1.45; color: var(--text-2); }
+.about__feature-body strong { color: var(--text-1); font-size: var(--text-sm); font-weight: var(--weight-medium, 600); }
+.about__spec-stack { display: flex; flex-direction: column; gap: 12px; }
+.about__specs { border-radius: var(--radius-3, 10px); background: var(--surface-1); box-shadow: inset 0 0 0 1px var(--border-subtle); overflow: hidden; }
+.about__specs-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 14px; border-bottom: 1px solid var(--border-subtle); color: var(--text-3); font-size: 11px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; }
+.about__rows { margin: 0; }
+.about__row { display: grid; grid-template-columns: minmax(136px, 170px) minmax(0, 1fr); align-items: baseline; gap: 14px; padding: 9px 14px; font-size: var(--text-sm); }
+.about__row + .about__row { border-top: 1px solid var(--border-subtle); }
+.about__row-label { min-width: 0; color: var(--text-3); overflow-wrap: anywhere; hyphens: auto; }
+.about__row-value { margin: 0; min-width: 0; color: var(--text-1); overflow-wrap: anywhere; }
+.about__row-value--mono { font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.about__link, .about__copy { display: inline-flex; align-items: center; gap: 5px; padding: 0; border: 0; background: none; font: inherit; cursor: pointer; }
+.about__link { color: var(--accent); }
+.about__link:hover { text-decoration: underline; text-underline-offset: 3px; }
+.about__copy { padding: 3px 8px; border-radius: var(--radius-2, 8px); color: var(--text-2); font-size: 11px; letter-spacing: 0; text-transform: none; font-weight: 500; }
+.about__copy:hover { color: var(--text-1); background: var(--surface-2, var(--surface-1)); }
+.about__link:focus-visible, .about__copy:focus-visible { outline: 2px solid var(--focus-ring, var(--accent)); outline-offset: 2px; border-radius: 4px; }
+.about__credit { margin: 4px 0 0; color: var(--text-3); font-size: var(--text-sm); text-align: center; }
+.about--settings { max-width: 760px; }
+
+/* About dialog: same content as Settings > About, packed to fit a laptop screen (specs side by side, tighter tiles). */
+.about--compact { gap: 14px; padding-top: 0; }
+.about--compact .about__hero { gap: 6px; }
+.about--compact .about__lead { margin: 2px 0 0; font-size: 16px; }
+.about--compact .about__intro { max-width: 62ch; font-size: 12.5px; line-height: 1.5; }
+.about--compact .about__features { gap: 8px; }
+.about--compact .about__feature { gap: 10px; padding: 9px 11px; }
+.about--compact .about__feature-icon { width: 26px; height: 26px; }
+.about--compact .about__feature-body { gap: 2px; font-size: 12px; line-height: 1.4; }
+.about--compact .about__feature-body strong { font-size: 12.5px; }
+.about--compact .about__spec-stack { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; align-items: start; }
+.about--compact .about__specs-head { padding: 6px 12px; }
+.about--compact .about__row { grid-template-columns: minmax(64px, 112px) minmax(0, 1fr); gap: 10px; padding: 6px 12px; font-size: 12.5px; }
+.about--compact .about__row-value--mono { font-size: 12px; }
+.about--compact .about__credit { grid-column: 1 / -1; margin: 0; font-size: 12px; }
+.about__license { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.about__license > .about__specs { align-self: stretch; }
+.about__license-id { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; }
+.about__chip { font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); }
+.about__notice { margin: 0; max-width: 72ch; color: var(--text-2); font-size: var(--text-sm); line-height: 1.55; }
+.about__notice-link { font-size: var(--text-sm); }
+.about__license-actions { display: flex; justify-content: flex-start; }
+.about__license-text { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.about--compact .about__license { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
+.about--compact .about__license > .about__specs { align-self: start; }
+.about--compact .about__notice { font-size: 12px; line-height: 1.5; }
+@media (max-width: 700px) { .about--compact .about__spec-stack, .about--compact .about__license { grid-template-columns: minmax(0, 1fr); } }

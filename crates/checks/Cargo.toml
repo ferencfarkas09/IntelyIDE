@@ -1,0 +1,19 @@
+[package]
+name = "intely-checks"
+version = "0.0.0"
+edition = "2021"
+rust-version = "1.77"
+license.workspace = true
+
+[lib]
+name = "intely_checks"
+
+[dependencies]
+intely-core = { path = "../core" }
+intely-runner = { path = "../runner" }
+libc = "0.2.190"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+
+[dev-dependencies]
+tempfile = "3.27.0"

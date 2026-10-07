@@ -1,0 +1,360 @@
+[
+ {
+  "kind": "session.started",
+  "nativeId": "2c006191-29ad-4de5-a2e7-ba2ee178c7b5",
+  "model": "claude-haiku-4-5",
+  "effective": {
+   "effort": null,
+   "permission": "ask"
+  },
+  "auth": {
+   "mode": "subscription",
+   "source": "none"
+  },
+  "seq": 1,
+  "ts": 0
+ },
+ {
+  "kind": "status",
+  "state": "thinking",
+  "seq": 2,
+  "ts": 0
+ },
+ {
+  "kind": "status",
+  "state": "running",
+  "seq": 3,
+  "ts": 0
+ },
+ {
+  "kind": "text.delta",
+  "messageId": "msg_011Cfe1iRvrLL4FhosBFR54D:1",
+  "text": "1\n2",
+  "seq": 4,
+  "ts": 0
+ },
+ {
+  "kind": "text.delta",
+  "messageId": "msg_011Cfe1iRvrLL4FhosBFR54D:1",
+  "text": "\n3\n4\n5",
+  "seq": 5,
+  "ts": 0
+ },
+ {
+  "kind": "text.delta",
+  "messageId": "msg_011Cfe1iRvrLL4FhosBFR54D:1",
+  "text": "\n6\n7\n8",
+  "seq": 6,
+  "ts": 0
+ },
+ {
+  "kind": "text.done",
+  "messageId": "msg_011Cfe1iRvrLL4FhosBFR54D:1",
+  "text": "1\n2\n3\n4\n5\n6\n7\n8",
+  "seq": 7,
+  "ts": 0
+ },
+ {
+  "kind": "usage",
+  "usage": {
+   "model": "claude-haiku-4-5-20251001",
+   "costBasis": "subscription",
+   "contextSize": 200000,
+   "perTurn": {
+    "inputTokens": 910,
+    "outputTokens": 12,
+    "cacheRead": 0,
+    "cacheWrite": 0,
+    "reasoningTokens": 0,
+    "costUsd": 0.00097
+   },
+   "cumulative": {
+    "inputTokens": 910,
+    "outputTokens": 12,
+    "cacheRead": 0,
+    "cacheWrite": 0,
+    "reasoningTokens": 0,
+    "costUsd": 0.00097
+   },
+   "perModel": [
+    {
+     "model": "claude-haiku-4-5-20251001",
+     "tokens": {
+      "inputTokens": 910,
+      "outputTokens": 12,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "reasoningTokens": 0,
+      "costUsd": 0.00097
+     }
+    }
+   ]
+  },
+  "seq": 8,
+  "ts": 0
+ },
+ {
+  "kind": "status",
+  "state": "idle",
+  "seq": 9,
+  "ts": 0
+ },
+ {
+  "kind": "turn.end",
+  "stopReason": "cancelled",
+  "seq": 10,
+  "ts": 0
+ },
+ {
+  "kind": "status",
+  "state": "thinking",
+  "seq": 11,
+  "ts": 0
+ },
+ {
+  "kind": "status",
+  "state": "running",
+  "seq": 12,
+  "ts": 0
+ },
+ {
+  "kind": "tool.start",
+  "toolId": "toolu_01NLRUVZZiNjWdobJc8B8iZJ",
+  "name": "Write",
+  "toolKind": "edit",
+  "input": {
+   "file_path": "<tmp>/isw-s3-wkR6AL/d.txt",
+   "content": "d"
+  },
+  "seq": 13,
+  "ts": 0
+ },
+ {
+  "kind": "tool.result",
+  "toolId": "toolu_01NLRUVZZiNjWdobJc8B8iZJ",
+  "status": "ok",
+  "output": "File created successfully at: <tmp>/isw-s3-wkR6AL/d.txt (file state is current in your context — no need to Read it back)",
+  "diff": {
+   "path": "<tmp>/isw-s3-wkR6AL/d.txt",
+   "old": null,
+   "new": "d"
+  },
+  "durationMs": 10,
+  "seq": 14,
+  "ts": 0
+ },
+ {
+  "kind": "status",
+  "state": "thinking",
+  "seq": 15,
+  "ts": 0
+ },
+ {
+  "kind": "status",
+  "state": "running",
+  "seq": 16,
+  "ts": 0
+ },
+ {
+  "kind": "text.delta",
+  "messageId": "msg_011Cfe1iowg44wYFpBMgA8Ak:1",
+  "text": "DONE",
+  "seq": 17,
+  "ts": 0
+ },
+ {
+  "kind": "text.done",
+  "messageId": "msg_011Cfe1iowg44wYFpBMgA8Ak:1",
+  "text": "DONE",
+  "seq": 18,
+  "ts": 0
+ },
+ {
+  "kind": "usage",
+  "usage": {
+   "model": "claude-haiku-4-5",
+   "costBasis": "subscription",
+   "contextSize": 200000,
+   "perTurn": {
+    "inputTokens": 18,
+    "outputTokens": 326,
+    "cacheRead": 31272,
+    "cacheWrite": 636,
+    "reasoningTokens": 195,
+    "costUsd": 0.006047200000000001
+   },
+   "cumulative": {
+    "inputTokens": 928,
+    "outputTokens": 338,
+    "cacheRead": 31272,
+    "cacheWrite": 636,
+    "reasoningTokens": 195,
+    "costUsd": 0.007017200000000001
+   },
+   "perModel": [
+    {
+     "model": "claude-haiku-4-5-20251001",
+     "tokens": {
+      "inputTokens": 910,
+      "outputTokens": 12,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "reasoningTokens": 0,
+      "costUsd": 0.00097
+     }
+    },
+    {
+     "model": "claude-haiku-4-5",
+     "tokens": {
+      "inputTokens": 18,
+      "outputTokens": 326,
+      "cacheRead": 31272,
+      "cacheWrite": 636,
+      "reasoningTokens": 195,
+      "costUsd": 0.006047200000000001
+     }
+    }
+   ]
+  },
+  "seq": 19,
+  "ts": 0
+ },
+ {
+  "kind": "status",
+  "state": "idle",
+  "seq": 20,
+  "ts": 0
+ },
+ {
+  "kind": "turn.end",
+  "stopReason": "endTurn",
+  "seq": 21,
+  "ts": 0
+ },
+ {
+  "kind": "status",
+  "state": "thinking",
+  "seq": 22,
+  "ts": 0
+ },
+ {
+  "kind": "status",
+  "state": "running",
+  "seq": 23,
+  "ts": 0
+ },
+ {
+  "kind": "tool.start",
+  "toolId": "toolu_01PJNy5F9LZgZK9g6ZooiF2n",
+  "name": "Write",
+  "toolKind": "edit",
+  "input": {
+   "file_path": "<tmp>/isw-s3-wkR6AL/e.txt",
+   "content": "e"
+  },
+  "seq": 24,
+  "ts": 0
+ },
+ {
+  "kind": "tool.result",
+  "toolId": "toolu_01PJNy5F9LZgZK9g6ZooiF2n",
+  "status": "ok",
+  "output": "File created successfully at: <tmp>/isw-s3-wkR6AL/e.txt (file state is current in your context — no need to Read it back)",
+  "diff": {
+   "path": "<tmp>/isw-s3-wkR6AL/e.txt",
+   "old": null,
+   "new": "e"
+  },
+  "durationMs": 10,
+  "seq": 25,
+  "ts": 0
+ },
+ {
+  "kind": "status",
+  "state": "thinking",
+  "seq": 26,
+  "ts": 0
+ },
+ {
+  "kind": "status",
+  "state": "running",
+  "seq": 27,
+  "ts": 0
+ },
+ {
+  "kind": "text.delta",
+  "messageId": "msg_011Cfe1jAxDT5giLDtQ4TwvX:1",
+  "text": "DONE",
+  "seq": 28,
+  "ts": 0
+ },
+ {
+  "kind": "text.done",
+  "messageId": "msg_011Cfe1jAxDT5giLDtQ4TwvX:1",
+  "text": "DONE",
+  "seq": 29,
+  "ts": 0
+ },
+ {
+  "kind": "usage",
+  "usage": {
+   "model": "claude-haiku-4-5-20251001",
+   "costBasis": "subscription",
+   "contextSize": 200000,
+   "perTurn": {
+    "inputTokens": 18,
+    "outputTokens": 200,
+    "cacheRead": 32537,
+    "cacheWrite": 504,
+    "reasoningTokens": 68,
+    "costUsd": 0.0052797
+   },
+   "cumulative": {
+    "inputTokens": 946,
+    "outputTokens": 538,
+    "cacheRead": 63809,
+    "cacheWrite": 1140,
+    "reasoningTokens": 263,
+    "costUsd": 0.012296900000000001
+   },
+   "perModel": [
+    {
+     "model": "claude-haiku-4-5-20251001",
+     "tokens": {
+      "inputTokens": 928,
+      "outputTokens": 212,
+      "cacheRead": 32537,
+      "cacheWrite": 504,
+      "reasoningTokens": 68,
+      "costUsd": 0.0062497
+     }
+    },
+    {
+     "model": "claude-haiku-4-5",
+     "tokens": {
+      "inputTokens": 18,
+      "outputTokens": 326,
+      "cacheRead": 31272,
+      "cacheWrite": 636,
+      "reasoningTokens": 195,
+      "costUsd": 0.006047200000000001
+     }
+    }
+   ]
+  },
+  "seq": 30,
+  "ts": 0
+ },
+ {
+  "kind": "status",
+  "state": "idle",
+  "seq": 31,
+  "ts": 0
+ },
+ {
+  "kind": "turn.end",
+  "stopReason": "endTurn",
+  "seq": 32,
+  "ts": 0
+ }
+]

@@ -1,0 +1,6 @@
+// The agent skips the permission flow and calls terminal/create with an absolute-path git push (the shim does not see it).
+{"op":"on","method":"session/prompt","then":[
+  {"op":"request","name":"term","method":"terminal/create","params":{"command":"/usr/bin/git","args":["push","origin","HEAD"]}},
+  {"op":"update","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"terminal=${term.result.terminalId}${term.error.message}"}}},
+  {"op":"respond","result":{"stopReason":"end_turn"}}
+]}

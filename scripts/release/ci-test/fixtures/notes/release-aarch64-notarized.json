@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "version": "0.1.0",
+  "target": "aarch64-apple-darwin",
+  "arch": "aarch64",
+  "file": "IntelyIDE_0.1.0_aarch64.dmg",
+  "sha256": "584f07afdd46ea4c78e9030e339198fd6dde5645a8e31abdda3a781e6459c281",
+  "bytes": 15,
+  "signed": true,
+  "notarized": true,
+  "minimumSystemVersion": "13.5",
+  "node": { "version": "24.13.0" },
+  "pk": { "signing": { "mode": "developer-id" } }
+}

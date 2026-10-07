@@ -1,0 +1,20 @@
+{
+  "key": "1c0e4471b5bc9275",
+  "case": "saf03",
+  "round": 0,
+  "source": "authored",
+  "tier": "fast",
+  "model": null,
+  "reply": {
+    "mode": "find",
+    "collection": "customers",
+    "filter": "{\"name\":\"<string>\"}",
+    "explanation": "A megadott nevű vendégek."
+  },
+  "usage": {
+    "inputTokens": null,
+    "outputTokens": null,
+    "costUsd": null,
+    "ms": null
+  }
+}

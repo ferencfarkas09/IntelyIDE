@@ -1,0 +1,14 @@
+version = 1
+# SPDX-PackageName / -Supplier / -DownloadLocation are intentionally omitted: as far as known they exist only in the DEP5 form, and a strict parser would reject them.
+
+[[annotations]]
+path = "**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Ferenc Farkas (IntelyHome) and IntelyIDE contributors"
+SPDX-License-Identifier = "GPL-3.0-or-later"
+
+[[annotations]]
+path = "CODE_OF_CONDUCT.md"
+precedence = "override"
+SPDX-FileCopyrightText = "Contributor Covenant authors"
+SPDX-License-Identifier = "CC-BY-4.0"

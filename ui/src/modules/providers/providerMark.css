@@ -1,0 +1,2 @@
+.pmark { display: inline-grid; flex: none; place-items: center; width: var(--pmark-size, 18px); height: var(--pmark-size, 18px); border-radius: var(--radius-2); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--border-subtle); color: var(--text-2); font-size: max(9px, calc(var(--pmark-size, 18px) * 0.42)); font-weight: var(--weight-semibold); letter-spacing: 0; line-height: 1; user-select: none; }
+.pmark[data-provider="claude"] { background: var(--accent-subtle); color: var(--accent-text); box-shadow: inset 0 0 0 1px var(--accent-border); }

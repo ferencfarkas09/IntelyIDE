@@ -1,0 +1,46 @@
+name: Audit
+on:
+  schedule:
+    - cron: "41 4 * * 1"
+  workflow_dispatch:
+permissions: {}
+jobs:
+  cargo-advisories:
+    continue-on-error: true # RD9: advisory only
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions: { contents: read }
+    steps:
+      - uses: actions/checkout@1111111111111111111111111111111111111111 # v7.0.1
+        with: { persist-credentials: false }
+      - run: cargo deny --locked check advisories
+  pnpm-audit:
+    continue-on-error: true # RD9: advisory only
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions: { contents: read }
+    steps:
+      - uses: actions/checkout@1111111111111111111111111111111111111111 # v7.0.1
+        with: { persist-credentials: false }
+      - run: pnpm audit --prod --audit-level=high
+  pins-verify:
+    continue-on-error: true # RD9: advisory only
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions: { contents: read }
+    steps:
+      - uses: actions/checkout@1111111111111111111111111111111111111111 # v7.0.1
+        with: { persist-credentials: false }
+      - name: Verify pins
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/ci/pin-actions.mjs --verify
+  node-security:
+    continue-on-error: true # RD9: advisory only
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions: { contents: read }
+    steps:
+      - uses: actions/checkout@1111111111111111111111111111111111111111 # v7.0.1
+        with: { persist-credentials: false }
+      - run: node scripts/ci/node-security.mjs

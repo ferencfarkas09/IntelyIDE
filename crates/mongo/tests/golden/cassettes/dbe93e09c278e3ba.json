@@ -1,0 +1,20 @@
+{
+  "key": "dbe93e09c278e3ba",
+  "case": "hu09",
+  "round": 0,
+  "source": "authored",
+  "tier": "fast",
+  "model": null,
+  "reply": {
+    "mode": "find",
+    "collection": "orders",
+    "filter": "{\"items.name\":\"Dobos torta\"}",
+    "explanation": "Rendelések, amelyeknek van Dobos torta tétele."
+  },
+  "usage": {
+    "inputTokens": null,
+    "outputTokens": null,
+    "costUsd": null,
+    "ms": null
+  }
+}

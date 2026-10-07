@@ -1,0 +1,633 @@
+[
+  {
+    "input": {
+      "command": "git status"
+    },
+    "intent": {
+      "argv": null,
+      "class": "exec",
+      "parentToolId": null,
+      "paths": [],
+      "rawCommand": "git status",
+      "readOnlyHint": null,
+      "server": null,
+      "subagentType": null,
+      "summary": "git status",
+      "tool": "Bash",
+      "url": null
+    },
+    "tool": "Bash"
+  },
+  {
+    "input": {
+      "command": "ls\nrm -rf /tmp/x"
+    },
+    "intent": {
+      "argv": null,
+      "class": "exec",
+      "parentToolId": null,
+      "paths": [],
+      "rawCommand": "ls\nrm -rf /tmp/x",
+      "readOnlyHint": null,
+      "server": null,
+      "subagentType": null,
+      "summary": "ls…",
+      "tool": "Bash",
+      "url": null
+    },
+    "tool": "Bash"
+  },
+  {
+    "input": {
+      "command": "echo xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    },
+    "intent": {
+      "argv": null,
+      "class": "exec",
+      "parentToolId": null,
+      "paths": [],
+      "rawCommand": "echo xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "readOnlyHint": null,
+      "server": null,
+      "subagentType": null,
+      "summary": "echo xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…",
+      "tool": "Bash",
+      "url": null
+    },
+    "tool": "Bash"
+  },
+  {
+    "input": {},
+    "intent": {
+      "argv": null,
+      "class": "exec",
+      "parentToolId": null,
+      "paths": [],
+      "rawCommand": null,
+      "readOnlyHint": null,
+      "server": null,
+      "subagentType": null,
+      "summary": "",
+      "tool": "Bash",
+      "url": null
+    },
+    "tool": "Bash"
+  },
+  {
+    "input": {
+      "file_path": "src/a.ts",
+      "new_string": "b",
+      "old_string": "a"
+    },
+    "intent": {
+      "argv": null,
+      "class": "write",
+      "parentToolId": null,
+      "paths": [
+        "src/a.ts"
+      ],
+      "rawCommand": null,
+      "readOnlyHint": null,
+      "server": null,
+      "subagentType": null,
+      "summary": "edit src/a.ts",
+      "tool": "Edit",
+      "url": null
+    },
+    "tool": "Edit"
+  },
+  {
+    "input": {
+      "content": "x",
+      "file_path": ".husky/pre-commit"
+    },
+    "intent": {
+      "argv": null,
+      "class": "write",
+      "parentToolId": null,
+      "paths": [
+        ".husky/pre-commit"
+      ],
+      "rawCommand": null,
+      "readOnlyHint": null,
+      "server": null,
+      "subagentType": null,
+      "summary": "write .husky/pre-commit",
+      "tool": "Write",
+      "url": null
+    },
+    "tool": "Write"
+  },
+  {
+    "input": {
+      "edits": [],
+      "file_path": "src/a.ts"
+    },
+    "intent": {
+      "argv": null,
+      "class": "write",
+      "parentToolId": null,
+      "paths": [
+        "src/a.ts"
+      ],
+      "rawCommand": null,
+      "readOnlyHint": null,
+      "server": null,
+      "subagentType": null,
+      "summary": "multiedit src/a.ts",
+      "tool": "MultiEdit",
+      "url": null
+    },
+    "tool": "MultiEdit"
+  },
+  {
+    "input": {
+      "notebook_path": "n.ipynb"
+    },
+    "intent": {
+      "argv": null,
+      "class": "write",
+      "parentToolId": null,
+      "paths": [
+        "n.ipynb"
+      ],
+      "rawCommand": null,
+      "readOnlyHint": null,
+      "server": null,
+      "subagentType": null,
+      "summary": "notebookedit n.ipynb",
+      "tool": "NotebookEdit",
+      "url": null
+    },
+    "tool": "NotebookEdit"
+  },
+  {
+    "input": {
+      "file_path": "/etc/hosts"
+    },
+    "intent": {
+      "argv": null,
+      "class": "read",
+      "parentToolId": null,
+      "paths": [
+        "/etc/hosts"
+      ],
+      "rawCommand": null,
+      "readOnlyHint": null,
+      "server": null,
+      "subagentType": null,
+      "summary": "read /etc/hosts",
+      "tool": "Read",
+      "url": null
+    },
+    "tool": "Read"
+  },
+  {
+    "input": {
+      "path": "src",
+      "pattern": "x"
+    },
+    "intent": {
+      "argv": null,
+      "class": "read",
+      "parentToolId": null,
+      "paths": [
+        "src"
+      ],
+      "rawCommand": null,
+      "readOnlyHint": null,
+      "server": null,
+      "subagentType": null,
+      "summary": "grep src",
+      "tool": "Grep",
+      "url": null
+    },
+    "tool": "Grep"
+  },
+  {
+    "input": {
+      "pattern": "x"
+    },
+    "intent": {
+      "argv": null,
+      "class": "read",
+      "parentToolId": null,
+      "paths": [],
+      "rawCommand": null,
+      "readOnlyHint": null,
+      "server": null,
+      "subagentType": null,
+      "summary": "grep ",
+      "tool": "Grep",
+      "url": null
+    },
+    "tool": "Grep"
+  },
+  {
+    "input": {
+      "pattern": "**/*.ts"
+    },
+    "intent": {
+      "argv": null,
+      "class": "read",
+      "parentToolId": null,
+      "paths": [],
+      "rawCommand": null,
+      "readOnlyHint": null,
+      "server": null,
+      "subagentType": null,
+      "summary": "glob ",
+      "tool": "Glob",
+      "url": null
+    },
+    "tool": "Glob"
+  },
+  {
+    "input": {
+      "path": "src",
+      "pattern": "/etc/*.conf"
+    },
+    "intent": {
+      "argv": null,
+      "class": "read",
+      "parentToolId": null,
+      "paths": [
+        "src",
+        "/etc/"
+      ],
+      "rawCommand": null,
+      "readOnlyHint": null,
+      "server": null,
+      "subagentType": null,
+      "summary": "glob src, /etc/",
+      "tool": "Glob",
+      "url": null
+    },
+    "tool": "Glob"
+  },
+  {
+    "input": {
+      "pattern": "~/.ssh/*"
+    },
+    "intent": {
+      "argv": null,
+      "class": "read",
+      "parentToolId": null,
+      "paths": [
+        "~/.ssh/"
+      ],
+      "rawCommand": null,
+      "readOnlyHint": null,
+      "server": null,
+      "subagentType": null,
+      "summary": "glob ~/.ssh/",
+      "tool": "Glob",
+      "url": null
+    },
+    "tool": "Glob"
+  },
+  {
+    "input": {
+      "command": "tail -f app.log",
+      "description": "watch"
+    },
+    "intent": {
+      "argv": null,
+      "class": "exec",
+      "parentToolId": null,
+      "paths": [],
+      "rawCommand": "tail -f app.log",
+      "readOnlyHint": null,
+      "server": null,
+      "subagentType": null,
+      "summary": "tail -f app.log",
+      "tool": "Monitor",
+      "url": null
+    },
+    "tool": "Monitor"
+  },
+  {
+    "input": {
+      "command": "cp /usr/local/bin/git ./gg && ./gg push"
+    },
+    "intent": {
+      "argv": null,
+      "class": "exec",
+      "parentToolId": null,
+      "paths": [],
+      "rawCommand": "cp /usr/local/bin/git ./gg && ./gg push",
+      "readOnlyHint": null,
+      "server": null,
+      "subagentType": null,
+      "summary": "cp /usr/local/bin/git ./gg && ./gg push",
+      "tool": "Monitor",
+      "url": null
+    },
+    "tool": "Monitor"
+  },
+  {
+    "input": {
+      "action": "run"
+    },
+    "intent": {
+      "argv": null,
+      "class": "other",
+      "parentToolId": null,
+      "paths": [],
+      "rawCommand": null,
+      "readOnlyHint": null,
+      "server": null,
+      "subagentType": null,
+      "summary": "RemoteTrigger",
+      "tool": "RemoteTrigger",
+      "url": null
+    },
+    "tool": "RemoteTrigger"
+  },
+  {
+    "input": {
+      "path": "sub"
+    },
+    "intent": {
+      "argv": null,
+      "class": "read",
+      "parentToolId": null,
+      "paths": [
+        "sub"
+      ],
+      "rawCommand": null,
+      "readOnlyHint": null,
+      "server": null,
+      "subagentType": null,
+      "summary": "ls sub",
+      "tool": "LS",
+      "url": null
+    },
+    "tool": "LS"
+  },
+  {
+    "input": {
+      "prompt": "x",
+      "url": "https://docs.rs/serde"
+    },
+    "intent": {
+      "argv": null,
+      "class": "net",
+      "parentToolId": null,
+      "paths": [],
+      "rawCommand": null,
+      "readOnlyHint": null,
+      "server": null,
+      "subagentType": null,
+      "summary": "WebFetch https://docs.rs/serde",
+      "tool": "WebFetch",
+      "url": "https://docs.rs/serde"
+    },
+    "tool": "WebFetch"
+  },
+  {
+    "input": {
+      "query": "rust serde"
+    },
+    "intent": {
+      "argv": null,
+      "class": "net",
+      "parentToolId": null,
+      "paths": [],
+      "rawCommand": null,
+      "readOnlyHint": null,
+      "server": null,
+      "subagentType": null,
+      "summary": "WebSearch rust serde",
+      "tool": "WebSearch",
+      "url": null
+    },
+    "tool": "WebSearch"
+  },
+  {
+    "input": {
+      "prompt": "x",
+      "subagent_type": "researcher"
+    },
+    "intent": {
+      "argv": null,
+      "class": "other",
+      "parentToolId": null,
+      "paths": [],
+      "rawCommand": null,
+      "readOnlyHint": null,
+      "server": null,
+      "subagentFlags": {
+        "background": null,
+        "hasModel": false,
+        "subagentType": "researcher"
+      },
+      "subagentType": "researcher",
+      "summary": "Task",
+      "tool": "Task",
+      "url": null
+    },
+    "tool": "Task"
+  },
+  {
+    "input": {
+      "subagent_type": "reviewer"
+    },
+    "intent": {
+      "argv": null,
+      "class": "other",
+      "parentToolId": null,
+      "paths": [],
+      "rawCommand": null,
+      "readOnlyHint": null,
+      "server": null,
+      "subagentFlags": {
+        "background": null,
+        "hasModel": false,
+        "subagentType": "reviewer"
+      },
+      "subagentType": "reviewer",
+      "summary": "Agent",
+      "tool": "Agent",
+      "url": null
+    },
+    "tool": "Agent"
+  },
+  {
+    "input": {
+      "isolation": "worktree",
+      "model": "opus",
+      "prompt": "x",
+      "run_in_background": true,
+      "subagent_type": "researcher"
+    },
+    "intent": {
+      "argv": null,
+      "class": "other",
+      "isolation": "worktree",
+      "parentToolId": null,
+      "paths": [],
+      "rawCommand": null,
+      "readOnlyHint": null,
+      "server": null,
+      "subagentFlags": {
+        "background": true,
+        "hasModel": true,
+        "subagentType": "researcher"
+      },
+      "subagentType": "researcher",
+      "summary": "Agent",
+      "tool": "Agent",
+      "url": null
+    },
+    "tool": "Agent"
+  },
+  {
+    "input": {
+      "run_in_background": false,
+      "subagent_type": "researcher"
+    },
+    "intent": {
+      "argv": null,
+      "class": "other",
+      "parentToolId": null,
+      "paths": [],
+      "rawCommand": null,
+      "readOnlyHint": null,
+      "server": null,
+      "subagentFlags": {
+        "background": false,
+        "hasModel": false,
+        "subagentType": "researcher"
+      },
+      "subagentType": "researcher",
+      "summary": "Agent",
+      "tool": "Agent",
+      "url": null
+    },
+    "tool": "Agent"
+  },
+  {
+    "input": {
+      "todos": []
+    },
+    "intent": {
+      "argv": null,
+      "class": "other",
+      "parentToolId": null,
+      "paths": [],
+      "rawCommand": null,
+      "readOnlyHint": null,
+      "server": null,
+      "subagentType": null,
+      "summary": "TodoWrite",
+      "tool": "TodoWrite",
+      "url": null
+    },
+    "tool": "TodoWrite"
+  },
+  {
+    "input": {},
+    "intent": {
+      "argv": null,
+      "class": "other",
+      "parentToolId": null,
+      "paths": [],
+      "rawCommand": null,
+      "readOnlyHint": null,
+      "server": null,
+      "subagentType": null,
+      "summary": "ExitPlanMode",
+      "tool": "ExitPlanMode",
+      "url": null
+    },
+    "tool": "ExitPlanMode"
+  },
+  {
+    "input": {},
+    "intent": {
+      "argv": null,
+      "class": "other",
+      "parentToolId": null,
+      "paths": [],
+      "rawCommand": null,
+      "readOnlyHint": null,
+      "server": null,
+      "subagentType": null,
+      "summary": "AskUserQuestion",
+      "tool": "AskUserQuestion",
+      "url": null
+    },
+    "tool": "AskUserQuestion"
+  },
+  {
+    "input": {
+      "number": 5
+    },
+    "intent": {
+      "argv": null,
+      "class": "mcp",
+      "parentToolId": null,
+      "paths": [],
+      "rawCommand": null,
+      "readOnlyHint": null,
+      "server": "github",
+      "subagentType": null,
+      "summary": "github.get_issue",
+      "tool": "mcp__github__get_issue",
+      "url": null
+    },
+    "tool": "mcp__github__get_issue"
+  },
+  {
+    "input": {},
+    "intent": {
+      "argv": null,
+      "class": "mcp",
+      "parentToolId": null,
+      "paths": [],
+      "rawCommand": null,
+      "readOnlyHint": null,
+      "server": "my_server",
+      "subagentType": null,
+      "summary": "my_server.do__thing",
+      "tool": "mcp__my_server__do__thing",
+      "url": null
+    },
+    "tool": "mcp__my_server__do__thing"
+  },
+  {
+    "input": {},
+    "intent": {
+      "argv": null,
+      "class": "mcp",
+      "parentToolId": null,
+      "paths": [],
+      "rawCommand": null,
+      "readOnlyHint": null,
+      "server": "broken",
+      "subagentType": null,
+      "summary": "broken.",
+      "tool": "mcp__broken",
+      "url": null
+    },
+    "tool": "mcp__broken"
+  },
+  {
+    "input": {},
+    "intent": {
+      "argv": null,
+      "class": "other",
+      "parentToolId": null,
+      "paths": [],
+      "rawCommand": null,
+      "readOnlyHint": null,
+      "server": null,
+      "subagentType": null,
+      "summary": "SomethingNew",
+      "tool": "SomethingNew",
+      "url": null
+    },
+    "tool": "SomethingNew"
+  }
+]

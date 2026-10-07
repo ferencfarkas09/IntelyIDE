@@ -1,0 +1,169 @@
+# Clean fixture shaped like the real release.yml (spec 5.4). SHAs are fake.
+name: Release
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+-*"
+  workflow_dispatch:
+permissions: {}
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+env:
+  RUST_VERSION: "1.96.0"
+jobs:
+  verify-tag:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions: { contents: read, actions: read }
+    steps:
+      - uses: actions/checkout@1111111111111111111111111111111111111111 # v7.0.1
+        with: { fetch-depth: 0, persist-credentials: false }
+      - uses: actions/setup-node@2222222222222222222222222222222222222222 # v7.0.0
+        with: { node-version: 24 }
+      - uses: pnpm/action-setup@3333333333333333333333333333333333333333 # v6.1.0
+      - name: Verify tag
+        env:
+          TAG: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/ci/verify-tag.sh
+      - run: pnpm install --frozen-lockfile
+      - run: bash scripts/release/gate.sh --ci-release --tag "$TAG"
+  build:
+    needs: verify-tag
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    permissions: { contents: read }
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: arm64, target: aarch64-apple-darwin, os: macos-15 }
+          - { arch: x64, target: x86_64-apple-darwin, os: macos-15-intel }
+    steps:
+      - uses: actions/checkout@1111111111111111111111111111111111111111 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@2222222222222222222222222222222222222222 # v7.0.0
+        with: { node-version: 24 }
+      - uses: pnpm/action-setup@3333333333333333333333333333333333333333 # v6.1.0
+      - run: pnpm install --frozen-lockfile
+      - name: Toolchain
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          rustup toolchain install "$RUST_VERSION" --profile minimal
+          rustup target add "$TARGET"
+      - name: Build
+        env:
+          ARCH: ${{ matrix.arch }}
+          RELEASE_HOOKS_SMOKE: ${{ vars.REQUIRE_HOOKS_SMOKE == 'true' && 'required' || 'advisory' }}
+        run: bash scripts/release-mac.sh --arch "$ARCH" --ci --stage build --hooks-smoke --out "$RUNNER_TEMP/out"
+      - uses: actions/upload-artifact@7777777777777777777777777777777777777777 # v7.0.1
+        with:
+          name: "stage-${{ matrix.arch }}"
+          path: out
+          if-no-files-found: error
+          retention-days: 14
+  sign:
+    needs: build
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    environment: ${{ github.ref_type == 'tag' && 'release' || 'dry-run' }}
+    permissions: { contents: read }
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: arm64, os: macos-15 }
+          - { arch: x64, os: macos-15-intel }
+    steps:
+      - uses: actions/checkout@1111111111111111111111111111111111111111 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: actions/download-artifact@8888888888888888888888888888888888888888 # v8.0.1
+        with: { name: "stage-${{ matrix.arch }}", path: out }
+      - name: Detect signing
+        id: sign
+        env:
+          REF_NAME: ${{ github.ref_name }}
+          REQUIRE_SIGNED: ${{ vars.REQUIRE_SIGNED }}
+          HAVE_CERT: ${{ secrets.APPLE_CERTIFICATE != '' }}
+          HAVE_API_KEY: ${{ secrets.APPLE_API_KEY != '' }}
+        run: bash scripts/ci/detect-signing.sh
+      - name: Import certificate
+        if: steps.sign.outputs.mode == 'developer-id'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: bash scripts/ci/import-cert.sh
+      - name: Sign
+        env:
+          ARCH: ${{ matrix.arch }}
+          MODE: ${{ steps.sign.outputs.mode }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: bash scripts/ci/run-sign.sh
+      - name: Cleanup
+        if: always()
+        run: bash scripts/ci/cleanup-keychain.sh
+      - uses: actions/upload-artifact@7777777777777777777777777777777777777777 # v7.0.1
+        with: { name: "signed-${{ matrix.arch }}", path: "out/*.dmg", if-no-files-found: error, retention-days: 14 }
+  verify:
+    needs: sign
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    permissions: { contents: read }
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: arm64, os: macos-15 }
+          - { arch: x64, os: macos-15-intel }
+    steps:
+      - uses: actions/checkout@1111111111111111111111111111111111111111 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: actions/download-artifact@8888888888888888888888888888888888888888 # v8.0.1
+        with: { name: "signed-${{ matrix.arch }}", path: out }
+      - name: Verify
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: bash scripts/release-mac.sh --arch "$ARCH" --ci --stage verify --dynamic --out out
+  feed:
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: release
+    permissions: { contents: read }
+    steps:
+      - uses: actions/checkout@1111111111111111111111111111111111111111 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@2222222222222222222222222222222222222222 # v7.0.0
+        with: { node-version: 24 }
+      - uses: pnpm/action-setup@3333333333333333333333333333333333333333 # v6.1.0
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Sign feed
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: bash scripts/ci/run-feed.sh
+  publish:
+    needs: [verify, feed]
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions: { contents: write, id-token: write, attestations: write }
+    steps:
+      - uses: actions/checkout@1111111111111111111111111111111111111111 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@2222222222222222222222222222222222222222 # v7.0.0
+        with: { node-version: 24 }
+      - uses: actions/download-artifact@8888888888888888888888888888888888888888 # v8.0.1
+        with: { path: dist }
+      - name: Release
+        env:
+          TAG: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          bash scripts/release-mac.sh --sums-only dist-arm64 dist-x64 > SHA256SUMS
+          node scripts/release/notes.mjs
+          gh release create "$TAG" --draft --prerelease --verify-tag --notes-file release-notes.md SHA256SUMS

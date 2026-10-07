@@ -1,0 +1,178 @@
+[
+ {
+  "kind": "session.started",
+  "nativeId": "c1bee90f-cc95-4328-afaf-4775f63c71b1",
+  "model": "claude-haiku-4-5-20251001",
+  "effective": {
+   "effort": null,
+   "permission": "ask"
+  },
+  "auth": {
+   "mode": "subscription",
+   "source": "none"
+  },
+  "seq": 1,
+  "ts": 0
+ },
+ {
+  "kind": "status",
+  "state": "thinking",
+  "seq": 2,
+  "ts": 0
+ },
+ {
+  "kind": "status",
+  "state": "running",
+  "seq": 3,
+  "ts": 0
+ },
+ {
+  "kind": "thinking.delta",
+  "messageId": "msg_011Cfe1WAjDY3aafdKmGTVLG:0",
+  "text": "The",
+  "seq": 4,
+  "ts": 0
+ },
+ {
+  "kind": "thinking.delta",
+  "messageId": "msg_011Cfe1WAjDY3aafdKmGTVLG:0",
+  "text": " user is",
+  "seq": 5,
+  "ts": 0
+ },
+ {
+  "kind": "thinking.delta",
+  "messageId": "msg_011Cfe1WAjDY3aafdKmGTVLG:0",
+  "text": " asking me to reply",
+  "seq": 6,
+  "ts": 0
+ },
+ {
+  "kind": "thinking.delta",
+  "messageId": "msg_011Cfe1WAjDY3aafdKmGTVLG:0",
+  "text": " with exactly the word",
+  "seq": 7,
+  "ts": 0
+ },
+ {
+  "kind": "thinking.delta",
+  "messageId": "msg_011Cfe1WAjDY3aafdKmGTVLG:0",
+  "text": ":",
+  "seq": 8,
+  "ts": 0
+ },
+ {
+  "kind": "thinking.delta",
+  "messageId": "msg_011Cfe1WAjDY3aafdKmGTVLG:0",
+  "text": " OK\n\nThis",
+  "seq": 9,
+  "ts": 0
+ },
+ {
+  "kind": "thinking.delta",
+  "messageId": "msg_011Cfe1WAjDY3aafdKmGTVLG:0",
+  "text": " is a simple instruction",
+  "seq": 10,
+  "ts": 0
+ },
+ {
+  "kind": "thinking.delta",
+  "messageId": "msg_011Cfe1WAjDY3aafdKmGTVLG:0",
+  "text": ".",
+  "seq": 11,
+  "ts": 0
+ },
+ {
+  "kind": "thinking.delta",
+  "messageId": "msg_011Cfe1WAjDY3aafdKmGTVLG:0",
+  "text": " I should",
+  "seq": 12,
+  "ts": 0
+ },
+ {
+  "kind": "thinking.delta",
+  "messageId": "msg_011Cfe1WAjDY3aafdKmGTVLG:0",
+  "text": " respond with just \"",
+  "seq": 13,
+  "ts": 0
+ },
+ {
+  "kind": "thinking.delta",
+  "messageId": "msg_011Cfe1WAjDY3aafdKmGTVLG:0",
+  "text": "OK\" and",
+  "seq": 14,
+  "ts": 0
+ },
+ {
+  "kind": "thinking.delta",
+  "messageId": "msg_011Cfe1WAjDY3aafdKmGTVLG:0",
+  "text": " nothing else.",
+  "seq": 15,
+  "ts": 0
+ },
+ {
+  "kind": "text.delta",
+  "messageId": "msg_011Cfe1WAjDY3aafdKmGTVLG:1",
+  "text": "OK",
+  "seq": 16,
+  "ts": 0
+ },
+ {
+  "kind": "text.done",
+  "messageId": "msg_011Cfe1WAjDY3aafdKmGTVLG:1",
+  "text": "OK",
+  "seq": 17,
+  "ts": 0
+ },
+ {
+  "kind": "usage",
+  "usage": {
+   "model": "claude-haiku-4-5-20251001",
+   "costBasis": "subscription",
+   "contextSize": 200000,
+   "perTurn": {
+    "inputTokens": 909,
+    "outputTokens": 52,
+    "cacheRead": 8782,
+    "cacheWrite": 8798,
+    "reasoningTokens": 37,
+    "costUsd": 0.0196432
+   },
+   "cumulative": {
+    "inputTokens": 909,
+    "outputTokens": 52,
+    "cacheRead": 8782,
+    "cacheWrite": 8798,
+    "reasoningTokens": 37,
+    "costUsd": 0.0196432
+   },
+   "perModel": [
+    {
+     "model": "claude-haiku-4-5-20251001",
+     "tokens": {
+      "inputTokens": 909,
+      "outputTokens": 52,
+      "cacheRead": 8782,
+      "cacheWrite": 8798,
+      "reasoningTokens": 37,
+      "costUsd": 0.0196432
+     }
+    }
+   ]
+  },
+  "seq": 18,
+  "ts": 0
+ },
+ {
+  "kind": "status",
+  "state": "idle",
+  "seq": 19,
+  "ts": 0
+ },
+ {
+  "kind": "turn.end",
+  "stopReason": "endTurn",
+  "seq": 20,
+  "ts": 0
+ }
+]

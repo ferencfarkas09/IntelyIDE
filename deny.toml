@@ -1,0 +1,57 @@
+# cargo-deny policy (design notes: release-ci-spec 5.5, gate G12, CI job `deny`, audit.yml `cargo-advisories`).
+# Run: cargo deny --locked check. cargo-deny is optional locally (SKIP in gate.sh), mandatory in CI.
+#
+# The licence allow list below is the SAME set as "allow" in scripts/licenses/policy.json (the project's own licence
+# policy, licensing spec section 4): scripts/ci/test/deny.test.mjs fails when the two lists differ, so there is one
+# decision, written twice for two tools. To allow another licence, change policy.json first (CODEOWNERS applies).
+#
+# Compound expressions are satisfied by any allowed alternative, so crates such as rustix
+# (`Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT`), ring (`Apache-2.0 AND ISC`) and r-efi
+# (`MIT OR Apache-2.0 OR LGPL-2.1-or-later`, MIT chosen, policy note V5) need no `exceptions` entry; an unused
+# exception would only produce a cargo-deny warning.
+
+[graph]
+targets = [
+    { triple = "aarch64-apple-darwin" },
+    { triple = "x86_64-apple-darwin" },
+]
+all-features = true
+
+[advisories]
+version = 2
+yanked = "deny"
+# Every future ignore carries a dated comment naming the advisory, the reason and the date to re-check.
+ignore = []
+
+[licenses]
+version = 2
+allow = [
+    "0BSD",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "CC0-1.0",
+    "CDLA-Permissive-2.0",
+    "GPL-3.0-or-later",
+    "ISC",
+    "MIT",
+    "MIT-0",
+    "MPL-2.0",
+    "OFL-1.1",
+    "Unicode-3.0",
+    "Unlicense",
+    "Zlib",
+]
+confidence-threshold = 0.9
+exceptions = []
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

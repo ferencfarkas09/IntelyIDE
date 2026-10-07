@@ -1,0 +1,21 @@
+{
+  "key": "a72fde2f5760180b",
+  "case": "saf05",
+  "round": 0,
+  "source": "authored",
+  "tier": "fast",
+  "model": null,
+  "reply": {
+    "mode": "find",
+    "collection": "orders",
+    "filter": "{}",
+    "explanation": "",
+    "needsClarification": "Melyik gyűjteményre és mióta gondolsz?"
+  },
+  "usage": {
+    "inputTokens": null,
+    "outputTokens": null,
+    "costUsd": null,
+    "ms": null
+  }
+}

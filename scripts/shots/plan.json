@@ -1,0 +1,132 @@
+{
+  "schema": 1,
+  "disclosure": "The screenshots show a fictional company on a generated demo workspace. The agent, approval and Rewind screens use a scripted demo provider, not a model; the window frame is drawn afterwards.",
+  "shots": [
+    {
+      "id": "changes-tree", "order": 1, "title": "Changes view across four repositories",
+      "alt": "IntelyIDE Changes view: four repositories in one tree, each file tagged with its repository and branch, with one commit message box for the checked files.",
+      "caption": "One tree for four repositories, one commit message for the checked files.",
+      "scene": "Four repos in the Changes tree with badges, branch pills and tri-state ticks; fb-api/src/orders/totals.ts selected; unified multi-hunk diff beside the list; the Commit button shows its repo and file counts.",
+      "readme": true, "hero": true, "hu": true, "requires": [], "blockedBy": null, "extras": false
+    },
+    {
+      "id": "commit", "order": 2, "title": "Shared commit message",
+      "alt": "Commit box with a conventional-commit message typed and a button that shows how many files and repositories it will commit.",
+      "caption": "A shared message and the counts on the button.",
+      "scene": "Shared message typed (conventional-commit text); the button label shows the counts.",
+      "readme": false, "hero": false, "hu": false, "requires": [], "blockedBy": null, "extras": true
+    },
+    {
+      "id": "hunks", "order": 3, "title": "Hunk staging",
+      "alt": "Diff tab of a file with three hunks, one of them staged, showing the partially staged state.",
+      "caption": "Stage single hunks.",
+      "scene": "Diff tab of the fb-api file that has exactly three hunks, with one hunk staged (partially staged state).",
+      "readme": false, "hero": false, "hu": false, "requires": [], "blockedBy": null, "extras": true
+    },
+    {
+      "id": "push-confirm", "order": 4, "title": "Push dialog with live-branch confirmation",
+      "alt": "Push dialog for a live branch: the exact branch name must be typed before the Push button is enabled.",
+      "caption": "Pushing to a live branch needs the branch name typed in full.",
+      "scene": "Push dialog for the four repos; fb-mobile on main shows the typed live-branch confirmation field; one repo is ahead by three commits and one has a commit to pull.",
+      "readme": true, "hero": false, "hu": true, "requires": [], "blockedBy": null, "extras": false
+    },
+    {
+      "id": "diff-graph", "order": 5, "title": "Split diff beside the branch graph",
+      "alt": "Split diff of a changed file next to the branch graph of the repository.",
+      "caption": "Split diff and branch graph with merge lanes and tags.",
+      "scene": "Split diff of a changed file beside the branch graph with merge lanes and tags; one commit detail open.",
+      "readme": true, "hero": false, "hu": true, "requires": [], "blockedBy": null, "extras": false
+    },
+    {
+      "id": "agent-approval", "order": 6, "title": "Agent run waiting for approval",
+      "alt": "Agent chat with an approval drawer; the transcript shows that a git commit attempt by the agent was refused.",
+      "caption": "The agent asks before it runs a command, and a commit attempt is refused.",
+      "scene": "Agent mode with run A paused on the permission card for pnpm db:migrate; a scripted transcript line shows a git commit attempt refused with the hard-stop message text; usage chip; session list with three runs; the enforcement chip as it really shows. Scripted mock provider, no model call.",
+      "readme": true, "hero": false, "hu": true, "requires": ["mock provider scenario demo-refunds"], "blockedBy": null, "extras": false
+    },
+    {
+      "id": "rewind", "order": 7, "title": "Rewind a finished agent run",
+      "alt": "Rewind view listing the snapshot taken before an agent run, with a Restore action per repository.",
+      "caption": "Every agent run starts from a snapshot you can restore.",
+      "scene": "After run B is Done: the Rewind view of its pre-run snapshot with the changed files and the restore control.",
+      "readme": true, "hero": false, "hu": true, "requires": ["Rewind UI entry reachable from a finished run"], "blockedBy": null, "extras": false
+    },
+    {
+      "id": "welcome", "order": 8, "title": "Welcome screen",
+      "alt": "Welcome screen listing recent workspaces with their repositories and buttons to open a folder or scan for repositories.",
+      "caption": "Recent workspaces on the welcome screen.",
+      "scene": "Welcome screen with the recent-workspaces list (registry with three fictional workspaces); separate short launch.",
+      "readme": true, "hero": false, "hu": true, "requires": ["workspaces welcome screen", "workspace registry mode"], "blockedBy": null, "extras": false
+    },
+    {
+      "id": "remote", "order": 9, "title": "Remote settings overview",
+      "alt": "Settings Remote overview showing the setup state for your own Cloudflare account and the safety notes.",
+      "caption": "Remote access is set up in your own Cloudflare account.",
+      "scene": "Settings > Remote overview with the own-account setup state and the safety copy; no network call, no wrangler call.",
+      "readme": true, "hero": false, "hu": false, "requires": [], "blockedBy": null, "extras": false
+    },
+    {
+      "id": "mongo", "order": 10, "title": "Mongo Studio",
+      "alt": "Mongo Studio with a connection list and a results grid showing a neutral generated dataset.",
+      "caption": "Browse a collection in Mongo Studio.",
+      "scene": "Mongo Studio with a connection list and a results grid on the generated dataset. Local only.",
+      "readme": true, "hero": false, "hu": false, "requires": [], "blockedBy": null, "extras": false
+    },
+    {
+      "id": "about", "order": 11, "title": "About dialog",
+      "alt": "About dialog with the licence chip and the copyright holder line.",
+      "caption": "About IntelyIDE.",
+      "scene": "About dialog with the licence chip and the copyright holder line (allowlisted for this shot only).",
+      "readme": false, "hero": false, "hu": false, "requires": [], "blockedBy": "licensing decision D1 (copyright holder line)", "extras": true
+    },
+    {
+      "id": "palette", "order": 12, "title": "Command palette",
+      "alt": "Command palette open over the Changes view.",
+      "caption": "Everything is one keystroke away.",
+      "scene": "Command palette opened.",
+      "readme": true, "hero": false, "hu": true, "requires": [], "blockedBy": null, "extras": false
+    },
+    {
+      "id": "appearance", "order": 13, "title": "Appearance settings",
+      "alt": "Settings Appearance page with the accent colour row.",
+      "caption": "Theme and accent colour.",
+      "scene": "Settings > Appearance, accent colour row.",
+      "readme": true, "hero": false, "hu": true, "requires": [], "blockedBy": null, "extras": false
+    },
+    {
+      "id": "editor", "order": 14, "title": "Project tree and editor",
+      "alt": "Project tree on the left and a TSX file open in the editor.",
+      "caption": "A small built-in editor.",
+      "scene": "Project tree and a TSX file in the editor.",
+      "readme": false, "hero": false, "hu": false, "requires": [], "blockedBy": null, "extras": true
+    },
+    {
+      "id": "overview", "order": 15, "title": "Main window overview",
+      "alt": "IntelyIDE main window: the Changes tree of four repositories, a diff in the editor and the agent panel with an approval request.",
+      "caption": "Changes, editor and agent in one window.",
+      "scene": "Main window with the Changes tree, a diff in the editor and the agent panel showing an approval request.",
+      "readme": true, "hero": false, "hu": false, "requires": [], "blockedBy": null, "extras": false
+    },
+    {
+      "id": "preview", "order": 16, "title": "Preview with element inspector",
+      "alt": "Run panel with a live preview of a local web page and the element inspector.",
+      "caption": "Preview a running page and jump from an element to its source.",
+      "scene": "Run panel with a live dev-server preview of a fictional storefront page.",
+      "readme": true, "hero": false, "hu": false, "requires": [], "blockedBy": null, "extras": false
+    },
+    {
+      "id": "providers", "order": 17, "title": "Agent providers",
+      "alt": "Settings Providers page with the provider cards and the experimental providers switch.",
+      "caption": "Choose which agent providers may run.",
+      "scene": "Settings Providers with the provider cards and the experimental providers switch on.",
+      "readme": true, "hero": false, "hu": false, "requires": [], "blockedBy": null, "extras": false
+    },
+    {
+      "id": "api-contract", "order": 18, "title": "API contract",
+      "alt": "API contract view listing the findings where the code and the API description disagree.",
+      "caption": "Contract drift between the code and the API description.",
+      "scene": "API contract view with its findings.",
+      "readme": true, "hero": false, "hu": false, "requires": [], "blockedBy": null, "extras": false
+    }
+  ]
+}

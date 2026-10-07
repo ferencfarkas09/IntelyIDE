@@ -1,0 +1,20 @@
+{
+  "key": "c6c00edda7681d22",
+  "case": "hu15",
+  "round": 0,
+  "source": "authored",
+  "tier": "fast",
+  "model": null,
+  "reply": {
+    "mode": "find",
+    "collection": "restaurants",
+    "filter": "{\"active\":false}",
+    "explanation": "Az inaktív éttermek."
+  },
+  "usage": {
+    "inputTokens": null,
+    "outputTokens": null,
+    "costUsd": null,
+    "ms": null
+  }
+}

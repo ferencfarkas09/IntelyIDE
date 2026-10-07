@@ -1,0 +1,53 @@
+{
+  "_comment": "Hand-copied from the Happy backend serializers (services/teamChat/chatSerializer.js, chatChannel.service.js bootstrap, chatThreads.service.js). A null value means 'nullable, any type'; an empty array means 'not checked'.",
+  "user": { "_id": "5f0000000000000000000001", "name": "Teszt Elek", "avatar": "" },
+  "me": {
+    "role": "member", "isMember": true, "unreadCount": 0, "mentionCount": 0, "lastReadMessageId": "5f2000000000000000000001", "lastReadAt": "2026-10-01T10:00:00.000Z",
+    "notifyLevel": "all", "mutedUntil": null, "starred": false, "hidden": false
+  },
+  "channel": {
+    "_id": "5f1000000000000000000001", "restaurant": "5f9000000000000000000001", "type": "public", "name": "general", "description": "", "topic": "", "archived": false,
+    "createdBy": "5f0000000000000000000003", "createdAt": "2026-09-01T10:00:00.000Z", "lastMessageAt": "2026-10-01T10:00:00.000Z",
+    "lastMessagePreview": { "text": "hello", "senderName": "Nagy Péter", "at": "2026-10-01T10:00:00.000Z" },
+    "memberCount": 5, "record": null, "customer": null,
+    "directPeers": [{ "_id": "5f0000000000000000000002", "name": "Kovács Anna", "avatar": "" }],
+    "pinnedCount": 0,
+    "me": { "role": "member", "isMember": true, "unreadCount": 0, "mentionCount": 0, "lastReadMessageId": "5f2000000000000000000001", "lastReadAt": "2026-10-01T10:00:00.000Z", "notifyLevel": "all", "mutedUntil": null, "starred": false, "hidden": false }
+  },
+  "message": {
+    "_id": "5f2000000000000000000001", "channel": "5f1000000000000000000001", "restaurant": "5f9000000000000000000001",
+    "sender": { "_id": "5f0000000000000000000001", "name": "Teszt Elek", "avatar": "", "isPortal": false },
+    "bot": null, "kind": "text", "text": "hello", "systemEvent": null,
+    "mentions": { "users": ["5f0000000000000000000002"], "channel": false },
+    "attachments": [],
+    "reactions": [{ "emoji": "👍", "users": ["5f0000000000000000000001"], "count": 1 }],
+    "recordRefs": [], "meeting": null, "threadRoot": null, "replyCount": 0, "lastReplyAt": null,
+    "replyUsers": [{ "_id": "5f0000000000000000000002", "name": "Kovács Anna", "avatar": "" }],
+    "pinned": false, "pinnedBy": null, "editedAt": null, "deletedAt": null, "clientMessageId": null, "createdAt": "2026-10-01T10:00:00.000Z"
+  },
+  "bootstrap": {
+    "channels": [], "unreadTotal": 0, "mentionTotal": 0,
+    "me": { "_id": "5f0000000000000000000001", "name": "Teszt Elek", "avatar": "", "isPortal": false },
+    "restaurantId": "5f9000000000000000000001",
+    "settings": { "retentionDays": 90, "allowCustomerChannels": true, "recordingDefault": false, "whoCanCreateChannels": "everyone", "emailDigest": false },
+    "credits": { "balance": 12.5, "messageCost": 0.02, "meetingCostPerMinute": 0.4, "filePerMb": 0.1 },
+    "meetingConfigured": true,
+    "permissions": { "createChannel": true, "manageChannels": true, "startMeeting": true, "recordMeeting": true, "editSettings": true }
+  },
+  "page": { "items": [], "hasMore": false, "hasNewer": false },
+  "pageAround": { "items": [], "hasMore": false, "hasNewer": false, "anchorId": "5f2000000000000000000001", "anchorThreadRoot": null },
+  "thread": { "root": null, "items": [] },
+  "threads": { "items": [] },
+  "threadItem": { "root": null, "channel": { "_id": "5f1000000000000000000001", "name": "general", "type": "public" }, "replyCount": 3, "lastReplyAt": "2026-10-01T10:00:00.000Z", "unreadCount": 0 },
+  "member": { "_id": "5f0000000000000000000001", "name": "Teszt Elek", "avatar": "", "email": "elek@example.test", "role": "member", "isPortal": false, "joinedAt": "2026-09-01T10:00:00.000Z", "online": true },
+  "members": { "items": [] },
+  "directoryItem": { "_id": "5f0000000000000000000001", "name": "Teszt Elek", "avatar": "", "email": "elek@example.test", "role": "admin", "isPortal": false, "joinedAt": "2026-09-01T10:00:00.000Z" },
+  "directory": { "items": [] },
+  "channels": { "items": [] },
+  "readResult": { "channelId": "5f1000000000000000000001", "lastReadMessageId": "5f2000000000000000000001", "unreadCount": 0, "mentionCount": 0 },
+  "search": { "messages": [], "files": [], "people": [], "channels": [] },
+  "searchMessage": { "channelName": "general" },
+  "ok": { "ok": true },
+  "error": { "code": "NOT_FOUND", "message": "Not found" },
+  "insufficientCredits": { "code": "INSUFFICIENT_CREDITS", "message": "Insufficient AI credits", "balance": 0 }
+}

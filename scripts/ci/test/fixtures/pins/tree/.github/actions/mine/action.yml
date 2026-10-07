@@ -1,0 +1,6 @@
+name: mine
+runs:
+  using: composite
+  steps:
+    - uses: actions/checkout@PIN-ME # v1.0.0
+      shell: bash

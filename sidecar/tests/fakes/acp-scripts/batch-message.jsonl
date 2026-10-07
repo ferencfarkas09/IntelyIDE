@@ -1,0 +1,6 @@
+// A JSON-RPC batch is not part of ACP v1: the connection is a protocol violation and the turn ends with an error, once.
+{"op":"on","method":"session/prompt","then":[
+  {"op":"update","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"a"}}},
+  {"op":"raw","line":"[{\"jsonrpc\":\"2.0\",\"method\":\"x\"}]"},
+  {"op":"wait","ms":500}
+]}

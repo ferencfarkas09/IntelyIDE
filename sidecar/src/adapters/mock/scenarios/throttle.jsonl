@@ -1,0 +1,8 @@
+// Rate limit: throttled status with a retry delay, then a retry and a normal reply.
+{"op":"status","state":"running"}
+{"op":"status","dt":40,"state":"throttled","retryAfterMs":4000,"scope":"five_hour"}
+{"op":"error","dt":40,"class":"rate","message":"rate limit reached, retrying","retryable":true}
+{"op":"status","dt":80,"state":"retrying","retryAfterMs":1000,"scope":"api"}
+{"op":"text","dt":80,"id":"m1:0","text":"Recovered after the throttle."}
+{"op":"status","state":"idle"}
+{"op":"end"}

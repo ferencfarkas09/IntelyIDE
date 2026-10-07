@@ -1,0 +1,6 @@
+// AskUserQuestion round trip.
+{"op":"start","id":"t1","name":"AskUserQuestion","toolKind":"other","input":{"questions":[{"question":"Which colour?"}]}}
+{"op":"question","id":"t1","prompt":"Which colour do you prefer?","options":[{"label":"Red"},{"label":"Blue","description":"calm"}]}
+{"op":"emit","event":{"kind":"tool.result","toolId":"t1","status":"ok","output":"Your questions have been answered"}}
+{"op":"text","dt":20,"id":"m1:0","text":"Thanks, noted."}
+{"op":"end"}

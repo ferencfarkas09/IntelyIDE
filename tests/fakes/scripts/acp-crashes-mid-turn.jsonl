@@ -1,0 +1,4 @@
+// Dies in the middle of a turn: the host must emit error + turn.end(error) and release the lease.
+{"op":"on","method":"initialize","reply":{"protocolVersion":1}}
+{"op":"on","method":"session/new","reply":{"sessionId":"s1"}}
+{"op":"on","method":"session/prompt","then":[{"op":"send","msg":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"s1","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"half"}}}}},{"op":"wait","ms":30},{"op":"crash","code":3}]}

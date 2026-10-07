@@ -1,0 +1,22 @@
+{
+  "_comment": "Hand-copied from models/notification.model.js + controllers/notification.controller.js + services/notification.service.js (list/badge) and chatNotifications.service.js (chat metadata).",
+  "doc": {
+    "_id": "5f3000000000000000000001", "recipient": "5f0000000000000000000001", "title": "Kovács Anna · #general", "message": "hello", "read": false, "type": "chat",
+    "relatedId": "5f2000000000000000000001", "relatedModel": "ChatMessage", "createdAt": "2026-10-01T10:00:00.000Z", "updatedAt": "2026-10-01T10:00:00.000Z"
+  },
+  "docWithMetadata": {
+    "_id": "5f3000000000000000000001", "recipient": "5f0000000000000000000001", "title": "Kovács Anna · #general", "message": "hello", "read": false, "type": "chat",
+    "relatedId": "5f2000000000000000000001", "relatedModel": "ChatMessage", "createdAt": "2026-10-01T10:00:00.000Z", "updatedAt": "2026-10-01T10:00:00.000Z",
+    "metadata": { "type": "chat", "channelId": "5f1000000000000000000001", "messageId": "5f2000000000000000000001", "threadRoot": "", "restaurantId": "5f9000000000000000000001", "actorName": "Kovács Anna", "preview": "hello", "eventKey": "chat.message.channel" }
+  },
+  "list": { "docs": [], "total": 1, "limit": 20, "page": 1, "pages": 1 },
+  "listSkipCount": { "docs": [], "page": 1, "limit": 20, "hasMore": false },
+  "badge": { "notifications": 1, "mail": 0, "total": 1 },
+  "readAll": { "matchedCount": 1, "modifiedCount": 1 },
+  "deleted": { "message": "Notification deleted successfully" },
+  "socketEvent": {
+    "_id": "5f3000000000000000000001", "recipient": "5f0000000000000000000001", "title": "Kovács Anna · #general", "message": "hello", "read": false, "type": "chat",
+    "relatedId": "5f2000000000000000000001", "relatedModel": "ChatMessage", "createdAt": "2026-10-01T10:00:00.000Z", "updatedAt": "2026-10-01T10:00:00.000Z",
+    "metadata": { "type": "chat", "channelId": "5f1000000000000000000001", "messageId": "5f2000000000000000000001", "threadRoot": "", "restaurantId": "5f9000000000000000000001", "actorName": "Kovács Anna", "preview": "hello", "eventKey": "chat.message.channel" }
+  }
+}

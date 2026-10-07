@@ -1,0 +1,20 @@
+{
+  "key": "f9669f559d410567",
+  "case": "en13",
+  "round": 0,
+  "source": "authored",
+  "tier": "fast",
+  "model": null,
+  "reply": {
+    "mode": "find",
+    "collection": "customers",
+    "filter": "{\"birthDate\":{\"$lt\":{\"$date\":\"1970-01-01T00:00:00Z\"}}}",
+    "explanation": "Customers with a birth date before 1970."
+  },
+  "usage": {
+    "inputTokens": null,
+    "outputTokens": null,
+    "costUsd": null,
+    "ms": null
+  }
+}

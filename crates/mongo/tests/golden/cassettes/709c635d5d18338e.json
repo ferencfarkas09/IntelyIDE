@@ -1,0 +1,20 @@
+{
+  "key": "709c635d5d18338e",
+  "case": "hu35",
+  "round": 0,
+  "source": "authored",
+  "tier": "fast",
+  "model": null,
+  "reply": {
+    "mode": "find",
+    "collection": "customers",
+    "filter": "{\"deleted\":false,\"loyaltyPoints\":{\"$gte\":1000}}",
+    "explanation": "Nem törölt vendégek legalább 1000 ponttal."
+  },
+  "usage": {
+    "inputTokens": null,
+    "outputTokens": null,
+    "costUsd": null,
+    "ms": null
+  }
+}

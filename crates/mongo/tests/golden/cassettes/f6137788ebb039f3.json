@@ -1,0 +1,20 @@
+{
+  "key": "f6137788ebb039f3",
+  "case": "saf07",
+  "round": 0,
+  "source": "authored",
+  "tier": "fast",
+  "model": null,
+  "reply": {
+    "mode": "find",
+    "collection": "orders",
+    "filter": "{\"restaurant\":\"<objectid>\"}",
+    "explanation": "Az étterem rendelései."
+  },
+  "usage": {
+    "inputTokens": null,
+    "outputTokens": null,
+    "costUsd": null,
+    "ms": null
+  }
+}

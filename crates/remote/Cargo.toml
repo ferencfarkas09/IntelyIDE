@@ -1,0 +1,43 @@
+[package]
+name = "intely-remote"
+version = "0.0.0"
+edition = "2021"
+rust-version = "1.77"
+license.workspace = true
+description = "Tauri-free remote gateway: Noise-encrypted phone supervision of agent runs over an outbound relay (docs/remote-plan.md)"
+
+[lib]
+name = "intely_remote"
+
+[features]
+specta = ["dep:specta", "dep:specta-typescript", "dep:specta-serde", "intely-agent-core/specta"]
+
+[dependencies]
+base64 = "0.22.1"
+futures-util = { version = "0.3.34", default-features = false, features = ["sink", "std"] }
+getrandom = "0.4.3"
+hex = "0.4.3"
+hmac = "0.13.0"
+intely-agent-core = { version = "0.0.0", path = "../agent_core" }
+intely-settings = { version = "0.0.0", path = "../settings" }
+p256 = { version = "0.14", default-features = false, features = ["ecdsa", "std"] }
+reqwest = { version = "0.13.3", default-features = false, features = ["native-tls"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+sha2 = "0.11.0"
+snow = "0.10"
+specta = { version = "=2.0.0-rc.25", optional = true, features = ["derive"] }
+specta-serde = { version = "0.0.12", optional = true }
+specta-typescript = { version = "0.0.12", optional = true }
+subtle = "2.6.1"
+thiserror = "2.0.21"
+tokio = { version = "1.53.1", features = ["rt", "sync", "time", "macros", "net", "io-util"] }
+tokio-tungstenite = { version = "0.30.0", default-features = false, features = ["connect", "native-tls"] }
+url = "2.5.8"
+
+[dev-dependencies]
+tempfile = "3.27.0"
+
+[[example]]
+name = "gen_bindings"
+required-features = ["specta"]

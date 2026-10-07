@@ -1,0 +1,53 @@
+{
+  "schema": 1,
+  "comment": "Manual components the inventories cannot see. enabled=false entries are skipped. versionFromSidecarDev reads the version from sidecar/package.json devDependencies. textsFrom lists SPDX ids whose generic template (scripts/licenses/texts) is shown.",
+  "coversData": [],
+  "components": [
+    {
+      "id": "manual:claude-agent-sdk",
+      "kind": "manual",
+      "name": "Claude Agent SDK",
+      "versionFromSidecarDev": "@anthropic-ai/claude-agent-sdk",
+      "expression": "LicenseRef-Anthropic-Commercial",
+      "homepage": "https://code.claude.com/docs/en/legal-and-compliance",
+      "note": "Not distributed with IntelyIDE. Installed by the user on request.",
+      "distributed": false,
+      "shippedIn": []
+    },
+    {
+      "id": "manual:claude-cli",
+      "kind": "manual",
+      "name": "Claude Code CLI (claude)",
+      "version": "user-installed",
+      "expression": "LicenseRef-Anthropic-Commercial",
+      "homepage": "https://code.claude.com/docs/en/legal-and-compliance",
+      "note": "Not distributed with IntelyIDE. The user's own installation is driven; the binary is never copied into a bundle.",
+      "distributed": false,
+      "shippedIn": []
+    },
+    {
+      "id": "font:sora@5.3.0",
+      "kind": "font",
+      "name": "Sora",
+      "version": "5.3.0",
+      "expression": "OFL-1.1",
+      "homepage": "https://fontsource.org/fonts/sora",
+      "note": "Design source: the wordmark is outlined from this font into ui/src/ui-kit/brandGeometry.ts. The font files are not shipped.",
+      "distributed": true,
+      "shippedIn": ["app"],
+      "textsFrom": ["OFL-1.1"]
+    },
+    {
+      "id": "manual:nodejs",
+      "kind": "manual",
+      "name": "Node.js",
+      "version": "24",
+      "expression": "MIT",
+      "enabled": false,
+      "note": "Not bundled today (the sidecar uses the Node on the user's PATH). Enable when an externalBin or a single-executable build arrives.",
+      "distributed": true,
+      "shippedIn": ["sidecar"],
+      "textsFrom": ["MIT"]
+    }
+  ]
+}

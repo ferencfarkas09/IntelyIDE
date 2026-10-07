@@ -1,0 +1,20 @@
+{
+  "key": "0e95e6c7ea2a7793",
+  "case": "hu07",
+  "round": 0,
+  "source": "authored",
+  "tier": "fast",
+  "model": null,
+  "reply": {
+    "mode": "find",
+    "collection": "customers",
+    "filter": "{\"deleted\":true}",
+    "explanation": "A töröltnek jelölt vendégek."
+  },
+  "usage": {
+    "inputTokens": null,
+    "outputTokens": null,
+    "costUsd": null,
+    "ms": null
+  }
+}

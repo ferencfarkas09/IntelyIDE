@@ -1,0 +1,2 @@
+// The agent starts in an auto-approve mode and offers no safe one: the client must refuse to run it.
+{"op":"on","method":"session/new","reply":{"sessionId":"s1","modes":{"currentModeId":"yolo","availableModes":[{"id":"yolo","name":"YOLO"}]}}}

@@ -1,0 +1,1 @@
+{ "name": "fixture-root", "scripts": { "build": "echo build", "ci:lint": "echo lint" } }

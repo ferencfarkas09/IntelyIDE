@@ -1,0 +1,96 @@
+[
+ {
+  "kind": "session.started",
+  "nativeId": "da25a123-51eb-4744-a454-81810da60057",
+  "model": "claude-haiku-4-5-20251001",
+  "effective": {
+   "effort": null,
+   "permission": "ask"
+  },
+  "auth": {
+   "mode": "subscription",
+   "source": "none"
+  },
+  "seq": 1,
+  "ts": 0
+ },
+ {
+  "kind": "tool.start",
+  "toolId": "toolu_01D2XRVto639R8J7FB9XDBaw",
+  "name": "Write",
+  "toolKind": "edit",
+  "input": {
+   "file_path": "<tmp>/isw-s3-f3Mrqz/b.txt",
+   "content": "x"
+  },
+  "seq": 2,
+  "ts": 0
+ },
+ {
+  "kind": "tool.result",
+  "toolId": "toolu_01D2XRVto639R8J7FB9XDBaw",
+  "status": "error",
+  "output": "DENIED-BY-HOST-TEST: the human said no",
+  "durationMs": 10,
+  "seq": 3,
+  "ts": 0
+ },
+ {
+  "kind": "text.done",
+  "messageId": "msg_011Cfe1gEfsyrwdhymQh79MZ:1",
+  "text": "The write operation was refused with the reason: \"DENIED-BY-HOST-TEST: the human said no\".",
+  "seq": 4,
+  "ts": 0
+ },
+ {
+  "kind": "usage",
+  "usage": {
+   "model": "claude-haiku-4-5-20251001",
+   "costBasis": "subscription",
+   "contextSize": 200000,
+   "perTurn": {
+    "inputTokens": 940,
+    "outputTokens": 417,
+    "cacheRead": 27880,
+    "cacheWrite": 3656,
+    "reasoningTokens": 247,
+    "costUsd": 0.013125
+   },
+   "cumulative": {
+    "inputTokens": 940,
+    "outputTokens": 417,
+    "cacheRead": 27880,
+    "cacheWrite": 3656,
+    "reasoningTokens": 247,
+    "costUsd": 0.013125
+   },
+   "perModel": [
+    {
+     "model": "claude-haiku-4-5-20251001",
+     "tokens": {
+      "inputTokens": 940,
+      "outputTokens": 417,
+      "cacheRead": 27880,
+      "cacheWrite": 3656,
+      "reasoningTokens": 247,
+      "costUsd": 0.013125
+     }
+    }
+   ]
+  },
+  "seq": 5,
+  "ts": 0
+ },
+ {
+  "kind": "status",
+  "state": "idle",
+  "seq": 6,
+  "ts": 0
+ },
+ {
+  "kind": "turn.end",
+  "stopReason": "endTurn",
+  "seq": 7,
+  "ts": 0
+ }
+]

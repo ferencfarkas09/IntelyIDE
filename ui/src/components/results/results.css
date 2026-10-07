@@ -1,0 +1,87 @@
+/* Results sheet: a non-modal card floating above the status bar. Layout only; controls come from the ui-kit. */
+@keyframes results-sheet-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+.results-sheet {
+  position: fixed;
+  right: var(--space-3);
+  bottom: calc(var(--space-6) + var(--space-1));
+  z-index: var(--z-chrome);
+  display: flex;
+  flex-direction: column;
+  width: min(460px, calc(100vw - 2 * var(--space-3)));
+  max-height: min(560px, 62vh);
+  border-radius: var(--radius-4);
+  background: var(--surface-3);
+  color: var(--text-1);
+  box-shadow: var(--shadow-popover);
+  animation: results-sheet-in var(--dur) var(--ease) both;
+}
+.results-sheet__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-2);
+  min-height: 48px;
+  box-shadow: inset 0 -1px 0 var(--border-subtle);
+}
+.results-sheet[data-collapsed] .results-sheet__head { box-shadow: none; }
+.results-sheet__titles { flex: 1; min-width: 0; }
+.results-sheet__title { margin: 0; font-size: var(--text-base); font-weight: var(--weight-semibold); }
+.results-sheet__summary { margin: 0; color: var(--text-3); font-size: var(--text-xs); }
+.results-sheet__scroll { flex: 1 1 auto; min-height: 0; }
+.results-sheet__list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+
+.results-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2);
+}
+.results-row + .results-row { box-shadow: inset 0 1px 0 var(--border-subtle); }
+.results-row__head { display: flex; align-items: center; gap: var(--space-1); min-height: var(--control-md); }
+.results-row__name { flex: 1; min-width: 0; font-weight: var(--weight-medium); }
+.results-row__chip { gap: var(--space-half); flex: none; }
+.results-row__line,
+.results-row__detail { margin: 0; color: var(--text-2); font-size: var(--text-sm); }
+.results-row__line { color: var(--text-3); font-size: var(--text-xs); }
+.results-row__oid { margin-right: var(--space-1); color: var(--text-3); font-size: var(--text-xs); }
+
+.results-row__failure {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-half);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-2);
+  background: color-mix(in oklab, var(--danger-subtle) 45%, transparent);
+  box-shadow: inset 2px 0 0 var(--danger);
+}
+.results-row__failure p { margin: 0; }
+.results-row__failure-title { color: var(--danger); font-weight: var(--weight-medium); }
+.results-row__failure-text { color: var(--text-1); font-size: var(--text-sm); line-height: 1.45; }
+.results-row__hint { color: var(--text-2); font-size: var(--text-xs); }
+
+.results-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-2);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+.results-notice > .ui-icon { margin-top: 2px; flex: none; }
+.results-notice__text { flex: 1; min-width: 0; color: var(--text-1); overflow-wrap: anywhere; }
+.results-notice[data-tone="warn"] { background: var(--warn-subtle); box-shadow: inset 2px 0 0 var(--warn); }
+.results-notice[data-tone="warn"] > .ui-icon { color: var(--warn); }
+.results-notice[data-tone="info"] { background: var(--info-subtle); box-shadow: inset 2px 0 0 var(--info); }
+.results-notice[data-tone="info"] > .ui-icon { color: var(--info); }
+
+.results-row__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); }
+
+.results-output { max-height: 168px; border-radius: var(--radius-2); background: var(--surface-0); box-shadow: inset 0 0 0 1px var(--border-subtle); }
+.results-output__pre { margin: 0; padding: var(--space-1) var(--space-2); font-size: var(--text-xs); line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.results-output__line[data-stream="stderr"] { color: var(--text-2); }
+.results-output__line[data-stream="stdout"] { color: var(--text-1); }
+.results-output__empty { margin: 0; padding: var(--space-2); color: var(--text-3); font-size: var(--text-xs); }
+
+.results-confirm { margin: 0; color: var(--text-2); }

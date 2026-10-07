@@ -1,0 +1,30 @@
+{
+  // IntelyIDE Remote relay. Local development: `pnpm dev` (wrangler dev --local). The IDE deploys this relay to the USER'S OWN
+  // Cloudflare account from Settings > Remote, using a config GENERATED from this file (allow-list of keys, (design notes: remote-cloudflare-spec) 4.3);
+  // this file itself is never modified by tooling. No account_id, no routes, no remote bindings on purpose; README.md has the manual steps.
+  "name": "intely-remote-relay",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  "observability": { "enabled": false },
+  "assets": {
+    // Built and signed by remote-web (separate package); the Worker only serves it.
+    "directory": "../remote-web/dist",
+    "binding": "ASSETS",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "single-page-application",
+    // Everything the Worker itself answers must reach the script before the asset router.
+    "run_worker_first": ["/r/*", "/api/*"]
+  },
+  "durable_objects": {
+    "bindings": [
+      { "name": "ROOM", "class_name": "Room" },
+      { "name": "JOIN_LIMITER", "class_name": "JoinLimiter" }
+    ]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Room", "JoinLimiter"] }],
+  "vars": {
+    // Secrets (never in this file): VAPID_PRIVATE_KEY (raw P-256 scalar d, base64url; see scripts/gen-vapid.mjs), VAPID_PUBLIC_KEY (raw uncompressed P-256 point, base64url), VAPID_SUBJECT (mailto:/https:).
+    // Optional echo vars set by the deploy tooling, read by /api/status: RELAY_CODE_HASH, RELAY_STAMP.
+    "JOIN_RATE_PER_MIN": "30"
+  }
+}

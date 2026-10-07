@@ -1,0 +1,338 @@
+[
+ {
+  "kind": "session.started",
+  "nativeId": "1dfbbef8-7d2a-4563-bfc0-46cc12fa0e11",
+  "model": "claude-haiku-4-5-20251001",
+  "effective": {
+   "effort": null,
+   "permission": "ask"
+  },
+  "auth": {
+   "mode": "subscription",
+   "source": "none"
+  },
+  "seq": 1,
+  "ts": 0
+ },
+ {
+  "kind": "status",
+  "state": "thinking",
+  "seq": 2,
+  "ts": 0
+ },
+ {
+  "kind": "status",
+  "state": "running",
+  "seq": 3,
+  "ts": 0
+ },
+ {
+  "kind": "text.delta",
+  "messageId": "msg_011CfetQd5kvCAV84DQRVwAC:1",
+  "text": "1\n2",
+  "seq": 4,
+  "ts": 0
+ },
+ {
+  "kind": "text.delta",
+  "messageId": "msg_011CfetQd5kvCAV84DQRVwAC:1",
+  "text": "\n3\n4",
+  "seq": 5,
+  "ts": 0
+ },
+ {
+  "kind": "text.delta",
+  "messageId": "msg_011CfetQd5kvCAV84DQRVwAC:1",
+  "text": "\n5\n6",
+  "seq": 6,
+  "ts": 0
+ },
+ {
+  "kind": "text.done",
+  "messageId": "msg_011CfetQd5kvCAV84DQRVwAC:1",
+  "text": "1\n2\n3\n4\n5\n6",
+  "seq": 7,
+  "ts": 0
+ },
+ {
+  "kind": "usage",
+  "usage": {
+   "model": "claude-haiku-4-5-20251001",
+   "costBasis": "subscription",
+   "contextSize": 200000,
+   "perTurn": {
+    "inputTokens": 910,
+    "outputTokens": 12,
+    "cacheRead": 0,
+    "cacheWrite": 0,
+    "reasoningTokens": 0,
+    "costUsd": 0.00097
+   },
+   "cumulative": {
+    "inputTokens": 910,
+    "outputTokens": 12,
+    "cacheRead": 0,
+    "cacheWrite": 0,
+    "reasoningTokens": 0,
+    "costUsd": 0.00097
+   },
+   "perModel": [
+    {
+     "model": "claude-haiku-4-5-20251001",
+     "tokens": {
+      "inputTokens": 910,
+      "outputTokens": 12,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "reasoningTokens": 0,
+      "costUsd": 0.00097
+     }
+    }
+   ]
+  },
+  "seq": 8,
+  "ts": 0
+ },
+ {
+  "kind": "status",
+  "state": "idle",
+  "seq": 9,
+  "ts": 0
+ },
+ {
+  "kind": "turn.end",
+  "stopReason": "cancelled",
+  "seq": 10,
+  "ts": 0
+ },
+ {
+  "kind": "status",
+  "state": "thinking",
+  "seq": 11,
+  "ts": 0
+ },
+ {
+  "kind": "status",
+  "state": "running",
+  "seq": 12,
+  "ts": 0
+ },
+ {
+  "kind": "tool.start",
+  "toolId": "toolu_01Hvp1dYitmkW2SgVMQnz7ar",
+  "name": "Write",
+  "toolKind": "edit",
+  "input": {
+   "file_path": "<tmp>/isw-rec-GbppiG/d.txt",
+   "content": "d"
+  },
+  "seq": 13,
+  "ts": 0
+ },
+ {
+  "kind": "tool.result",
+  "toolId": "toolu_01Hvp1dYitmkW2SgVMQnz7ar",
+  "status": "ok",
+  "output": "File created successfully at: <tmp>/isw-rec-GbppiG/d.txt (file state is current in your context — no need to Read it back)",
+  "diff": {
+   "path": "<tmp>/isw-rec-GbppiG/d.txt",
+   "old": null,
+   "new": "d"
+  },
+  "durationMs": 10,
+  "seq": 14,
+  "ts": 0
+ },
+ {
+  "kind": "status",
+  "state": "thinking",
+  "seq": 15,
+  "ts": 0
+ },
+ {
+  "kind": "status",
+  "state": "running",
+  "seq": 16,
+  "ts": 0
+ },
+ {
+  "kind": "text.delta",
+  "messageId": "msg_011CfetQwjRW12JPExnwds72:1",
+  "text": "DONE",
+  "seq": 17,
+  "ts": 0
+ },
+ {
+  "kind": "text.done",
+  "messageId": "msg_011CfetQwjRW12JPExnwds72:1",
+  "text": "DONE",
+  "seq": 18,
+  "ts": 0
+ },
+ {
+  "kind": "usage",
+  "usage": {
+   "model": "claude-haiku-4-5-20251001",
+   "costBasis": "subscription",
+   "contextSize": 200000,
+   "perTurn": {
+    "inputTokens": 18,
+    "outputTokens": 266,
+    "cacheRead": 31276,
+    "cacheWrite": 570,
+    "reasoningTokens": 136,
+    "costUsd": 0.0056156
+   },
+   "cumulative": {
+    "inputTokens": 928,
+    "outputTokens": 278,
+    "cacheRead": 31276,
+    "cacheWrite": 570,
+    "reasoningTokens": 136,
+    "costUsd": 0.0065856000000000005
+   },
+   "perModel": [
+    {
+     "model": "claude-haiku-4-5-20251001",
+     "tokens": {
+      "inputTokens": 928,
+      "outputTokens": 278,
+      "cacheRead": 31276,
+      "cacheWrite": 570,
+      "reasoningTokens": 136,
+      "costUsd": 0.0065856000000000005
+     }
+    }
+   ]
+  },
+  "seq": 19,
+  "ts": 0
+ },
+ {
+  "kind": "status",
+  "state": "idle",
+  "seq": 20,
+  "ts": 0
+ },
+ {
+  "kind": "turn.end",
+  "stopReason": "endTurn",
+  "seq": 21,
+  "ts": 0
+ },
+ {
+  "kind": "status",
+  "state": "thinking",
+  "seq": 22,
+  "ts": 0
+ },
+ {
+  "kind": "status",
+  "state": "running",
+  "seq": 23,
+  "ts": 0
+ },
+ {
+  "kind": "tool.start",
+  "toolId": "toolu_01NYosi4hQmx89sA35SpDA6k",
+  "name": "Write",
+  "toolKind": "edit",
+  "input": {
+   "file_path": "<tmp>/isw-rec-GbppiG/e.txt",
+   "content": "e"
+  },
+  "seq": 24,
+  "ts": 0
+ },
+ {
+  "kind": "tool.result",
+  "toolId": "toolu_01NYosi4hQmx89sA35SpDA6k",
+  "status": "ok",
+  "output": "File created successfully at: <tmp>/isw-rec-GbppiG/e.txt (file state is current in your context — no need to Read it back)",
+  "diff": {
+   "path": "<tmp>/isw-rec-GbppiG/e.txt",
+   "old": null,
+   "new": "e"
+  },
+  "durationMs": 10,
+  "seq": 25,
+  "ts": 0
+ },
+ {
+  "kind": "status",
+  "state": "thinking",
+  "seq": 26,
+  "ts": 0
+ },
+ {
+  "kind": "status",
+  "state": "running",
+  "seq": 27,
+  "ts": 0
+ },
+ {
+  "kind": "text.delta",
+  "messageId": "msg_011CfetRCuEaCoMogZNaTFBG:1",
+  "text": "DONE",
+  "seq": 28,
+  "ts": 0
+ },
+ {
+  "kind": "text.done",
+  "messageId": "msg_011CfetRCuEaCoMogZNaTFBG:1",
+  "text": "DONE",
+  "seq": 29,
+  "ts": 0
+ },
+ {
+  "kind": "usage",
+  "usage": {
+   "model": "claude-haiku-4-5-20251001",
+   "costBasis": "subscription",
+   "contextSize": 200000,
+   "perTurn": {
+    "inputTokens": 18,
+    "outputTokens": 262,
+    "cacheRead": 32364,
+    "cacheWrite": 520,
+    "reasoningTokens": 132,
+    "costUsd": 0.005604400000000001
+   },
+   "cumulative": {
+    "inputTokens": 946,
+    "outputTokens": 540,
+    "cacheRead": 63640,
+    "cacheWrite": 1090,
+    "reasoningTokens": 268,
+    "costUsd": 0.012190000000000001
+   },
+   "perModel": [
+    {
+     "model": "claude-haiku-4-5-20251001",
+     "tokens": {
+      "inputTokens": 946,
+      "outputTokens": 540,
+      "cacheRead": 63640,
+      "cacheWrite": 1090,
+      "reasoningTokens": 268,
+      "costUsd": 0.012190000000000001
+     }
+    }
+   ]
+  },
+  "seq": 30,
+  "ts": 0
+ },
+ {
+  "kind": "status",
+  "state": "idle",
+  "seq": 31,
+  "ts": 0
+ },
+ {
+  "kind": "turn.end",
+  "stopReason": "endTurn",
+  "seq": 32,
+  "ts": 0
+ }
+]

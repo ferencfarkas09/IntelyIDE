@@ -1,0 +1,24 @@
+{
+  "key": "91f0479180c14c97",
+  "case": "hu25",
+  "round": 0,
+  "source": "live",
+  "tier": "fast",
+  "model": "claude-haiku-4-5-20251001",
+  "reply": {
+    "mode": "find",
+    "collection": "customers",
+    "filter": "{\"birthDate\":{\"$lt\":{\"$date\":\"1989-12-31T23:00:00Z\"}}}",
+    "explanation": "Customers with birthDate before 1990-01-01 (local midnight in Budapest).",
+    "confidence": "high",
+    "assumptions": [
+      "The date boundary uses Budapest timezone (UTC+1 in January), so local midnight of 1990-01-01 converts to 1989-12-31T23:00:00Z"
+    ]
+  },
+  "usage": {
+    "inputTokens": 10,
+    "outputTokens": 1077,
+    "costUsd": 0.016828,
+    "ms": 12456
+  }
+}

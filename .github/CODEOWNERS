@@ -1,0 +1,74 @@
+# Code owners (decision D-P14): every line below names the maintainer handle.
+# One path per line. With the ruleset requiring code-owner review, the owner is a logged bypass actor.
+# A dead pattern silently removes protection: scripts/release/github-files.test.mjs checks every line.
+
+# agents and safety
+/crates/agent_core/src/policy/       @ferencfarkas09
+/crates/agent_gate/                  @ferencfarkas09
+/crates/agent_host/                  @ferencfarkas09
+/crates/core/src/jail.rs             @ferencfarkas09
+/crates/core/src/exec.rs             @ferencfarkas09
+/crates/core/src/guard.rs            @ferencfarkas09
+/crates/core/src/env.rs              @ferencfarkas09
+/crates/core/src/runtime.rs          @ferencfarkas09
+/crates/settings/src/secrets.rs      @ferencfarkas09
+/src-tauri/capabilities/             @ferencfarkas09
+/src-tauri/src/agents.rs             @ferencfarkas09
+/src-tauri/src/modules/sdk_setup.rs  @ferencfarkas09
+/src-tauri/tauri.conf.json           @ferencfarkas09
+/src-tauri/tauri.release.conf.json   @ferencfarkas09
+/src-tauri/Info.plist                @ferencfarkas09
+/src-tauri/entitlements-node.plist   @ferencfarkas09
+/src-tauri/build.rs                  @ferencfarkas09
+/src-tauri/src/integrity.rs          @ferencfarkas09
+
+# update path: the updater module, its public key and its endpoint configuration
+/src-tauri/src/modules/updater.rs  @ferencfarkas09
+/crates/updater/src/keys.rs        @ferencfarkas09
+/crates/updater/src/endpoints.rs   @ferencfarkas09
+/site/data/release.json            @ferencfarkas09
+/site/data/update/                 @ferencfarkas09
+
+# sidecar: environment, SDK loading and provider adapters
+/sidecar/src/env.ts          @ferencfarkas09
+/sidecar/src/sdk.ts          @ferencfarkas09
+/sidecar/src/sdk-install.ts  @ferencfarkas09
+/sidecar/src/adapters/       @ferencfarkas09
+
+# network-capable and exposed surfaces
+/crates/remote/         @ferencfarkas09
+/crates/relay_bundle/   @ferencfarkas09
+/crates/relay_deploy/   @ferencfarkas09
+/remote-relay/          @ferencfarkas09
+/remote-web/            @ferencfarkas09
+/crates/preview-proxy/  @ferencfarkas09
+/crates/mongo/          @ferencfarkas09
+/crates/term/           @ferencfarkas09
+
+# supply-chain trust roots and lockfiles
+/sidecar/sdk-pin/                       @ferencfarkas09
+/sidecar/package.json                   @ferencfarkas09
+/package.json                           @ferencfarkas09
+/pnpm-workspace.yaml                    @ferencfarkas09
+/pnpm-lock.yaml                         @ferencfarkas09
+/Cargo.lock                             @ferencfarkas09
+/remote-relay/pnpm-lock.yaml            @ferencfarkas09
+/remote-web/pnpm-lock.yaml              @ferencfarkas09
+/deny.toml                              @ferencfarkas09
+/scripts/release/node-pin.json          @ferencfarkas09
+/scripts/release/forbidden-strings.txt  @ferencfarkas09
+
+# governance and release path
+/docs/safety.md           @ferencfarkas09
+/SECURITY.md              @ferencfarkas09
+/LICENSE                  @ferencfarkas09
+/LICENSES/                @ferencfarkas09
+/REUSE.toml               @ferencfarkas09
+/TRADEMARKS.md            @ferencfarkas09
+/THIRD_PARTY_LICENSES.md  @ferencfarkas09
+/.github/                 @ferencfarkas09
+/.gitattributes           @ferencfarkas09
+/scripts/release/         @ferencfarkas09
+/scripts/release-mac.sh   @ferencfarkas09
+/scripts/ci/              @ferencfarkas09
+/scripts/licenses/        @ferencfarkas09

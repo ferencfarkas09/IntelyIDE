@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "useRules": "publish-scan",
+  "local": "scripts/licenses/publish-scan.local.json",
+  "rules": [
+    { "id": "home-path", "pattern": "[/]Users[/](?!Shared\\b)[^\\s/]", "flags": "", "severity": "error", "allowShots": [] },
+    { "id": "var-folders", "pattern": "(?<![A-Za-z0-9._~-])[/]var[/]folders\\b", "flags": "", "severity": "error", "allowShots": [] },
+    { "id": "private-path", "pattern": "(?<![A-Za-z0-9._~-])[/]private[/]", "flags": "", "severity": "error", "allowShots": [] },
+    { "id": "tmp-path", "pattern": "(?<![A-Za-z0-9._~-])[/]tmp[/]", "flags": "", "severity": "error", "allowShots": [] },
+    { "id": "email-address", "pattern": "[A-Za-z0-9._%+-]+@(?![A-Za-z0-9.-]*\\.(?:example|invalid)(?![A-Za-z0-9-]))[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)*\\.[A-Za-z]{2,}", "flags": "", "severity": "error", "allowShots": [] },
+    { "id": "temp-name-leak", "pattern": "intely-(?:demo|fixture)", "flags": "i", "severity": "error", "allowShots": [] },
+    { "id": "happy-word", "pattern": "\\bHappy\\b", "flags": "", "severity": "warn", "allowShots": [] }
+  ]
+}

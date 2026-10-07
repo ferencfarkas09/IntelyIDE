@@ -1,0 +1,8 @@
+// The agent asks permission to run `git commit`; the client must answer reject (hard stop) and the agent then reports it was refused.
+{"op":"on","method":"initialize","reply":{"protocolVersion":1,"agentCapabilities":{}}}
+{"op":"on","method":"session/new","reply":{"sessionId":"s1"}}
+{"op":"on","method":"session/prompt","then":[
+  {"op":"request","name":"perm","msg":{"jsonrpc":"2.0","id":"p1","method":"session/request_permission","params":{"sessionId":"s1","toolCall":{"toolCallId":"c1","title":"git commit -m x","kind":"execute"},"options":[{"optionId":"allow","kind":"allow_once"},{"optionId":"reject","kind":"reject_once"}]}}},
+  {"op":"send","msg":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"s1","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"asked"}}}}},
+  {"op":"send","msg":{"jsonrpc":"2.0","id":"end","method":"fake/prompt_done","params":{"stopReason":"end_turn"}}}
+]}

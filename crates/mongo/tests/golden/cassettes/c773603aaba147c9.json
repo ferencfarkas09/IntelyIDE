@@ -1,0 +1,23 @@
+{
+  "key": "c773603aaba147c9",
+  "case": "hu42",
+  "round": 0,
+  "source": "live",
+  "tier": "fast",
+  "model": "claude-haiku-4-5-20251001",
+  "reply": {
+    "mode": "find",
+    "collection": "orders",
+    "filter": "{\"status\":\"refunded\"}",
+    "sort": "{\"createdAt\":-1}",
+    "limit": 3,
+    "explanation": "The 3 most recent refunded orders, sorted by creation date in descending order.",
+    "confidence": "high"
+  },
+  "usage": {
+    "inputTokens": 10,
+    "outputTokens": 1563,
+    "costUsd": 0.020134,
+    "ms": 17324
+  }
+}

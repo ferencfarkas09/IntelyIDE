@@ -1,0 +1,102 @@
+#!/bin/bash
+# Fake `security` for the signing tests. Keeps a keychain search list in $FAKE_STATE/keychains, appends
+# one line per call to $FAKE_LOG WITHOUT any password (only flags, lengths, hashes and checks), and checks
+# on every call that the values listed in $FAKE_MASK_EXPECT_FILE were already announced with ::add-mask::
+# in $FAKE_OUT_FILE (the captured stdout of the script under test): "masked before first use".
+# FAKE_SECURITY_FAIL=create|unlock|import|partition|list-set|find makes that subcommand fail.
+# FAKE_NO_IDENTITY=1 makes find-identity report none.
+sub="${1:-}"
+shift || true
+log() { echo "security $*" >> "${FAKE_LOG:?}"; }
+sha() { printf '%s' "$1" | /usr/bin/shasum | cut -c1-12; }
+
+if [ -n "${FAKE_MASK_EXPECT_FILE:-}" ] && [ -n "${FAKE_OUT_FILE:-}" ]; then
+  missing=0
+  while IFS= read -r want; do
+    [ -n "$want" ] || continue
+    grep -qxF -- "::add-mask::$want" "$FAKE_OUT_FILE" || missing=$((missing + 1))
+  done < "$FAKE_MASK_EXPECT_FILE"
+  log "$sub mask-check missing=$missing"
+fi
+
+fmt_list() { while IFS= read -r p; do [ -n "$p" ] && printf '    "%s"\n' "$p"; done; }
+state="${FAKE_STATE:?}"
+touch "$state/keychains"
+
+case "$sub" in
+  create-keychain)
+    pass=""
+    while [ $# -gt 1 ]; do
+      case "$1" in -p) pass="$2"; shift 2 ;; *) shift ;; esac
+    done
+    kc="$1"
+    [ "${FAKE_SECURITY_FAIL:-}" = "create" ] && { echo "fake security: create failed" >&2; exit 1; }
+    : > "$kc"
+    echo "$(sha "$pass")" > "$state/kcpass.sha"
+    log "create-keychain passlen=${#pass}"
+    ;;
+  set-keychain-settings) log "set-keychain-settings" ;;
+  unlock-keychain)
+    pass=""
+    while [ $# -gt 1 ]; do
+      case "$1" in -p) pass="$2"; shift 2 ;; *) shift ;; esac
+    done
+    [ "${FAKE_SECURITY_FAIL:-}" = "unlock" ] && exit 1
+    if [ "$(sha "$pass")" = "$(cat "$state/kcpass.sha" 2>/dev/null)" ]; then log "unlock-keychain pass=ok"; else log "unlock-keychain pass=BAD"; exit 1; fi
+    ;;
+  import)
+    file="$1"
+    shift
+    pass=""
+    while [ $# -gt 0 ]; do
+      case "$1" in -P) pass="$2"; shift 2 ;; *) shift ;; esac
+    done
+    mode="$(stat -f %Lp "$file" 2>/dev/null || stat -c %a "$file" 2>/dev/null)"
+    log "import p12mode=$mode p12exists=$([ -s "$file" ] && echo yes || echo no)"
+    if [ "${FAKE_SECURITY_FAIL:-}" = "import" ]; then
+      echo "SecKeychainItemImport: wrong passphrase: $pass" >&2
+      echo "SecKeychainItemImport: generic failure" >&2
+      exit 1
+    fi
+    if [ "$pass" != "${FAKE_EXPECT_P12_PASS:-}" ]; then log "import pass=BAD"; exit 1; fi
+    log "import pass=ok"
+    ;;
+  set-key-partition-list)
+    [ "${FAKE_SECURITY_FAIL:-}" = "partition" ] && exit 1
+    log "set-key-partition-list"
+    ;;
+  list-keychains)
+    set_list=0
+    paths=()
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        -d) shift 2 ;;
+        -s) set_list=1; shift ;;
+        *) paths+=("$1"); shift ;;
+      esac
+    done
+    if [ "$set_list" = "1" ]; then
+      [ "${FAKE_SECURITY_FAIL:-}" = "list-set" ] && exit 1
+      printf '%s\n' ${paths[@]+"${paths[@]}"} > "$state/keychains"
+      log "list-keychains -s n=${#paths[@]}"
+    else
+      fmt_list < "$state/keychains"
+    fi
+    ;;
+  find-identity)
+    [ "${FAKE_SECURITY_FAIL:-}" = "find" ] && exit 1
+    if [ "${FAKE_NO_IDENTITY:-}" = "1" ]; then
+      echo "     0 valid identities found"
+    else
+      echo '  1) 0123456789ABCDEF0123456789ABCDEF01234567 "Developer ID Application: Fake Name (TEAM123456)"'
+      echo "     1 valid identities found"
+    fi
+    log "find-identity"
+    ;;
+  delete-keychain)
+    rm -f "$1"
+    log "delete-keychain"
+    ;;
+  *) echo "fake security: unexpected subcommand $sub" >&2; exit 99 ;;
+esac
+exit 0

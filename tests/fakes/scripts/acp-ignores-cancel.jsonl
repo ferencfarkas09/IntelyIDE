@@ -1,0 +1,5 @@
+// A long turn that ignores session/cancel: the client must escalate (SIGTERM, then SIGKILL) and still end with one turn.end.
+{"op":"on","method":"initialize","reply":{"protocolVersion":1}}
+{"op":"on","method":"session/new","reply":{"sessionId":"s1"}}
+{"op":"on","method":"session/cancel","ignore":true}
+{"op":"on","method":"session/prompt","then":[{"op":"send","msg":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"s1","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"working"}}}}},{"op":"hang"}]}

@@ -1,0 +1,258 @@
+{
+  "allKinds": [
+    "session.started",
+    "user.message",
+    "text.delta",
+    "text.done",
+    "thinking.delta",
+    "tool.start",
+    "tool.update",
+    "tool.result",
+    "permission.request",
+    "permission.resolved",
+    "question.request",
+    "plan",
+    "usage",
+    "status",
+    "error",
+    "turn.end",
+    "session.info"
+  ],
+  "batchMaxEvents": 64,
+  "batchMaxMs": 33,
+  "bypassKeeps": [
+    "git",
+    "gitTricks",
+    "protectedPaths",
+    "persistence",
+    "secrets",
+    "wrangler",
+    "ideState",
+    "procEnv",
+    "isolation",
+    "catastrophic"
+  ],
+  "cancelSoftMs": 5000,
+  "cancelTermMs": 3000,
+  "heartbeatMs": 2000,
+  "leaseTtlMs": 15000,
+  "policyReplyTimeoutMs": 2000,
+  "protocolVersion": 1,
+  "sdkToolCoverage": [
+    {
+      "input": "AgentInput",
+      "kind": "spawn",
+      "tool": "Agent"
+    },
+    {
+      "input": "BashInput",
+      "kind": "exec",
+      "tool": "Bash"
+    },
+    {
+      "input": "ExitPlanModeInput",
+      "kind": "planMode",
+      "tool": "ExitPlanMode"
+    },
+    {
+      "input": "FileEditInput",
+      "kind": "write",
+      "tool": "Edit"
+    },
+    {
+      "input": "FileReadInput",
+      "kind": "read",
+      "tool": "Read"
+    },
+    {
+      "input": "FileWriteInput",
+      "kind": "write",
+      "tool": "Write"
+    },
+    {
+      "input": "GlobInput",
+      "kind": "read",
+      "tool": "Glob"
+    },
+    {
+      "input": "GrepInput",
+      "kind": "read",
+      "tool": "Grep"
+    },
+    {
+      "input": "TaskStopInput",
+      "kind": "otherKnown",
+      "tool": "TaskStop"
+    },
+    {
+      "input": "ListMcpResourcesInput",
+      "kind": "mcp",
+      "tool": "ListMcpResourcesTool"
+    },
+    {
+      "input": "RefreshMcpToolsInput",
+      "kind": "mcp",
+      "tool": "RefreshMcpTools"
+    },
+    {
+      "input": "McpInput",
+      "kind": "otherStateChange",
+      "tool": "Mcp"
+    },
+    {
+      "input": "NotebookEditInput",
+      "kind": "write",
+      "tool": "NotebookEdit"
+    },
+    {
+      "input": "ReadMcpResourceDirInput",
+      "kind": "mcp",
+      "tool": "ReadMcpResourceDir"
+    },
+    {
+      "input": "ReadMcpResourceInput",
+      "kind": "mcp",
+      "tool": "ReadMcpResourceTool"
+    },
+    {
+      "input": "ReportFindingsInput",
+      "kind": "otherKnown",
+      "tool": "ReportFindings"
+    },
+    {
+      "input": "TodoWriteInput",
+      "kind": "otherKnown",
+      "tool": "TodoWrite"
+    },
+    {
+      "input": "WebFetchInput",
+      "kind": "net",
+      "tool": "WebFetch"
+    },
+    {
+      "input": "WebSearchInput",
+      "kind": "net",
+      "tool": "WebSearch"
+    },
+    {
+      "input": "AskUserQuestionInput",
+      "kind": "otherKnown",
+      "tool": "AskUserQuestion"
+    },
+    {
+      "input": "SendFeedbackInput",
+      "kind": "otherStateChange",
+      "tool": "SendFeedback"
+    },
+    {
+      "input": "ClaudeDesignInput",
+      "kind": "otherStateChange",
+      "tool": "ClaudeDesign"
+    },
+    {
+      "input": "ProjectsInput",
+      "kind": "otherStateChange",
+      "tool": "Projects"
+    },
+    {
+      "input": "EnterPlanModeInput",
+      "kind": "planMode",
+      "tool": "EnterPlanMode"
+    },
+    {
+      "input": "TaskCreateInput",
+      "kind": "otherKnown",
+      "tool": "TaskCreate"
+    },
+    {
+      "input": "TaskGetInput",
+      "kind": "otherKnown",
+      "tool": "TaskGet"
+    },
+    {
+      "input": "TaskUpdateInput",
+      "kind": "otherKnown",
+      "tool": "TaskUpdate"
+    },
+    {
+      "input": "TaskListInput",
+      "kind": "otherKnown",
+      "tool": "TaskList"
+    },
+    {
+      "input": "WorkflowInput",
+      "kind": "otherStateChange",
+      "tool": "Workflow"
+    },
+    {
+      "input": "CronCreateInput",
+      "kind": "otherStateChange",
+      "tool": "CronCreate"
+    },
+    {
+      "input": "CronDeleteInput",
+      "kind": "otherStateChange",
+      "tool": "CronDelete"
+    },
+    {
+      "input": "CronListInput",
+      "kind": "otherKnown",
+      "tool": "CronList"
+    },
+    {
+      "input": "ScheduleWakeupInput",
+      "kind": "otherStateChange",
+      "tool": "ScheduleWakeup"
+    },
+    {
+      "input": "RemoteTriggerInput",
+      "kind": "otherStateChange",
+      "tool": "RemoteTrigger"
+    },
+    {
+      "input": "ShowOnboardingRolePickerInput",
+      "kind": "otherKnown",
+      "tool": "ShowOnboardingRolePicker"
+    },
+    {
+      "input": "ReadNotificationsInput",
+      "kind": "otherKnown",
+      "tool": "ReadNotifications"
+    },
+    {
+      "input": "MonitorInput",
+      "kind": "exec",
+      "tool": "Monitor"
+    },
+    {
+      "input": "ProposeSkillsInput",
+      "kind": "otherStateChange",
+      "tool": "ProposeSkills"
+    },
+    {
+      "input": "ProposeGoalInput",
+      "kind": "otherStateChange",
+      "tool": "ProposeGoal"
+    },
+    {
+      "input": "ArtifactInput",
+      "kind": "otherStateChange",
+      "tool": "Artifact"
+    },
+    {
+      "input": "PushNotificationInput",
+      "kind": "otherStateChange",
+      "tool": "PushNotification"
+    },
+    {
+      "input": "EnterWorktreeInput",
+      "kind": "otherStateChange",
+      "tool": "EnterWorktree"
+    },
+    {
+      "input": "ExitWorktreeInput",
+      "kind": "otherStateChange",
+      "tool": "ExitWorktree"
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+/* Attachment chips, drop overlay and lightbox. Tokens only (docs/design-system.md). */
+.att-strip { display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-1) var(--space-2) 0; }
+.att-strip__chips { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+.att-strip__privacy { margin: 0; font-size: var(--text-xs); color: var(--text-3); }
+
+.att-chip { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-half); max-width: 260px; padding: 2px 2px 2px var(--space-1); background: var(--surface-3); border: 1px solid var(--border); border-radius: var(--radius-3); }
+.att-chip[data-guard], .att-chip[data-status="error"] { max-width: 100%; flex-basis: 100%; }
+.att-chip[data-guard] { border-color: var(--warn-border); background: var(--warn-subtle); }
+.att-chip[data-status="error"] { border-color: var(--danger-border); background: var(--danger-subtle); }
+.att-chip__body { display: flex; align-items: center; gap: var(--space-2); min-width: 0; flex: 1; padding: 0; background: none; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; border-radius: var(--radius-2); }
+.att-chip__body:disabled { cursor: default; }
+.att-chip__thumb { display: grid; place-items: center; flex: none; width: 28px; height: 28px; overflow: hidden; border-radius: var(--radius-2); background: var(--surface-4); color: var(--text-3); }
+.att-chip__thumb img { width: 100%; height: 100%; object-fit: cover; }
+.att-chip__text { display: flex; flex-direction: column; min-width: 0; line-height: var(--leading-tight); }
+.att-chip__name { font-size: var(--text-sm); color: var(--text-1); }
+.att-chip__meta { font-size: var(--text-xs); color: var(--text-3); }
+.att-chip__alert { display: flex; align-items: center; flex-basis: 100%; gap: var(--space-2); padding: var(--space-1) var(--space-2); font-size: var(--text-xs); }
+.att-chip__alert > span { flex: 1; min-width: 0; }
+.att-chip__alert[data-tone="warn"] { color: var(--warn); }
+.att-chip__alert[data-tone="danger"] { color: var(--danger); }
+
+.att-thumb { padding: 0; width: 120px; height: 80px; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-3); background: var(--surface-3); cursor: zoom-in; }
+.att-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.att-overlay { position: fixed; inset: 0; z-index: var(--z-popover); display: grid; place-items: center; pointer-events: none; background: var(--backdrop); backdrop-filter: blur(var(--backdrop-blur)); animation: att-fade var(--dur) var(--ease); }
+.att-overlay__pill { display: flex; flex-direction: column; align-items: center; gap: var(--space-1); padding: var(--space-4) var(--space-6); background: var(--surface-3); border: 1px solid var(--accent-border); border-radius: var(--radius-4); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35); color: var(--text-1); text-align: center; }
+.att-overlay__title { font-size: var(--text-lg); font-weight: var(--weight-semibold); }
+.att-overlay__sub { font-size: var(--text-sm); color: var(--text-2); max-width: 420px; }
+.att-overlay[data-refused] .att-overlay__pill { border-color: var(--danger-border); }
+.att-overlay__target { position: fixed; border: 2px solid var(--accent); border-radius: var(--radius-3); background: var(--accent-subtle); box-shadow: 0 0 0 4px var(--accent-subtle); transition: all var(--dur-fast) var(--ease); }
+@keyframes att-fade { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .att-overlay { animation: none; } .att-overlay__target { transition: none; } }
+
+.att-lightbox { position: fixed; inset: 0; z-index: var(--z-dialog); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-3); padding: var(--space-6); background: var(--backdrop); backdrop-filter: blur(var(--backdrop-blur)); }
+.att-lightbox__bar { display: flex; align-items: center; gap: var(--space-3); max-width: min(90vw, 900px); padding: var(--space-1) var(--space-2) var(--space-1) var(--space-3); background: var(--surface-3); border: 1px solid var(--border); border-radius: var(--radius-3); color: var(--text-1); font-size: var(--text-sm); }
+.att-lightbox__detail { color: var(--text-3); }
+.att-lightbox__img { max-width: 90vw; max-height: 78vh; object-fit: contain; border-radius: var(--radius-3); background: var(--surface-2); box-shadow: 0 16px 60px rgba(0, 0, 0, 0.5); }
+
+.att-hint { font-size: var(--text-xs); color: var(--text-3); }
+
+.att-msg { align-items: flex-start; margin-top: var(--space-1); }

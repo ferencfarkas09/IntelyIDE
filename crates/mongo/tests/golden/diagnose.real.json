@@ -1,0 +1,277 @@
+[
+ {
+  "name": "real wrong port (the port speaks HTTP)",
+  "source": "real",
+  "hint": "selection",
+  "text": "Kind: Server selection timeout: No available servers. Topology: { Type: Single, Servers: [ { Address: 127.0.0.1:27017, Type: Unknown, Error: Kind: The server returned an invalid reply to a database operation: Invalid wire protocol opcode: 1684095520, labels: {}, source: None, server response: None } ] }, labels: {}, source: None, server response: None",
+  "ctx": {
+   "hosts": [
+    "127.0.0.1"
+   ],
+   "tlsMode": "auto",
+   "hasCa": false,
+   "hasClientCert": false,
+   "tunnel": "none",
+   "relaxed": false
+  },
+  "code": "select.noServer"
+ },
+ {
+  "name": "real auth.failed (user lives in admin, URI database is shop)",
+  "source": "real",
+  "hint": "auth",
+  "text": "Kind: SCRAM failure: Authentication failed., labels: {}, source: Some(Error { kind: Command(CommandError { code: 18, code_name: \"AuthenticationFailed\", message: \"Authentication failed.\", topology_version: None, base_backoff: None }), labels: {}, wire_version: None, source: None, server_response: None }), server response: None",
+  "ctx": {
+   "hosts": [
+    "127.0.0.1"
+   ],
+   "tlsMode": "auto",
+   "hasCa": false,
+   "hasClientCert": false,
+   "tunnel": "none",
+   "relaxed": false
+  },
+  "code": "auth.failed"
+ },
+ {
+  "name": "real authz.collection (find outside the grant)",
+  "source": "real",
+  "hint": "none",
+  "text": "Unauthorized (13): not authorized on shop to execute command { find: \"products\", batchSize: 100, comment: \"intely-op-18db6039eeb5e6c8-3\", limit: 4, maxTimeMS: 15000, filter: {}, $db: \"shop\", lsid: { id: UUID(\"cd7d6dc8-c665-47fa-9bab-d18393537ea6\") } }",
+  "ctx": {
+   "hosts": [
+    "127.0.0.1"
+   ],
+   "tlsMode": "auto",
+   "hasCa": false,
+   "hasClientCert": false,
+   "tunnel": "none",
+   "relaxed": false
+  },
+  "code": "authz.collection"
+ },
+ {
+  "name": "real auth.failed (wrong password)",
+  "source": "real",
+  "hint": "auth",
+  "text": "Kind: SCRAM failure: Authentication failed., labels: {}, source: Some(Error { kind: Command(CommandError { code: 18, code_name: \"AuthenticationFailed\", message: \"Authentication failed.\", topology_version: None, base_backoff: None }), labels: {}, wire_version: None, source: None, server_response: None }), server response: None",
+  "ctx": {
+   "hosts": [
+    "127.0.0.1"
+   ],
+   "tlsMode": "auto",
+   "hasCa": false,
+   "hasClientCert": false,
+   "tunnel": "none",
+   "relaxed": false
+  },
+  "code": "auth.failed"
+ },
+ {
+  "name": "real dns.notFound (plain host does not resolve)",
+  "source": "real",
+  "hint": "selection",
+  "text": "Kind: Server selection timeout: No available servers. Topology: { Type: Unknown, Servers: [ { Address: intely-no-such-host.invalid:27017, Type: Unknown, Error: Kind: I/O error: failed to lookup address information: nodename nor servname provided, or not known, labels: {}, source: None, server response: None } ] }, labels: {}, source: None, server response: None",
+  "ctx": {
+   "hosts": [
+    "intely-no-such-host.invalid"
+   ],
+   "tlsMode": "auto",
+   "hasCa": false,
+   "hasClientCert": false,
+   "tunnel": "none",
+   "relaxed": false
+  },
+  "code": "dns.notFound"
+ },
+ {
+  "name": "real dns.srv (SRV record does not exist)",
+  "source": "real",
+  "hint": "none",
+  "text": "dns.srv: Kind: An error occurred during DNS resolution: DNS error: no records found for Query { name: Name(\"_mongodb._tcp.intely-no-such-cluster.invalid.home.\"), query_type: SRV, query_class: IN }, labels: {}, source: None, server response: None",
+  "ctx": {
+   "hosts": [
+    "intely-no-such-cluster.invalid"
+   ],
+   "tlsMode": "auto",
+   "hasCa": false,
+   "hasClientCert": false,
+   "tunnel": "none",
+   "relaxed": false
+  },
+  "code": "dns.srv"
+ },
+ {
+  "name": "real net.refused (closed loopback port)",
+  "source": "real",
+  "hint": "selection",
+  "text": "Kind: Server selection timeout: No available servers. Topology: { Type: Single, Servers: [ { Address: 127.0.0.1:27017, Type: Unknown, Error: Kind: I/O error: Connection refused (os error 61), labels: {\"RetryableError\", \"SystemOverloadedError\"}, source: None, server response: None } ] }, labels: {}, source: None, server response: None",
+  "ctx": {
+   "hosts": [
+    "127.0.0.1"
+   ],
+   "tlsMode": "auto",
+   "hasCa": false,
+   "hasClientCert": false,
+   "tunnel": "none",
+   "relaxed": false
+  },
+  "code": "net.refused"
+ },
+ {
+  "name": "real select.replicaSetName (name differs)",
+  "source": "real",
+  "hint": "selection",
+  "text": "Kind: Server selection timeout: No available servers. Topology: { Type: Single, Set Name: not-rs0, Servers: [ { Address: 127.0.0.1:27017, Type: Unknown, Error: Kind: An invalid argument was provided: Connection string replicaSet name \"not-rs0\" does not match actual name \"rs0\", labels: {}, source: None, server response: None } ] }, labels: {}, source: None, server response: None",
+  "ctx": {
+   "hosts": [
+    "127.0.0.1"
+   ],
+   "tlsMode": "auto",
+   "hasCa": false,
+   "hasClientCert": false,
+   "tunnel": "none",
+   "relaxed": false
+  },
+  "code": "select.replicaSetName"
+ },
+ {
+  "name": "real tunnel.forwardingDisabled (AllowTcpForwarding no)",
+  "source": "real",
+  "hint": "none",
+  "text": "channel 2: open failed: administratively prohibited: open failed",
+  "ctx": {
+   "tunnel": "ssh"
+  },
+  "code": "tunnel.forwardingDisabled"
+ },
+ {
+  "name": "real tunnel.hostKeyUnknown (first contact)",
+  "source": "real",
+  "hint": "none",
+  "text": "tunnel.hostKeyUnknown: this server key is not trusted yet",
+  "ctx": {
+   "tunnel": "ssh"
+  },
+  "code": "tunnel.hostKeyUnknown"
+ },
+ {
+  "name": "real tls.unknownIssuer (wrong CA file)",
+  "source": "real",
+  "hint": "selection",
+  "text": "Kind: Server selection timeout: No available servers. Topology: { Type: Single, Servers: [ { Address: 127.0.0.1:27017, Type: Unknown, Error: Kind: I/O error: invalid peer certificate: UnknownIssuer, labels: {\"RetryableError\", \"SystemOverloadedError\"}, source: None, server response: None } ] }, labels: {}, source: None, server response: None",
+  "ctx": {
+   "hosts": [
+    "127.0.0.1"
+   ],
+   "tlsMode": "on",
+   "hasCa": true,
+   "hasClientCert": false,
+   "tunnel": "none",
+   "relaxed": false
+  },
+  "code": "tls.unknownIssuer"
+ },
+ {
+  "name": "real tls.unknownIssuer (private CA not given)",
+  "source": "real",
+  "hint": "selection",
+  "text": "Kind: Server selection timeout: No available servers. Topology: { Type: Single, Servers: [ { Address: 127.0.0.1:27017, Type: Unknown, Error: Kind: I/O error: invalid peer certificate: UnknownIssuer, labels: {\"RetryableError\", \"SystemOverloadedError\"}, source: None, server response: None } ] }, labels: {}, source: None, server response: None",
+  "ctx": {
+   "hosts": [
+    "127.0.0.1"
+   ],
+   "tlsMode": "on",
+   "hasCa": false,
+   "hasClientCert": false,
+   "tunnel": "none",
+   "relaxed": false
+  },
+  "code": "tls.unknownIssuer"
+ },
+ {
+  "name": "real tls.hostname (certificate for other.example)",
+  "source": "real",
+  "hint": "selection",
+  "text": "Kind: Server selection timeout: No available servers. Topology: { Type: Single, Servers: [ { Address: 127.0.0.1:27017, Type: Unknown, Error: Kind: I/O error: invalid peer certificate: certificate not valid for name \"127.0.0.1\"; certificate is only valid for DnsName(\"other.example\"), labels: {\"SystemOverloadedError\", \"RetryableError\"}, source: None, server response: None } ] }, labels: {}, source: None, server response: None",
+  "ctx": {
+   "hosts": [
+    "127.0.0.1"
+   ],
+   "tlsMode": "on",
+   "hasCa": true,
+   "hasClientCert": false,
+   "tunnel": "none",
+   "relaxed": false
+  },
+  "code": "tls.hostname"
+ },
+ {
+  "name": "real tls.serverRequiresTls (plain client, TLS server)",
+  "source": "real",
+  "hint": "selection",
+  "text": "Kind: Server selection timeout: No available servers. Topology: { Type: Single, Servers: [ { Address: 127.0.0.1:27017, Type: Unknown, Error: Kind: I/O error: unexpected end of file, labels: {\"RetryableError\", \"SystemOverloadedError\"}, source: None, server response: None } ] }, labels: {}, source: None, server response: None",
+  "ctx": {
+   "hosts": [
+    "127.0.0.1"
+   ],
+   "tlsMode": "off",
+   "hasCa": false,
+   "hasClientCert": false,
+   "tunnel": "none",
+   "relaxed": false
+  },
+  "code": "tls.serverRequiresTls"
+ },
+ {
+  "name": "real tls.serverNotTls (TLS client, plain server)",
+  "source": "real",
+  "hint": "selection",
+  "text": "Kind: Server selection timeout: No available servers. Topology: { Type: Single, Servers: [ { Address: 127.0.0.1:27017, Type: Unknown, Error: Kind: I/O error: tls handshake eof, labels: {\"RetryableError\", \"SystemOverloadedError\"}, source: None, server response: None } ] }, labels: {}, source: None, server response: None",
+  "ctx": {
+   "hosts": [
+    "127.0.0.1"
+   ],
+   "tlsMode": "on",
+   "hasCa": false,
+   "hasClientCert": false,
+   "tunnel": "none",
+   "relaxed": false
+  },
+  "code": "tls.serverNotTls"
+ },
+ {
+  "name": "real tls.clientCertRequired (server demands a certificate)",
+  "source": "real",
+  "hint": "selection",
+  "text": "Kind: Server selection timeout: No available servers. Topology: { Type: Single, Servers: [ { Address: 127.0.0.1:27017, Type: Unknown, Error: Kind: I/O error: Connection reset by peer (os error 54), labels: {\"SystemOverloadedError\", \"RetryableError\"}, source: None, server response: None } ] }, labels: {}, source: None, server response: None",
+  "ctx": {
+   "hosts": [
+    "127.0.0.1"
+   ],
+   "tlsMode": "on",
+   "hasCa": true,
+   "hasClientCert": false,
+   "tunnel": "none",
+   "relaxed": false
+  },
+  "code": "tls.clientCertRequired"
+ },
+ {
+  "name": "real auth.x509Subject (certificate subject is no user)",
+  "source": "real",
+  "hint": "auth",
+  "text": "Kind: MONGODB-X509 failure: Authentication failed, labels: {}, source: None, server response: None",
+  "ctx": {
+   "hosts": [
+    "127.0.0.1"
+   ],
+   "tlsMode": "on",
+   "hasCa": true,
+   "hasClientCert": true,
+   "tunnel": "none",
+   "relaxed": false
+  },
+  "code": "auth.x509Subject"
+ }
+]

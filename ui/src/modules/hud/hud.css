@@ -1,0 +1,25 @@
+/* ---- Resource HUD (wave3 X3). Tokens only. -------------------------------------------------------------------------- */
+.hud-chip { gap: 4px; }
+.hud-chip[data-pressure="warn"] { color: var(--warn); }
+.hud-chip[data-pressure="danger"] { color: var(--danger); }
+.hud-chip[data-eco] { color: var(--ok); }
+
+.hud-pop { width: 420px; max-width: calc(100vw - 32px); display: flex; flex-direction: column; font-size: var(--text-sm); }
+.hud-pop__head { display: flex; align-items: center; gap: var(--space-1); padding: var(--space-2) var(--space-3); box-shadow: inset 0 -1px 0 var(--border-subtle); }
+.hud-pop__total { margin-left: auto; color: var(--text-2); }
+.hud-pop__sum { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); padding: var(--space-2) var(--space-3); color: var(--text-3); font-size: var(--text-xs); }
+.hud-pop__sum b { color: var(--text-1); font-weight: var(--weight-medium); }
+.hud-pop__rows { list-style: none; margin: 0; padding: 0 0 var(--space-1); max-height: 280px; overflow: auto; scrollbar-width: thin; }
+.hud-row { display: grid; grid-template-columns: minmax(0, 1fr) 52px 72px 52px 24px; align-items: center; gap: var(--space-2); padding: 2px var(--space-3); min-height: 28px; }
+.hud-row:hover { background: var(--surface-hover); }
+.hud-row__name { color: var(--text-1); font-family: var(--font-mono); font-size: var(--text-xs); }
+.hud-row__kind { color: var(--text-3); font-size: var(--text-xs); }
+.hud-row__bar { height: 4px; border-radius: var(--radius-full); background: var(--surface-3); overflow: hidden; }
+.hud-row__bar i { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
+.hud-row[data-kind="webKit"] .hud-row__bar i { background: var(--info); }
+.hud-row[data-kind="agent"] .hud-row__bar i { background: var(--ok); }
+.hud-row[data-kind="sidecar"] .hud-row__bar i { background: var(--warn); }
+.hud-row__mb { text-align: right; color: var(--text-2); }
+.hud-pop__foot { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); box-shadow: inset 0 1px 0 var(--border-subtle); }
+.hud-pop__eco { display: inline-flex; align-items: center; gap: 4px; color: var(--ok); font-size: var(--text-xs); }
+.hud-pop__eco[data-armed] { color: var(--text-3); }

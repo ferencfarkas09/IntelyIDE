@@ -1,0 +1,1104 @@
+[
+  {
+    "events": [
+      {
+        "agentId": "a1",
+        "assertions": [],
+        "auth": {
+          "mode": "subscription",
+          "source": "none",
+          "warning": null
+        },
+        "capsDelta": {
+          "effort": {
+            "cap": "no",
+            "note": "Haiku 4.5 has no effort control"
+          }
+        },
+        "effective": {
+          "effort": "high",
+          "permission": "edit",
+          "sandbox": null
+        },
+        "kind": "session.started",
+        "model": "claude-haiku-4-5-20251001",
+        "nativeId": "5f2c1d7e-0000-4000-8000-000000000001",
+        "provider": "claude",
+        "raw": null,
+        "seq": 1,
+        "ts": 1790000000040,
+        "turnId": null
+      },
+      {
+        "agentId": "a1",
+        "caps": {
+          "attachments": null,
+          "cancel": {
+            "cap": "no",
+            "note": null
+          },
+          "effort": {
+            "cap": "no",
+            "note": null
+          },
+          "effortLevels": [],
+          "fork": {
+            "cap": "no",
+            "note": null
+          },
+          "hooks": {
+            "cap": "no",
+            "note": null
+          },
+          "modelList": {
+            "cap": "no",
+            "note": null
+          },
+          "modelSwitch": {
+            "cap": "no",
+            "note": null
+          },
+          "permissions": {
+            "cap": "no",
+            "note": null
+          },
+          "resume": {
+            "cap": "no",
+            "note": null
+          },
+          "sandbox": {
+            "cap": "no",
+            "note": null
+          },
+          "streaming": {
+            "cap": "no",
+            "note": null
+          },
+          "subagents": {
+            "cap": "no",
+            "note": null
+          },
+          "toolEvents": {
+            "cap": "no",
+            "note": null
+          },
+          "usage": {
+            "cap": "no",
+            "note": null
+          }
+        },
+        "delegates": [
+          {
+            "color": "#4f9cf9",
+            "description": "Reads and searches the code",
+            "disallowedTools": [
+              "Agent",
+              "Task"
+            ],
+            "effort": null,
+            "maxTurns": 25,
+            "model": "claude-haiku-4-5-20251001",
+            "name": "researcher",
+            "permission": "readOnly",
+            "scope": "global",
+            "tools": [
+              "Read",
+              "Grep",
+              "Glob"
+            ]
+          }
+        ],
+        "effective": {
+          "effort": null,
+          "model": "claude-haiku-4-5-20251001",
+          "permission": "edit",
+          "reason": "user"
+        },
+        "kind": "session.info",
+        "mcpServers": [
+          {
+            "error": null,
+            "name": "github",
+            "status": "connected",
+            "tools": 12
+          },
+          {
+            "error": "spawn ENOENT",
+            "name": "docs",
+            "status": "failed",
+            "tools": null
+          }
+        ],
+        "models": [
+          {
+            "caps": {},
+            "contextTokens": 200000,
+            "effortLevels": [],
+            "id": "claude-haiku-4-5-20251001",
+            "label": "Haiku 4.5",
+            "price": null
+          }
+        ],
+        "nativeId": null,
+        "provider": "claude",
+        "raw": null,
+        "seq": 2,
+        "slashCommands": [
+          "compact",
+          "context",
+          "cost",
+          "review",
+          "init"
+        ],
+        "title": "Fix the status bar",
+        "ts": 1790000000080,
+        "turnId": null
+      },
+      {
+        "agentId": "a1",
+        "attachments": [],
+        "kind": "user.message",
+        "messageId": "u1",
+        "provider": "claude",
+        "raw": null,
+        "seq": 3,
+        "text": "Fix the status bar",
+        "ts": 1790000000120,
+        "turnId": "t1"
+      },
+      {
+        "agentId": "a1",
+        "kind": "status",
+        "provider": "claude",
+        "raw": null,
+        "retryAfterMs": null,
+        "scope": null,
+        "seq": 4,
+        "state": "thinking",
+        "ts": 1790000000160,
+        "turnId": "t1"
+      },
+      {
+        "agentId": "a1",
+        "kind": "thinking.delta",
+        "messageId": "m1",
+        "parentToolId": null,
+        "provider": "claude",
+        "raw": null,
+        "seq": 5,
+        "text": "Looking at the repo state first.",
+        "ts": 1790000000200,
+        "turnId": "t1"
+      },
+      {
+        "agentId": "a1",
+        "kind": "text.delta",
+        "messageId": "m2",
+        "parentToolId": null,
+        "provider": "claude",
+        "raw": {
+          "delta": {
+            "text": "Checking "
+          },
+          "type": "stream_event"
+        },
+        "seq": 6,
+        "text": "Checking ",
+        "ts": 1790000000240,
+        "turnId": "t1"
+      },
+      {
+        "agentId": "a1",
+        "kind": "text.done",
+        "messageId": "m2",
+        "parentToolId": null,
+        "provider": "claude",
+        "raw": null,
+        "seq": 7,
+        "text": "Checking the status.",
+        "ts": 1790000000280,
+        "turnId": "t1"
+      },
+      {
+        "agentId": "a1",
+        "input": {
+          "command": "git status"
+        },
+        "kind": "tool.start",
+        "name": "Bash",
+        "parentToolId": null,
+        "provider": "claude",
+        "raw": null,
+        "seq": 8,
+        "toolId": "t9",
+        "toolKind": "exec",
+        "ts": 1790000000320,
+        "turnId": "t1"
+      },
+      {
+        "agentId": "a1",
+        "intent": {
+          "actor": {
+            "agentId": "sub-1",
+            "role": "researcher"
+          },
+          "argv": null,
+          "class": "exec",
+          "parentToolId": null,
+          "paths": [],
+          "rawCommand": "git status",
+          "readOnlyHint": null,
+          "server": null,
+          "subagentType": null,
+          "summary": "git status",
+          "tool": "Bash",
+          "url": null
+        },
+        "kind": "permission.request",
+        "modes": [],
+        "options": [
+          "allow_once",
+          "allow_run",
+          "deny"
+        ],
+        "plan": null,
+        "planTruncated": null,
+        "provider": "claude",
+        "raw": null,
+        "reqId": "r1",
+        "seq": 9,
+        "sessionAllow": {
+          "kind": "exec",
+          "scope": "git status"
+        },
+        "toolId": "t9",
+        "ts": 1790000000360,
+        "turnId": "t1"
+      },
+      {
+        "agentId": "a1",
+        "by": "user",
+        "kind": "permission.resolved",
+        "outcome": "allow",
+        "provider": "claude",
+        "raw": null,
+        "reqId": "r1",
+        "seq": 10,
+        "ts": 1790000000400,
+        "turnId": "t1"
+      },
+      {
+        "agentId": "a1",
+        "kind": "tool.update",
+        "output": "On branch main",
+        "provider": "claude",
+        "raw": null,
+        "seq": 11,
+        "status": "running",
+        "toolId": "t9",
+        "ts": 1790000000440,
+        "turnId": "t1"
+      },
+      {
+        "agentId": "a1",
+        "diff": {
+          "new": "b",
+          "old": "a",
+          "path": "src/a.ts"
+        },
+        "durationMs": 120,
+        "kind": "tool.result",
+        "output": "nothing to commit",
+        "provider": "claude",
+        "raw": null,
+        "seq": 12,
+        "status": "ok",
+        "toolId": "t9",
+        "ts": 1790000000480,
+        "turnId": "t1"
+      },
+      {
+        "agentId": "a1",
+        "kind": "question.request",
+        "options": [
+          {
+            "description": "the default",
+            "label": "main"
+          },
+          {
+            "description": null,
+            "label": "sandbox"
+          }
+        ],
+        "prompt": "Which branch?",
+        "provider": "claude",
+        "raw": null,
+        "reqId": "q1",
+        "seq": 13,
+        "toolId": "t10",
+        "ts": 1790000000520,
+        "turnId": "t1"
+      },
+      {
+        "agentId": "a1",
+        "items": [
+          {
+            "content": "Read status",
+            "status": "completed"
+          },
+          {
+            "content": "Report",
+            "status": "in_progress"
+          }
+        ],
+        "kind": "plan",
+        "provider": "claude",
+        "raw": null,
+        "seq": 14,
+        "ts": 1790000000560,
+        "turnId": "t1"
+      },
+      {
+        "agentId": "a1",
+        "kind": "usage",
+        "provider": "claude",
+        "raw": null,
+        "seq": 15,
+        "ts": 1790000000600,
+        "turnId": "t1",
+        "usage": {
+          "contextSize": 200000,
+          "contextUsed": 2100,
+          "costBasis": "estimated",
+          "cumulative": {
+            "cacheRead": 900,
+            "cacheWrite": 0,
+            "costUsd": 0.0021,
+            "inputTokens": 1200,
+            "outputTokens": 80,
+            "reasoningTokens": 0
+          },
+          "model": "claude-haiku-4-5-20251001",
+          "perModel": [
+            {
+              "model": "claude-haiku-4-5-20251001",
+              "tokens": {
+                "cacheRead": 900,
+                "cacheWrite": 0,
+                "costUsd": 0.0021,
+                "inputTokens": 1200,
+                "outputTokens": 80,
+                "reasoningTokens": 0
+              }
+            }
+          ],
+          "perTurn": {
+            "cacheRead": 900,
+            "cacheWrite": 0,
+            "costUsd": 0.0021,
+            "inputTokens": 1200,
+            "outputTokens": 80,
+            "reasoningTokens": 0
+          },
+          "premiumRequests": null
+        }
+      },
+      {
+        "agentId": "a1",
+        "class": "rate",
+        "kind": "error",
+        "message": "429 Too Many Requests",
+        "provider": "claude",
+        "raw": null,
+        "retryable": true,
+        "seq": 16,
+        "ts": 1790000000640,
+        "turnId": "t1"
+      },
+      {
+        "agentId": "a1",
+        "kind": "turn.end",
+        "provider": "claude",
+        "raw": null,
+        "seq": 17,
+        "stopReason": "endTurn",
+        "ts": 1790000000680,
+        "turnId": "t1"
+      }
+    ],
+    "expect": [],
+    "name": "valid-sample"
+  },
+  {
+    "events": [
+      {
+        "agentId": "a1",
+        "kind": "text.delta",
+        "messageId": "m1",
+        "parentToolId": null,
+        "provider": "claude",
+        "raw": null,
+        "seq": 1,
+        "text": "x",
+        "ts": 1790000000040,
+        "turnId": "t1"
+      },
+      {
+        "agentId": "b1",
+        "kind": "text.delta",
+        "messageId": "m1",
+        "parentToolId": null,
+        "provider": "claude",
+        "raw": null,
+        "seq": 1,
+        "text": "x",
+        "ts": 1790000000040,
+        "turnId": "t1"
+      },
+      {
+        "agentId": "a1",
+        "kind": "text.delta",
+        "messageId": "m1",
+        "parentToolId": null,
+        "provider": "claude",
+        "raw": null,
+        "seq": 2,
+        "text": "x",
+        "ts": 1790000000080,
+        "turnId": "t1"
+      },
+      {
+        "agentId": "b1",
+        "kind": "text.delta",
+        "messageId": "m1",
+        "parentToolId": null,
+        "provider": "claude",
+        "raw": null,
+        "seq": 2,
+        "text": "x",
+        "ts": 1790000000080,
+        "turnId": "t1"
+      },
+      {
+        "agentId": "a1",
+        "kind": "turn.end",
+        "provider": "claude",
+        "raw": null,
+        "seq": 3,
+        "stopReason": "endTurn",
+        "ts": 1790000000120,
+        "turnId": "t1"
+      },
+      {
+        "agentId": "b1",
+        "kind": "turn.end",
+        "provider": "claude",
+        "raw": null,
+        "seq": 3,
+        "stopReason": "endTurn",
+        "ts": 1790000000120,
+        "turnId": "t1"
+      }
+    ],
+    "expect": [],
+    "name": "valid-two-agents-interleaved"
+  },
+  {
+    "events": [
+      {
+        "agentId": "a1",
+        "input": {
+          "command": "git status"
+        },
+        "kind": "tool.start",
+        "name": "Bash",
+        "parentToolId": null,
+        "provider": "claude",
+        "raw": null,
+        "seq": 1,
+        "toolId": "t1",
+        "toolKind": "exec",
+        "ts": 1790000000040,
+        "turnId": "t1"
+      },
+      {
+        "agentId": "a1",
+        "diff": null,
+        "durationMs": null,
+        "kind": "tool.result",
+        "output": null,
+        "provider": "claude",
+        "raw": null,
+        "seq": 2,
+        "status": "cancelled",
+        "toolId": "t1",
+        "ts": 1790000000080,
+        "turnId": "t1"
+      },
+      {
+        "agentId": "a1",
+        "kind": "turn.end",
+        "provider": "claude",
+        "raw": null,
+        "seq": 3,
+        "stopReason": "cancelled",
+        "ts": 1790000000120,
+        "turnId": "t1"
+      }
+    ],
+    "expect": [],
+    "name": "valid-cancelled-turn"
+  },
+  {
+    "events": [
+      {
+        "agentId": "a1",
+        "kind": "status",
+        "provider": "claude",
+        "raw": null,
+        "retryAfterMs": null,
+        "scope": null,
+        "seq": 1,
+        "state": "idle",
+        "ts": 1790000000040,
+        "turnId": null
+      },
+      {
+        "agentId": "a1",
+        "kind": "status",
+        "provider": "claude",
+        "raw": null,
+        "retryAfterMs": null,
+        "scope": null,
+        "seq": 3,
+        "state": "idle",
+        "ts": 1790000000120,
+        "turnId": null
+      }
+    ],
+    "expect": [
+      "seqGap"
+    ],
+    "name": "seq-gap"
+  },
+  {
+    "events": [
+      {
+        "agentId": "a1",
+        "kind": "text.delta",
+        "messageId": "m",
+        "parentToolId": null,
+        "provider": "claude",
+        "raw": null,
+        "seq": 1,
+        "text": "a",
+        "ts": 1790000000040,
+        "turnId": null
+      },
+      {
+        "agentId": "a1",
+        "kind": "text.delta",
+        "messageId": "m",
+        "parentToolId": null,
+        "provider": "claude",
+        "raw": null,
+        "seq": 2,
+        "text": "b",
+        "ts": 1790000000080,
+        "turnId": null
+      },
+      {
+        "agentId": "a1",
+        "kind": "turn.end",
+        "provider": "claude",
+        "raw": null,
+        "seq": 2,
+        "stopReason": "endTurn",
+        "ts": 1790000000080,
+        "turnId": null
+      }
+    ],
+    "expect": [
+      "seqRepeat"
+    ],
+    "name": "seq-repeat"
+  },
+  {
+    "events": [
+      {
+        "agentId": "a1",
+        "kind": "text.delta",
+        "messageId": "m",
+        "parentToolId": null,
+        "provider": "claude",
+        "raw": null,
+        "seq": 2,
+        "text": "a",
+        "ts": 1790000000080,
+        "turnId": null
+      },
+      {
+        "agentId": "a1",
+        "kind": "turn.end",
+        "provider": "claude",
+        "raw": null,
+        "seq": 3,
+        "stopReason": "endTurn",
+        "ts": 1790000000120,
+        "turnId": null
+      }
+    ],
+    "expect": [
+      "seqGap"
+    ],
+    "name": "seq-must-start-at-one"
+  },
+  {
+    "events": [
+      {
+        "agentId": "a1",
+        "kind": "text.delta",
+        "messageId": "m",
+        "parentToolId": null,
+        "provider": "claude",
+        "raw": null,
+        "seq": 0,
+        "text": "a",
+        "ts": 1790000000000,
+        "turnId": null
+      },
+      {
+        "agentId": "a1",
+        "kind": "turn.end",
+        "provider": "claude",
+        "raw": null,
+        "seq": 1,
+        "stopReason": "endTurn",
+        "ts": 1790000000040,
+        "turnId": null
+      }
+    ],
+    "expect": [
+      "seqRepeat"
+    ],
+    "name": "seq-zero-is-not-the-start"
+  },
+  {
+    "events": [
+      {
+        "agentId": "a1",
+        "input": {
+          "command": "git status"
+        },
+        "kind": "tool.start",
+        "name": "Bash",
+        "parentToolId": null,
+        "provider": "claude",
+        "raw": null,
+        "seq": 1,
+        "toolId": "x",
+        "toolKind": "exec",
+        "ts": 1790000000040,
+        "turnId": "t1"
+      },
+      {
+        "agentId": "a1",
+        "kind": "turn.end",
+        "provider": "claude",
+        "raw": null,
+        "seq": 2,
+        "stopReason": "endTurn",
+        "ts": 1790000000080,
+        "turnId": "t1"
+      }
+    ],
+    "expect": [
+      "toolUnclosed"
+    ],
+    "name": "tool-without-result"
+  },
+  {
+    "events": [
+      {
+        "agentId": "a1",
+        "diff": null,
+        "durationMs": null,
+        "kind": "tool.result",
+        "output": null,
+        "provider": "claude",
+        "raw": null,
+        "seq": 1,
+        "status": "ok",
+        "toolId": "x",
+        "ts": 1790000000040,
+        "turnId": "t1"
+      },
+      {
+        "agentId": "a1",
+        "kind": "turn.end",
+        "provider": "claude",
+        "raw": null,
+        "seq": 2,
+        "stopReason": "endTurn",
+        "ts": 1790000000080,
+        "turnId": "t1"
+      }
+    ],
+    "expect": [
+      "toolResultWithoutStart"
+    ],
+    "name": "result-without-start"
+  },
+  {
+    "events": [
+      {
+        "agentId": "a1",
+        "input": {
+          "command": "git status"
+        },
+        "kind": "tool.start",
+        "name": "Bash",
+        "parentToolId": null,
+        "provider": "claude",
+        "raw": null,
+        "seq": 1,
+        "toolId": "x",
+        "toolKind": "exec",
+        "ts": 1790000000040,
+        "turnId": "t1"
+      },
+      {
+        "agentId": "a1",
+        "input": {
+          "command": "git status"
+        },
+        "kind": "tool.start",
+        "name": "Bash",
+        "parentToolId": null,
+        "provider": "claude",
+        "raw": null,
+        "seq": 2,
+        "toolId": "x",
+        "toolKind": "exec",
+        "ts": 1790000000080,
+        "turnId": "t1"
+      },
+      {
+        "agentId": "a1",
+        "diff": null,
+        "durationMs": null,
+        "kind": "tool.result",
+        "output": null,
+        "provider": "claude",
+        "raw": null,
+        "seq": 3,
+        "status": "ok",
+        "toolId": "x",
+        "ts": 1790000000120,
+        "turnId": "t1"
+      },
+      {
+        "agentId": "a1",
+        "kind": "turn.end",
+        "provider": "claude",
+        "raw": null,
+        "seq": 4,
+        "stopReason": "endTurn",
+        "ts": 1790000000160,
+        "turnId": "t1"
+      }
+    ],
+    "expect": [
+      "toolStartDuplicate"
+    ],
+    "name": "duplicate-tool-start"
+  },
+  {
+    "events": [
+      {
+        "agentId": "a1",
+        "kind": "text.delta",
+        "messageId": "m",
+        "parentToolId": null,
+        "provider": "claude",
+        "raw": null,
+        "seq": 1,
+        "text": "a",
+        "ts": 1790000000040,
+        "turnId": null
+      },
+      {
+        "agentId": "a1",
+        "kind": "turn.end",
+        "provider": "claude",
+        "raw": null,
+        "seq": 2,
+        "stopReason": "endTurn",
+        "ts": 1790000000080,
+        "turnId": null
+      },
+      {
+        "agentId": "a1",
+        "kind": "turn.end",
+        "provider": "claude",
+        "raw": null,
+        "seq": 3,
+        "stopReason": "endTurn",
+        "ts": 1790000000120,
+        "turnId": null
+      }
+    ],
+    "expect": [
+      "duplicateTurnEnd"
+    ],
+    "name": "double-turn-end"
+  },
+  {
+    "events": [
+      {
+        "agentId": "a1",
+        "kind": "text.delta",
+        "messageId": "m",
+        "parentToolId": null,
+        "provider": "claude",
+        "raw": null,
+        "seq": 1,
+        "text": "a",
+        "ts": 1790000000040,
+        "turnId": "t1"
+      },
+      {
+        "agentId": "a1",
+        "kind": "turn.end",
+        "provider": "claude",
+        "raw": null,
+        "seq": 2,
+        "stopReason": "endTurn",
+        "ts": 1790000000080,
+        "turnId": "t1"
+      },
+      {
+        "agentId": "a1",
+        "kind": "turn.end",
+        "provider": "claude",
+        "raw": null,
+        "seq": 3,
+        "stopReason": "error",
+        "ts": 1790000000120,
+        "turnId": "t1"
+      }
+    ],
+    "expect": [
+      "duplicateTurnEnd"
+    ],
+    "name": "double-turn-end-with-id"
+  },
+  {
+    "events": [
+      {
+        "agentId": "a1",
+        "kind": "text.delta",
+        "messageId": "m",
+        "parentToolId": null,
+        "provider": "claude",
+        "raw": null,
+        "seq": 1,
+        "text": "a",
+        "ts": 1790000000040,
+        "turnId": "t1"
+      }
+    ],
+    "expect": [
+      "missingTurnEnd"
+    ],
+    "name": "missing-turn-end"
+  },
+  {
+    "events": [
+      {
+        "agentId": "a1",
+        "kind": "text.delta",
+        "messageId": "m",
+        "parentToolId": null,
+        "provider": "claude",
+        "raw": null,
+        "seq": 1,
+        "text": "a",
+        "ts": 1790000000040,
+        "turnId": "t1"
+      },
+      {
+        "agentId": "a1",
+        "kind": "turn.end",
+        "provider": "claude",
+        "raw": null,
+        "seq": 2,
+        "stopReason": "endTurn",
+        "ts": 1790000000080,
+        "turnId": "t1"
+      },
+      {
+        "agentId": "a1",
+        "kind": "text.delta",
+        "messageId": "m",
+        "parentToolId": null,
+        "provider": "claude",
+        "raw": null,
+        "seq": 3,
+        "text": "late",
+        "ts": 1790000000120,
+        "turnId": "t1"
+      }
+    ],
+    "expect": [
+      "eventAfterTurnEnd"
+    ],
+    "name": "event-after-turn-end"
+  },
+  {
+    "events": [
+      {
+        "agentId": "a1",
+        "kind": "text.delta",
+        "messageId": "m",
+        "parentToolId": null,
+        "provider": "claude",
+        "raw": null,
+        "seq": 1,
+        "text": "a",
+        "ts": 1790000000040,
+        "turnId": "t1"
+      },
+      {
+        "agentId": "a1",
+        "kind": "text.delta",
+        "messageId": "m",
+        "parentToolId": null,
+        "provider": "claude",
+        "raw": null,
+        "seq": 2,
+        "text": "b",
+        "ts": 1790000000080,
+        "turnId": "t2"
+      }
+    ],
+    "expect": [
+      "missingTurnEnd",
+      "missingTurnEnd"
+    ],
+    "name": "new-turn-before-old-ended"
+  },
+  {
+    "events": [
+      {
+        "agentId": "a1",
+        "intent": {
+          "actor": {
+            "agentId": "sub-1",
+            "role": "researcher"
+          },
+          "argv": null,
+          "class": "exec",
+          "parentToolId": null,
+          "paths": [],
+          "rawCommand": "git status",
+          "readOnlyHint": null,
+          "server": null,
+          "subagentType": null,
+          "summary": "git status",
+          "tool": "Bash",
+          "url": null
+        },
+        "kind": "permission.request",
+        "modes": [],
+        "options": [
+          "allow_once",
+          "allow_run",
+          "deny"
+        ],
+        "plan": null,
+        "planTruncated": null,
+        "provider": "claude",
+        "raw": null,
+        "reqId": "r1",
+        "seq": 1,
+        "sessionAllow": {
+          "kind": "exec",
+          "scope": "git status"
+        },
+        "toolId": "t9",
+        "ts": 1790000000040,
+        "turnId": "t1"
+      },
+      {
+        "agentId": "a1",
+        "kind": "turn.end",
+        "provider": "claude",
+        "raw": null,
+        "seq": 2,
+        "stopReason": "cancelled",
+        "ts": 1790000000080,
+        "turnId": "t1"
+      }
+    ],
+    "expect": [
+      "permissionUnresolved"
+    ],
+    "name": "unresolved-permission"
+  },
+  {
+    "events": [
+      {
+        "agentId": "a1",
+        "by": "hardStop",
+        "kind": "permission.resolved",
+        "outcome": "deny",
+        "provider": "claude",
+        "raw": null,
+        "reqId": "r9",
+        "seq": 1,
+        "ts": 1790000000040,
+        "turnId": "t1"
+      },
+      {
+        "agentId": "a1",
+        "kind": "turn.end",
+        "provider": "claude",
+        "raw": null,
+        "seq": 2,
+        "stopReason": "endTurn",
+        "ts": 1790000000080,
+        "turnId": "t1"
+      }
+    ],
+    "expect": [
+      "resolvedWithoutRequest"
+    ],
+    "name": "resolved-without-request"
+  },
+  {
+    "events": [
+      {
+        "agentId": "a1",
+        "input": {
+          "command": "git status"
+        },
+        "kind": "tool.start",
+        "name": "Bash",
+        "parentToolId": null,
+        "provider": "claude",
+        "raw": null,
+        "seq": 1,
+        "toolId": "x",
+        "toolKind": "exec",
+        "ts": 1790000000040,
+        "turnId": "t1"
+      }
+    ],
+    "expect": [
+      "missingTurnEnd",
+      "toolUnclosed"
+    ],
+    "name": "tool-never-closed-at-end-of-stream"
+  }
+]

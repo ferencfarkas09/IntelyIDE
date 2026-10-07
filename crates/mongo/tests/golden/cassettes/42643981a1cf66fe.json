@@ -1,0 +1,24 @@
+{
+  "key": "42643981a1cf66fe",
+  "case": "hu18",
+  "round": 0,
+  "source": "live",
+  "tier": "fast",
+  "model": "claude-haiku-4-5-20251001",
+  "reply": {
+    "mode": "find",
+    "collection": "orders",
+    "filter": "{\"customer\":null}",
+    "explanation": "Rendelések, ahol a vendég mező nincs megadva vagy null értékű.",
+    "confidence": "high",
+    "assumptions": [
+      "A szűrő mind a hiányzó, mind az explicit null értékeket tartalmazza."
+    ]
+  },
+  "usage": {
+    "inputTokens": 10,
+    "outputTokens": 533,
+    "costUsd": 0.014938,
+    "ms": 7617
+  }
+}

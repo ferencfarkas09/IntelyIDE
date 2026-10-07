@@ -1,0 +1,13 @@
+{
+  "name": "intely-sdk-pin",
+  "version": "0.0.0",
+  "private": true,
+  "license": "GPL-3.0-or-later",
+  "description": "Exact pin of the Claude Agent SDK and its peers for the user-installed copy (see README.md). Not published.",
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "0.3.287",
+    "@anthropic-ai/sdk": "0.131.0",
+    "@modelcontextprotocol/sdk": "1.31.0",
+    "zod": "4.6.5"
+  }
+}

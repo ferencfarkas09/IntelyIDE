@@ -1,0 +1,3 @@
+✘ [ERROR] A request to the Cloudflare API (/accounts/0123456789abcdef0123456789abcdef/workers/subdomain) failed.
+
+  You need to register a workers.dev subdomain before publishing to workers.dev [code: 10063]

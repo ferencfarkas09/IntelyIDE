@@ -1,0 +1,7 @@
+// The same shell command twice. Where the policy asks for it (Ask, Accept edits) the first call shows a card with the three buttons; answering
+// "Allow always in this session" makes the host keep a session allow, so the second call runs without a card. Both go through the real broker.
+{"op":"text","dt":30,"id":"m1:0","text":"I will run the same command twice.","chunk":12,"every":10}
+{"op":"call","dt":30,"id":"b1","name":"Bash","toolKind":"exec","input":{"command":"touch twice"},"output":"twice","ms":40}
+{"op":"call","dt":60,"id":"b2","name":"Bash","toolKind":"exec","input":{"command":"touch twice"},"output":"twice","ms":40}
+{"op":"text","dt":30,"id":"m2:0","text":"Both runs finished."}
+{"op":"end"}

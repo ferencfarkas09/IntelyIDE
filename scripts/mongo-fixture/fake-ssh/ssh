@@ -1,0 +1,121 @@
+#!/bin/sh
+# Fake `ssh` for the tunnel tests ((design notes: mongo-everyone-spec), T4c). Selected through INTELY_SSH_BINARY, which the
+# tunnel code honours ONLY under the E2E jail. It never opens a network connection and never reads ~/.ssh.
+#
+# Everything it needs lives in files beside this script, because the tunnel rebuilds the environment from nothing:
+#   mode           first line "<mode> [arg]"; default "ok"
+#   targets        lines "<host>:<port> <loopback port>": where `-W host:port` is bridged to
+#   expect-secret  the password or passphrase the ask-* modes accept
+#   node-bin       absolute path of node (used by bridge.mjs for -W); without it `-W` fails
+#   calls.log      one line per call (argv only)
+# Modes: ok | hostkey-unknown | hostkey-changed | auth-denied | forwarding-disabled | die-after-n-seconds <n>
+#        | ask-password | ask-passphrase | never-ready | dns-fail | network-fail
+# It handles -V, -G, -M (the master), -O check, -O exit and -W host:port. The "control socket" is a regular file
+# holding the master's pid, so the tunnel code that unlinks `c` works unchanged.
+
+D=$(cd "$(dirname "$0")" && pwd)
+MODE=ok
+ARG=
+[ -r "$D/mode" ] && read -r MODE ARG < "$D/mode"
+echo "$*" >> "$D/calls.log"
+
+CTL= OP= W= PORT=22 LUSER= HOST= KEY= G=0 M=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -V) echo "OpenSSH_9.9p1 Fake, FakeSSL 1.0" >&2; exit 0 ;;
+    -S) CTL=$2; shift 2 ;;
+    -O) OP=$2; shift 2 ;;
+    -W) W=$2; shift 2 ;;
+    -p) PORT=$2; shift 2 ;;
+    -l) LUSER=$2; shift 2 ;;
+    -i) KEY=$2; shift 2 ;;
+    -F|-o) shift 2 ;;
+    -G) G=1; shift ;;
+    -M) M=1; shift ;;
+    --) shift; HOST=$1; break ;;
+    -*) shift ;;
+    *) HOST=$1; shift ;;
+  esac
+done
+# ssh treats % as a token character: the tunnel doubles it
+CTL=$(printf '%s' "$CTL" | sed 's/%%/%/g')
+KEY=$(printf '%s' "$KEY" | sed 's/%%/%/g')
+[ -n "$LUSER" ] || LUSER=fakeuser
+
+if [ "$G" = 1 ]; then
+  printf 'hostname %s\nport %s\nuser %s\n' "$HOST" "$PORT" "$LUSER"
+  exit 0
+fi
+
+if [ "$OP" = check ]; then
+  if [ -e "$CTL" ]; then echo "Master running (pid=$(cat "$CTL" 2>/dev/null))" >&2; exit 0; fi
+  echo "Control socket connect($CTL): No such file or directory" >&2; exit 255
+fi
+if [ "$OP" = exit ]; then
+  if [ -e "$CTL" ]; then kill -TERM "$(cat "$CTL")" 2>/dev/null; echo "Exit request sent." >&2; exit 0; fi
+  echo "Control socket connect($CTL): No such file or directory" >&2; exit 255
+fi
+
+if [ -n "$W" ]; then
+  if [ ! -e "$CTL" ]; then echo "Control socket connect($CTL): No such file or directory" >&2; exit 255; fi
+  if [ "$MODE" = forwarding-disabled ]; then
+    echo "channel 0: open failed: administratively prohibited: open failed" >&2
+    echo "stdio forwarding failed" >&2
+    exit 255
+  fi
+  LOCAL=$(awk -v t="$W" '$1 == t { print $2; exit }' "$D/targets" 2>/dev/null)
+  if [ -z "$LOCAL" ]; then
+    echo "channel 0: open failed: connect failed: Connection refused" >&2
+    echo "stdio forwarding failed" >&2
+    exit 255
+  fi
+  NODE=
+  [ -r "$D/node-bin" ] && read -r NODE < "$D/node-bin"
+  if [ -z "$NODE" ] || [ ! -x "$NODE" ]; then echo "fake ssh: no node-bin" >&2; exit 255; fi
+  exec "$NODE" "$D/bridge.mjs" "$LOCAL"
+fi
+
+# ---- the master ----
+case "$MODE" in
+  hostkey-unknown)
+    echo "No ED25519 host key is known for $HOST and you have requested strict checking." >&2
+    echo "Host key verification failed." >&2
+    exit 255 ;;
+  hostkey-changed)
+    echo "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@" >&2
+    echo "@    WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!     @" >&2
+    echo "Host key verification failed." >&2
+    exit 255 ;;
+  auth-denied)
+    echo "$LUSER@$HOST: Permission denied (publickey)." >&2
+    exit 255 ;;
+  dns-fail)
+    echo "ssh: Could not resolve hostname $HOST: nodename nor servname provided, or not known" >&2
+    exit 255 ;;
+  network-fail)
+    echo "ssh: connect to host $HOST port $PORT: Connection refused" >&2
+    exit 255 ;;
+  ask-password|ask-passphrase)
+    if [ "$MODE" = ask-password ]; then PROMPT="$LUSER@$HOST's password: "; else PROMPT="Enter passphrase for key '$KEY': "; fi
+    if [ "$SSH_ASKPASS_REQUIRE" != force ] || [ -z "$SSH_ASKPASS" ]; then
+      echo "$LUSER@$HOST: Permission denied (no askpass)." >&2; exit 255
+    fi
+    GOT=$("$SSH_ASKPASS" "$PROMPT")
+    WANT=$(cat "$D/expect-secret" 2>/dev/null)
+    if [ -z "$GOT" ] || [ "$GOT" != "$WANT" ]; then
+      echo "$LUSER@$HOST: Permission denied (password)." >&2; exit 255
+    fi ;;
+esac
+
+cleanup() { rm -f "$CTL"; }
+trap 'cleanup; exit 0' TERM INT HUP
+if [ "$MODE" != never-ready ]; then echo $$ > "$CTL"; fi
+START=$(date +%s)
+while :; do
+  sleep 0.25
+  if [ "$MODE" = die-after-n-seconds ] && [ $(( $(date +%s) - START )) -ge "${ARG:-1}" ]; then
+    cleanup
+    echo "Connection to $HOST closed by remote host." >&2
+    exit 255
+  fi
+done

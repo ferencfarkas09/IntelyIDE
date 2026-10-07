@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Fake cargo for gate.test.sh. FAKE_CARGO_MODE: pass | flaky (first `test` run fails one test, the --exact re-run
+# passes) | fail (always fails one test) | compile (a build error, no failed test line) | vacuous (the re-run
+# runs nothing) | nodeny (`cargo deny` is not installed).
+[ -n "${FAKE_LOG:-}" ] && printf 'cargo %s\n' "$*" >>"$FAKE_LOG"
+mode="${FAKE_CARGO_MODE:-pass}"
+if [ "${1:-}" = "deny" ]; then
+  [ "$mode" = "nodeny" ] && { echo "error: no such command: deny" >&2; exit 101; }
+  exit 0
+fi
+[ "${1:-}" = "test" ] || exit 0
+state="${FAKE_STATE:-/tmp/fake-cargo-state.$$}"
+n=$(($(cat "$state" 2>/dev/null || echo 0) + 1))
+echo "$n" >"$state"
+case "$mode" in
+  pass) echo "test a::b ... ok"; exit 0 ;;
+  flaky)
+    if [ "$n" -eq 1 ]; then echo "test other::fine ... ok"; echo "test env::flaky_one ... FAILED"; exit 101; fi
+    echo "test env::flaky_one ... ok"; exit 0 ;;
+  fail) echo "test env::always_bad ... FAILED"; exit 101 ;;
+  compile) echo "error[E0432]: unresolved import" >&2; exit 101 ;;
+  vacuous)
+    if [ "$n" -eq 1 ]; then echo "test env::ghost ... FAILED"; exit 101; fi
+    echo "running 0 tests"; exit 0 ;;
+esac
+exit 0

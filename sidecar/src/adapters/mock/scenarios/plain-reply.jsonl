@@ -1,0 +1,7 @@
+// Plain streamed reply with a thinking block and a usage record.
+{"op":"status","state":"thinking"}
+{"op":"think","dt":40,"id":"m1:0","text":"The user greets me; answer briefly."}
+{"op":"text","dt":60,"id":"m1:1","text":"Hello from the mock provider. This reply streams in small chunks.","chunk":8,"every":25}
+{"op":"usage","usage":{"model":"mock-1","costBasis":"unknown","perTurn":{"inputTokens":12,"outputTokens":14,"cacheRead":0,"cacheWrite":0,"reasoningTokens":6},"cumulative":{"inputTokens":12,"outputTokens":14,"cacheRead":0,"cacheWrite":0,"reasoningTokens":6}}}
+{"op":"status","state":"idle"}
+{"op":"end"}

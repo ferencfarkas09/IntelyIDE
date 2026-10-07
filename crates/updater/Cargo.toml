@@ -1,0 +1,40 @@
+[package]
+name = "intely-updater"
+version = "0.0.0"
+edition = "2021"
+rust-version = "1.77"
+license.workspace = true
+description = "Verified in-app update: signed feed, minisign verification, hardened download, safe unpack, atomic swap and rollback (docs/updater-spec.md). Tauri-free; never reads the environment."
+
+[lib]
+name = "intely_updater"
+
+[features]
+# Widens cfg(debug_assertions) for Endpoints::loopback (hook class A, spec 8.3). Off by default.
+loopback = []
+
+[dependencies]
+base64 = "0.22.1"
+flate2 = "1.1.10"
+hex = "0.4.3"
+intely-relay-bundle = { version = "0.0.0", path = "../relay_bundle" }
+libc = "0.2.190"
+# Tauri-signer (minisign) verification. New crate, zero dependencies.
+minisign-verify = "0.3.0"
+plist = "1.10.1"
+reqwest = { version = "0.13.3", default-features = false, features = ["native-tls"] }
+ring = "0.17.14"
+semver = "1.0.28"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+# default-features = false keeps the xattr dependency out of the tree.
+tar = { version = "0.4", default-features = false }
+thiserror = "2.0.21"
+tokio = { version = "1.53.1", features = ["rt", "time", "macros", "fs", "sync", "io-util"] }
+url = "2.5.8"
+
+[dev-dependencies]
+# Prehashed "ED" test signatures are assembled by tests/common/keys.rs with ring + blake2
+# (both already in the tree), so no signing crate is added. Throwaway keys only.
+blake2 = "0.11.0"
+tempfile = "3.27.0"

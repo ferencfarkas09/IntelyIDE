@@ -1,0 +1,24 @@
+{
+  "key": "ee787865a2aa364e",
+  "case": "hu26",
+  "round": 0,
+  "source": "live",
+  "tier": "fast",
+  "model": "claude-haiku-4-5-20251001",
+  "reply": {
+    "mode": "find",
+    "collection": "customers",
+    "filter": "{\"name\":{\"$regex\":\"^Kovács\"}}",
+    "explanation": "A szűrő a Kovács nevű vendégeket keresi, mivel a magyar neveknél a családnév az első, az anchored prefix regex használatával.",
+    "assumptions": [
+      "A név Kovács családnévvel kezdődik (magyar konvenció szerint), és a keresés előtag-alapú regex-szel történik"
+    ],
+    "confidence": "high"
+  },
+  "usage": {
+    "inputTokens": 10,
+    "outputTokens": 532,
+    "costUsd": 0.01411,
+    "ms": 8607
+  }
+}

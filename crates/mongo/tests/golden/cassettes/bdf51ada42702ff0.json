@@ -1,0 +1,20 @@
+{
+  "key": "bdf51ada42702ff0",
+  "case": "en09",
+  "round": 0,
+  "source": "authored",
+  "tier": "fast",
+  "model": null,
+  "reply": {
+    "mode": "find",
+    "collection": "customers",
+    "filter": "{\"loyaltyPoints\":{\"$gt\":1000}}",
+    "explanation": "Customers above 1000 loyalty points."
+  },
+  "usage": {
+    "inputTokens": null,
+    "outputTokens": null,
+    "costUsd": null,
+    "ms": null
+  }
+}

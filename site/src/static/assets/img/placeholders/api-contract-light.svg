@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 900" width="1440" height="900" role="img" aria-label="Placeholder for api-contract-light-2880.png">
+<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e9fbf7"/><stop offset=".55" stop-color="#ece6ff"/><stop offset="1" stop-color="#fbe6fa"/></linearGradient></defs>
+<rect width="1440" height="900" fill="url(#g)"/>
+<rect width="1440" height="56" fill="#ffffff" opacity=".7"/>
+<rect x="260" y="120" width="920" height="22" rx="11" fill="#5b4b7a" opacity=".18"/>
+<rect x="260" y="160" width="640" height="22" rx="11" fill="#5b4b7a" opacity=".12"/>
+<g font-family="ui-monospace,SFMono-Regular,Menlo,monospace" text-anchor="middle" fill="#2a2147">
+<text x="720" y="440" font-size="56" font-weight="700">api-contract-light-2880.png</text>
+<text x="720" y="500" font-size="30" fill="#5b4b7a">2880 x 1800 source (placeholder)</text>
+<text x="720" y="552" font-size="26" fill="#5b4b7a">API contract view: Swagger explorer and contract-drift findings</text>
+</g></svg>

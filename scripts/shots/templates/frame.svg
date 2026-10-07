@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="{{W}}" height="{{H}}" viewBox="0 0 {{W}} {{H}}">
+  <defs>
+    <filter id="shadow" filterUnits="userSpaceOnUse" x="0" y="0" width="{{W}}" height="{{H}}" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="{{SHADOW_BLUR}}"/>
+    </filter>
+    <clipPath id="win"><rect x="{{M}}" y="{{M}}" width="{{IW}}" height="{{IH}}" rx="{{R}}" ry="{{R}}"/></clipPath>
+  </defs>
+  <rect x="{{M}}" y="{{SHADOW_Y}}" width="{{IW}}" height="{{IH}}" rx="{{R}}" ry="{{R}}" fill="{{SHADOW_COLOR}}" fill-opacity="{{SHADOW_OPACITY}}" filter="url(#shadow)"/>
+  <image x="{{M}}" y="{{M}}" width="{{IW}}" height="{{IH}}" clip-path="url(#win)" xlink:href="{{IMAGE}}"/>
+  <rect x="{{M_IN}}" y="{{M_IN}}" width="{{IW_IN}}" height="{{IH_IN}}" rx="{{R_IN}}" ry="{{R_IN}}" fill="none" stroke="{{STROKE_COLOR}}" stroke-opacity="{{STROKE_OPACITY}}" stroke-width="{{STROKE_W}}"/>
+{{LIGHTS}}
+</svg>

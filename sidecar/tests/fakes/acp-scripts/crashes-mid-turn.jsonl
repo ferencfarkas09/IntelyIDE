@@ -1,0 +1,2 @@
+// Dies in the middle of a turn: the client must emit error + turn.end(error).
+{"op":"on","method":"session/prompt","then":[{"op":"update","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"half"}}},{"op":"wait","ms":30},{"op":"crash","code":3}]}

@@ -1,0 +1,385 @@
+{
+ "_comment": "Shared by logic.test.ts and src-tauri/src/modules/preview.rs: both gates must agree on every case.",
+ "cases": [
+  {
+   "input": "http://localhost:8082",
+   "ok": true,
+   "url": "http://localhost:8082/"
+  },
+  {
+   "input": "http://127.0.0.1:19006/auth/signin?x=1#top",
+   "ok": true,
+   "url": "http://127.0.0.1:19006/auth/signin?x=1#top"
+  },
+  {
+   "input": "HTTP://LOCALHOST:8080/Path",
+   "ok": true,
+   "url": "http://localhost:8080/Path"
+  },
+  {
+   "input": "http://localhost/",
+   "ok": true,
+   "url": "http://localhost/"
+  },
+  {
+   "input": "http://localhost:80/",
+   "ok": true,
+   "url": "http://localhost/"
+  },
+  {
+   "input": "http://localhost",
+   "ok": true,
+   "url": "http://localhost/"
+  },
+  {
+   "input": "http://localhost?a=1",
+   "ok": true,
+   "url": "http://localhost/?a=1"
+  },
+  {
+   "input": "8082",
+   "ok": true,
+   "url": "http://localhost:8082/"
+  },
+  {
+   "input": ":8080/sale",
+   "ok": true,
+   "url": "http://localhost:8080/sale"
+  },
+  {
+   "input": "localhost:19006",
+   "ok": true,
+   "url": "http://localhost:19006/"
+  },
+  {
+   "input": "LocalHost:3000/x",
+   "ok": true,
+   "url": "http://localhost:3000/x"
+  },
+  {
+   "input": "127.0.0.1",
+   "ok": true,
+   "url": "http://127.0.0.1/"
+  },
+  {
+   "input": "127.0.0.1:5173#frag",
+   "ok": true,
+   "url": "http://127.0.0.1:5173/#frag"
+  },
+  {
+   "input": "  http://localhost:8082/a  ",
+   "ok": true,
+   "url": "http://localhost:8082/a"
+  },
+  {
+   "input": "http://localhost:8082/@evil.com/x",
+   "ok": true,
+   "url": "http://localhost:8082/@evil.com/x"
+  },
+  {
+   "input": "http://localhost:8082/a?next=http://evil.com",
+   "ok": true,
+   "url": "http://localhost:8082/a?next=http://evil.com"
+  },
+  {
+   "input": "http://localhost:65535/",
+   "ok": true,
+   "url": "http://localhost:65535/"
+  },
+  {
+   "input": "http://example.com",
+   "ok": false,
+   "reason": "notLoopback"
+  },
+  {
+   "input": "example.com",
+   "ok": false,
+   "reason": "notLoopback"
+  },
+  {
+   "input": "//evil.com/x",
+   "ok": false,
+   "reason": "notLoopback"
+  },
+  {
+   "input": "https://example.com",
+   "ok": false,
+   "reason": "scheme"
+  },
+  {
+   "input": "https://localhost:8082",
+   "ok": false,
+   "reason": "scheme"
+  },
+  {
+   "input": "file:///etc/passwd",
+   "ok": false,
+   "reason": "scheme"
+  },
+  {
+   "input": "javascript:alert(1)",
+   "ok": false,
+   "reason": "scheme"
+  },
+  {
+   "input": "data:text/html,<script>1</script>",
+   "ok": false,
+   "reason": "scheme"
+  },
+  {
+   "input": "ftp://localhost",
+   "ok": false,
+   "reason": "scheme"
+  },
+  {
+   "input": "ws://localhost:8082",
+   "ok": false,
+   "reason": "scheme"
+  },
+  {
+   "input": "mailto:a@b.c",
+   "ok": false,
+   "reason": "scheme"
+  },
+  {
+   "input": "file:/etc/passwd",
+   "ok": false,
+   "reason": "scheme"
+  },
+  {
+   "input": "",
+   "ok": false,
+   "reason": "empty"
+  },
+  {
+   "input": "   ",
+   "ok": false,
+   "reason": "empty"
+  },
+  {
+   "input": "[::1]",
+   "ok": false,
+   "reason": "notLoopback"
+  },
+  {
+   "input": "http://[::1]:8080/",
+   "ok": false,
+   "reason": "notLoopback"
+  },
+  {
+   "input": "http://[::ffff:127.0.0.1]:8082/",
+   "ok": false,
+   "reason": "notLoopback"
+  },
+  {
+   "input": "http://[0:0:0:0:0:0:0:1]:8082/",
+   "ok": false,
+   "reason": "notLoopback"
+  },
+  {
+   "input": "http://[::]:8082/",
+   "ok": false,
+   "reason": "notLoopback"
+  },
+  {
+   "input": "http://127.0.0.1.nip.io:8082/",
+   "ok": false,
+   "reason": "notLoopback"
+  },
+  {
+   "input": "http://localtest.me:8082/",
+   "ok": false,
+   "reason": "notLoopback"
+  },
+  {
+   "input": "http://lvh.me:8082/",
+   "ok": false,
+   "reason": "notLoopback"
+  },
+  {
+   "input": "http://foo.localhost:8082/",
+   "ok": false,
+   "reason": "notLoopback"
+  },
+  {
+   "input": "http://localhost.evil.com:8082/",
+   "ok": false,
+   "reason": "notLoopback"
+  },
+  {
+   "input": "http://evil.com.localhost:8082/",
+   "ok": false,
+   "reason": "notLoopback"
+  },
+  {
+   "input": "http://127.0.0.1.evil.com:8082/",
+   "ok": false,
+   "reason": "notLoopback"
+  },
+  {
+   "input": "http://localhost.:8082/",
+   "ok": false,
+   "reason": "notLoopback"
+  },
+  {
+   "input": "http://0.0.0.0:8082/",
+   "ok": false,
+   "reason": "notLoopback"
+  },
+  {
+   "input": "http://127.0.0.2:8082/",
+   "ok": false,
+   "reason": "notLoopback"
+  },
+  {
+   "input": "http://127.1:8082/",
+   "ok": false,
+   "reason": "notLoopback"
+  },
+  {
+   "input": "http://2130706433:8082/",
+   "ok": false,
+   "reason": "notLoopback"
+  },
+  {
+   "input": "http://0x7f.0.0.1:8082/",
+   "ok": false,
+   "reason": "notLoopback"
+  },
+  {
+   "input": "http://0177.0.0.1:8082/",
+   "ok": false,
+   "reason": "notLoopback"
+  },
+  {
+   "input": "http://127.000.000.001:8082/",
+   "ok": false,
+   "reason": "notLoopback"
+  },
+  {
+   "input": "http://localhost@evil.com/",
+   "ok": false,
+   "reason": "credentials"
+  },
+  {
+   "input": "http://127.0.0.1:8082@evil.com/",
+   "ok": false,
+   "reason": "credentials"
+  },
+  {
+   "input": "http://user:pass@localhost:8082/",
+   "ok": false,
+   "reason": "credentials"
+  },
+  {
+   "input": "http://localhost\uff1a8082@evil.com",
+   "ok": false,
+   "reason": "credentials"
+  },
+  {
+   "input": "http://evil.com#@localhost:8082/",
+   "ok": false,
+   "reason": "notLoopback"
+  },
+  {
+   "input": "http://evil.com?@localhost:8082/",
+   "ok": false,
+   "reason": "notLoopback"
+  },
+  {
+   "input": "http://evil.com/@localhost:8082",
+   "ok": false,
+   "reason": "notLoopback"
+  },
+  {
+   "input": "http://localhost:8082\\@evil.com",
+   "ok": false,
+   "reason": "badChars"
+  },
+  {
+   "input": "http://evil.com\\.localhost:8082",
+   "ok": false,
+   "reason": "badChars"
+  },
+  {
+   "input": "http://localhost:8082/a b",
+   "ok": false,
+   "reason": "badChars"
+  },
+  {
+   "input": "http://localhost:8082/a\nb",
+   "ok": false,
+   "reason": "badChars"
+  },
+  {
+   "input": "http://localhost:8082/\u0000",
+   "ok": false,
+   "reason": "badChars"
+  },
+  {
+   "input": "http://\u24dbocalhost:8082",
+   "ok": false,
+   "reason": "badChars"
+  },
+  {
+   "input": "http://localhost\u3002:8082",
+   "ok": false,
+   "reason": "badChars"
+  },
+  {
+   "input": "http://localhost:0",
+   "ok": false,
+   "reason": "badPort"
+  },
+  {
+   "input": "http://localhost:65536",
+   "ok": false,
+   "reason": "badPort"
+  },
+  {
+   "input": "http://localhost:99999",
+   "ok": false,
+   "reason": "badPort"
+  },
+  {
+   "input": "http://localhost:123456",
+   "ok": false,
+   "reason": "badPort"
+  },
+  {
+   "input": "http://localhost:abc",
+   "ok": false,
+   "reason": "badPort"
+  },
+  {
+   "input": "http://localhost:",
+   "ok": false,
+   "reason": "badPort"
+  },
+  {
+   "input": "http://127.0.0.1:-1",
+   "ok": false,
+   "reason": "badPort"
+  },
+  {
+   "input": "http://localhost:1420",
+   "ok": false,
+   "reason": "selfOrigin"
+  },
+  {
+   "input": "http://127.0.0.1:1420/x",
+   "ok": false,
+   "reason": "selfOrigin"
+  },
+  {
+   "input": "1420",
+   "ok": false,
+   "reason": "selfOrigin"
+  },
+  {
+   "input": "http://localhost:8082/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "ok": false,
+   "reason": "tooLong"
+  }
+ ]
+}

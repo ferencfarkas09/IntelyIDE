@@ -1,0 +1,25 @@
+{
+  "key": "78ed5c27a36f9328",
+  "case": "hu40",
+  "round": 0,
+  "source": "live",
+  "tier": "fast",
+  "model": "claude-haiku-4-5-20251001",
+  "reply": {
+    "mode": "find",
+    "collection": "orders",
+    "filter": "{\"type\":\"elvitel\",\"status\":\"open\"}",
+    "explanation": "Keresünk nyitott, elvitelre szóló rendeléseket a type és status mezők alapján.",
+    "confidence": "high",
+    "assumptions": [
+      "Az \"elvitel\" a type mező értéke (elvitelre szóló rendelések)",
+      "Az \"open\" a status mező értéke (nyitott rendelések)"
+    ]
+  },
+  "usage": {
+    "inputTokens": 18,
+    "outputTokens": 837,
+    "costUsd": 0.0185645,
+    "ms": 9939
+  }
+}

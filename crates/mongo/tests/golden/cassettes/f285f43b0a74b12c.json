@@ -1,0 +1,20 @@
+{
+  "key": "f285f43b0a74b12c",
+  "case": "en11",
+  "round": 0,
+  "source": "authored",
+  "tier": "fast",
+  "model": null,
+  "reply": {
+    "mode": "find",
+    "collection": "orders",
+    "filter": "{\"table\":\"Terasz 3\"}",
+    "explanation": "Orders placed on table Terasz 3."
+  },
+  "usage": {
+    "inputTokens": null,
+    "outputTokens": null,
+    "costUsd": null,
+    "ms": null
+  }
+}

@@ -1,0 +1,60 @@
+# Source of truth for the repository labels.
+# scripts/release/maintainer/print-github-setup.sh turns this list into `gh label create` commands;
+# this file is not a GitHub Action.
+- name: bug
+  color: d73a4a
+  description: something is broken
+- name: enhancement
+  color: a2eeef
+  description: new capability
+- name: safety
+  color: b60205
+  description: touches agent containment, jail, hard stops or secrets
+- name: security
+  color: 7f0000
+  description: vulnerability fix (public after disclosure)
+- name: documentation
+  color: 0075ca
+  description: docs only
+- name: good first issue
+  color: 7057ff
+  description: suitable for new contributors
+- name: help wanted
+  color: 008672
+  description: maintainers would like help
+- name: needs-triage
+  color: fbca04
+  description: not yet reviewed
+- name: question
+  color: d876e3
+  description: usage question
+- name: area:changes
+  color: c5def5
+  description: Changes tree, commit, push
+- name: area:agents
+  color: c5def5
+  description: agent chat, policy, Rewind
+- name: area:remote
+  color: c5def5
+  description: Remote, relay, phone view
+- name: area:database
+  color: c5def5
+  description: MongoDB Studio
+- name: area:preview
+  color: c5def5
+  description: Run panel and preview
+- name: area:i18n
+  color: c5def5
+  description: translations
+- name: breaking
+  color: e99695
+  description: breaking change
+- name: dependencies
+  color: 0366d6
+  description: dependency updates
+- name: skip-changelog
+  color: ededed
+  description: no changelog entry needed
+- name: wontfix
+  color: ffffff
+  description: will not be worked on

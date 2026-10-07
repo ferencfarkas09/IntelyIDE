@@ -1,0 +1,38 @@
+[package]
+name = "intely-mcp"
+version = "0.0.0"
+edition = "2021"
+rust-version = "1.77"
+license.workspace = true
+description = "MCP server management (docs/mcp-management-spec.md): config store, secrets in the Keychain, Test probe, import, and the supplier the agent host consumes. Tauri-free."
+
+[lib]
+name = "intely_mcp"
+
+[features]
+specta = ["dep:specta", "dep:specta-typescript", "dep:specta-serde", "intely-agent-core/specta"]
+
+[dependencies]
+intely-agent-core = { version = "0.0.0", path = "../agent_core" }
+intely-core = { version = "0.0.0", path = "../core" }
+intely-settings = { version = "0.0.0", path = "../settings" }
+libc = "0.2.190"
+reqwest = { version = "0.13.3", default-features = false, features = ["native-tls"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+sha2 = "0.11.0"
+specta = { version = "=2.0.0-rc.25", optional = true, features = ["derive"] }
+specta-serde = { version = "0.0.12", optional = true }
+specta-typescript = { version = "0.0.12", optional = true }
+tokio = { version = "1.53.1", features = ["rt", "process", "io-util", "time", "sync", "macros", "net"] }
+url = "2.5.8"
+uuid = { version = "1.20.0", features = ["v4"] }
+
+[[example]]
+name = "gen_bindings"
+required-features = ["specta"]
+
+[dev-dependencies]
+intely-pathpick = { version = "0.0.0", path = "../pathpick" }
+tempfile = "3.27.0"
+tokio = { version = "1.53.1", features = ["rt-multi-thread"] }

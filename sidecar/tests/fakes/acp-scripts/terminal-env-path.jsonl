@@ -1,0 +1,8 @@
+// The agent tries to override PATH and GIT_DIR for its terminal; the handler must keep its own PATH (with the git shim first).
+{"op":"on","method":"session/prompt","then":[
+  {"op":"request","name":"term","method":"terminal/create","params":{"command":"/usr/bin/env","args":[],"env":[{"name":"PATH","value":"/usr/bin:/bin"},{"name":"GIT_DIR","value":"/nonexistent"},{"name":"FAKE_OK","value":"1"}]}},
+  {"op":"request","name":"wait","method":"terminal/wait_for_exit","params":{"terminalId":"${term.result.terminalId}"}},
+  {"op":"request","name":"out","method":"terminal/output","params":{"terminalId":"${term.result.terminalId}"}},
+  {"op":"update","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"done"}}},
+  {"op":"respond","result":{"stopReason":"end_turn"}}
+]}

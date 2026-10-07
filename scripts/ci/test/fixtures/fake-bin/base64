@@ -1,0 +1,7 @@
+#!/bin/bash
+# Fake base64: the real tool, unless FAKE_BASE64_FAIL=1 (forced failure of the decode step).
+if [ "${FAKE_BASE64_FAIL:-}" = "1" ]; then
+  echo "fake base64: forced failure" >&2
+  exit 1
+fi
+exec /usr/bin/base64 "$@"

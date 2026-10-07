@@ -1,0 +1,14 @@
+{
+  "name": "mock-happy",
+  "version": "0.0.0",
+  "private": true,
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "description": "Loopback stand-in for the Happy API (REST + Socket.IO). socket.io is a dev dependency of this folder only; without it the server still serves REST.",
+  "scripts": {
+    "test": "node --test smoke.test.mjs"
+  },
+  "devDependencies": {
+    "socket.io": "^4.8.1"
+  }
+}

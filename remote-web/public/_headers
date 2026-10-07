@@ -1,0 +1,9 @@
+# Strict CSP for the PWA (remote-plan 4.2). Workers static assets honour this file; it is copied from remote-web/public by the build.
+# No remote scripts, no inline script or style, same-origin only. `require-trusted-types-for` is deliberately absent: Solid builds its
+# DOM templates through innerHTML, which that directive would block; script-src 'self' without 'unsafe-inline' is what blocks injection.
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; media-src 'self' blob:; connect-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+  Permissions-Policy: camera=(self), microphone=(), geolocation=(), payment=()
+  Cache-Control: no-cache

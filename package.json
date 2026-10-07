@@ -1,0 +1,38 @@
+{
+  "name": "intely-switch-ide",
+  "version": "0.1.0",
+  "private": true,
+  "license": "GPL-3.0-or-later",
+  "author": "Ferenc Farkas (IntelyHome)",
+  "type": "module",
+  "packageManager": "pnpm@11.5.3",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "bindings": "sh scripts/gen-bindings.sh",
+    "protocol:gen": "cargo run -q -p intely-agent-core --features specta --example gen_protocol",
+    "dev:app": "bash scripts/dev.sh",
+    "i18n:check": "node scripts/i18n-check.mjs",
+    "i18n:extract": "node scripts/i18n-extract.mjs",
+    "i18n:translate": "node scripts/i18n-translate.mjs",
+    "licenses:gen": "node scripts/licenses/gen.mjs",
+    "licenses:check": "node scripts/licenses/check.mjs",
+    "licenses:verify": "node scripts/licenses/check.mjs --third-party",
+    "licenses:test": "node --test \"scripts/licenses/**/*.test.mjs\"",
+    "licenses:publish-scan": "node scripts/licenses/publish-scan.mjs",
+    "release:test": "node --test \"scripts/release/*.test.mjs\"",
+    "release:verify": "node scripts/release/verify-public-tree.mjs",
+    "release:check-docs": "node scripts/release/check-docs.mjs",
+    "release:check-readme": "node scripts/release/check-readme.mjs",
+    "release:no-telemetry": "node scripts/release/verify-no-telemetry.mjs",
+    "release:dco": "node scripts/release/check-dco.mjs",
+    "site:deploy": "pnpm --dir site run deploy"
+  },
+  "devDependencies": {
+    "@fontsource/sora": "^5.3.0",
+    "@resvg/resvg-js": "^2.6.2",
+    "@tauri-apps/cli": "^2.12.1",
+    "opentype.js": "^2.0.0"
+  }
+}

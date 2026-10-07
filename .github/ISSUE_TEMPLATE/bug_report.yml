@@ -1,0 +1,101 @@
+name: Bug report
+description: Something in IntelyIDE does not work as expected.
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this. IntelyIDE is alpha software.
+
+        **Before you paste anything:** remove repository names, file paths, tokens, URLs with credentials and any other private data from text and screenshots.
+        In particular, `refusals.log` and the `runs/*.jsonl` event logs contain raw command lines, prompts, tool results and file contents. Redact them first, or describe the problem in words instead of attaching them.
+
+        Do not report security vulnerabilities here. Use the private link on the issue chooser page.
+  - type: input
+    id: version
+    attributes:
+      label: IntelyIDE version or commit
+      description: Shown in the About window, or the output of `git rev-parse --short HEAD` if you built from source.
+      placeholder: 0.1.0
+    validations:
+      required: true
+  - type: dropdown
+    id: macos
+    attributes:
+      label: macOS version family
+      options:
+        - macOS 13 (Ventura)
+        - macOS 14 (Sonoma)
+        - macOS 15 (Sequoia)
+        - macOS 26 or later
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: arch
+    attributes:
+      label: Architecture
+      options:
+        - Intel
+        - Apple Silicon
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Mode
+      description: Whether writing (commit, push, file changes) was enabled when the problem happened.
+      options:
+        - Read-only
+        - Writing enabled
+    validations:
+      required: false
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Agent provider
+      options:
+        - None
+        - Claude
+        - Other (experimental)
+    validations:
+      required: false
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open ...
+        2. Click ...
+        3. See ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: false
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs (optional, redacted)
+      description: Paste only redacted excerpts.
+      render: shell
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues.
+          required: true
+        - label: I removed private data (repository names, paths, tokens, URLs with credentials) from screenshots and logs.
+          required: true

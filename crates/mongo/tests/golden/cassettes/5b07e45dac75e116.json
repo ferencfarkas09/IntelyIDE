@@ -1,0 +1,21 @@
+{
+  "key": "5b07e45dac75e116",
+  "case": "hu31",
+  "round": 0,
+  "source": "live",
+  "tier": "fast",
+  "model": "claude-haiku-4-5-20251001",
+  "reply": {
+    "mode": "find",
+    "collection": "orders",
+    "filter": "{\"status\":\"closed\",\"createdAt\":{\"$gte\":{\"$date\":\"2026-08-31T22:00:00Z\"},\"$lt\":{\"$date\":\"2026-09-30T22:00:00Z\"}},\"total\":{\"$lt\":5000}}",
+    "explanation": "A múlt hónapban lezárt, 5 ezer forint alatti rendeléseket szűri.",
+    "confidence": "high"
+  },
+  "usage": {
+    "inputTokens": 10,
+    "outputTokens": 9179,
+    "costUsd": 0.058224000000000005,
+    "ms": 76420
+  }
+}

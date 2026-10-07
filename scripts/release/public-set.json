@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "repo": "ferencfarkas09/IntelyIDE",
+  "include": [
+    ".github/**", ".gitattributes", ".gitignore",
+    "LICENSE", "LICENSES/**", "REUSE.toml", "README.md", "CHANGELOG.md", "CONTRIBUTING.md", "CODE_OF_CONDUCT.md",
+    "SECURITY.md", "SUPPORT.md", "TRADEMARKS.md", "THIRD_PARTY_LICENSES.md",
+    "Cargo.toml", "Cargo.lock", "package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", "deny.toml",
+    "assets/brand/**", "docs/screenshots/**", "assets/diagrams/**",
+    "crates/**", "src-tauri/**", "sidecar/**", "ui/**", "packages/**", "remote-relay/**", "remote-web/**",
+    "scripts/**", "fixtures/**", "tests/**", "site/**",
+    "docs/README.md", "docs/getting-started.md", "docs/architecture.md", "docs/safety.md", "docs/privacy.md",
+    "docs/licensing.md", "docs/building.md", "docs/releasing.md", "docs/release-checklist.md", "docs/install-macos.md", "docs/faq.md", "docs/i18n.md",
+    "docs/design-system.md", "docs/attachments.md", "docs/remote-cloudflare.md", "docs/remote-gateway.md",
+    "docs/mongo-studio-guide.md", "docs/preview-inspect.md", "docs/l10n-release.md",
+    "docs/packaging.md", "docs/release-ci-checklist.md"
+  ],
+  "exclude": [
+    "**/node_modules/**", "**/target/**", "**/dist/**", "**/dist-release/**", "**/coverage/**", "**/.DS_Store",
+    "**/.env", "**/.env.*", "**/.npmrc", "**/.netrc", "**/.dev.vars", "**/.wrangler/**",
+    "**/*.log", "**/*.pem", "**/*.p12", "**/*.p8", "**/*.cer", "**/*.pfx", "**/*.mobileprovision", "**/*.keychain*",
+    "**/*.key", "**/*.jks", "**/id_rsa*", "**/id_ed25519*",
+    "**/*.local.*", "**/.scratch/**", "**/.token-optimizer/**", "**/.history/**", "**/.idea/**", "**/.claude/**",
+    "**/*.sqlite*", "**/*.db", "**/*.bson", "**/*.har", "**/*.zip", "**/*.tar*", "**/*.tgz",
+    "**/*.bak", "**/*.orig", "**/*.rej", "**/*.swp", "**/*~",
+    "**/dump_*", "**/SERVER_MOVE*", "**/_tmp_*", "**/_check_*", "**/backup_*", "**/_to_delete/**",
+    "assets/brand/source/**", "src-tauri/gen/**",
+    "scripts/release/maintainer/**",
+    "scripts/real-smoke.sh", "scripts/e2e/real-smoke.sh", "scripts/e2e/real-readonly.js",
+    "scripts/preview/apply-admin-patch.sh", "scripts/preview/test-apply-admin-patch.sh", "scripts/preview/verify-admin-babel.cjs",
+    "remote-web/driver-result.json"
+  ],
+  "excludeExceptions": [],
+  "maxBytes": 1048576,
+  "bigFileAllow": [
+    "THIRD_PARTY_LICENSES.md", "sidecar/sdk-pin/tree.sha256", "ui/src/shell/licenses/data/texts.json",
+    "ui/src/shell/licenses/data/index.json", "src-tauri/icons/icon.icns", "remote-relay/tests/fixtures/**"
+  ]
+}

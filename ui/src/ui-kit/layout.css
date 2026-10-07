@@ -1,0 +1,44 @@
+/* ---- Splitter ----------------------------------------------------------- */
+.ui-splitter { display: flex; width: 100%; height: 100%; min-width: 0; min-height: 0; }
+.ui-splitter[data-direction="column"] { flex-direction: column; }
+.ui-splitter__pane { position: relative; display: flex; min-width: 0; min-height: 0; overflow: hidden; }
+.ui-splitter[data-direction="column"] > .ui-splitter__pane { flex-direction: column; }
+.ui-splitter__pane > * { flex: 1 1 0; min-width: 0; min-height: 0; }
+.ui-splitter__handle { position: relative; flex: none; z-index: var(--z-sticky); background: var(--border-subtle); outline: none; touch-action: none; }
+.ui-splitter[data-direction="row"] > .ui-splitter__handle { width: 1px; cursor: col-resize; }
+.ui-splitter[data-direction="column"] > .ui-splitter__handle { height: 1px; cursor: row-resize; }
+/* Wider invisible hit area plus an accent line on hover/drag/focus. */
+.ui-splitter__handle::before { content: ""; position: absolute; }
+.ui-splitter[data-direction="row"] > .ui-splitter__handle::before { inset: 0 -4px; }
+.ui-splitter[data-direction="column"] > .ui-splitter__handle::before { inset: -4px 0; }
+.ui-splitter__handle::after {
+  content: "";
+  position: absolute;
+  background: var(--accent);
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease);
+  pointer-events: none;
+}
+.ui-splitter[data-direction="row"] > .ui-splitter__handle::after { inset: 0 -1px; }
+.ui-splitter[data-direction="column"] > .ui-splitter__handle::after { inset: -1px 0; }
+.ui-splitter__handle:hover::after { opacity: 0.8; transition-delay: 160ms; }
+.ui-splitter__handle:focus-visible::after,
+.ui-splitter[data-dragging] > .ui-splitter__handle::after { opacity: 1; transition-delay: 0s; }
+.ui-splitter[data-dragging] { -webkit-user-select: none; user-select: none; }
+.ui-splitter[data-dragging][data-direction="row"] { cursor: col-resize; }
+.ui-splitter[data-dragging][data-direction="column"] { cursor: row-resize; }
+
+/* ---- ScrollArea --------------------------------------------------------- */
+.ui-scroll { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.ui-scroll__viewport { flex: 1 1 auto; min-height: 0; overscroll-behavior: contain; }
+.ui-scroll[data-orientation="vertical"] > .ui-scroll__viewport { overflow-y: auto; overflow-x: hidden; }
+.ui-scroll[data-orientation="horizontal"] > .ui-scroll__viewport { overflow-x: auto; overflow-y: hidden; }
+.ui-scroll[data-orientation="both"] > .ui-scroll__viewport { overflow: auto; }
+.ui-scroll__edge { display: none; position: absolute; left: 0; right: 0; height: 1px; background: var(--border); opacity: 0; pointer-events: none; transition: opacity var(--dur-fast) var(--ease); }
+.ui-scroll[data-edges] > .ui-scroll__edge { display: block; }
+.ui-scroll__edge[data-side="top"] { top: 0; }
+.ui-scroll__edge[data-side="bottom"] { bottom: 0; }
+.ui-scroll__edge::after { content: ""; position: absolute; left: 0; right: 0; height: 10px; }
+.ui-scroll__edge[data-side="top"]::after { top: 1px; background: linear-gradient(to bottom, var(--edge-shadow), transparent); }
+.ui-scroll__edge[data-side="bottom"]::after { bottom: 1px; background: linear-gradient(to top, var(--edge-shadow), transparent); }
+.ui-scroll__edge[data-on] { opacity: 1; }

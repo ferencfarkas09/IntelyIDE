@@ -1,0 +1,2 @@
+// An agent that answers initialize with protocol version 9: the client only speaks v1.
+{"op":"on","method":"initialize","reply":{"protocolVersion":9}}

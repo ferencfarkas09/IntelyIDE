@@ -1,0 +1,146 @@
+/* MongoDB Studio connection form. Tokens only (the swatch is the one user-chosen colour); logical properties so RTL works. */
+
+.mgf { display: flex; flex-direction: column; gap: var(--space-3); min-block-size: 440px; min-inline-size: 0; contain: inline-size; }
+.mgf-stack { display: flex; flex-direction: column; gap: var(--space-3); }
+.mgf-row { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
+.mgf-grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--space-3); align-items: start; }
+
+/* ---- header --------------------------------------------------------------------------------------------------------- */
+.mgf-head { display: flex; flex-direction: column; gap: var(--space-3); padding-block-end: var(--space-3); border-block-end: 1px solid var(--border-subtle); }
+.mgf-head__name { display: grid; grid-template-columns: 1fr auto; align-items: end; gap: var(--space-2); }
+.mgf-head__row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--space-4); }
+.mgf-head__row > .mgf-field { flex: 0 1 auto; min-inline-size: 0; }
+.mgf-swatches { display: flex; gap: var(--space-1); align-items: center; min-block-size: 28px; }
+.mgf-swatch { inline-size: 24px; block-size: 24px; border: 0; border-radius: var(--radius-full); background: var(--c); cursor: pointer; box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.25); }
+.mgf-swatch[aria-checked="true"] { box-shadow: 0 0 0 2px var(--surface-2), 0 0 0 4px var(--c); }
+.mgf-swatch:focus-visible { outline: 2px solid var(--focus-color); outline-offset: 3px; }
+.mgf-star { display: inline-flex; align-items: center; justify-content: center; inline-size: 32px; block-size: 32px; border: 0; border-radius: var(--radius-2); background: transparent; color: var(--text-3); cursor: pointer; }
+.mgf-star:hover { background: var(--surface-3); color: var(--text-1); }
+.mgf-star[aria-pressed="true"] { color: var(--warn); }
+.mgf-star:focus-visible { outline: 2px solid var(--focus-color); outline-offset: 1px; }
+
+/* ---- fields --------------------------------------------------------------------------------------------------------- */
+.mgf-field { display: flex; flex-direction: column; gap: 4px; min-inline-size: 0; }
+.mgf-field__label { font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--text-1); }
+.mgf-field__hint { margin: 0; font-size: var(--text-xs); line-height: 1.5; color: var(--text-3); }
+.mgf-field__hint svg { display: inline; vertical-align: -2px; }
+.mgf-field__errs { margin: 0; padding: 0; list-style: none; font-size: var(--text-xs); color: var(--danger); }
+.mgf-field__errs li { margin: 0; }
+.mgf-field__errs li[data-warning] { color: var(--warn); }
+.mgf-code, .mgf-code input, input.mgf-code { font-family: var(--font-mono, ui-monospace, monospace); direction: ltr; text-align: start; }
+.mgf-secret__row { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3); min-block-size: 24px; }
+.mgf-dest { margin: 0; font-size: var(--text-xs); color: var(--text-2); overflow-wrap: anywhere; }
+.mgf-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: var(--radius-full); background: var(--surface-3); color: var(--text-2); font-size: var(--text-xs); }
+.mgf-chip[data-tone="ok"] { background: var(--ok-subtle); color: var(--ok); box-shadow: inset 0 0 0 1px var(--ok-border); }
+.mgf-chip__x { display: inline-flex; border: 0; padding: 4px; margin-inline-end: -4px; background: none; color: inherit; cursor: pointer; border-radius: var(--radius-full); }
+.mgf-chip__x:hover { background: var(--surface-4, var(--surface-3)); color: var(--text-1); }
+.mgf-chip__x:focus-visible { outline: 2px solid var(--focus-color); }
+.mgf-link { min-block-size: 24px; padding: 0; border: 0; background: none; color: var(--accent-text); font: inherit; font-size: var(--text-xs); cursor: pointer; text-align: start; }
+.mgf-link:hover { text-decoration: underline; }
+.mgf-link:focus-visible { outline: 2px solid var(--focus-color); outline-offset: 2px; }
+
+/* ---- tabs ----------------------------------------------------------------------------------------------------------- */
+.mgf-tabs { display: flex; gap: 2px; overflow-x: auto; border-block-end: 1px solid var(--border-subtle); }
+.mgf-tab { position: relative; display: inline-flex; align-items: center; gap: 6px; min-block-size: 32px; padding: 0 var(--space-3); border: 0; background: none; color: var(--text-2); font: inherit; font-size: var(--text-sm); font-weight: var(--weight-medium); cursor: pointer; white-space: nowrap; border-start-start-radius: var(--radius-2); border-start-end-radius: var(--radius-2); }
+.mgf-tab:hover { color: var(--text-1); background: var(--surface-3); }
+.mgf-tab[aria-selected="true"] { color: var(--text-1); }
+.mgf-tab[aria-selected="true"]::after { content: ""; position: absolute; inset-inline: var(--space-2); inset-block-end: -1px; block-size: 2px; background: var(--accent); border-radius: 2px; }
+.mgf-tab:focus-visible { outline: 2px solid var(--focus-color); outline-offset: -2px; }
+.mgf-tab__n { min-inline-size: 16px; padding: 0 4px; border-radius: var(--radius-full); background: var(--danger-solid); color: #fff; font-size: 10px; line-height: 16px; text-align: center; }
+.mgf-panel { padding-block-start: var(--space-3); }
+.mgf-panel[hidden] { display: none; }
+
+/* ---- hosts, rows ---------------------------------------------------------------------------------------------------- */
+.mgf-hosts, .mgf-allowed, .mgf-extra, .mgf-glossary, .mgf-deny, .mgf-ignored, .mgf-snippet, .mgf-relax, .mgf-override { display: flex; flex-direction: column; gap: var(--space-2); }
+.mgf-hosts h4, .mgf-allowed h4, .mgf-extra h4, .mgf-glossary h4, .mgf-deny h4, .mgf-ignored h4, .mgf-snippet h4, .mgf-relax h4 { margin: 0; font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--text-1); }
+.mgf-hostrow { display: flex; align-items: flex-start; gap: var(--space-2); }
+.mgf-hosts > .ui-btn, .mgf-allowed > .ui-btn, .mgf-extra > .ui-btn, .mgf-glossary > .ui-btn, .mgf-deny > .ui-btn { align-self: flex-start; }
+.mgf-hostrow > .mgf-field:first-child { flex: 1 1 auto; }
+.mgf-hostrow > .mgf-field + .mgf-field { flex: 0 0 110px; }
+.mgf-extrarow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto; align-items: start; gap: var(--space-2); }
+.mgf-hostrow__rm { margin-block-start: 22px; }
+.mgf-extrarow .mgf-hostrow__rm { margin-block-start: 22px; }
+.mgf-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+.mgf-toggle { padding: 4px 12px; min-block-size: 28px; border: 0; border-radius: var(--radius-full); background: var(--surface-3); color: var(--text-2); font: inherit; font-size: var(--text-sm); cursor: pointer; box-shadow: inset 0 0 0 1px var(--border); }
+.mgf-toggle[aria-pressed="true"] { background: var(--accent-subtle); color: var(--accent-text); box-shadow: inset 0 0 0 1px var(--accent-border); }
+.mgf-toggle:focus-visible { outline: 2px solid var(--focus-color); outline-offset: 2px; }
+.mgf-ignored ul, .mgf-notes ul, .mgf-confirm ul, .mgf-summary ul { margin: 0; padding-inline-start: var(--space-4); font-size: var(--text-xs); color: var(--text-2); }
+.mgf-ignored li[data-kind="unsupported"] { color: var(--danger); }
+.mgf-ignored li[data-kind="warning"] { color: var(--warn); }
+
+/* ---- banners, notes ------------------------------------------------------------------------------------------------- */
+.mgf-banner { display: flex; align-items: flex-start; gap: var(--space-2); margin: 0; padding: var(--space-2) var(--space-3); border-radius: var(--radius-2); font-size: var(--text-sm); color: var(--text-1); box-shadow: inset 0 0 0 1px var(--border); background: var(--surface-2); }
+.mgf-banner p { margin: 2px 0 var(--space-2); color: var(--text-2); font-size: var(--text-xs); }
+.mgf-banner > svg { flex: none; margin-block-start: 2px; }
+.mgf-banner[data-tone="warn"] { background: var(--warn-subtle); box-shadow: inset 0 0 0 1px var(--warn-border); }
+.mgf-banner[data-tone="warn"] > svg { color: var(--warn); }
+.mgf-banner[data-tone="info"] { background: var(--info-subtle); box-shadow: inset 0 0 0 1px var(--info-border); }
+.mgf-banner[data-tone="info"] > svg { color: var(--info); }
+.mgf-danger { display: flex; align-items: flex-start; gap: 6px; margin: 0; color: var(--danger); font-size: var(--text-sm); }
+.mgf-danger > svg { flex: none; margin-block-start: 2px; }
+.mgf-notes { padding: var(--space-2) var(--space-3); border-radius: var(--radius-2); background: var(--surface-1); box-shadow: inset 0 0 0 1px var(--border-subtle); }
+.mgf-notes__title { display: flex; align-items: center; gap: 6px; margin: 0 0 4px; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--warn); }
+.mgf-notes details { margin-block-start: var(--space-2); font-size: var(--text-xs); color: var(--text-2); }
+.mgf-notes summary { cursor: pointer; }
+.mgf-notes code, .mgf-ignored code { color: var(--text-1); }
+
+/* ---- URI -------------------------------------------------------------------------------------------------------------- */
+.mgf-uri { display: flex; flex-direction: column; gap: var(--space-2); }
+.mgf-masked { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); padding: var(--space-2) var(--space-3); border-radius: var(--radius-2); background: var(--surface-1); box-shadow: inset 0 0 0 1px var(--border-subtle); }
+.mgf-masked__value { flex: 1 1 240px; min-inline-size: 0; overflow-wrap: anywhere; font-family: var(--font-mono, ui-monospace, monospace); font-size: var(--text-xs); color: var(--text-1); }
+
+/* ---- tls / safety / ai ---------------------------------------------------------------------------------------------- */
+.mgf-relax { padding: var(--space-3); border-radius: var(--radius-3); background: var(--surface-1); box-shadow: inset 0 0 0 1px var(--border-subtle); }
+.mgf-relax[data-on] { box-shadow: inset 0 0 0 1px var(--danger-border); background: var(--danger-subtle); }
+.mgf-level { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); }
+.mgf-why { font-size: var(--text-sm); color: var(--text-2); }
+.mgf-why summary { cursor: pointer; color: var(--accent-text); font-size: var(--text-xs); }
+.mgf-why p { margin: var(--space-1) 0 0; font-size: var(--text-xs); line-height: 1.5; }
+.mgf-lockline { display: inline-flex; align-items: center; gap: 4px; color: var(--text-2); }
+.mgf-probe { display: flex; align-items: flex-start; gap: 6px; margin: 0; padding: var(--space-2) var(--space-3); border-radius: var(--radius-2); font-size: var(--text-sm); background: var(--surface-1); box-shadow: inset 0 0 0 1px var(--border-subtle); }
+.mgf-probe[data-tone="warn"] { background: var(--warn-subtle); box-shadow: inset 0 0 0 1px var(--warn-border); }
+.mgf-probe[data-tone="ok"] { background: var(--ok-subtle); box-shadow: inset 0 0 0 1px var(--ok-border); }
+.mgf-codeblock { margin: 0; padding: var(--space-3); border-radius: var(--radius-2); background: var(--surface-1); box-shadow: inset 0 0 0 1px var(--border-subtle); font-family: var(--font-mono, ui-monospace, monospace); font-size: var(--text-xs); line-height: 1.5; overflow-x: auto; direction: ltr; text-align: start; white-space: pre; }
+.mgf-modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: var(--space-2); }
+.mgf-mode { display: flex; flex-direction: column; gap: 4px; padding: var(--space-3); border: 0; border-radius: var(--radius-3); background: var(--surface-1); box-shadow: inset 0 0 0 1px var(--border); text-align: start; color: var(--text-2); font: inherit; font-size: var(--text-sm); cursor: pointer; }
+.mgf-mode strong { color: var(--text-1); }
+.mgf-mode[aria-checked="true"] { background: var(--accent-subtle); box-shadow: inset 0 0 0 1px var(--accent-border); }
+.mgf-mode:focus-visible { outline: 2px solid var(--focus-color); outline-offset: 2px; }
+.mgf-capline { margin: 0; font-size: var(--text-xs); color: var(--text-2); }
+.mgf-capline[data-ok="false"] { color: var(--warn); }
+
+/* ---- summary, confirm, test ----------------------------------------------------------------------------------------- */
+.mgf-summary { padding: var(--space-2) var(--space-3); border-radius: var(--radius-2); background: var(--danger-subtle); box-shadow: inset 0 0 0 1px var(--danger-border); }
+.mgf-summary .mgf-link { color: var(--text-1); text-decoration: underline; font-size: var(--text-xs); }
+.mgf-summary p { display: flex; align-items: center; gap: 6px; margin: 0 0 4px; font-size: var(--text-sm); color: var(--danger); }
+.mgf-confirm { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3); border-radius: var(--radius-3); background: var(--warn-subtle); box-shadow: inset 0 0 0 1px var(--warn-border); font-size: var(--text-sm); }
+.mgf-confirm label { color: var(--text-1); }
+.mgf-test { display: flex; flex-direction: column; gap: var(--space-2); padding-block-start: var(--space-3); border-block-start: 1px solid var(--border-subtle); }
+
+/* ---- footer --------------------------------------------------------------------------------------------------------- */
+.mgf-footer { display: flex; align-items: center; gap: var(--space-2); inline-size: 100%; min-inline-size: 0; contain: inline-size; }
+.mgf-footer__uri { flex: 1; min-inline-size: 0; display: flex; align-items: center; gap: var(--space-1); }
+.mgf-footer__code { display: block; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono, ui-monospace, monospace); font-size: var(--text-xs); color: var(--text-3); }
+
+@media (max-width: 560px) {
+  .mgf-extrarow { grid-template-columns: 1fr auto; }
+  .mgf-hostrow > .mgf-field + .mgf-field { flex-basis: 84px; }
+  .mgf-footer { flex-wrap: wrap; }
+  .mgf-footer__uri { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mgf * { transition: none !important; animation: none !important; }
+}
+/* T18: segmented items were 20px tall; WCAG 2.2 target size wants >= 24px */
+.mgf .ui-seg, .mgf .ui-seg[data-size="sm"] { --seg-h: 28px; }
+.mgf-snippet > button { align-self: flex-start; }
+.mgf .ui-seg { max-inline-size: 100%; overflow-x: auto; scrollbar-width: none; }
+
+@media (forced-colors: active) {
+  .mgf-tab[aria-selected="true"]::after { background: Highlight; }
+  .mgf-mode[aria-checked="true"], .mgf-toggle[aria-pressed="true"] { outline: 2px solid Highlight; }
+  .mgf-swatch { forced-color-adjust: none; border: 1px solid CanvasText; }
+  .mgf-swatch[aria-checked="true"] { outline: 3px solid Highlight; outline-offset: 2px; }
+  .mgf .ui-seg__item[aria-checked="true"] { outline: 2px solid Highlight; outline-offset: -2px; }
+  .mgf-banner, .mgf-summary, .mgf-confirm, .mgf-relax { border: 1px solid CanvasText; }
+}

@@ -1,0 +1,89 @@
+[
+ {
+  "kind": "session.started",
+  "nativeId": "a6f18d5c-ea2a-4173-a159-27ba50d9c7ff",
+  "model": "claude-haiku-4-5-20251001",
+  "effective": {
+   "effort": null,
+   "permission": "ask"
+  },
+  "auth": {
+   "mode": "subscription",
+   "source": "none"
+  },
+  "seq": 1,
+  "ts": 0
+ },
+ {
+  "kind": "tool.start",
+  "toolId": "toolu_01WgqcJYtKRnoN2D31S5swcy",
+  "name": "Write",
+  "toolKind": "edit",
+  "input": {
+   "file_path": "<tmp>/isw-s3-BpZvMl/c.txt",
+   "content": "x\n\nThe Wanderer's Dream\n\nUpon a misty morning's gentle call,\nWhere silver dewdrops kiss the sleeping grass,\nI find myself beyond the granite wall,\nWatching the world in shimmer, fade, and pass.\n\nThe ancient oak trees whisper secrets old,\nTheir branches reaching toward the endless sky,\nWhile stories written in their rings unfold,\nOf seasons gone, of reasons, how and why.\n\nThe river flows with purpose and with grace,\nIts waters clear as crystals, cold and free,\nReflecting clouds that drift across this place,\nLike thoughts that wander endlessly through me.\n\nIn meadows wild with flowers newly born,\nWhere butterflies dance lightly in the breeze,\nThe daylight breaks like promise through the morn,\nAnd golden light descends through distant trees.\n\nI walk the paths that time has gently worn,\nWhere footsteps echo from a thousand years,\nAnd find within my heart a strange reborn,\nA peace that settles deeply through my fears.\n\nThe mountains stand majestic, proud, and tall,\nTheir snow-capped peaks pierce through the azure blue,\nThey seem to whisper something to us all,\nThat beauty transcends all we thought we knew.\n\nAnd when the evening comes with purple hue,\nAnd stars emerge like diamonds in the night,\nI understand what I have always knew:\nThat wonder lives eternal in our sight.\n\nFor life is but a journey, short and strange,\nA dance between the darkness and the light,\nWhere seasons turn and constantly will change,\nYet beauty dwells within each soul's own might.\n\nSo here I stand, beneath the infinite,\nA wanderer who dreams beneath the stars,\nAnd finds within this moment's gentle fit,\nA peace that heals all sorrows, all our scars."
+  },
+  "seq": 2,
+  "ts": 0
+ },
+ {
+  "kind": "tool.result",
+  "toolId": "toolu_01WgqcJYtKRnoN2D31S5swcy",
+  "status": "error",
+  "output": "The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). STOP what you are doing and wait for the user to tell you how to proceed.\n\nNote: The user's next message may contain a correction or preference. Pay close attention — if they explain what went wrong or how they'd prefer you to work, consider saving that to memory for future sessions.",
+  "durationMs": 10,
+  "seq": 3,
+  "ts": 0
+ },
+ {
+  "kind": "usage",
+  "usage": {
+   "model": "claude-haiku-4-5-20251001",
+   "costBasis": "subscription",
+   "contextSize": 200000,
+   "perTurn": {
+    "inputTokens": 922,
+    "outputTokens": 1141,
+    "cacheRead": 12318,
+    "cacheWrite": 3234,
+    "reasoningTokens": 602,
+    "costUsd": 0.014326799999999999
+   },
+   "cumulative": {
+    "inputTokens": 922,
+    "outputTokens": 1141,
+    "cacheRead": 12318,
+    "cacheWrite": 3234,
+    "reasoningTokens": 602,
+    "costUsd": 0.014326799999999999
+   },
+   "perModel": [
+    {
+     "model": "claude-haiku-4-5-20251001",
+     "tokens": {
+      "inputTokens": 922,
+      "outputTokens": 1141,
+      "cacheRead": 12318,
+      "cacheWrite": 3234,
+      "reasoningTokens": 602,
+      "costUsd": 0.014326799999999999
+     }
+    }
+   ]
+  },
+  "seq": 4,
+  "ts": 0
+ },
+ {
+  "kind": "status",
+  "state": "idle",
+  "seq": 5,
+  "ts": 0
+ },
+ {
+  "kind": "turn.end",
+  "stopReason": "cancelled",
+  "seq": 6,
+  "ts": 0
+ }
+]

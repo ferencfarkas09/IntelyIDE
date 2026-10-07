@@ -1,0 +1,198 @@
+/* Reset, base typography, scrollbars, utilities. Low specificity via :where. */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+html {
+  background: var(--surface-1);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  background: var(--surface-1);
+  color: var(--text-1);
+  font-family: var(--font-ui);
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
+  font-weight: var(--weight-regular);
+  font-feature-settings: "ss03", "calt";
+  font-optical-sizing: auto;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: default;
+  overscroll-behavior: none;
+}
+
+#root {
+  height: 100%;
+}
+
+:where(h1, h2, h3, h4, h5, h6, p, figure, blockquote, dl, dd) {
+  margin: 0;
+}
+
+:where(h1, h2, h3, h4) {
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-tight);
+  letter-spacing: -0.011em;
+}
+
+:where(ul, ol) {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+:where(button, input, textarea, select) {
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  margin: 0;
+}
+
+:where(button) {
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: default;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+:where(a) {
+  color: var(--accent-text);
+  text-decoration: none;
+}
+:where(a:hover) {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+:where(svg) {
+  display: block;
+  flex: none;
+}
+
+:where(code, kbd, samp, pre) {
+  font-family: var(--font-mono);
+  font-size: 0.923em;
+}
+
+:where(hr) {
+  border: 0;
+  border-top: 1px solid var(--border-subtle);
+  margin: 0;
+}
+
+:where(input, textarea),
+.ui-selectable {
+  -webkit-user-select: text;
+  user-select: text;
+  cursor: text;
+}
+
+::selection {
+  background: var(--selection-bg);
+}
+
+::placeholder {
+  color: var(--text-3);
+  opacity: 1;
+}
+
+/* Focus: one ring everywhere, keyboard only. */
+:where(:focus) {
+  outline: none;
+}
+:where(:focus-visible),
+.ui-focus-ring:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
+/* Thin overlay scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border: 3px solid transparent;
+  border-radius: var(--radius-full);
+  background-clip: padding-box;
+  min-height: 32px;
+  min-width: 32px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+  border-width: 2px;
+  background-clip: padding-box;
+}
+
+/* A themed subtree (kit gallery, previews). */
+.ui-theme-scope {
+  background: var(--surface-1);
+  color: var(--text-1);
+}
+
+/* Utilities */
+.ui-truncate {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum", "ss03";
+}
+.ui-mono {
+  font-family: var(--font-mono);
+  font-feature-settings: "calt", "zero";
+}
+.ui-text-2 { color: var(--text-2); }
+.ui-text-3 { color: var(--text-3); }
+.ui-text-4 { color: var(--text-4); }
+.ui-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,0 +1,22 @@
+// Delegation without a model: the lead starts two roles and each of them tries things the broker must judge by ROLE.
+// Every `call` goes through the real policy.decide with the actor of its delegate; nothing is written to disk.
+// Expected with the standard fixture (researcher = read-only, writer = edit without Bash):
+//   researcher Read ok, Edit refused (role), Bash refused (role); writer Edit ok, Bash refused (tool not allowed);
+//   git commit / git push refused by the hard stop for BOTH roles; a .env read refused by the hard stop.
+{"op":"text","id":"m1:0","text":"I will ask the researcher to look around and the writer to make a small change."}
+{"op":"delegate","dt":40,"id":"ag1","role":"researcher","description":"Read the README and try to change it"}
+{"op":"call","dt":30,"id":"c1","parent":"ag1","name":"Read","toolKind":"read","input":{"file_path":"{{cwd}}/README.md"},"output":"# fixture","ms":30}
+{"op":"call","dt":30,"id":"c2","parent":"ag1","name":"Edit","toolKind":"edit","input":{"file_path":"{{cwd}}/README.md","old_string":"# fixture","new_string":"# changed"},"ms":30}
+{"op":"call","dt":30,"id":"c3","parent":"ag1","name":"Bash","toolKind":"exec","input":{"command":"npm test"},"ms":30}
+{"op":"call","dt":30,"id":"c4","parent":"ag1","name":"Bash","toolKind":"exec","input":{"command":"git commit -m x"},"ms":30}
+{"op":"call","dt":30,"id":"c5","parent":"ag1","name":"Bash","toolKind":"exec","input":{"command":"git push origin HEAD"},"ms":30}
+{"op":"call","dt":30,"id":"c6","parent":"ag1","name":"Read","toolKind":"read","input":{"file_path":"{{cwd}}/.env"},"ms":30}
+{"op":"enddelegate","dt":30,"id":"ag1","output":"README read; edit and commands were refused."}
+{"op":"delegate","dt":40,"id":"ag2","role":"writer","description":"Add a line to the README"}
+{"op":"call","dt":30,"id":"c7","parent":"ag2","name":"Edit","toolKind":"edit","input":{"file_path":"{{cwd}}/README.md","old_string":"# fixture","new_string":"# fixture\nhello"},"ms":30}
+{"op":"call","dt":30,"id":"c8","parent":"ag2","name":"Bash","toolKind":"exec","input":{"command":"npm test"},"ms":30}
+{"op":"call","dt":30,"id":"c9","parent":"ag2","name":"Bash","toolKind":"exec","input":{"command":"git commit -m x"},"ms":30}
+{"op":"call","dt":30,"id":"c10","parent":"ag2","name":"Bash","toolKind":"exec","input":{"command":"git push origin HEAD"},"ms":30}
+{"op":"enddelegate","dt":30,"id":"ag2","output":"Edit done; no commands for this role."}
+{"op":"text","dt":40,"id":"m2:0","text":"Both roles reported. Commit and push stay with you."}
+{"op":"end"}

@@ -1,0 +1,20 @@
+// Shot tour of the Open-source licenses view and the About dialog (default fixture), dark and light.
+await window.__e2e.resize(1280, 800);
+await waitForTree();
+const dialogs = () => qa('[role="dialog"]');
+const brand = await waitFor(() => qa("button").find((b) => /^About /.test(b.getAttribute("aria-label") ?? text(b))), { what: "the About brand button" });
+brand.click();
+await waitFor(() => dialogs().find((d) => q(".about", d)), { what: "the About dialog" });
+await sleep(500);
+notes.about = await both("about");
+qa("button", dialogs().find((d) => q(".about", d))).find((b) => /Open-source licenses/.test(text(b))).click();
+const dlg = await waitFor(() => dialogs().find((d) => q('[role="listbox"]', d)), { what: "the licenses dialog", timeout: 20000 });
+await waitFor(() => qa('[role="option"]', dlg).length > 3, { what: "rows" });
+await sleep(600);
+notes.list = await both("licenses-list");
+await typeInto(q('input[aria-label="Search open-source components"]', dlg), "serde");
+await waitFor(() => /serde/i.test(text(q('[role="option"]', dlg))), { what: "serde" });
+q('[role="option"]', dlg).click();
+await sleep(800);
+notes.detail = await both("licenses-detail");
+await finish();

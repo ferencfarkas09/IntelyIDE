@@ -1,0 +1,25 @@
+{
+  "name": "@intely/sidecar",
+  "version": "0.1.0",
+  "private": true,
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "description": "Lazy Node sidecar: NDJSON protocol client, provider loader, claude-sdk and mock adapters",
+  "scripts": {
+    "build": "node build.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "devDependencies": {
+    "@agentclientprotocol/sdk": "1.7.0",
+    "@anthropic-ai/claude-agent-sdk": "0.3.287",
+    "@intely/protocol": "workspace:*",
+    "@types/node": "^24.19.1",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
+  }
+}

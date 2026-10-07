@@ -1,0 +1,21 @@
+{
+  "key": "6c663feac2025718",
+  "case": "hu33",
+  "round": 0,
+  "source": "live",
+  "tier": "fast",
+  "model": "claude-haiku-4-5-20251001",
+  "reply": {
+    "mode": "find",
+    "collection": "orders",
+    "filter": "{\"status\":\"open\",\"createdAt\":{\"$gte\":{\"$date\":\"2026-09-27T22:00:00Z\"},\"$lt\":{\"$date\":\"2026-10-04T22:00:00Z\"}}}",
+    "explanation": "E heti (szeptember 28. - október 4., Budapest időzóna) nyitott rendelések szűrése.",
+    "confidence": "high"
+  },
+  "usage": {
+    "inputTokens": 10,
+    "outputTokens": 10524,
+    "costUsd": 0.064893,
+    "ms": 74449
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "name": "intely-remote-relay",
+  "version": "0.0.0",
+  "private": true,
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "description": "IntelyIDE Remote relay: Cloudflare Worker + SQLite Durable Object Room. Forwards ciphertext only. Runs locally under wrangler dev; the IDE can deploy it to the user's own Cloudflare account from Settings > Remote.",
+  "engines": { "node": ">=24" },
+  "packageManager": "pnpm@11.5.3",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --test --test-concurrency=1 \"tests/*.test.mjs\"",
+    "test:unit": "node --test --test-concurrency=1 tests/unit.test.mjs",
+    "dev": "wrangler dev --local --ip 127.0.0.1 --port 8787",
+    "bundle:sign": "node scripts/sign-bundle.mjs",
+    "bundle:verify": "node scripts/verify-bundle.mjs",
+    "bundle:keygen": "node scripts/gen-bundle-key.mjs"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261003.1",
+    "typescript": "5.9.3",
+    "wrangler": "4.147.0"
+  }
+}

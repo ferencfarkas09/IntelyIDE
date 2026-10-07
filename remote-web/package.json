@@ -1,0 +1,35 @@
+{
+  "name": "intely-remote-web",
+  "version": "0.0.0",
+  "private": true,
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "description": "IntelyIDE Remote phone PWA (Solid + Vite). Served by remote-relay; talks Noise to the Mac gateway through the relay. Built and tested locally only.",
+  "engines": {
+    "node": ">=24"
+  },
+  "packageManager": "pnpm@11.5.3",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5174",
+    "build": "tsc --noEmit && vite build && vite build -c vite.sw.config.ts && node scripts/postbuild.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "e2e": "vitest run --config vitest.e2e.config.ts"
+  },
+  "dependencies": {
+    "@noble/ciphers": "2.4.0",
+    "@noble/curves": "2.4.0",
+    "@noble/hashes": "2.4.0",
+    "lucide-solid": "1.49.0",
+    "solid-js": "1.9.15"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.1",
+    "jsdom": "30.1.1",
+    "playwright-core": "1.63.0",
+    "typescript": "7.0.2",
+    "vite": "8.3.2",
+    "vite-plugin-solid": "2.11.14",
+    "vitest": "5.0.3"
+  }
+}

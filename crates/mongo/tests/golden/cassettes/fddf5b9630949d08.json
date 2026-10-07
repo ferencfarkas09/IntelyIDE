@@ -1,0 +1,20 @@
+{
+  "key": "fddf5b9630949d08",
+  "case": "hu11",
+  "round": 0,
+  "source": "authored",
+  "tier": "fast",
+  "model": null,
+  "reply": {
+    "mode": "find",
+    "collection": "users",
+    "filter": "{\"active\":true,\"role\":\"waiter\"}",
+    "explanation": "Aktív pincérek."
+  },
+  "usage": {
+    "inputTokens": null,
+    "outputTokens": null,
+    "costUsd": null,
+    "ms": null
+  }
+}

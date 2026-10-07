@@ -1,0 +1,7 @@
+// The agent skips the permission flow and calls terminal/create with an absolute-path git push.
+{"op":"on","method":"initialize","reply":{"protocolVersion":1,"agentCapabilities":{"terminal":true}}}
+{"op":"on","method":"session/new","reply":{"sessionId":"s1"}}
+{"op":"on","method":"session/prompt","then":[
+  {"op":"request","name":"term","msg":{"jsonrpc":"2.0","id":"t1","method":"terminal/create","params":{"sessionId":"s1","command":"/usr/bin/git","args":["push","origin","HEAD"]}}},
+  {"op":"send","msg":{"jsonrpc":"2.0","id":"end","method":"fake/prompt_done","params":{"stopReason":"end_turn"}}}
+]}

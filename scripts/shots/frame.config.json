@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "note": "All lengths are device pixels of the 2x snapshot. Traffic-light positions are measured from the window's top-left corner; verify by eye on a framed preview.",
+  "margin": 64,
+  "radius": 20,
+  "stroke": { "width": 2, "color": "#808080", "opacity": 0.35 },
+  "shadow": { "blur": 18, "dy": 12, "opacity": 0.38, "color": "#000000" },
+  "lights": {
+    "x": 40,
+    "y": 38,
+    "gap": 40,
+    "radius": 12,
+    "colors": ["#ff5f57", "#febc2e", "#28c840"]
+  }
+}

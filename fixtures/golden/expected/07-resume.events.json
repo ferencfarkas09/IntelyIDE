@@ -1,0 +1,75 @@
+[
+ {
+  "kind": "session.started",
+  "nativeId": "a95506b6-8f75-49e6-985e-3f8b3834d837",
+  "model": "claude-haiku-4-5-20251001",
+  "effective": {
+   "effort": null,
+   "permission": "ask"
+  },
+  "auth": {
+   "mode": "subscription",
+   "source": "none"
+  },
+  "seq": 1,
+  "ts": 0
+ },
+ {
+  "kind": "text.done",
+  "messageId": "msg_011Cfe1bCUXyXb9HE8sRvNNc:1",
+  "text": "PINEAPPLE",
+  "seq": 2,
+  "ts": 0
+ },
+ {
+  "kind": "usage",
+  "usage": {
+   "model": "claude-haiku-4-5-20251001",
+   "costBasis": "subscription",
+   "contextSize": 200000,
+   "perTurn": {
+    "inputTokens": 927,
+    "outputTokens": 140,
+    "cacheRead": 25823,
+    "cacheWrite": 3346,
+    "reasoningTokens": 114,
+    "costUsd": 0.0109013
+   },
+   "cumulative": {
+    "inputTokens": 927,
+    "outputTokens": 140,
+    "cacheRead": 25823,
+    "cacheWrite": 3346,
+    "reasoningTokens": 114,
+    "costUsd": 0.0109013
+   },
+   "perModel": [
+    {
+     "model": "claude-haiku-4-5-20251001",
+     "tokens": {
+      "inputTokens": 927,
+      "outputTokens": 140,
+      "cacheRead": 25823,
+      "cacheWrite": 3346,
+      "reasoningTokens": 114,
+      "costUsd": 0.0109013
+     }
+    }
+   ]
+  },
+  "seq": 3,
+  "ts": 0
+ },
+ {
+  "kind": "status",
+  "state": "idle",
+  "seq": 4,
+  "ts": 0
+ },
+ {
+  "kind": "turn.end",
+  "stopReason": "endTurn",
+  "seq": 5,
+  "ts": 0
+ }
+]

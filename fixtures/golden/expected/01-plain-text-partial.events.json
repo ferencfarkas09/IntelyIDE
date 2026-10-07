@@ -1,0 +1,94 @@
+[
+ {
+  "kind": "session.started",
+  "nativeId": "61ea9ede-abd9-44df-848f-6aa234571f5c",
+  "model": "claude-haiku-4-5-20251001",
+  "effective": {
+   "effort": null,
+   "permission": "ask"
+  },
+  "auth": {
+   "mode": "subscription",
+   "source": "none"
+  },
+  "seq": 1,
+  "ts": 0
+ },
+ {
+  "kind": "status",
+  "state": "thinking",
+  "seq": 2,
+  "ts": 0
+ },
+ {
+  "kind": "status",
+  "state": "running",
+  "seq": 3,
+  "ts": 0
+ },
+ {
+  "kind": "text.delta",
+  "messageId": "msg_011Cfe1X3wThAWqeG8b6kdtt:1",
+  "text": "OK",
+  "seq": 4,
+  "ts": 0
+ },
+ {
+  "kind": "text.done",
+  "messageId": "msg_011Cfe1X3wThAWqeG8b6kdtt:1",
+  "text": "OK",
+  "seq": 5,
+  "ts": 0
+ },
+ {
+  "kind": "usage",
+  "usage": {
+   "model": "claude-haiku-4-5-20251001",
+   "costBasis": "subscription",
+   "contextSize": 200000,
+   "perTurn": {
+    "inputTokens": 909,
+    "outputTokens": 55,
+    "cacheRead": 11303,
+    "cacheWrite": 3207,
+    "reasoningTokens": 37,
+    "costUsd": 0.008728300000000001
+   },
+   "cumulative": {
+    "inputTokens": 909,
+    "outputTokens": 55,
+    "cacheRead": 11303,
+    "cacheWrite": 3207,
+    "reasoningTokens": 37,
+    "costUsd": 0.008728300000000001
+   },
+   "perModel": [
+    {
+     "model": "claude-haiku-4-5-20251001",
+     "tokens": {
+      "inputTokens": 909,
+      "outputTokens": 55,
+      "cacheRead": 11303,
+      "cacheWrite": 3207,
+      "reasoningTokens": 37,
+      "costUsd": 0.008728300000000001
+     }
+    }
+   ]
+  },
+  "seq": 6,
+  "ts": 0
+ },
+ {
+  "kind": "status",
+  "state": "idle",
+  "seq": 7,
+  "ts": 0
+ },
+ {
+  "kind": "turn.end",
+  "stopReason": "endTurn",
+  "seq": 8,
+  "ts": 0
+ }
+]

@@ -1,0 +1,143 @@
+/* ---- Data kit: TypeChip, DataGrid, JsonTree, CodeEditor ----------------------------------------------------------- */
+
+.ui-typechip {
+  --t-fg: var(--text-2);
+  --t-bg: var(--surface-3);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: var(--radius-1);
+  background: var(--t-bg);
+  color: var(--t-fg);
+  font: 500 10.5px/1 var(--font-mono);
+  letter-spacing: 0;
+  white-space: nowrap;
+  flex: none;
+}
+.ui-typechip[data-tone="accent"] { --t-fg: var(--accent-text); --t-bg: var(--accent-subtle); }
+.ui-typechip[data-tone="info"] { --t-fg: var(--info); --t-bg: var(--info-subtle); }
+.ui-typechip[data-tone="ok"] { --t-fg: var(--ok); --t-bg: var(--ok-subtle); }
+.ui-typechip[data-tone="warn"] { --t-fg: var(--warn); --t-bg: var(--warn-subtle); }
+.ui-typechip__pct { opacity: 0.75; font-family: var(--font-ui); }
+
+/* ---- DataGrid ------------------------------------------------------------------------------------------------------- */
+.ui-grid {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  background: var(--surface-1);
+  color: var(--text-1);
+  font-size: var(--text-sm);
+  outline: none;
+}
+.ui-grid:focus-visible { box-shadow: inset 0 0 0 2px var(--focus-color); }
+.ui-grid__scroll { flex: 1; min-height: 0; overflow: auto; position: relative; scrollbar-width: thin; }
+.ui-grid__header {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  display: flex;
+  height: var(--control-md);
+  background: var(--surface-2);
+  box-shadow: inset 0 -1px 0 var(--border);
+}
+.ui-grid__hcell {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: 0 var(--space-3) 0 var(--space-3);
+  color: var(--text-2);
+  font-weight: var(--weight-medium);
+  font-size: var(--text-xs);
+  text-transform: none;
+  user-select: none;
+  background: var(--surface-2);
+}
+.ui-grid__hcell[data-sortable] { cursor: pointer; }
+.ui-grid__hcell[data-sortable]:hover { color: var(--text-1); background: var(--surface-3); }
+.ui-grid__hcell[data-align="end"] { justify-content: flex-end; }
+.ui-grid__title { min-width: 0; }
+.ui-grid__resizer {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  bottom: 0;
+  width: 7px;
+  cursor: col-resize;
+  z-index: 2;
+}
+.ui-grid__resizer::after { content: ""; position: absolute; top: 6px; bottom: 6px; left: 3px; width: 1px; background: var(--border); }
+.ui-grid__resizer:hover::after { background: var(--accent); width: 2px; left: 2.5px; }
+.ui-grid__body { position: relative; }
+.ui-grid__row {
+  --row-bg: var(--surface-1);
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  background: var(--row-bg);
+  box-shadow: inset 0 -1px 0 var(--border-subtle);
+}
+.ui-grid__row:hover { --row-bg: var(--surface-hover); }
+.ui-grid__row[data-active-row] { --row-bg: var(--surface-selected-inactive); }
+.ui-grid:focus-within .ui-grid__row[data-active-row] { --row-bg: var(--surface-selected); }
+.ui-grid__cell {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  overflow: hidden;
+  padding: 0 var(--space-3);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  cursor: default;
+}
+.ui-grid__cell[data-align="end"] { justify-content: flex-end; font-variant-numeric: tabular-nums; }
+.ui-grid__cell[data-active] { box-shadow: inset 0 0 0 1.5px var(--accent); border-radius: 2px; }
+.ui-grid__cell[data-sticky],
+.ui-grid__hcell[data-sticky] { position: sticky; left: 0; z-index: 1; }
+.ui-grid__cell[data-sticky] { background: var(--row-bg); box-shadow: inset -1px 0 0 var(--border-subtle); }
+.ui-grid__hcell[data-sticky] { z-index: 3; box-shadow: inset -1px 0 0 var(--border); }
+
+/* ---- JsonTree ------------------------------------------------------------------------------------------------------- */
+.ui-json { padding: var(--space-1) 0; font-family: var(--font-mono); font-size: var(--text-sm); outline: none; }
+.ui-json:focus-visible { box-shadow: inset 0 0 0 2px var(--focus-color); }
+.ui-json__key { color: var(--syn-property); margin-right: 2px; }
+.ui-json__colon { color: var(--text-3); margin-right: var(--space-2); }
+.ui-json__summary { color: var(--text-3); }
+.ui-json__value[data-type="String"] { color: var(--syn-string); }
+.ui-json__value[data-type="ObjectId"] { color: var(--accent-text); }
+.ui-json__value[data-type="Date"],
+.ui-json__value[data-type="Timestamp"] { color: var(--info); }
+.ui-json__value[data-type="Int32"],
+.ui-json__value[data-type="Int64"],
+.ui-json__value[data-type="Double"],
+.ui-json__value[data-type="Decimal128"] { color: var(--syn-number); }
+.ui-json__value[data-type="Boolean"] { color: var(--warn); }
+.ui-json__value[data-type="Null"] { color: var(--text-3); font-style: italic; }
+.ui-json__value[data-type="masked"] { color: var(--text-3); letter-spacing: 1px; }
+.ui-json__more {
+  margin-left: var(--space-2);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-text);
+  font: inherit;
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+.ui-json__more:hover { text-decoration: underline; }
+
+/* ---- CodeEditor ----------------------------------------------------------------------------------------------------- */
+.ui-code { min-width: 0; flex: 1; }
+.ui-code .cm-editor { min-height: 26px; }
+.ui-code[data-invalid] .cm-content { text-decoration: underline wavy var(--danger); text-decoration-thickness: 1px; text-underline-offset: 3px; }

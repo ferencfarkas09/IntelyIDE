@@ -1,0 +1,6 @@
+// The lead plans, then calls ExitPlanMode. The REAL broker judges the call (a Plan run answers `ask other.exit-plan`), so the approval card
+// carries a two-paragraph markdown plan and the working modes to continue in. Approve: `session.info planApproved`, then "Continuing in <mode>.".
+// Reject with a note: the note comes back as the tool error, the "model" says "Revising: <note>." and asks once more.
+{"op":"text","dt":30,"id":"m1:0","text":"I read the code and wrote a plan.","chunk":12,"every":10}
+{"op":"exitplan","dt":40,"id":"x1","plan":"## Plan\n\nFirst I add the helper to the module and cover it with a unit test, so the behaviour is pinned before anything else moves.\n\nThen I switch the two call sites to the helper and run the focused test suite once; nothing else in the repository changes."}
+{"op":"end"}

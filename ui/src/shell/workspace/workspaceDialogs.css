@@ -1,0 +1,39 @@
+/* New workspace and Scan dialogs. Tokens only, logical properties. */
+.wsdlg__form { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
+.wsdlg__field { display: flex; flex-direction: column; gap: var(--space-2); font-size: var(--text-sm); color: var(--text-2); }
+.wsdlg__problem { margin: 0; color: var(--danger); font-size: var(--text-sm); }
+.wsdlg__hint { margin: 0; color: var(--text-3); font-size: var(--text-sm); }
+.wsdlg__notice { margin: 0; padding: var(--space-2) var(--space-3); border-radius: var(--radius-2); background: var(--warn-subtle); border: 1px solid var(--warn-border); font-size: var(--text-sm); }
+.wsdlg__swatches { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.wsdlg__swatch, .wsdlg__dot { all: unset; box-sizing: border-box; inline-size: 20px; block-size: 20px; border-radius: var(--radius-full); background: var(--wc); cursor: pointer; box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.25); }
+.wsdlg__dot { inline-size: 14px; block-size: 14px; }
+.wsdlg__swatch[aria-checked="true"], .wsdlg__dot[aria-checked="true"] { box-shadow: 0 0 0 2px var(--surface-2), 0 0 0 4px var(--wc); }
+.wsdlg__swatch:focus-visible, .wsdlg__dot:focus-visible { outline: var(--focus-width) solid var(--focus-color); outline-offset: 3px; }
+.wsdlg__hex { inline-size: 110px; }
+.wsdlg__repos { display: flex; flex-direction: column; gap: var(--space-2); }
+.wsdlg__repos-head, .wsdlg__listhead { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); flex-wrap: wrap; }
+.wsdlg__repos-head h3, .wsdlg__listhead h3 { margin: 0; font-size: var(--text-base); font-weight: var(--weight-semibold); }
+.wsdlg__buttons { display: inline-flex; gap: var(--space-2); flex-wrap: wrap; }
+.wsdlg__empty { margin: 0; padding: var(--space-5); border: 1px dashed var(--border-strong); border-radius: var(--radius-3); color: var(--text-3); text-align: center; font-size: var(--text-sm); }
+.wsdlg__rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); max-block-size: 340px; overflow: auto; }
+.wsdlg__row { padding: var(--space-2) var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-3); background: var(--surface-1); display: flex; flex-direction: column; gap: var(--space-1); }
+.wsdlg__row[data-failed] { border-color: var(--danger-border); }
+.wsdlg__row[data-disabled] { opacity: 0.6; }
+.wsdlg__row-main { display: flex; align-items: center; gap: var(--space-3); min-width: 0; flex-wrap: wrap; }
+.wsdlg__row-fields { display: flex; align-items: center; gap: var(--space-2); flex: 1 1 260px; min-width: 0; flex-wrap: wrap; }
+.wsdlg__badge { inline-size: 56px; }
+.wsdlg__dots { display: inline-flex; gap: var(--space-1); flex-wrap: wrap; }
+.wsdlg__tools { display: inline-flex; margin-inline-start: auto; }
+.wsdlg__path { margin: 0; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--text-3); overflow-wrap: anywhere; }
+.wsdlg__kind { margin-inline-start: var(--space-2); padding: 0 var(--space-2); border-radius: var(--radius-full); background: var(--surface-3); color: var(--text-2); font-size: var(--text-xs); }
+.wsdlg__warn { margin: 0; color: var(--warn); font-size: var(--text-sm); }
+.wsdlg__risk { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-2) var(--space-3); border: 1px solid var(--warn-border); border-radius: var(--radius-2); background: var(--warn-subtle); font-size: var(--text-sm); }
+.wsdlg__scanbar { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+.wsdlg__root { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--text-2); overflow-wrap: anywhere; flex: 1 1 200px; min-width: 0; }
+.wsdlg__progress { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); color: var(--text-2); }
+.wsdlg__none { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); color: var(--text-2); }
+.wsdlg__none p { margin: 0; }
+.wsdlg__scanname { display: inline-flex; flex-wrap: wrap; gap: var(--space-2); align-items: baseline; }
+.wsdlg__target { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.wsdlg__target legend { padding: 0; margin-block-end: var(--space-2); font-size: var(--text-sm); color: var(--text-2); font-weight: var(--weight-medium); }
+.wsdlg__radio { display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--text-base); }

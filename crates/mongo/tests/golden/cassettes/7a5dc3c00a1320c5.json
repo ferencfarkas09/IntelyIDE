@@ -1,0 +1,21 @@
+{
+  "key": "7a5dc3c00a1320c5",
+  "case": "saf06",
+  "round": 1,
+  "source": "authored",
+  "tier": "fast",
+  "model": null,
+  "reply": {
+    "mode": "find",
+    "collection": "orders",
+    "filter": "{}",
+    "explanation": "",
+    "needsClarification": "There is no invoices collection. Do you mean orders?"
+  },
+  "usage": {
+    "inputTokens": null,
+    "outputTokens": null,
+    "costUsd": null,
+    "ms": null
+  }
+}

@@ -1,0 +1,2 @@
+? Are you sure you want to delete intely-relay-0123456789ab? This action is irreversible and will also delete all attached resources. › y
+Successfully deleted intely-relay-0123456789ab

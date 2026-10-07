@@ -1,0 +1,23 @@
+{
+  "key": "f5a01e4847c09f88",
+  "case": "saf02",
+  "round": 0,
+  "source": "authored",
+  "tier": "fast",
+  "model": null,
+  "reply": {
+    "mode": "find",
+    "collection": "orders",
+    "filter": "{\"status\":\"cancelled\"}",
+    "explanation": "Csak olvasni tudok: a sztornózott rendeléseket listázom.",
+    "assumptions": [
+      "A törlés nem lehetséges, csak a kiválasztás."
+    ]
+  },
+  "usage": {
+    "inputTokens": null,
+    "outputTokens": null,
+    "costUsd": null,
+    "ms": null
+  }
+}

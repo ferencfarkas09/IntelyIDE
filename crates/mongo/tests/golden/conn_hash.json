@@ -1,0 +1,65 @@
+{
+  "fieldOrder": {
+    "spec": [
+      "scheme",
+      "hosts",
+      "database",
+      "auth",
+      "tls",
+      "topology",
+      "compressors",
+      "timeouts",
+      "appName",
+      "extra",
+      "tunnel"
+    ],
+    "spec.hosts[]": [
+      "host",
+      "port"
+    ],
+    "spec.auth": [
+      "mechanism",
+      "username",
+      "source",
+      "savePassword"
+    ],
+    "spec.tls": [
+      "mode",
+      "caFile",
+      "clientCertFile",
+      "saveKeyPassword"
+    ],
+    "spec.topology": [
+      "replicaSet",
+      "directConnection",
+      "readPreference",
+      "maxStalenessS"
+    ],
+    "spec.timeouts": [
+      "connectMs",
+      "serverSelectionMs"
+    ],
+    "spec.extra[]": [
+      "key",
+      "value"
+    ],
+    "spec.tunnel": [
+      "kind",
+      "host",
+      "port",
+      "username",
+      "savePassword"
+    ],
+    "spec.tunnel.allowedHosts[]": [
+      "host",
+      "port"
+    ]
+  },
+  "connHash": {
+    "minimal": "a0f97223611fc1f57b2cbb8b1cb834b46e5d73503f34f4b8d52b336d5a6af7ae",
+    "atlas": "afc80024ab13e9694f86ce45d0863d52a23afde84c7f76d761555b8e3229a86f",
+    "full": "acc8e795c122f307c2bd3857d9856259435ad438cc3fb7e5df8697edcbdc9f59",
+    "socks5": "2e11ffce13a4eed2813fdf8d29c27a5ca83baf077bc08019e5cb540526b06c52",
+    "x509": "12aa29c445b7196a7a8f25c2fb74266b6de1ee6008f8c6b9cd886e9d7cc3dd4b"
+  }
+}

@@ -1,0 +1,101 @@
+[
+ {
+  "kind": "session.started",
+  "nativeId": "26302fe3-1513-4151-8b99-5801df803ab0",
+  "model": "claude-haiku-4-5-20251001",
+  "effective": {
+   "effort": null,
+   "permission": "ask"
+  },
+  "auth": {
+   "mode": "subscription",
+   "source": "none"
+  },
+  "seq": 1,
+  "ts": 0
+ },
+ {
+  "kind": "tool.start",
+  "toolId": "toolu_01784Ji4dDRJW9fNcRB4gmi2",
+  "name": "Write",
+  "toolKind": "edit",
+  "input": {
+   "file_path": "<tmp>/isw-s3-f3Mrqz/a.txt",
+   "content": "original"
+  },
+  "seq": 2,
+  "ts": 0
+ },
+ {
+  "kind": "tool.result",
+  "toolId": "toolu_01784Ji4dDRJW9fNcRB4gmi2",
+  "status": "ok",
+  "output": "File created successfully at: <tmp>/isw-s3-f3Mrqz/a.txt (file state is current in your context — no need to Read it back)",
+  "diff": {
+   "path": "<tmp>/isw-s3-f3Mrqz/a.txt",
+   "old": null,
+   "new": "original"
+  },
+  "durationMs": 10,
+  "seq": 3,
+  "ts": 0
+ },
+ {
+  "kind": "text.done",
+  "messageId": "msg_011Cfe1fmocChkjED7HJ5xns:1",
+  "text": "Done! I've created `a.txt` with the content \"original\" in the working directory.",
+  "seq": 4,
+  "ts": 0
+ },
+ {
+  "kind": "usage",
+  "usage": {
+   "model": "claude-haiku-4-5-20251001",
+   "costBasis": "subscription",
+   "contextSize": 200000,
+   "perTurn": {
+    "inputTokens": 928,
+    "outputTokens": 385,
+    "cacheRead": 27868,
+    "cacheWrite": 3701,
+    "reasoningTokens": 219,
+    "costUsd": 0.0130418
+   },
+   "cumulative": {
+    "inputTokens": 928,
+    "outputTokens": 385,
+    "cacheRead": 27868,
+    "cacheWrite": 3701,
+    "reasoningTokens": 219,
+    "costUsd": 0.0130418
+   },
+   "perModel": [
+    {
+     "model": "claude-haiku-4-5-20251001",
+     "tokens": {
+      "inputTokens": 928,
+      "outputTokens": 385,
+      "cacheRead": 27868,
+      "cacheWrite": 3701,
+      "reasoningTokens": 219,
+      "costUsd": 0.0130418
+     }
+    }
+   ]
+  },
+  "seq": 5,
+  "ts": 0
+ },
+ {
+  "kind": "status",
+  "state": "idle",
+  "seq": 6,
+  "ts": 0
+ },
+ {
+  "kind": "turn.end",
+  "stopReason": "endTurn",
+  "seq": 7,
+  "ts": 0
+ }
+]

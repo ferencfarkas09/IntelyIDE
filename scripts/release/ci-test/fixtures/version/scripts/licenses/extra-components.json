@@ -1,0 +1,1 @@
+{ "schema": 1, "components": [ { "id": "manual:other", "version": "1.0.0" }, { "id": "manual:nodejs", "version": "24.13.0" } ] }

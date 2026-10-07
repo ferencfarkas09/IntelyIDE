@@ -1,0 +1,149 @@
+[
+ {
+  "kind": "session.started",
+  "nativeId": "90732630-b679-4c75-a147-aaf716ddfacd",
+  "model": "claude-haiku-4-5-20251001",
+  "effective": {
+   "effort": null,
+   "permission": "ask"
+  },
+  "auth": {
+   "mode": "subscription",
+   "source": "none"
+  },
+  "seq": 1,
+  "ts": 0
+ },
+ {
+  "kind": "status",
+  "state": "thinking",
+  "seq": 2,
+  "ts": 0
+ },
+ {
+  "kind": "status",
+  "state": "running",
+  "seq": 3,
+  "ts": 0
+ },
+ {
+  "kind": "tool.start",
+  "toolId": "toolu_01AfKbUhKL7JLwSw2Jt5UpSP",
+  "name": "AskUserQuestion",
+  "toolKind": "other",
+  "input": {
+   "questions": [
+    {
+     "question": "Which colour do you prefer?",
+     "header": "Colour",
+     "options": [
+      {
+       "label": "Red",
+       "description": "A warm, vibrant colour"
+      },
+      {
+       "label": "Blue",
+       "description": "A cool, calming colour"
+      }
+     ],
+     "multiSelect": false
+    }
+   ]
+  },
+  "seq": 4,
+  "ts": 0
+ },
+ {
+  "kind": "tool.result",
+  "toolId": "toolu_01AfKbUhKL7JLwSw2Jt5UpSP",
+  "status": "ok",
+  "output": "Your questions have been answered: \"Which colour do you prefer?\"=\"Blue\". You can now continue with these answers in mind.",
+  "durationMs": 10,
+  "seq": 5,
+  "ts": 0
+ },
+ {
+  "kind": "status",
+  "state": "thinking",
+  "seq": 6,
+  "ts": 0
+ },
+ {
+  "kind": "status",
+  "state": "running",
+  "seq": 7,
+  "ts": 0
+ },
+ {
+  "kind": "text.delta",
+  "messageId": "msg_011CfetPGjMqCTaYNdBhcSTL:1",
+  "text": "Blue",
+  "seq": 8,
+  "ts": 0
+ },
+ {
+  "kind": "text.delta",
+  "messageId": "msg_011CfetPGjMqCTaYNdBhcSTL:1",
+  "text": ".",
+  "seq": 9,
+  "ts": 0
+ },
+ {
+  "kind": "text.done",
+  "messageId": "msg_011CfetPGjMqCTaYNdBhcSTL:1",
+  "text": "Blue.",
+  "seq": 10,
+  "ts": 0
+ },
+ {
+  "kind": "usage",
+  "usage": {
+   "model": "claude-haiku-4-5-20251001",
+   "costBasis": "subscription",
+   "contextSize": 200000,
+   "perTurn": {
+    "inputTokens": 941,
+    "outputTokens": 269,
+    "cacheRead": 27880,
+    "cacheWrite": 3572,
+    "reasoningTokens": 129,
+    "costUsd": 0.012218
+   },
+   "cumulative": {
+    "inputTokens": 941,
+    "outputTokens": 269,
+    "cacheRead": 27880,
+    "cacheWrite": 3572,
+    "reasoningTokens": 129,
+    "costUsd": 0.012218
+   },
+   "perModel": [
+    {
+     "model": "claude-haiku-4-5-20251001",
+     "tokens": {
+      "inputTokens": 941,
+      "outputTokens": 269,
+      "cacheRead": 27880,
+      "cacheWrite": 3572,
+      "reasoningTokens": 129,
+      "costUsd": 0.012218
+     }
+    }
+   ]
+  },
+  "seq": 11,
+  "ts": 0
+ },
+ {
+  "kind": "status",
+  "state": "idle",
+  "seq": 12,
+  "ts": 0
+ },
+ {
+  "kind": "turn.end",
+  "stopReason": "endTurn",
+  "seq": 13,
+  "ts": 0
+ }
+]

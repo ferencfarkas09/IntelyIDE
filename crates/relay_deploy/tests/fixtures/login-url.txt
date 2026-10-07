@@ -1,0 +1,4 @@
+ ⛅️ wrangler 4.147.0
+-------------------
+Attempting to login via OAuth...
+Opening a link in your default browser: https://dash.cloudflare.com/oauth2/auth?response_type=code&client_id=54d11594-84e4-41aa-b438-e81b8fa78ee7&redirect_uri=http%3A%2F%2Flocalhost%3A8976%2Foauth%2Fcallback&scope=account%3Aread%20workers_scripts%3Awrite&state=Zm9vYmFyMTIzNDU2&code_challenge=abc123&code_challenge_method=S256

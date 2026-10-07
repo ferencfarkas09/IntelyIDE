@@ -1,0 +1,20 @@
+{
+  "key": "4d8f13aad444628e",
+  "case": "en03",
+  "round": 0,
+  "source": "authored",
+  "tier": "fast",
+  "model": null,
+  "reply": {
+    "mode": "find",
+    "collection": "orders",
+    "filter": "{\"type\":\"delivery\",\"createdAt\":{\"$gte\":{\"$date\":\"2026-09-30T22:00:00Z\"}}}",
+    "explanation": "Delivery orders created since the start of this month."
+  },
+  "usage": {
+    "inputTokens": null,
+    "outputTokens": null,
+    "costUsd": null,
+    "ms": null
+  }
+}

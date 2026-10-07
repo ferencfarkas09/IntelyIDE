@@ -1,0 +1,26 @@
+{
+  "key": "bbb161035c8a1b05",
+  "case": "hu36",
+  "round": 0,
+  "source": "live",
+  "tier": "fast",
+  "model": "claude-haiku-4-5-20251001",
+  "reply": {
+    "mode": "find",
+    "collection": "orders",
+    "filter": "{\"status\":\"cancelled\"}",
+    "sort": "{\"createdAt\":-1}",
+    "limit": 5,
+    "explanation": "Find the 5 most recent cancelled orders sorted by creation date in descending order.",
+    "assumptions": [
+      "sztornózott (cancelled) is the status value to filter by"
+    ],
+    "confidence": "high"
+  },
+  "usage": {
+    "inputTokens": 10,
+    "outputTokens": 996,
+    "costUsd": 0.017291,
+    "ms": 11876
+  }
+}

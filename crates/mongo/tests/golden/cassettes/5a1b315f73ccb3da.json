@@ -1,0 +1,20 @@
+{
+  "key": "5a1b315f73ccb3da",
+  "case": "hu06",
+  "round": 0,
+  "source": "authored",
+  "tier": "fast",
+  "model": null,
+  "reply": {
+    "mode": "find",
+    "collection": "orders",
+    "filter": "{\"payments.method\":\"card\",\"createdAt\":{\"$gte\":{\"$date\":\"2026-08-31T22:00:00Z\"},\"$lt\":{\"$date\":\"2026-09-30T22:00:00Z\"}}}",
+    "explanation": "Kártyás fizetésű rendelések szeptemberben (budapesti hónaphatárokkal)."
+  },
+  "usage": {
+    "inputTokens": null,
+    "outputTokens": null,
+    "costUsd": null,
+    "ms": null
+  }
+}

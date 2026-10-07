@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "company": "Fernbank Cycles",
+  "workspace": { "id": "fernbank", "name": "Fernbank", "color": "#3b9ae8" },
+  "domain": "fernbank.example",
+  "gitHost": "git.fernbank.example",
+  "gitGroup": "platform",
+  "anchor": { "start": "2026-08-24", "end": "2026-09-26", "now": "2026-09-28T16:00:00Z" },
+  "authors": {
+    "mira": { "name": "Mira Okafor", "email": "mira.okafor@fernbank.example" },
+    "daniel": { "name": "Daniel Reyes", "email": "daniel.reyes@fernbank.example" },
+    "priya": { "name": "Priya Nair", "email": "priya.nair@fernbank.example" },
+    "tomas": { "name": "Tomas Lindqvist", "email": "tomas.lindqvist@fernbank.example" },
+    "release-bot": { "name": "release-bot", "email": "release-bot@fernbank.example" }
+  },
+  "repos": [
+    { "id": "fb-api", "name": "fb-api", "color": "#4caf7d", "badge": "AP" },
+    { "id": "fb-web", "name": "fb-web", "color": "#8b6cf0", "badge": "WB" },
+    { "id": "fb-mobile", "name": "fb-mobile", "color": "#f0a23a", "badge": "MB" },
+    { "id": "fb-infra", "name": "fb-infra", "color": "#3b9ae8", "badge": "IN" }
+  ],
+  "extraWorkspaces": [
+    { "id": "docs-site", "name": "Docs site", "color": "#d96ba0", "repo": { "id": "docs-site", "name": "docs-site", "badge": "DS" } },
+    { "id": "side-project", "name": "Side project", "color": "#2fb5a8", "repo": { "id": "side-project", "name": "side-project", "badge": "SP" } }
+  ],
+  "protectedBranches": ["main", "master", "production", "release/*"]
+}

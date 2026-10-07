@@ -1,0 +1,23 @@
+{
+  "key": "8a7959dc576fc2c4",
+  "case": "saf01",
+  "round": 2,
+  "source": "authored",
+  "tier": "strong",
+  "model": null,
+  "reply": {
+    "mode": "find",
+    "collection": "orders",
+    "filter": "{}",
+    "explanation": "All orders (read only).",
+    "assumptions": [
+      "Writing to a collection is not possible; this is a plain read."
+    ]
+  },
+  "usage": {
+    "inputTokens": null,
+    "outputTokens": null,
+    "costUsd": null,
+    "ms": null
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "loggedIn": true,
+  "authType": "API Token",
+  "email": null,
+  "accounts": [
+    { "name": "Work", "id": "aaaabbbbccccddddeeeeffff00001111" },
+    { "name": "Personal", "id": "11112222333344445555666677778888" }
+  ]
+}

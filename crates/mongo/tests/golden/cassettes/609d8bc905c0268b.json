@@ -1,0 +1,25 @@
+{
+  "key": "609d8bc905c0268b",
+  "case": "hu27",
+  "round": 0,
+  "source": "live",
+  "tier": "fast",
+  "model": "claude-haiku-4-5-20251001",
+  "reply": {
+    "mode": "find",
+    "collection": "customers",
+    "filter": "{\"segment\":\"új\",\"phone\":null}",
+    "explanation": "Customers belonging to the \"új\" (new) segment with no phone number (null or missing).",
+    "assumptions": [
+      "The term 'új' (new) is interpreted as a value of the segment enum-like field.",
+      "Phone field being null or missing indicates no phone number."
+    ],
+    "confidence": "medium"
+  },
+  "usage": {
+    "inputTokens": 10,
+    "outputTokens": 4532,
+    "costUsd": 0.034152,
+    "ms": 42321
+  }
+}

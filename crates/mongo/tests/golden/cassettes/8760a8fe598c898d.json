@@ -1,0 +1,20 @@
+{
+  "key": "8760a8fe598c898d",
+  "case": "hu08",
+  "round": 0,
+  "source": "authored",
+  "tier": "fast",
+  "model": null,
+  "reply": {
+    "mode": "find",
+    "collection": "customers",
+    "filter": "{\"email\":null}",
+    "explanation": "Azok a vendégek, akiknél nincs email (null vagy hiányzik)."
+  },
+  "usage": {
+    "inputTokens": null,
+    "outputTokens": null,
+    "costUsd": null,
+    "ms": null
+  }
+}

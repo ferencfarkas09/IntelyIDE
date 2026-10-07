@@ -1,0 +1,7 @@
+// Honours cancel, then sends stale updates afterwards; the late updates must be accepted and dropped.
+{"op":"on","method":"session/prompt","then":[{"op":"update","update":{"sessionUpdate":"tool_call","toolCallId":"c1","title":"sleep","kind":"execute","status":"in_progress","rawInput":{"command":"sleep 5"}}}]}
+{"op":"on","method":"session/cancel","then":[
+  {"op":"respond","to":"prompt","result":{"stopReason":"cancelled"}},
+  {"dt":100,"op":"update","update":{"sessionUpdate":"tool_call_update","toolCallId":"c1","status":"completed"}},
+  {"op":"update","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"stale"}}}
+]}

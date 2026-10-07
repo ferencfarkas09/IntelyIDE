@@ -1,0 +1,9 @@
+/* Candidate picker for click-to-source (name-based fallback). */
+.pi__list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; max-height: 320px; overflow: auto; }
+.pi__row { display: flex; align-items: center; gap: 6px; width: 100%; min-width: 0; height: var(--row); padding: 0 var(--space-2); border: 0; border-radius: var(--radius-1); background: none; color: var(--text-1); font: inherit; font-size: var(--text-sm); text-align: left; cursor: default; }
+.pi__row:hover { background: var(--surface-hover); }
+.pi__row:focus-visible { outline: var(--focus-width) solid var(--focus-color); outline-offset: -1px; }
+.pi__path { flex: none; max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; }
+.pi__line { flex: none; color: var(--text-3); font-family: var(--font-mono); }
+.pi__preview { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: pre; color: var(--text-3); font-family: var(--font-mono); font-size: var(--text-xs); }
+.pi__foot { display: flex; justify-content: flex-end; padding-top: var(--space-2); }

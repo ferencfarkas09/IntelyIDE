@@ -1,0 +1,9 @@
+// Garbage between valid messages: nothing hangs, both real chunks arrive, one turn.end.
+{"op":"on","method":"session/prompt","then":[
+  {"op":"update","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"a"}}},
+  {"op":"raw","line":"this is not json"},
+  {"op":"raw","line":"{\"jsonrpc\":\"2.0\",\"id\":"},
+  {"op":"raw","line":"42"},
+  {"op":"update","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"b"}}},
+  {"op":"respond","result":{"stopReason":"end_turn"}}
+]}

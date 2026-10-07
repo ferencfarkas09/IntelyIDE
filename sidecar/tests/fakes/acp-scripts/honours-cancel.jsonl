@@ -1,0 +1,5 @@
+// A long turn that honours session/cancel (the built-in handler answers the pending prompt with stopReason cancelled).
+{"op":"on","method":"session/prompt","then":[
+  {"op":"update","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"working"}}},
+  {"op":"update","update":{"sessionUpdate":"tool_call","toolCallId":"c1","title":"sleep 60","kind":"execute","status":"in_progress","rawInput":{"command":"sleep 60"}}}
+]}

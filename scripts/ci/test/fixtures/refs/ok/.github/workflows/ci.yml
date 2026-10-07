@@ -1,0 +1,18 @@
+name: CI
+on: [pull_request]
+permissions: {}
+jobs:
+  js:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm ci:lint
+      - run: pnpm --filter @fx/ui test
+      - run: pnpm --filter @fx/ui run build && node scripts/b.mjs
+      - run: |
+          bash scripts/a.sh
+          ./scripts/a.sh "${{ github.sha }}"
+          pnpm exec tsc --noEmit
+          node --test "scripts/**/*.test.mjs"
+      - run: bash "$GITHUB_WORKSPACE/scripts/a.sh"

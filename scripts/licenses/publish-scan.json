@@ -1,0 +1,589 @@
+{
+  "allow": [
+    {
+      "path": "remote-relay/tests/fixtures/**",
+      "rule": "*",
+      "reason": "deterministic crypto test vectors and a test key"
+    },
+    {
+      "path": "crates/relay_bundle/tests/fixtures/**",
+      "rule": "*",
+      "reason": "VAPID test pair"
+    },
+    {
+      "path": "crates/relay_deploy/tests/fixtures/**",
+      "rule": "high-entropy-fixture",
+      "reason": "recorded wrangler output with fake ids"
+    },
+    {
+      "path": "fixtures/golden/**",
+      "rule": "high-entropy-fixture",
+      "reason": "sanitised recordings"
+    },
+    {
+      "path": "crates/mongo/tests/**",
+      "rule": "mongodb-credentials",
+      "reason": "parser and redaction tests with fake users and canary passwords"
+    },
+    {
+      "path": "crates/mongo/src/host.rs",
+      "rule": "mongodb-credentials",
+      "reason": "parser and redaction tests with fake users and canary passwords"
+    },
+    {
+      "path": "crates/checks/tests/**",
+      "rule": "mongodb-credentials",
+      "reason": "parser and redaction tests with fake users and canary passwords"
+    },
+    {
+      "path": "crates/runner/src/mask.rs",
+      "rule": "mongodb-credentials",
+      "reason": "parser and redaction tests with fake users and canary passwords"
+    },
+    {
+      "path": "crates/settings/src/secrets.rs",
+      "rule": "mongodb-credentials",
+      "reason": "parser and redaction tests with fake users and canary passwords"
+    },
+    {
+      "path": "src-tauri/src/modules/mongo.rs",
+      "rule": "mongodb-credentials",
+      "reason": "parser and redaction tests with fake users and canary passwords"
+    },
+    {
+      "path": "sidecar/test/**",
+      "rule": "mongodb-credentials",
+      "reason": "parser and redaction tests with fake users and canary passwords"
+    },
+    {
+      "path": "scripts/licenses/texts.test.mjs",
+      "rule": "mongodb-credentials",
+      "reason": "parser and redaction tests with fake users and canary passwords"
+    },
+    {
+      "path": "ui/src/ipc/mock/**",
+      "rule": "mongodb-credentials",
+      "reason": "browser mock data and UI previews with fake users"
+    },
+    {
+      "path": "ui/src/modules/mongo/**",
+      "rule": "mongodb-credentials",
+      "reason": "browser mock data and UI previews with fake users"
+    },
+    {
+      "path": "scripts/mongo-fixture/**",
+      "rule": "mongodb-credentials",
+      "reason": "local Docker fixture with generated throwaway passwords"
+    },
+    {
+      "path": "crates/checks/tests/**",
+      "rule": "url-credentials",
+      "reason": "fake userinfo in redaction, masking and URL-parsing tests (a doc comment shows the userinfo shape)"
+    },
+    {
+      "path": "crates/mongo/tests/**",
+      "rule": "url-credentials",
+      "reason": "fake userinfo in redaction, masking and URL-parsing tests (a doc comment shows the userinfo shape)"
+    },
+    {
+      "path": "crates/pathpick/tests/**",
+      "rule": "url-credentials",
+      "reason": "fake userinfo in redaction, masking and URL-parsing tests (a doc comment shows the userinfo shape)"
+    },
+    {
+      "path": "crates/preview-proxy/src/http.rs",
+      "rule": "url-credentials",
+      "reason": "fake userinfo in redaction, masking and URL-parsing tests (a doc comment shows the userinfo shape)"
+    },
+    {
+      "path": "crates/remote/src/redact.rs",
+      "rule": "url-credentials",
+      "reason": "fake userinfo in redaction, masking and URL-parsing tests (a doc comment shows the userinfo shape)"
+    },
+    {
+      "path": "crates/runner/src/mask.rs",
+      "rule": "url-credentials",
+      "reason": "fake userinfo in redaction, masking and URL-parsing tests (a doc comment shows the userinfo shape)"
+    },
+    {
+      "path": "sidecar/test/**",
+      "rule": "url-credentials",
+      "reason": "fake userinfo in redaction, masking and URL-parsing tests (a doc comment shows the userinfo shape)"
+    },
+    {
+      "path": "src-tauri/src/modules/mongo.rs",
+      "rule": "url-credentials",
+      "reason": "fake userinfo in redaction, masking and URL-parsing tests (a doc comment shows the userinfo shape)"
+    },
+    {
+      "path": "ui/src/ipc/mock/**",
+      "rule": "url-credentials",
+      "reason": "fake userinfo in redaction, masking and URL-parsing tests (a doc comment shows the userinfo shape)"
+    },
+    {
+      "path": "ui/src/modules/preview/**",
+      "rule": "url-credentials",
+      "reason": "fake userinfo in redaction, masking and URL-parsing tests (a doc comment shows the userinfo shape)"
+    },
+    {
+      "path": "crates/happy/src/external.rs",
+      "rule": "url-credentials",
+      "reason": "URL validator and masking tests that must reject or hide a placeholder userinfo"
+    },
+    {
+      "path": "crates/happy/src/net.rs",
+      "rule": "url-credentials",
+      "reason": "URL validator and masking tests that must reject or hide a placeholder userinfo"
+    },
+    {
+      "path": "crates/relay_deploy/tests/**",
+      "rule": "url-credentials",
+      "reason": "URL validator and masking tests that must reject or hide a placeholder userinfo"
+    },
+    {
+      "path": "crates/remote/tests/**",
+      "rule": "url-credentials",
+      "reason": "URL validator and masking tests that must reject or hide a placeholder userinfo"
+    },
+    {
+      "path": "crates/runner/src/catalog.rs",
+      "rule": "url-credentials",
+      "reason": "URL validator and masking tests that must reject or hide a placeholder userinfo"
+    },
+    {
+      "path": "remote-relay/tests/unit.test.mjs",
+      "rule": "url-credentials",
+      "reason": "URL validator and masking tests that must reject or hide a placeholder userinfo"
+    },
+    {
+      "path": "scripts/licenses/banner.test.mjs",
+      "rule": "url-credentials",
+      "reason": "URL validator and masking tests that must reject or hide a placeholder userinfo"
+    },
+    {
+      "path": "scripts/licenses/texts.test.mjs",
+      "rule": "url-credentials",
+      "reason": "URL validator and masking tests that must reject or hide a placeholder userinfo"
+    },
+    {
+      "path": "ui/src/modules/remote/cloud/cloud.test.tsx",
+      "rule": "url-credentials",
+      "reason": "URL validator and masking tests that must reject or hide a placeholder userinfo"
+    },
+    {
+      "path": "scripts/make-fixture-workspace.sh",
+      "rule": "url-credentials",
+      "reason": "fixture workspace script writes a fake DATABASE_URL into an untracked .env of the generated demo"
+    },
+    {
+      "path": "crates/core/src/diff.rs",
+      "rule": "npm-auth-token",
+      "reason": "fake registry token written into a throwaway .npmrc by a test"
+    },
+    {
+      "path": "scripts/e2e/run.sh",
+      "rule": "npm-auth-token",
+      "reason": "fake registry token written into a throwaway .npmrc by a test"
+    },
+    {
+      "path": "**/tests/**",
+      "rule": "private-key",
+      "reason": "truncated or canary key blocks in guard, redaction and attachment tests"
+    },
+    {
+      "path": "sidecar/test/**",
+      "rule": "private-key",
+      "reason": "truncated or canary key blocks in guard, redaction and attachment tests"
+    },
+    {
+      "path": "scripts/licenses/texts.test.mjs",
+      "rule": "private-key",
+      "reason": "truncated or canary key blocks in guard, redaction and attachment tests"
+    },
+    {
+      "path": "src-tauri/src/modules/mongo.rs",
+      "rule": "private-key",
+      "reason": "truncated or canary key blocks in guard, redaction and attachment tests"
+    },
+    {
+      "path": "ui/src/**/*.test.*",
+      "rule": "private-key",
+      "reason": "truncated or canary key blocks in guard, redaction and attachment tests"
+    },
+    {
+      "path": "**/tests/**",
+      "rule": "pem-block",
+      "reason": "canary PEM blocks in tests"
+    },
+    {
+      "path": "crates/checks/src/secrets.rs",
+      "rule": "stripe-key",
+      "reason": "secret-shape prefixes of the masking code and its tests"
+    },
+    {
+      "path": "crates/checks/tests/**",
+      "rule": "stripe-key",
+      "reason": "secret-shape prefixes of the masking code and its tests"
+    },
+    {
+      "path": "crates/remote/src/redact.rs",
+      "rule": "stripe-key",
+      "reason": "secret-shape prefixes of the masking code and its tests"
+    },
+    {
+      "path": "crates/runner/src/mask.rs",
+      "rule": "stripe-key",
+      "reason": "secret-shape prefixes of the masking code and its tests"
+    },
+    {
+      "path": "sidecar/test/**",
+      "rule": "stripe-key",
+      "reason": "secret-shape prefixes of the masking code and its tests"
+    },
+    {
+      "path": "crates/remote/src/redact.rs",
+      "rule": "openai-project-key",
+      "reason": "secret-shape prefix of the redactor and its test"
+    },
+    {
+      "path": "sidecar/test/**",
+      "rule": "openai-project-key",
+      "reason": "secret-shape prefix of the redactor and its test"
+    },
+    {
+      "path": "crates/runner/src/mask.rs",
+      "rule": "basic-auth-header",
+      "reason": "masking code and tests with a fake Basic header"
+    },
+    {
+      "path": "crates/settings/src/secrets.rs",
+      "rule": "basic-auth-header",
+      "reason": "masking code and tests with a fake Basic header"
+    },
+    {
+      "path": "sidecar/test/**",
+      "rule": "basic-auth-header",
+      "reason": "masking code and tests with a fake Basic header"
+    },
+    {
+      "path": "sidecar/test/**",
+      "rule": "anthropic-key",
+      "reason": "canary values for env scrubbing and redaction tests"
+    },
+    {
+      "path": "crates/remote/tests/**",
+      "rule": "anthropic-key",
+      "reason": "canary values for env scrubbing and redaction tests"
+    },
+    {
+      "path": "scripts/e2e/v-providers.js",
+      "rule": "anthropic-key",
+      "reason": "canary values for env scrubbing and redaction tests"
+    },
+    {
+      "path": "sidecar/test/**",
+      "rule": "github-token",
+      "reason": "canary values"
+    },
+    {
+      "path": "crates/remote/tests/**",
+      "rule": "github-token",
+      "reason": "canary values"
+    },
+    {
+      "path": "crates/runindex/tests/**",
+      "rule": "github-token",
+      "reason": "canary values"
+    },
+    {
+      "path": "crates/remote/tests/**",
+      "rule": "slack-token",
+      "reason": "canary values"
+    },
+    {
+      "path": "crates/remote/tests/**",
+      "rule": "google-api-key",
+      "reason": "canary values"
+    },
+    {
+      "path": "sidecar/test/**",
+      "rule": "google-api-key",
+      "reason": "canary values"
+    },
+    {
+      "path": "sidecar/test/**",
+      "rule": "bearer-token",
+      "reason": "canary values"
+    },
+    {
+      "path": "crates/remote/tests/**",
+      "rule": "bearer-token",
+      "reason": "canary values"
+    },
+    {
+      "path": "sidecar/test/**",
+      "rule": "token-assignment",
+      "reason": "canary values"
+    },
+    {
+      "path": "sidecar/test/**",
+      "rule": "credential-assignment",
+      "reason": "canary values and fake secrets for masking tests"
+    },
+    {
+      "path": "crates/relay_deploy/src/mask.rs",
+      "rule": "credential-assignment",
+      "reason": "canary values and fake secrets for masking tests"
+    },
+    {
+      "path": "scripts/e2e/v-providers.js",
+      "rule": "credential-assignment",
+      "reason": "canary values and fake secrets for masking tests"
+    },
+    {
+      "path": "scripts/licenses/publish-scan.test.mjs",
+      "rule": "credential-assignment",
+      "reason": "canary values and fake secrets for masking tests"
+    },
+    {
+      "path": "ui/src/modules/mongo/form/form.test.tsx",
+      "rule": "credential-assignment",
+      "reason": "canary values and fake secrets for masking tests"
+    },
+    {
+      "path": "crates/mongo/tests/**",
+      "rule": "password-text",
+      "reason": "field name in a Mongo AI pipeline test"
+    },
+    {
+      "path": "crates/*/tests/**",
+      "rule": "jwt",
+      "reason": "mock tokens, sub=u_1"
+    },
+    {
+      "path": "crates/happy/src/net.rs",
+      "rule": "jwt",
+      "reason": "mock tokens, sub=u_1"
+    },
+    {
+      "path": "crates/happy/src/redact.rs",
+      "rule": "jwt",
+      "reason": "mock tokens, sub=u_1"
+    },
+    {
+      "path": "scripts/mock-happy/server.mjs",
+      "rule": "jwt",
+      "reason": "mock tokens, sub=u_1"
+    },
+    {
+      "path": "scripts/licenses/texts.test.mjs",
+      "rule": "jwt",
+      "reason": "mock tokens, sub=u_1"
+    },
+    {
+      "path": "crates/relay_deploy/**",
+      "rule": "cloudflare-token",
+      "reason": "masking tests with fake cfut_ values and a token-shape validator test"
+    },
+    {
+      "path": "src-tauri/src/modules/relay_cloud.rs",
+      "rule": "cloudflare-token",
+      "reason": "masking tests with fake cfut_ values and a token-shape validator test"
+    },
+    {
+      "path": "ui/src/modules/remote/cloud/cloud.test.tsx",
+      "rule": "cloudflare-token",
+      "reason": "masking tests with fake cfut_ values and a token-shape validator test"
+    },
+    {
+      "path": "THIRD_PARTY_LICENSES.md",
+      "rule": "personal-email",
+      "reason": "upstream copyright lines in licence texts and generated licence data"
+    },
+    {
+      "path": "scripts/licenses/texts/**",
+      "rule": "personal-email",
+      "reason": "upstream copyright lines in licence texts and generated licence data"
+    },
+    {
+      "path": "ui/src/shell/licenses/data/**",
+      "rule": "personal-email",
+      "reason": "upstream copyright lines in licence texts and generated licence data"
+    },
+    {
+      "path": "THIRD_PARTY_LICENSES.md",
+      "rule": "email-address",
+      "reason": "upstream copyright lines in licence texts and generated licence data"
+    },
+    {
+      "path": "scripts/licenses/texts/**",
+      "rule": "email-address",
+      "reason": "upstream copyright lines in licence texts and generated licence data"
+    },
+    {
+      "path": "ui/src/shell/licenses/data/**",
+      "rule": "email-address",
+      "reason": "upstream copyright lines in licence texts and generated licence data"
+    },
+    {
+      "path": "scripts/licenses/texts.test.mjs",
+      "rule": "email-address",
+      "reason": "upstream copyright lines in licence texts and generated licence data"
+    },
+    {
+      "path": "ui/src/shell/licenses/links.test.ts",
+      "rule": "email-address",
+      "reason": "upstream copyright lines in licence texts and generated licence data"
+    },
+    {
+      "path": "crates/core/src/exec.rs",
+      "rule": "email-address",
+      "reason": "ssh remote URLs of the git user and other host-only samples in tests"
+    },
+    {
+      "path": "crates/core/src/jail.rs",
+      "rule": "email-address",
+      "reason": "ssh remote URLs of the git user and other host-only samples in tests"
+    },
+    {
+      "path": "crates/core/tests/jail.rs",
+      "rule": "email-address",
+      "reason": "ssh remote URLs of the git user and other host-only samples in tests"
+    },
+    {
+      "path": "crates/pathpick/src/gitdir.rs",
+      "rule": "email-address",
+      "reason": "ssh remote URLs of the git user and other host-only samples in tests"
+    },
+    {
+      "path": "sidecar/test/env.test.ts",
+      "rule": "email-address",
+      "reason": "ssh remote URLs of the git user and other host-only samples in tests"
+    },
+    {
+      "path": "crates/graph/src/message.rs",
+      "rule": "email-address",
+      "reason": "ssh remote URLs of the git user and other host-only samples in tests"
+    },
+    {
+      "path": "crates/relay_deploy/tests/output.rs",
+      "rule": "email-address",
+      "reason": "ssh remote URLs of the git user and other host-only samples in tests"
+    },
+    {
+      "path": "crates/remote/tests/relay_config.rs",
+      "rule": "email-address",
+      "reason": "ssh remote URLs of the git user and other host-only samples in tests"
+    },
+    {
+      "path": "remote-relay/tests/unit.test.mjs",
+      "rule": "email-address",
+      "reason": "ssh remote URLs of the git user and other host-only samples in tests"
+    },
+    {
+      "path": "ui/src/modules/viewers/markdown.test.ts",
+      "rule": "email-address",
+      "reason": "ssh remote URLs of the git user and other host-only samples in tests"
+    },
+    {
+      "path": "crates/mongo/tests/**",
+      "rule": "email-address",
+      "reason": "userinfo of fake connection strings and URL-parser cases, not addresses"
+    },
+    {
+      "path": "ui/src/modules/mongo/**",
+      "rule": "email-address",
+      "reason": "userinfo of fake connection strings and URL-parser cases, not addresses"
+    },
+    {
+      "path": "ui/src/modules/preview/**",
+      "rule": "email-address",
+      "reason": "userinfo of fake connection strings and URL-parser cases, not addresses"
+    },
+    {
+      "path": "sidecar/test/**",
+      "rule": "secret-env-assignment",
+      "reason": "canary values for env scrubbing and redaction tests"
+    },
+    {
+      "path": "scripts/licenses/publish-scan.test.mjs",
+      "rule": "secret-env-assignment",
+      "reason": "canary values and fake secrets for masking tests"
+    },
+    {
+      "path": "scripts/demo-workspace/test/whole-demo.test.mjs",
+      "rule": "mongodb-credentials",
+      "reason": "a placeholder user:pw URI on loopback, used as a rejected-input case"
+    },
+    {
+      "path": "scripts/release/updater/test/names.test.mjs",
+      "rule": "email-address",
+      "reason": "a URL with a user@ part used as a rejected-input case"
+    },
+    {
+      "path": "crates/mcp/src/model.rs",
+      "rule": "github-token",
+      "reason": "synthetic tokens in the unit tests of the secret detector for MCP arguments and values"
+    },
+    {
+      "path": "crates/mcp/src/model.rs",
+      "rule": "slack-token",
+      "reason": "synthetic token shape in the unit tests of the secret detector"
+    },
+    {
+      "path": "crates/mcp/src/model.rs",
+      "rule": "url-credentials",
+      "reason": "placeholder user:pw in the unit tests of the MCP URL validator"
+    },
+    {
+      "path": "crates/mcp/tests/import.rs",
+      "rule": "github-token",
+      "reason": "synthetic token in the import test that must be refused"
+    },
+    {
+      "path": "crates/mcp/tests/import.rs",
+      "rule": "credential-assignment",
+      "reason": "placeholder header value in the import test"
+    },
+    {
+      "path": "crates/agent_core/tests/modes_exec.rs",
+      "rule": "url-credentials",
+      "reason": "placeholder user:pw in a command the policy must deny"
+    },
+    {
+      "path": "crates/relay_deploy/src/mask.rs",
+      "rule": "email-address",
+      "reason": "placeholder address in the masking test"
+    },
+    {
+      "path": "crates/updater/tests/**",
+      "rule": "email-address",
+      "reason": "URL user information (https://u@host) in the tests that must refuse it"
+    },
+    {
+      "path": "crates/updater/tests/**",
+      "rule": "url-credentials",
+      "reason": "placeholder user:pw in the URL-policy tests"
+    },
+    {
+      "path": "crates/updater/tests/**",
+      "rule": "high-entropy-fixture",
+      "reason": "fake signature text in the feed fixture"
+    },
+    {
+      "path": "packages/protocol/fixtures/mcp-secret-forms.json",
+      "rule": "high-entropy-fixture",
+      "reason": "synthetic encoded secret forms for the redaction tests"
+    },
+    {
+      "path": "sidecar/test/sdk-install.test.ts",
+      "rule": "email-address",
+      "reason": "placeholder user:pw registry URL in the installer URL-policy test"
+    },
+    {
+      "path": "ui/src/modules/mcp/logic.test.ts",
+      "rule": "url-credentials",
+      "reason": "placeholder user:pw in the MCP URL validator test"
+    }
+  ]
+}

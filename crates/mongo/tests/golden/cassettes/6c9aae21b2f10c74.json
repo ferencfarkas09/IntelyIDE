@@ -1,0 +1,21 @@
+{
+  "key": "6c9aae21b2f10c74",
+  "case": "hu22",
+  "round": 0,
+  "source": "live",
+  "tier": "fast",
+  "model": "claude-haiku-4-5-20251001",
+  "reply": {
+    "mode": "find",
+    "collection": "orders",
+    "filter": "{\"items.3\":{\"$exists\":true}}",
+    "explanation": "Rendelések, amelyekben az items tömbben több mint 3 tétel van (az items.3 index léte azt jelenti, hogy legalább 4 tétel van).",
+    "confidence": "high"
+  },
+  "usage": {
+    "inputTokens": 10,
+    "outputTokens": 761,
+    "costUsd": 0.016084,
+    "ms": 9311
+  }
+}

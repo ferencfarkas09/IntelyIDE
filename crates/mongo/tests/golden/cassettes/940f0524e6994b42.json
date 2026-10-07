@@ -1,0 +1,20 @@
+{
+  "key": "940f0524e6994b42",
+  "case": "hu04",
+  "round": 0,
+  "source": "authored",
+  "tier": "fast",
+  "model": null,
+  "reply": {
+    "mode": "find",
+    "collection": "customers",
+    "filter": "{\"name\":{\"$regularExpression\":{\"pattern\":\"^K\",\"options\":\"\"}},\"deleted\":false}",
+    "explanation": "K-val kezdődő, nem törölt vendégek."
+  },
+  "usage": {
+    "inputTokens": null,
+    "outputTokens": null,
+    "costUsd": null,
+    "ms": null
+  }
+}

@@ -1,0 +1,26 @@
+#!/bin/bash
+# Fake gh. Fast path in bash for the plain `gh api -X GET <endpoint>` read (fixture file or .err file, no sequences,
+# no --jq): saves a node start per call. Everything else (--jq, sequences, `repo view`, a non-GET method) goes
+# to gh.cjs, which also logs and refuses writes. See gh.cjs for the fixture layout.
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ "$#" -eq 4 ] && [ "$1" = "api" ] && [ "$2" = "-X" ] && [ "$3" = "GET" ] && [ -n "${FAKE_GH_DIR:-}" ]; then
+  endpoint="$4"
+  name="${endpoint%%\?*}"
+  name="${name#/}"
+  name="${name//\//__}"
+  if [ ! -e "$FAKE_GH_DIR/$name.json.1" ]; then
+    echo "gh GET $endpoint" >> "${FAKE_LOG:-/dev/null}"
+    if [ -f "$FAKE_GH_DIR/$name.err" ]; then
+      cat "$FAKE_GH_DIR/$name.err" >&2
+      exit 1
+    fi
+    if [ -f "$FAKE_GH_DIR/$name.json" ]; then
+      cat "$FAKE_GH_DIR/$name.json"
+      echo
+      exit 0
+    fi
+    echo "gh: Not Found (HTTP 404)" >&2
+    exit 1
+  fi
+fi
+exec "${FAKE_NODE:-node}" "$here/gh.cjs" "$@"

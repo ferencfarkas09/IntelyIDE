@@ -1,0 +1,9 @@
+// Vendor extension requests (cursor/ask_question, underscore methods) and garbage lines: the client must answer safely and keep going.
+{"op":"on","method":"initialize","reply":{"protocolVersion":1}}
+{"op":"on","method":"session/new","reply":{"sessionId":"s1"}}
+{"op":"on","method":"session/prompt","then":[
+  {"op":"request","name":"vendor","msg":{"jsonrpc":"2.0","id":"v1","method":"cursor/ask_question","params":{"q":"?"}}},
+  {"op":"raw","line":"this is not json"},
+  {"op":"request","name":"vendor2","msg":{"jsonrpc":"2.0","id":"v2","method":"_vendor/thing","params":{}}},
+  {"op":"send","msg":{"jsonrpc":"2.0","id":"end","method":"fake/prompt_done","params":{"stopReason":"end_turn"}}}
+]}

@@ -1,0 +1,78 @@
+/* Changes tree: only layout and the few row parts the kit does not cover. Colours and sizes come from tokens. */
+.chg { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; min-height: 0; }
+.chg > .ui-empty { flex: 1; }
+.chg__scroll { flex: 1 1 auto; min-height: 0; }
+.chg__tree { outline: none; }
+
+/* Repo rows */
+.chg-row--repo { font-weight: var(--weight-medium); }
+.chg-row--repo::after {
+  content: "";
+  position: absolute !important;
+  top: 0;
+  left: 12px;
+  right: 12px;
+  height: 1px;
+  background: var(--border-subtle);
+  pointer-events: none;
+}
+.chg-row--repo[id$="-0"]::after { display: none; }
+/* Under pressure the repo name gives way first (down to 64px), so the branch pill keeps its name; the pill shortens only after that. */
+.chg-row--repo .ui-tree-row__main { min-width: 64px; flex-shrink: 20; }
+.chg-row--repo .ui-tree-row__trailing { flex-shrink: 1; }
+.chg-repo-name { font-weight: var(--weight-semibold); letter-spacing: -0.005em; }
+.chg-count { margin-left: 6px; color: var(--text-3); font-size: var(--text-sm); font-weight: var(--weight-regular); }
+.chg-actions { display: inline-flex; align-items: center; gap: 2px; margin-left: 2px; }
+.chg-kind-icon { color: var(--text-3); }
+.chg-lock { display: inline-flex; align-items: center; color: var(--text-3); cursor: default; }
+.chg-lock[data-conflict] { color: var(--danger); }
+.chg-lock[data-sensitive] { color: var(--warn); }
+.chg-agent { display: inline-block; flex: none; width: 8px; height: 8px; margin: 0 4px; vertical-align: middle; border-radius: var(--radius-full); background: var(--accent); box-shadow: 0 0 0 2px var(--accent-subtle); cursor: default; }
+.chg-agent[data-active] { animation: chg-agent-pulse 1.6s ease-in-out infinite; }
+@keyframes chg-agent-pulse { 50% { box-shadow: 0 0 0 4px transparent; } }
+@media (prefers-reduced-motion: reduce) { .chg-agent[data-active] { animation: none; } }
+
+/* Rows that are not TreeRows: notes, banners, skeletons, message fields. Indent matches the kit's tree rows. */
+.chg-note,
+.chg-skeleton {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px 0 calc(8px + var(--depth, 0) * 16px + 18px);
+  color: var(--text-3);
+  font-size: var(--text-sm);
+}
+.chg-note[data-tone="error"], .chg-note[data-tone="dirError"] { color: var(--danger); }
+.chg-note[data-tone="truncated"] { color: var(--warn); }
+.chg-note__text { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chg-note[data-tone="error"] { line-height: 1.35; }
+.chg-note[data-tone="error"] .chg-note__text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; }
+.chg-note .ui-icon { flex: none; }
+.chg-skeleton { padding-left: calc(8px + var(--depth, 0) * 16px + 18px); }
+
+.chg-banner { padding: 3px 8px; }
+.chg-banner__box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 100%;
+  padding: 0 10px;
+  border-radius: var(--radius-2);
+  background: var(--warn-subtle);
+  box-shadow: inset 0 0 0 1px var(--warn-border);
+  color: var(--warn);
+  font-size: var(--text-sm);
+}
+.chg-banner__box strong { font-weight: var(--weight-semibold); }
+.chg-banner__box > .ui-icon { flex: none; }
+.chg-banner__box > span { color: var(--text-2); min-width: 0; }
+.chg-banner__box strong { color: var(--text-1); }
+
+.chg-message { padding: 4px 12px 8px calc(8px + var(--depth, 0) * 16px + 18px); }
+
+/* Loading skeleton for the whole tree */
+.chg-loading { display: flex; flex-direction: column; gap: 10px; padding: 8px 12px; }
+.chg-loading__group { display: flex; flex-direction: column; gap: 10px; }
+.chg-loading__repo,
+.chg-loading__file { display: flex; align-items: center; gap: 8px; height: 22px; }
+.chg-loading__file { padding-left: 24px; }

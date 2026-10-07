@@ -1,0 +1,5 @@
+// Blocked on a permission request when the user cancels: the client must answer it with outcome cancelled.
+{"op":"on","method":"session/prompt","then":[
+  {"op":"request","name":"perm","method":"session/request_permission","params":{"toolCall":{"toolCallId":"c1","title":"npm test","kind":"execute","rawInput":{"command":"npm test"}},"options":[{"optionId":"allow","name":"Allow","kind":"allow_once"},{"optionId":"reject","name":"Reject","kind":"reject_once"}]}},
+  {"op":"update","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"answer=${perm.result.outcome.outcome}"}}}
+]}

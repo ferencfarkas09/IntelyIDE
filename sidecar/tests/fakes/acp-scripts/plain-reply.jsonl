@@ -1,0 +1,5 @@
+// A short streamed answer (e2e scenario z plays it as the read-only role mock-acp-plain-reply).
+{"op":"on","method":"session/prompt","then":[
+  {"op":"update","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"Hello from the ACP fake."}}},
+  {"op":"respond","result":{"stopReason":"end_turn"}}
+]}

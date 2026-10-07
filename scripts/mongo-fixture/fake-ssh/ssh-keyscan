@@ -1,0 +1,4 @@
+#!/bin/sh
+# Fake `ssh-keyscan`: always answers with one fixed ed25519 key (no network). The key is the same for every host.
+for last; do :; done
+printf '# %s:22 SSH-2.0-FakeSSH\n%s ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIy3VkkV+qq4Li3mJhPgDC8G7vdnYGaZORJbUU6fwWfC\n' "$last" "$last"

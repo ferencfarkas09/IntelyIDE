@@ -1,0 +1,21 @@
+{
+  "key": "8a61b24554951e8a",
+  "case": "en14",
+  "round": 0,
+  "source": "live",
+  "tier": "fast",
+  "model": "claude-haiku-4-5-20251001",
+  "reply": {
+    "mode": "find",
+    "collection": "orders",
+    "filter": "{\"createdAt\":{\"$gte\":{\"$date\":\"2026-10-01T22:00:00Z\"},\"$lt\":{\"$date\":\"2026-10-02T22:00:00Z\"}}}",
+    "explanation": "Finding orders created yesterday, which is the date range from 2026-10-01T22:00:00Z (yesterday's start) to 2026-10-02T22:00:00Z (today's start) in Budapest time.",
+    "confidence": "high"
+  },
+  "usage": {
+    "inputTokens": 10,
+    "outputTokens": 620,
+    "costUsd": 0.015321,
+    "ms": 6167
+  }
+}

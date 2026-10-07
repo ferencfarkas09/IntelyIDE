@@ -1,0 +1,145 @@
+# Clean fixture shaped like the real ci.yml (spec 5.3). SHAs are fake.
+name: CI
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions: {}
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+env:
+  RUST_VERSION: "1.96.0"
+  CARGO_INCREMENTAL: "0"
+  CARGO_TERM_COLOR: never
+jobs:
+  lint-workflows:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions: { contents: read }
+    steps:
+      - uses: actions/checkout@1111111111111111111111111111111111111111 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@2222222222222222222222222222222222222222 # v7.0.0
+        with: { node-version: 24 }
+      - run: node scripts/ci/check-workflows.mjs --strict
+      - run: bash scripts/ci/run-actionlint.sh
+  js:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions: { contents: read }
+    steps:
+      - uses: actions/checkout@1111111111111111111111111111111111111111 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@2222222222222222222222222222222222222222 # v7.0.0
+        with: { node-version: 24 }
+      - uses: pnpm/action-setup@3333333333333333333333333333333333333333 # v6.1.0
+      - run: pnpm install --frozen-lockfile
+      - run: bash scripts/ci/js-gates.sh
+  gates:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions: { contents: read }
+    env:
+      GIT_CONFIG_GLOBAL: /dev/null
+    steps:
+      - uses: actions/checkout@1111111111111111111111111111111111111111 # v7.0.1
+        with: { fetch-depth: 0, persist-credentials: false }
+      - run: cargo fetch --locked
+      - run: bash scripts/release/gate.sh --ci-gates
+  dco:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions: { contents: read }
+    steps:
+      - uses: actions/checkout@1111111111111111111111111111111111111111 # v7.0.1
+        with: { fetch-depth: 0, persist-credentials: false }
+      - name: DCO
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node scripts/release/check-dco.mjs --range "$BASE_SHA..$HEAD_SHA"
+  i18n-full:
+    # RD6: non-blocking until the translations are complete
+    continue-on-error: true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions: { contents: read }
+    steps:
+      - uses: actions/checkout@1111111111111111111111111111111111111111 # v7.0.1
+        with: { persist-credentials: false }
+      - run: pnpm i18n:check
+  publish-scan-full:
+    continue-on-error: true # RD7: report only
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions: { contents: read }
+    steps:
+      - uses: actions/checkout@1111111111111111111111111111111111111111 # v7.0.1
+        with: { persist-credentials: false }
+      - run: pnpm licenses:publish-scan
+  rust:
+    runs-on: macos-15
+    timeout-minutes: 75
+    permissions: { contents: read }
+    steps:
+      - uses: actions/checkout@1111111111111111111111111111111111111111 # v7.0.1
+        with: { persist-credentials: false }
+      - run: rustup toolchain install "$RUST_VERSION" --profile minimal
+      - uses: Swatinem/rust-cache@4444444444444444444444444444444444444444 # v2.9.2
+        with:
+          shared-key: ci-aarch64
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+          cache-on-failure: true
+      - run: bash scripts/ci/cargo-test.sh
+  deny:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions: { contents: read }
+    steps:
+      - uses: actions/checkout@1111111111111111111111111111111111111111 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: EmbarkStudios/cargo-deny-action@5555555555555555555555555555555555555555 # v2.1.1
+        with: { command: check }
+  dependency-review:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions: { contents: read }
+    steps:
+      - uses: actions/checkout@1111111111111111111111111111111111111111 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: actions/dependency-review-action@6666666666666666666666666666666666666666 # v5.0.0
+  release-verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions: { contents: read }
+    steps:
+      - uses: actions/checkout@1111111111111111111111111111111111111111 # v7.0.1
+        with: { persist-credentials: false }
+      - run: pnpm release:test
+  build-smoke:
+    if: github.event_name != 'pull_request'
+    runs-on: macos-15
+    timeout-minutes: 60
+    permissions: { contents: read }
+    steps:
+      - uses: actions/checkout@1111111111111111111111111111111111111111 # v7.0.1
+        with: { persist-credentials: false }
+      - run: bash scripts/ci/build-smoke.sh
+  ci-ok:
+    if: always()
+    needs: [lint-workflows, js, gates, rust, deny, dco, dependency-review, release-verify]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - uses: actions/checkout@1111111111111111111111111111111111111111 # v7.0.1
+        with: { persist-credentials: false }
+      - name: Aggregate
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: node scripts/ci/ci-ok.mjs

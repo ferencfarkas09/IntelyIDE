@@ -1,0 +1,23 @@
+{
+  "key": "66a0243490cfd827",
+  "case": "hu05",
+  "round": 0,
+  "source": "authored",
+  "tier": "fast",
+  "model": null,
+  "reply": {
+    "mode": "find",
+    "collection": "orders",
+    "filter": "{\"total\":{\"$type\":\"number\"}}",
+    "explanation": "A 5 legnagyobb végösszegű rendelés (a szöveges összegeket kihagyva).",
+    "projection": "{\"total\":1,\"_id\":0}",
+    "sort": "{\"total\":-1}",
+    "limit": 5
+  },
+  "usage": {
+    "inputTokens": null,
+    "outputTokens": null,
+    "costUsd": null,
+    "ms": null
+  }
+}

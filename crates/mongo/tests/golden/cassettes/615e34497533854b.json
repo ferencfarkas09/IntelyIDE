@@ -1,0 +1,20 @@
+{
+  "key": "615e34497533854b",
+  "case": "en02",
+  "round": 0,
+  "source": "authored",
+  "tier": "fast",
+  "model": null,
+  "reply": {
+    "mode": "find",
+    "collection": "customers",
+    "filter": "{\"segment\":\"vip\",\"deleted\":false}",
+    "explanation": "Active VIP customers."
+  },
+  "usage": {
+    "inputTokens": null,
+    "outputTokens": null,
+    "costUsd": null,
+    "ms": null
+  }
+}

@@ -1,0 +1,5 @@
+.tb { display: flex; flex-direction: column; flex: none; }
+.tb__actions { display: flex; align-items: center; gap: 2px; padding: 6px 8px 4px; }
+.tb__sep { width: 1px; height: 14px; margin: 0 4px; background: var(--border); }
+.tb__grow { flex: 1; }
+.tb__tabs { padding: 2px 8px 8px; }

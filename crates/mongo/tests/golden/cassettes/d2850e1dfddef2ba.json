@@ -1,0 +1,20 @@
+{
+  "key": "d2850e1dfddef2ba",
+  "case": "en15",
+  "round": 0,
+  "source": "authored",
+  "tier": "fast",
+  "model": null,
+  "reply": {
+    "mode": "find",
+    "collection": "orders",
+    "filter": "{\"items.name\":\"Lángos\"}",
+    "explanation": "Orders with a Lángos item."
+  },
+  "usage": {
+    "inputTokens": null,
+    "outputTokens": null,
+    "costUsd": null,
+    "ms": null
+  }
+}

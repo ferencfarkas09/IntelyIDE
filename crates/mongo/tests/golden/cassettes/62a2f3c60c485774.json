@@ -1,0 +1,24 @@
+{
+  "key": "62a2f3c60c485774",
+  "case": "hu43",
+  "round": 0,
+  "source": "live",
+  "tier": "fast",
+  "model": "claude-haiku-4-5-20251001",
+  "reply": {
+    "mode": "find",
+    "collection": "customers",
+    "filter": "{\"email\":null,\"address.city\":{\"$ne\":\"Budapest\"}}",
+    "explanation": "Vendégek kiválasztása, akiknek nincs email címük (email mező null vagy hiányzik) és nem budapestiek.",
+    "assumptions": [
+      "A \"nincs email\" feltétel magában foglalja a null értékeket és a hiányzó email mezőket is."
+    ],
+    "confidence": "high"
+  },
+  "usage": {
+    "inputTokens": 18,
+    "outputTokens": 1370,
+    "costUsd": 0.021004800000000004,
+    "ms": 14400
+  }
+}

@@ -1,0 +1,9 @@
+// The happy path of our terminal handler: run, wait, read the output, release.
+{"op":"on","method":"session/prompt","then":[
+  {"op":"request","name":"term","method":"terminal/create","params":{"command":"/bin/echo","args":["hello","from terminal"]}},
+  {"op":"request","name":"wait","method":"terminal/wait_for_exit","params":{"terminalId":"${term.result.terminalId}"}},
+  {"op":"request","name":"out","method":"terminal/output","params":{"terminalId":"${term.result.terminalId}"}},
+  {"op":"request","name":"rel","method":"terminal/release","params":{"terminalId":"${term.result.terminalId}"}},
+  {"op":"update","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"exit=${wait.result.exitCode} out=${out.result.output}"}}},
+  {"op":"respond","result":{"stopReason":"end_turn"}}
+]}

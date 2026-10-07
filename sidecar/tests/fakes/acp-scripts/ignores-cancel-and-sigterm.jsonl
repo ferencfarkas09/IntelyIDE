@@ -1,0 +1,4 @@
+// Ignores session/cancel AND SIGTERM: only SIGKILL ends it.
+{"op":"ignore_sigterm"}
+{"op":"on","method":"session/cancel","ignore":true}
+{"op":"on","method":"session/prompt","then":[{"op":"update","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"working"}}},{"op":"hang"}]}

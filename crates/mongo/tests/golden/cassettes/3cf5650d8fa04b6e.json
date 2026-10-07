@@ -1,0 +1,22 @@
+{
+  "key": "3cf5650d8fa04b6e",
+  "case": "hu02",
+  "round": 0,
+  "source": "authored",
+  "tier": "fast",
+  "model": null,
+  "reply": {
+    "mode": "find",
+    "collection": "orders",
+    "filter": "{\"status\":\"open\"}",
+    "explanation": "A 20 legújabb nyitott rendelés.",
+    "sort": "{\"createdAt\":-1}",
+    "limit": 20
+  },
+  "usage": {
+    "inputTokens": null,
+    "outputTokens": null,
+    "costUsd": null,
+    "ms": null
+  }
+}

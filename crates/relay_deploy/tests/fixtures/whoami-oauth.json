@@ -1,0 +1,9 @@
+{
+  "loggedIn": true,
+  "authType": "OAuth Token",
+  "email": "ada@example.test",
+  "accounts": [
+    { "name": "Ada's Account", "id": "0123456789abcdef0123456789abcdef" }
+  ],
+  "tokenPermissions": ["workers_scripts (write)", "account (read)"]
+}

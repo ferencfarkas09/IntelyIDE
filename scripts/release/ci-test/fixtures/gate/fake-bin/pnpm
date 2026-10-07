@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Fake pnpm for scripts/release/ci-test/gate.test.sh: logs the call, can dump its environment, fail on demand
+# (FAKE_FAIL=word1,word2: any word contained in the arguments) and append a line to a "generated" file (FAKE_MUTATE=path,
+# relative to the working directory) when the arguments mention bindings.
+[ -n "${FAKE_LOG:-}" ] && printf 'pnpm %s\n' "$*" >>"$FAKE_LOG"
+[ -n "${FAKE_ENV_DUMP:-}" ] && env | sort >"$FAKE_ENV_DUMP"
+[ -n "${FAKE_CWD_LOG:-}" ] && pwd >>"$FAKE_CWD_LOG"
+if [ -n "${FAKE_FAIL:-}" ]; then
+  IFS=, read -r -a words <<<"$FAKE_FAIL"
+  for w in "${words[@]}"; do
+    case "$*" in *"$w"*) echo "fake pnpm: failing on request ($w)" >&2; exit 1 ;; esac
+  done
+fi
+if [ -n "${FAKE_MUTATE:-}" ]; then
+  case "$*" in *bindings*) printf '\n// regenerated differently\n' >>"$FAKE_MUTATE" ;; esac
+fi
+exit 0

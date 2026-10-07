@@ -1,0 +1,2 @@
+// Never answers initialize: the host must time out instead of waiting forever.
+{"op":"hang"}

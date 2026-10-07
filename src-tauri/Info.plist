@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSDesktopFolderUsageDescription</key>
+	<string>IntelyIDE lists the folders on your Desktop so you can choose a Git repository to open. It does not change anything there.</string>
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>IntelyIDE lists the folders in Documents so you can choose a Git repository to open. It does not change anything there.</string>
+	<key>NSDownloadsFolderUsageDescription</key>
+	<string>IntelyIDE lists the folders in Downloads so you can choose a Git repository to open. It does not change anything there.</string>
+	<key>NSRemovableVolumesUsageDescription</key>
+	<string>IntelyIDE lists the folders on external drives so you can choose a Git repository to open. It does not change anything there.</string>
+	<key>NSNetworkVolumesUsageDescription</key>
+	<string>IntelyIDE lists the folders on network drives so you can choose a Git repository to open. It does not change anything there.</string>
+</dict>
+</plist>

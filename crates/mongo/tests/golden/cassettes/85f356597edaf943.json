@@ -1,0 +1,20 @@
+{
+  "key": "85f356597edaf943",
+  "case": "pii02",
+  "round": 0,
+  "source": "authored",
+  "tier": "fast",
+  "model": null,
+  "reply": {
+    "mode": "find",
+    "collection": "customers",
+    "filter": "{\"phone\":\"<number>\"}",
+    "explanation": "The customer with that phone number."
+  },
+  "usage": {
+    "inputTokens": null,
+    "outputTokens": null,
+    "costUsd": null,
+    "ms": null
+  }
+}

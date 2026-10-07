@@ -1,0 +1,17 @@
+// One turn with every update kind the mapper handles, then a response with usage.
+{"op":"on","method":"session/prompt","then":[
+  {"op":"update","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"thinking..."}}},
+  {"op":"update","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"Hel"}}},
+  {"op":"update","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"lo"}}},
+  {"op":"update","update":{"sessionUpdate":"plan","entries":[{"content":"read it","priority":"high","status":"in_progress"},{"content":"fix it","priority":"low","status":"pending"}]}},
+  {"op":"update","update":{"sessionUpdate":"tool_call","toolCallId":"t1","title":"Read README.md","kind":"read","status":"in_progress","locations":[{"path":"${cwd}/README.md"}],"rawInput":{"path":"${cwd}/README.md"}}},
+  {"op":"update","update":{"sessionUpdate":"tool_call_update","toolCallId":"t1","status":"completed","content":[{"type":"content","content":{"type":"text","text":"file body"}}]}},
+  {"op":"update","update":{"sessionUpdate":"tool_call","toolCallId":"t2","title":"Edit a.ts","kind":"edit","status":"pending"}},
+  {"op":"update","update":{"sessionUpdate":"tool_call_update","toolCallId":"t2","status":"failed","content":[{"type":"diff","path":"a.ts","oldText":"x","newText":"y"}]}},
+  {"op":"update","update":{"sessionUpdate":"usage_update","used":1200,"size":200000,"cost":{"amount":0.01,"currency":"USD"}}},
+  {"op":"update","update":{"sessionUpdate":"available_commands_update","availableCommands":[{"name":"compact","description":"Compact the context"}]}},
+  {"op":"update","update":{"sessionUpdate":"current_mode_update","currentModeId":"plan"}},
+  {"op":"update","update":{"sessionUpdate":"session_info_update","title":"Fake session"}},
+  {"op":"update","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"Bye"}}},
+  {"op":"respond","result":{"stopReason":"end_turn","usage":{"totalTokens":30,"inputTokens":20,"outputTokens":10,"thoughtTokens":4,"cachedReadTokens":5}}}
+]}

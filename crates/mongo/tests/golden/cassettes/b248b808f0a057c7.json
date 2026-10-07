@@ -1,0 +1,23 @@
+{
+  "key": "b248b808f0a057c7",
+  "case": "hu10",
+  "round": 0,
+  "source": "authored",
+  "tier": "fast",
+  "model": null,
+  "reply": {
+    "mode": "find",
+    "collection": "customers",
+    "filter": "{\"segment\":\"vip\"}",
+    "explanation": "A VIP szegmensű vendégek.",
+    "assumptions": [
+      "A szegmens értéke 'vip'."
+    ]
+  },
+  "usage": {
+    "inputTokens": null,
+    "outputTokens": null,
+    "costUsd": null,
+    "ms": null
+  }
+}

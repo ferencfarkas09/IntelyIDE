@@ -1,0 +1,30 @@
+[package]
+name = "intely-relay-bundle"
+version = "0.0.0"
+edition = "2021"
+rust-version = "1.77"
+license.workspace = true
+description = "Staging and Ed25519 signing of the phone PWA bundle, relay and bundle verification, VAPID and signing-key generation (docs/remote-cloudflare-spec.md). Local files and plain HTTPS GETs only; never spawns wrangler."
+
+[lib]
+name = "intely_relay_bundle"
+
+[dependencies]
+base64 = "0.22.1"
+hex = "0.4.3"
+intely-core = { version = "0.0.0", path = "../core" }
+intely-settings = { version = "0.0.0", path = "../settings" }
+p256 = { version = "0.14", default-features = false, features = ["ecdsa", "std"] }
+# Decision D5: Ed25519 sign and verify in Rust. Already in the tree through rustls and snow (no new crate).
+ring = "0.17.14"
+reqwest = { version = "0.13.3", default-features = false, features = ["native-tls"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+sha2 = "0.11.0"
+thiserror = "2.0.21"
+tokio = { version = "1.53.1", features = ["rt", "time", "macros"] }
+url = "2.5.8"
+zeroize = "1.9.0"
+
+[dev-dependencies]
+tempfile = "3.27.0"

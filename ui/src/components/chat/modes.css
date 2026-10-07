@@ -1,0 +1,64 @@
+/* Run modes: option cards (New run, Plan approval), the header chip, the Bypass confirm. Tokens only; colour is never the only signal. */
+
+/* Option cards. The grid is three across at the dialog's width (Plan, Ask, Accept edits / Automatic, Bypass wider), one column when narrow. */
+.mode-cards { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--space-2); margin: 0; }
+.mode-card { display: flex; flex-direction: column; align-items: flex-start; grid-column: span 2; gap: 4px; min-width: 0; padding: 10px 12px; border: 0; border-radius: var(--radius-3); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--border); color: var(--text-1); text-align: start; cursor: default; transition: background-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease); }
+.mode-cards[data-layout="grid"] > .mode-card:nth-last-child(-n + 2):nth-child(n + 4) { grid-column: span 3; }
+.mode-card:hover { background: var(--surface-3); }
+.mode-card[aria-checked="true"] { background: var(--accent-subtle); box-shadow: inset 0 0 0 1px var(--accent-border), inset 3px 0 0 var(--accent); }
+.mode-card[data-tone="danger"] .ui-icon, .mode-card[data-tone="danger"] svg { color: var(--danger); }
+.mode-card[data-tone="danger"]:hover { box-shadow: inset 0 0 0 1px var(--danger-border); }
+.mode-card[data-tone="danger"][aria-checked="true"] { background: var(--danger-subtle); box-shadow: inset 0 0 0 1px var(--danger-border), inset 3px 0 0 var(--danger); }
+.mode-card[aria-disabled="true"] { opacity: 0.55; background: var(--surface-1); }
+.mode-card__head { display: inline-flex; align-items: center; gap: 6px; color: var(--text-2); }
+.mode-card[aria-checked="true"] .mode-card__head { color: var(--text-1); }
+.mode-card__label { color: var(--text-1); font-size: var(--text-base); font-weight: var(--weight-semibold); }
+.mode-card__hint { color: var(--text-3); font-size: var(--text-xs); line-height: 1.45; overflow-wrap: anywhere; }
+.mode-card__why { color: var(--warn); }
+.mode-cards[data-layout="list"] { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.mode-cards[data-layout="list"] > .mode-card { grid-column: auto; padding: 8px 10px; }
+@container newrun-modes (max-width: 520px) {
+  .mode-cards[data-layout="grid"] { grid-template-columns: minmax(0, 1fr); }
+  .mode-cards[data-layout="grid"] > .mode-card, .mode-cards[data-layout="grid"] > .mode-card:nth-last-child(-n + 2):nth-child(n + 4) { grid-column: auto; }
+}
+
+/* Header chip: the mode is a menu; Bypass is always loud. */
+.mode-chip { display: inline-flex; align-items: center; gap: 6px; }
+.mode-chip__pill[aria-busy="true"] { cursor: progress; }
+.mode-chip__chev { opacity: 0.7; }
+.run-header[data-bypass] { box-shadow: inset 0 2px 0 var(--danger), inset 0 -1px 0 var(--border-subtle); }
+.mode-menu .ui-menu__desc { max-inline-size: 280px; }
+.mode-menu__note { display: block; margin-block-start: 2px; color: var(--warn); font-size: var(--text-xs); }
+
+/* Bypass confirm */
+.bypass-confirm { display: flex; flex-direction: column; gap: var(--space-3); }
+.bypass-confirm__section { display: flex; flex-direction: column; gap: 6px; }
+.bypass-confirm__title { margin: 0; color: var(--text-3); font-size: var(--text-xs); font-weight: var(--weight-medium); letter-spacing: 0.04em; text-transform: uppercase; }
+.bypass-confirm__list { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.bypass-confirm__item { position: relative; padding-inline-start: 16px; color: var(--text-1); font-size: var(--text-sm); line-height: 1.5; overflow-wrap: anywhere; }
+.bypass-confirm__item::before { content: ""; position: absolute; inset-inline-start: 2px; inset-block-start: 0.6em; inline-size: 6px; block-size: 6px; border-radius: var(--radius-full); background: var(--danger); }
+.bypass-confirm__list[data-kind="keeps"] .bypass-confirm__item::before { background: var(--ok); }
+.bypass-confirm__foot { margin: 0; color: var(--text-3); font-size: var(--text-sm); line-height: 1.5; }
+
+/* Plan approval */
+.plan-approval { box-shadow: inset 0 0 0 1px var(--accent-border); }
+.plan-approval .perm__head { color: var(--accent-text); }
+.plan-approval__text { max-block-size: 40vh; overflow: auto; padding: 8px 12px; border-radius: var(--radius-2); background: var(--surface-0); box-shadow: inset 0 0 0 1px var(--border-subtle); }
+.plan-approval__notice { margin: 0; color: var(--text-3); font-size: var(--text-xs); }
+.plan-approval__modes { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; border: 0; min-width: 0; }
+.plan-approval__legend { padding: 0; color: var(--text-3); font-size: var(--text-xs); font-weight: var(--weight-medium); letter-spacing: 0.04em; text-transform: uppercase; }
+.plan-approval__feedback { display: flex; flex-direction: column; gap: 6px; }
+.plan-approval__done { display: flex; flex-direction: column; gap: 6px; padding: 6px 10px; border-radius: var(--radius-2); color: var(--text-2); font-size: var(--text-sm); box-shadow: inset 0 0 0 1px var(--border-subtle); }
+.plan-approval__done[data-outcome="allow"] { color: var(--ok); }
+.plan-approval__done[data-outcome="deny"] { color: var(--warn); }
+.plan-approval__done-row { display: flex; align-items: center; gap: 8px; }
+.plan-approval__show > summary { cursor: default; color: var(--text-2); font-size: var(--text-xs); }
+
+/* The exact scope of "allow always in this session", and why a refused answer was refused. */
+.perm__scope { margin: 0; color: var(--text-2); font-size: var(--text-xs); line-height: 1.5; overflow-wrap: anywhere; }
+.perm__scope code { padding: 1px 5px; border-radius: var(--radius-1); background: var(--surface-0); color: var(--text-1); font-family: var(--font-mono); }
+.perm__error { margin: 0; color: var(--danger); font-size: var(--text-xs); }
+
+/* The banner above a run's transcript (a resume changed the mode on its own). */
+.banner--run { flex: none; margin: 6px var(--space-2) 0; align-items: center; }
+.banner--run .banner__hint { color: var(--text-1); }

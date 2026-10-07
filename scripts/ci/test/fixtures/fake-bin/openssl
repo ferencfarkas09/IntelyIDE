@@ -1,0 +1,8 @@
+#!/bin/bash
+# Fake openssl for the signing tests: only `rand -hex 24`, with a fixed, recognisable value.
+if [ "${1:-}" = "rand" ] && [ "${2:-}" = "-hex" ] && [ "${3:-}" = "24" ]; then
+  echo "0123456789abcdef0123456789abcdef0123456789abcdef"
+  exit 0
+fi
+echo "fake openssl: unexpected arguments" >&2
+exit 99

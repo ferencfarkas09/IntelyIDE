@@ -1,0 +1,15 @@
+* text=auto eol=lf
+
+# generated or vendored: keep out of the language statistics
+THIRD_PARTY_LICENSES.md linguist-generated
+Cargo.lock linguist-generated
+pnpm-lock.yaml linguist-generated
+ui/src/i18n/locales/** linguist-generated
+ui/src/shell/licenses/data/** linguist-generated
+sidecar/sdk-pin/** linguist-vendored
+docs/screenshots/** linguist-documentation
+
+*.png binary
+
+# signed update feeds: the exact signed bytes, never normalised (updater spec 4.14)
+site/data/update/* -text

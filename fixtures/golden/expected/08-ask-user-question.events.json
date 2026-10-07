@@ -1,0 +1,111 @@
+[
+ {
+  "kind": "session.started",
+  "nativeId": "263d6f0c-8e1e-473a-9928-237f6ed487d7",
+  "model": "claude-haiku-4-5-20251001",
+  "effective": {
+   "effort": null,
+   "permission": "ask"
+  },
+  "auth": {
+   "mode": "subscription",
+   "source": "none"
+  },
+  "seq": 1,
+  "ts": 0
+ },
+ {
+  "kind": "tool.start",
+  "toolId": "toolu_01Cu1tWR3edburE36ySzxEiX",
+  "name": "AskUserQuestion",
+  "toolKind": "other",
+  "input": {
+   "questions": [
+    {
+     "question": "Which color do you prefer?",
+     "header": "Color",
+     "options": [
+      {
+       "label": "Red",
+       "description": "The color red"
+      },
+      {
+       "label": "Blue",
+       "description": "The color blue"
+      }
+     ],
+     "multiSelect": false
+    }
+   ]
+  },
+  "seq": 2,
+  "ts": 0
+ },
+ {
+  "kind": "tool.result",
+  "toolId": "toolu_01Cu1tWR3edburE36ySzxEiX",
+  "status": "ok",
+  "output": "Your questions have been answered: \"Which color do you prefer?\"=\"Blue\". You can now continue with these answers in mind.",
+  "durationMs": 10,
+  "seq": 3,
+  "ts": 0
+ },
+ {
+  "kind": "text.done",
+  "messageId": "msg_011Cfe1huYFMQPEouQ6HojTv:1",
+  "text": "Blue.",
+  "seq": 4,
+  "ts": 0
+ },
+ {
+  "kind": "usage",
+  "usage": {
+   "model": "claude-haiku-4-5-20251001",
+   "costBasis": "subscription",
+   "contextSize": 200000,
+   "perTurn": {
+    "inputTokens": 941,
+    "outputTokens": 229,
+    "cacheRead": 27881,
+    "cacheWrite": 3534,
+    "reasoningTokens": 96,
+    "costUsd": 0.0119421
+   },
+   "cumulative": {
+    "inputTokens": 941,
+    "outputTokens": 229,
+    "cacheRead": 27881,
+    "cacheWrite": 3534,
+    "reasoningTokens": 96,
+    "costUsd": 0.0119421
+   },
+   "perModel": [
+    {
+     "model": "claude-haiku-4-5-20251001",
+     "tokens": {
+      "inputTokens": 941,
+      "outputTokens": 229,
+      "cacheRead": 27881,
+      "cacheWrite": 3534,
+      "reasoningTokens": 96,
+      "costUsd": 0.0119421
+     }
+    }
+   ]
+  },
+  "seq": 5,
+  "ts": 0
+ },
+ {
+  "kind": "status",
+  "state": "idle",
+  "seq": 6,
+  "ts": 0
+ },
+ {
+  "kind": "turn.end",
+  "stopReason": "endTurn",
+  "seq": 7,
+  "ts": 0
+ }
+]

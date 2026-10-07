@@ -1,0 +1,130 @@
+/* Inspector tab and the Rewind dialog. Tokens only; status always comes with an icon or text. */
+.insp { container: insp / inline-size; display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--surface-1); }
+.insp > .ui-empty { flex: 1 1 0; }
+.insp__loading { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-4); }
+.insp__head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); flex: none; padding: var(--space-2) var(--space-3); box-shadow: inset 0 -1px 0 var(--border-subtle); }
+.insp__title { display: flex; flex: 1 1 260px; align-items: center; gap: 6px; min-width: 0; }
+.insp__title h2 { margin: 0; min-width: 0; font-size: var(--text-md); font-weight: var(--weight-semibold); color: var(--text-1); }
+.insp__title > :not(h2) { flex: none; }
+.insp__state { font-size: var(--text-sm); }
+.insp__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); }
+
+.insp__stats { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); flex: none; margin: 0; padding: var(--space-2) var(--space-3); box-shadow: inset 0 -1px 0 var(--border-subtle); }
+.insp-stat { display: flex; flex-direction: column; gap: 1px; min-width: 0; cursor: default; }
+.insp-stat dt { color: var(--text-3); font-size: var(--text-xs); }
+.insp-stat dd { margin: 0; color: var(--text-1); font-size: var(--text-base); font-weight: var(--weight-medium); white-space: nowrap; }
+.insp-stat[data-tone="warn"] dd { color: var(--warn); }
+.insp-stat[data-tone="danger"] dd { color: var(--danger); }
+
+.insp__switch { flex: none; padding: var(--space-2) var(--space-3) 0; overflow-x: auto; }
+.insp__body { flex: 1 1 0; min-height: 0; overflow: auto; padding: var(--space-2) var(--space-3) var(--space-4); }
+
+/* Timeline */
+.insp-timeline { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.insp-tool { border-radius: var(--radius-2); }
+.insp-tool__row { display: grid; grid-template-columns: 20px minmax(0, 1fr) minmax(60px, 22%) 64px 18px; align-items: center; gap: var(--space-2); min-height: 28px; padding-left: calc(var(--depth, 0) * 16px); border-radius: var(--radius-2); }
+.insp-tool__row:hover { background: var(--surface-hover); }
+.insp-tool__twist { display: flex; justify-content: center; }
+.insp-twist { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; padding: 0; border: 0; border-radius: var(--radius-1); background: none; color: var(--text-3); cursor: pointer; }
+.insp-twist:hover { color: var(--text-1); background: var(--surface-active); }
+.insp-tool__main { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 2px 4px; border: 0; border-radius: var(--radius-1); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.insp-tool__icon { flex: none; color: var(--text-3); }
+.insp-tool[data-kind="edit"] .insp-tool__icon, .insp-tool[data-kind="delete"] .insp-tool__icon { color: var(--accent-text); }
+.insp-tool__name { flex: none; color: var(--text-1); font-weight: var(--weight-medium); }
+.insp-tool__sub { flex: none; color: var(--text-3); font-size: var(--text-xs); }
+.insp-tool__summary { min-width: 0; color: var(--text-3); font-family: var(--font-mono); font-size: var(--text-sm); }
+.insp-tool__bar { position: relative; height: 6px; border-radius: var(--radius-full); background: var(--surface-3); overflow: hidden; }
+.insp-tool__fill { position: absolute; top: 0; bottom: 0; border-radius: var(--radius-full); background: var(--accent); }
+.insp-tool[data-status="error"] .insp-tool__fill { background: var(--danger); }
+.insp-tool[data-status="denied"] .insp-tool__fill, .insp-tool[data-status="cancelled"] .insp-tool__fill { background: var(--warn); }
+.insp-tool__time { color: var(--text-2); font-size: var(--text-sm); text-align: right; white-space: nowrap; }
+.insp-status { display: inline-flex; align-items: center; justify-content: center; color: var(--text-3); }
+.insp-status[data-status="ok"] { color: var(--ok); }
+.insp-status[data-status="error"] { color: var(--danger); }
+.insp-status[data-status="denied"] { color: var(--warn); }
+.insp-tool__out { margin: 2px 0 6px calc(28px + var(--depth, 0) * 16px); padding: var(--space-2); max-height: 220px; overflow: auto; border-radius: var(--radius-2); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--border-subtle); color: var(--text-2); font-family: var(--font-mono); font-size: var(--text-sm); white-space: pre-wrap; overflow-wrap: anywhere; }
+@container insp (max-width: 560px) { .insp-tool__row { grid-template-columns: 20px minmax(0, 1fr) 64px 18px; } .insp-tool__bar { display: none; } }
+
+/* Files */
+.insp-files, .insp-issues, .insp-events { margin: 0; padding: 0; list-style: none; }
+.insp-file { display: flex; align-items: center; gap: var(--space-2); min-height: 32px; padding: 0 var(--space-1); border-radius: var(--radius-2); }
+.insp-file:hover { background: var(--surface-hover); }
+.insp-file__name { flex: 1 1 0; min-width: 0; color: var(--text-1); }
+.insp-file__edits { color: var(--text-3); font-size: var(--text-sm); }
+.insp-file__delta { font-size: var(--text-sm); white-space: nowrap; }
+.insp-add { color: var(--ok); }
+.insp-del { color: var(--danger); }
+
+/* Session facts */
+.insp-facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--space-2) var(--space-4); margin: 0; max-width: 720px; }
+.insp-facts dt { color: var(--text-3); font-size: var(--text-sm); padding-top: 1px; }
+.insp-facts dd { margin: 0; color: var(--text-1); min-width: 0; overflow-wrap: anywhere; }
+.insp-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.insp-plain { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; }
+.insp-mono { font-family: var(--font-mono); font-size: var(--text-sm); }
+.insp-fact-warn { display: inline-flex; align-items: center; gap: 4px; margin-left: var(--space-2); color: var(--warn); font-size: var(--text-sm); }
+.insp-plain .insp-fact-warn { margin-left: 0; }
+
+/* Issues */
+.insp-issue { display: flex; align-items: flex-start; gap: var(--space-2); padding: 6px var(--space-2); border-radius: var(--radius-2); }
+.insp-issue + .insp-issue { margin-top: 2px; }
+.insp-issue:hover { background: var(--surface-hover); }
+.insp-issue__icon { flex: none; margin-top: 2px; }
+.insp-issue[data-kind="error"] .insp-issue__icon { color: var(--danger); }
+.insp-issue[data-kind="toolError"] .insp-issue__icon, .insp-issue[data-kind="throttle"] .insp-issue__icon { color: var(--warn); }
+.insp-issue__body { flex: 1 1 0; min-width: 0; }
+.insp-issue__title { color: var(--text-1); overflow-wrap: anywhere; }
+.insp-issue__detail { color: var(--text-3); font-size: var(--text-sm); }
+.insp-issue__meta { display: flex; flex: none; align-items: center; gap: 6px; font-size: var(--text-sm); }
+
+/* Raw events */
+.insp-raw { display: flex; flex-direction: column; gap: var(--space-2); }
+.insp-event__head { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: var(--space-2); width: 100%; min-height: 26px; padding: 0 var(--space-2); border: 0; border-radius: var(--radius-1); background: none; color: var(--text-2); font: inherit; text-align: left; cursor: pointer; }
+.insp-event__head:hover, .insp-event[data-open] .insp-event__head { background: var(--surface-hover); }
+.insp-event__seq { color: var(--text-4); font-size: var(--text-sm); text-align: right; }
+.insp-event__kind { font-family: var(--font-mono); font-size: var(--text-sm); color: var(--text-1); }
+.insp-event__time { color: var(--text-3); font-size: var(--text-sm); }
+.insp-event__json { position: relative; margin: 2px 0 6px 52px; }
+.insp-event__json pre { margin: 0; padding: var(--space-2); max-height: 320px; overflow: auto; border-radius: var(--radius-2); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--border-subtle); color: var(--text-2); font-family: var(--font-mono); font-size: var(--text-sm); white-space: pre-wrap; overflow-wrap: anywhere; }
+.insp-event__copy { position: absolute; top: 4px; right: 4px; }
+.insp-more { align-self: flex-start; padding: 4px var(--space-2); border: 0; border-radius: var(--radius-2); background: none; color: var(--accent-text); font: inherit; cursor: pointer; }
+.insp-more:hover { background: var(--surface-hover); }
+
+/* Rewind dialog */
+.rewind__error, .rewind__warn { display: flex; align-items: flex-start; gap: 6px; margin-bottom: var(--space-2); padding: var(--space-2); border-radius: var(--radius-2); font-size: var(--text-sm); }
+.rewind__error { background: var(--danger-subtle); box-shadow: inset 0 0 0 1px var(--danger-border); color: var(--danger); }
+.rewind__warn { background: var(--warn-subtle); box-shadow: inset 0 0 0 1px var(--warn-border); color: var(--warn); }
+.rewind__snaps { display: flex; flex-direction: column; gap: 4px; }
+.rewind__snap { display: flex; align-items: center; gap: var(--space-2); padding: 6px var(--space-2); border: 0; border-radius: var(--radius-2); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--border-subtle); color: var(--text-1); font: inherit; text-align: left; cursor: pointer; }
+.rewind__snap:hover { background: var(--surface-3); }
+.rewind__snap[aria-checked="true"] { background: var(--accent-subtle); box-shadow: inset 0 0 0 1px var(--accent-border); }
+.rewind__snap-name { font-weight: var(--weight-medium); }
+.rewind__snap-time { margin-left: auto; font-size: var(--text-sm); }
+.rewind__files { margin-top: var(--space-3); }
+.rewind__dry { margin-bottom: var(--space-1); color: var(--text-2); font-size: var(--text-sm); }
+.rewind__none, .rewind__ok { display: flex; align-items: center; gap: 6px; color: var(--ok); }
+.rewind__list { margin: 0 0 var(--space-2); padding: 0; list-style: none; max-height: 200px; overflow: auto; border-radius: var(--radius-2); box-shadow: inset 0 0 0 1px var(--border-subtle); }
+.rewind__file { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); min-height: 26px; padding: 0 var(--space-2); font-size: var(--text-sm); }
+.rewind__file + .rewind__file { box-shadow: inset 0 1px 0 var(--border-subtle); }
+.rewind__path { min-width: 0; font-family: var(--font-mono); color: var(--text-1); }
+.rewind__change { flex: none; color: var(--text-3); }
+.rewind__file[data-change="created"] .rewind__change { color: var(--danger); }
+.rewind__file[data-change="deleted"] .rewind__change { color: var(--ok); }
+.rewind__confirm { display: flex; flex-direction: column; gap: 6px; margin-top: var(--space-3); color: var(--text-2); font-size: var(--text-sm); }
+.rewind__phrase { color: var(--text-1); font-family: var(--font-mono); }
+.rewind__busy { display: flex; align-items: center; gap: 6px; margin-top: var(--space-2); color: var(--text-3); }
+
+/* Roles in this run, cost by model, role chips, refused calls */
+.insp-roles { display: flex; flex-direction: column; gap: 6px; max-width: 720px; margin-top: var(--space-4); }
+.insp-roles__title { margin: 0; color: var(--text-3); font-size: var(--text-xs); font-weight: var(--weight-medium); text-transform: uppercase; letter-spacing: 0.04em; }
+.insp-table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+.insp-table th, .insp-table td { padding: 4px 8px; text-align: left; font-weight: var(--weight-regular); box-shadow: inset 0 -1px 0 var(--border-subtle); }
+.insp-table thead th { color: var(--text-3); font-size: var(--text-xs); font-weight: var(--weight-medium); }
+.insp-table tbody th { color: var(--text-1); font-weight: var(--weight-medium); }
+.insp-num { text-align: end !important; }
+.insp-note { margin: 0; font-size: var(--text-xs); }
+.insp-role { display: inline-flex; align-items: center; gap: 6px; }
+.insp-role__swatch { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: var(--radius-full); }
+.insp-rolechip { display: inline-flex; align-items: center; gap: 5px; flex: none; padding: 1px 6px; border-radius: var(--radius-full); background: var(--surface-2); color: var(--text-2); font-size: var(--text-xs); }
+.insp-tool__refused { margin: 0 0 2px calc(var(--depth, 0) * 16px + 26px); color: var(--danger); font-size: var(--text-xs); }
+.insp-issue[data-kind="modelMismatch"] .insp-issue__icon { color: var(--warn); }

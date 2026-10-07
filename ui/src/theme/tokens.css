@@ -1,0 +1,335 @@
+/*
+ * Design tokens. Dark is the default; light is applied with [data-theme="light"]
+ * (any element, so the kit gallery can show both side by side) or, before JS
+ * runs, through prefers-color-scheme on a bare :root.
+ */
+
+/* ---- Theme-independent -------------------------------------------------- */
+:root {
+  /* Typography */
+  --font-ui: "Inter Variable", -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, "SF Mono", Menlo, monospace;
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-base: 13px;
+  --text-md: 14px;
+  --text-lg: 16px;
+  --text-xl: 20px;
+  --leading-tight: 1.25;
+  --leading-base: 1.45;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+
+  /* Spacing: 4 px grid */
+  --space-0: 0;
+  --space-half: 2px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* Radii */
+  --radius-1: 4px;
+  --radius-2: 6px;
+  --radius-3: 8px;
+  --radius-4: 12px;
+  --radius-full: 999px;
+
+  /* Control and row heights */
+  --control-sm: 24px;
+  --control-md: 28px;
+  --control-lg: 32px;
+  --row-compact: 22px;
+  --row: 24px;
+  --titlebar-h: 40px;
+  --traffic-lights-w: 78px;
+
+  /* Motion: two durations, one easing */
+  --dur-fast: 120ms;
+  --dur: 180ms;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* Layers */
+  --z-sticky: 10;
+  --z-chrome: 20;
+  --z-dialog: 1000;
+  --z-popover: 1100;
+  --z-toast: 1200;
+  --z-tooltip: 1300;
+
+  /* Focus ring */
+  --focus-width: 2px;
+  --focus-offset: 1px;
+}
+
+/* ---- Dark (default) ------------------------------------------------------ */
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Surfaces: app chrome -> panel -> raised -> overlay */
+  --surface-0: #0d0e10;
+  --surface-1: #131417;
+  --surface-2: #1a1b1f;
+  --surface-3: #202226;
+  --surface-4: #282a2f;
+  --surface-hover: rgba(255, 255, 255, 0.045);
+  --surface-active: rgba(255, 255, 255, 0.075);
+  --surface-selected: rgba(140, 100, 255, 0.18);
+  --surface-selected-inactive: rgba(255, 255, 255, 0.07);
+  --backdrop: rgba(4, 5, 7, 0.58);
+  --backdrop-blur: 4px;
+
+  /* Hairlines */
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border: rgba(255, 255, 255, 0.095);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --border-inset: rgba(255, 255, 255, 0.07);
+
+  /* Text */
+  --text-1: #ececee;
+  --text-2: #b0b3b9;
+  --text-3: #8d9199;
+  --text-4: #5f636a;
+  --text-on-accent: #ffffff;
+
+  /* Accent */
+  --accent: #7447f5;
+  --accent-hover: #7c4dff;
+  --accent-active: #6a3ee6;
+  --accent-text: #a68aff;
+  --accent-subtle: rgba(140, 100, 255, 0.15);
+  --accent-subtle-hover: rgba(140, 100, 255, 0.24);
+  --accent-border: rgba(155, 123, 255, 0.45);
+  --focus-color: #a68aff;
+
+  /* Semantic: colour + subtle background + border */
+  --ok: #4cc38a;
+  --ok-subtle: rgba(76, 195, 138, 0.13);
+  --ok-border: rgba(76, 195, 138, 0.32);
+  --warn: #e6a73c;
+  --warn-subtle: rgba(230, 167, 60, 0.13);
+  --warn-border: rgba(230, 167, 60, 0.32);
+  --danger: #f0706e;
+  --danger-subtle: rgba(240, 112, 110, 0.13);
+  --danger-border: rgba(240, 112, 110, 0.34);
+  --danger-solid: #c93735;
+  --danger-solid-hover: #d4423f;
+  --info: #58b0f0;
+  --info-subtle: rgba(88, 176, 240, 0.13);
+  --info-border: rgba(88, 176, 240, 0.32);
+
+  /* Repo palette (badges and dots only) */
+  --repo-1: #4caf7d;
+  --repo-2: #8b6cf0;
+  --repo-3: #f0a23a;
+  --repo-4: #3b9ae8;
+  --repo-5: #e8669a;
+  --repo-6: #26b5b0;
+  --repo-7: #ef7b5b;
+  --repo-8: #9bc34a;
+  --repo-fg-mix: white;
+  --repo-fg-pct: 78%;
+
+  /* Change status */
+  --status-modified: var(--accent-text);
+  --status-added: var(--ok);
+  --status-deleted: var(--text-3);
+  --status-renamed: #e08af0;
+  --status-untracked: var(--warn);
+  --status-conflicted: var(--danger);
+
+  /* Diff surfaces */
+  --diff-add-bg: rgba(76, 195, 138, 0.1);
+  --diff-add-strong: rgba(76, 195, 138, 0.2);
+  --diff-del-bg: rgba(240, 112, 110, 0.1);
+  --diff-del-strong: rgba(240, 112, 110, 0.21);
+
+  /* Syntax (diff view) */
+  --syn-keyword: #b79cff;
+  --syn-function: #6cb8f5;
+  --syn-string: #8fd3a4;
+  --syn-number: #f0a870;
+  --syn-type: #5fd4cf;
+  --syn-property: #9dc4f2;
+  --syn-tag: #f08cae;
+  --syn-attr: #e3b878;
+  --syn-meta: #9a9ea6;
+
+  /* Logo ink (BrandMark) */
+  --brand-ink: #ffffff;
+  --brand-sub: #b7a6e8;
+  --brand-ide-a: #9b7bff;
+  --brand-ide-b: #e36bf5;
+  --brand-shadow: 0.5;
+
+  /* Elevation */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.38), 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-popover: 0 0 0 1px rgba(255, 255, 255, 0.075), 0 10px 28px rgba(0, 0, 0, 0.52), 0 2px 6px rgba(0, 0, 0, 0.4);
+  --shadow-dialog: 0 0 0 1px rgba(255, 255, 255, 0.085), 0 28px 72px rgba(0, 0, 0, 0.62), 0 8px 22px rgba(0, 0, 0, 0.42);
+  --highlight-top: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  --highlight-accent: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+
+  /* Misc */
+  --selection-bg: rgba(140, 100, 255, 0.36);
+  --scrollbar-thumb: rgba(255, 255, 255, 0.14);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.26);
+  --skeleton-base: rgba(255, 255, 255, 0.05);
+  --skeleton-shine: rgba(255, 255, 255, 0.09);
+  --edge-shadow: rgba(0, 0, 0, 0.3);
+  --tooltip-bg: #2b2d33;
+  --tooltip-fg: #ececee;
+  --tooltip-border: rgba(255, 255, 255, 0.1);
+}
+
+/* ---- Light -------------------------------------------------------------- */
+[data-theme="light"] {
+  color-scheme: light;
+
+  --surface-0: #e6e8ec;
+  --surface-1: #f8f9fa;
+  --surface-2: #ffffff;
+  --surface-3: #ffffff;
+  --surface-4: #f0f1f4;
+  --surface-hover: rgba(16, 20, 32, 0.045);
+  --surface-active: rgba(16, 20, 32, 0.075);
+  --surface-selected: rgba(106, 59, 240, 0.11);
+  --surface-selected-inactive: rgba(16, 20, 32, 0.09);
+  --backdrop: rgba(22, 26, 38, 0.32);
+  --backdrop-blur: 4px;
+
+  --border-subtle: rgba(16, 20, 32, 0.07);
+  --border: rgba(16, 20, 32, 0.115);
+  --border-strong: rgba(16, 20, 32, 0.2);
+  --border-inset: rgba(255, 255, 255, 0.9);
+
+  --text-1: #16181c;
+  --text-2: #454952;
+  --text-3: #5d626b;
+  --text-4: #8c9099;
+  --text-on-accent: #ffffff;
+
+  --accent: #6a3bf0;
+  --accent-hover: #5d2fe0;
+  --accent-active: #5226cc;
+  --accent-text: #6330e0;
+  --accent-subtle: rgba(106, 59, 240, 0.1);
+  --accent-subtle-hover: rgba(106, 59, 240, 0.17);
+  --accent-border: rgba(106, 59, 240, 0.4);
+  --focus-color: #6a3bf0;
+
+  --ok: #0c7350;
+  --ok-subtle: rgba(15, 122, 84, 0.1);
+  --ok-border: rgba(15, 122, 84, 0.3);
+  --warn: #8f5b00;
+  --warn-subtle: rgba(180, 115, 0, 0.12);
+  --warn-border: rgba(160, 100, 0, 0.32);
+  --danger: #c0302d;
+  --danger-subtle: rgba(200, 49, 47, 0.09);
+  --danger-border: rgba(200, 49, 47, 0.3);
+  --danger-solid: #c8312f;
+  --danger-solid-hover: #b52a28;
+  --info: #17659f;
+  --info-subtle: rgba(26, 111, 176, 0.1);
+  --info-border: rgba(26, 111, 176, 0.3);
+
+  --repo-1: #2e9566;
+  --repo-2: #6f4fdb;
+  --repo-3: #d98a14;
+  --repo-4: #1f7fd0;
+  --repo-5: #d44c82;
+  --repo-6: #14958f;
+  --repo-7: #dc5f3e;
+  --repo-8: #6f9a22;
+  --repo-fg-mix: black;
+  --repo-fg-pct: 60%;
+
+  --status-modified: var(--accent-text);
+  --status-added: var(--ok);
+  --status-deleted: var(--text-3);
+  --status-renamed: #a62fc0;
+  --status-untracked: var(--warn);
+  --status-conflicted: var(--danger);
+
+  --diff-add-bg: rgba(18, 140, 90, 0.1);
+  --diff-add-strong: rgba(15, 122, 84, 0.17);
+  --diff-del-bg: rgba(200, 49, 47, 0.08);
+  --diff-del-strong: rgba(200, 49, 47, 0.17);
+
+  --syn-keyword: #6330e0;
+  --syn-function: #14598a;
+  --syn-string: #0a6847;
+  --syn-number: #864700;
+  --syn-type: #096661;
+  --syn-property: #2a5fa8;
+  --syn-tag: #a02a5e;
+  --syn-attr: #7c4f00;
+  --syn-meta: #565b64;
+
+  --brand-ink: #1a0a2e;
+  --brand-sub: #5b4b7a;
+  --brand-ide-a: #6a3bf0;
+  --brand-ide-b: #b82fd0;
+  --brand-shadow: 0.18;
+
+  --shadow-sm: 0 1px 2px rgba(16, 20, 32, 0.08);
+  --shadow-md: 0 4px 12px rgba(16, 20, 32, 0.1), 0 1px 3px rgba(16, 20, 32, 0.06);
+  --shadow-popover: 0 0 0 1px rgba(16, 20, 32, 0.08), 0 10px 28px rgba(16, 20, 32, 0.14), 0 2px 6px rgba(16, 20, 32, 0.07);
+  --shadow-dialog: 0 0 0 1px rgba(16, 20, 32, 0.11), 0 28px 72px rgba(16, 20, 32, 0.28), 0 8px 22px rgba(16, 20, 32, 0.12);
+  --highlight-top: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --highlight-accent: inset 0 1px 0 rgba(255, 255, 255, 0.22);
+
+  --selection-bg: rgba(106, 59, 240, 0.22);
+  --scrollbar-thumb: rgba(16, 20, 32, 0.2);
+  --scrollbar-thumb-hover: rgba(16, 20, 32, 0.36);
+  --skeleton-base: rgba(16, 20, 32, 0.06);
+  --skeleton-shine: rgba(16, 20, 32, 0.1);
+  --edge-shadow: rgba(16, 20, 32, 0.1);
+  --tooltip-bg: #1d2026;
+  --tooltip-fg: #f1f2f4;
+  --tooltip-border: rgba(16, 20, 32, 0.6);
+}
+
+/* Pre-JS fallback: follow the OS until the theme controller sets data-theme. */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    color-scheme: light;
+
+    --surface-0: #e6e8ec;
+    --surface-1: #f8f9fa;
+    --surface-2: #ffffff;
+    --surface-3: #ffffff;
+    --surface-4: #f0f1f4;
+    --surface-hover: rgba(16, 20, 32, 0.045);
+    --surface-active: rgba(16, 20, 32, 0.075);
+    --surface-selected: rgba(106, 59, 240, 0.11);
+    --surface-selected-inactive: rgba(16, 20, 32, 0.09);
+    --backdrop: rgba(22, 26, 38, 0.32);
+    --border-subtle: rgba(16, 20, 32, 0.07);
+    --border: rgba(16, 20, 32, 0.115);
+    --border-strong: rgba(16, 20, 32, 0.2);
+    --text-1: #16181c;
+    --text-2: #454952;
+    --text-3: #5d626b;
+    --text-4: #8c9099;
+    --accent: #6a3bf0;
+    --accent-hover: #5d2fe0;
+    --accent-active: #5226cc;
+    --accent-text: #6330e0;
+    --accent-subtle: rgba(106, 59, 240, 0.1);
+    --focus-color: #6a3bf0;
+    --selection-bg: rgba(106, 59, 240, 0.22);
+    --brand-ink: #1a0a2e;
+    --brand-sub: #5b4b7a;
+    --brand-ide-a: #6a3bf0;
+    --brand-ide-b: #b82fd0;
+    --brand-shadow: 0.18;
+  }
+}

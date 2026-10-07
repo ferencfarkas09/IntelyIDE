@@ -1,0 +1,20 @@
+{
+  "key": "67d11c23e66fef73",
+  "case": "hu03",
+  "round": 0,
+  "source": "authored",
+  "tier": "fast",
+  "model": null,
+  "reply": {
+    "mode": "find",
+    "collection": "restaurants",
+    "filter": "{\"city\":\"Budapest\"}",
+    "explanation": "A budapesti éttermek."
+  },
+  "usage": {
+    "inputTokens": null,
+    "outputTokens": null,
+    "costUsd": null,
+    "ms": null
+  }
+}

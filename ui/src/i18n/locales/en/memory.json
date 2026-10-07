@@ -1,0 +1,7 @@
+{
+  "memory.includeUserMemory": "Include my global CLAUDE.md in agent runs",
+  "memory.includeUserMemory.hint": "Read-only and size-capped; it never leaves this machine except in the model prompt.",
+  "memory.stepLimit": "The run reached its step limit ({n} steps).",
+  "memory.stepLimit.unknown": "The run reached its step limit.",
+  "memory.stepLimit.continue": "Continue"
+}

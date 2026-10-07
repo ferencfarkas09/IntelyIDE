@@ -1,0 +1,80 @@
+/* API contract tab. Tokens only, so dark and light follow the theme. */
+.contract { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3); min-width: 0; height: 100%; overflow: auto; background: var(--surface-1); color: var(--text-1); }
+.contract__bar { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.contract__title { margin: 0; font-size: var(--text-md); font-weight: var(--weight-semibold); }
+.contract__spacer { flex: 1 1 0; }
+.contract__note { margin: 0; padding: var(--space-1) var(--space-2); border-radius: var(--radius-2); background: var(--info-subtle); color: var(--text-2); font-size: var(--text-xs); box-shadow: inset 0 0 0 1px var(--info-border); }
+.contract__hint { margin: 0; color: var(--text-3); font-size: var(--text-xs); }
+.contract__error { margin: 0; padding: var(--space-1) var(--space-2); border-radius: var(--radius-2); background: var(--danger-subtle); color: var(--danger); font-size: var(--text-sm); overflow-wrap: anywhere; }
+.contract__loading { display: flex; flex-direction: column; gap: var(--space-1); }
+.contract__findings, .contract__unused { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
+.contract__filters { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.contract__search { flex: 1 1 200px; min-width: 160px; }
+.contract__sums { display: flex; align-items: center; gap: var(--space-1); flex-wrap: wrap; }
+.contract__list { display: flex; flex-direction: column; gap: var(--space-1); margin: 0; padding: 0; list-style: none; }
+.contract__finding { display: flex; align-items: flex-start; gap: var(--space-2); padding: var(--space-2); border-radius: var(--radius-3); background: var(--surface-0); box-shadow: inset 0 0 0 1px var(--border-subtle); min-width: 0; }
+.contract__finding[data-severity="error"] { box-shadow: inset 3px 0 0 var(--danger), inset 0 0 0 1px var(--border-subtle); }
+.contract__finding[data-severity="warn"] { box-shadow: inset 3px 0 0 var(--warn), inset 0 0 0 1px var(--border-subtle); }
+.contract__finding[data-severity="info"] { box-shadow: inset 3px 0 0 var(--info), inset 0 0 0 1px var(--border-subtle); }
+.contract__sev { display: inline-flex; padding-top: 2px; flex: none; }
+.contract__sev[data-severity="error"] { color: var(--danger); }
+.contract__sev[data-severity="warn"] { color: var(--warn); }
+.contract__sev[data-severity="info"] { color: var(--info); }
+.contract__fmain { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1 1 auto; }
+.contract__ftop { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.contract__target, .contract__dpath, .contract__chip, .contract__snippet { font-family: var(--font-mono); font-size: var(--text-xs); overflow-wrap: anywhere; }
+.contract__target { color: var(--text-1); }
+.contract__chip { padding: 0 6px; border-radius: var(--radius-2); background: var(--surface-2); color: var(--text-2); }
+.contract__msg { margin: 0; font-size: var(--text-sm); color: var(--text-1); }
+.contract__suggest { margin: 0; font-size: var(--text-xs); color: var(--accent-text); }
+.contract__where { display: flex; align-items: center; gap: 6px; color: var(--text-3); font-size: var(--text-xs); flex-wrap: wrap; }
+.contract__where code { font-family: var(--font-mono); overflow-wrap: anywhere; }
+.contract__repo { padding: 0 6px; border-radius: var(--radius-full); background: var(--surface-2); color: var(--text-2); font-size: var(--text-xs); }
+.contract__snippet { display: block; padding: 2px 6px; border-radius: var(--radius-2); background: var(--surface-2); color: var(--text-2); white-space: pre-wrap; }
+.contract__acts { display: flex; gap: 2px; flex: none; }
+.contract__urow { align-items: center; flex-wrap: wrap; }
+.contract__method { display: inline-block; min-width: 52px; padding: 1px 6px; border-radius: var(--radius-2); font-family: var(--font-mono); font-size: var(--text-xs); font-weight: var(--weight-semibold); text-align: center; background: var(--surface-2); color: var(--text-2); }
+.contract__method[data-method="GET"] { background: var(--info-subtle); color: var(--info); }
+.contract__method[data-method="POST"] { background: var(--ok-subtle); color: var(--ok); }
+.contract__method[data-method="PUT"], .contract__method[data-method="PATCH"] { background: var(--warn-subtle); color: var(--warn); }
+.contract__method[data-method="DELETE"] { background: var(--danger-subtle); color: var(--danger); }
+
+.contract__explorer { display: grid; grid-template-columns: minmax(240px, 340px) minmax(0, 1fr); gap: var(--space-3); min-height: 0; flex: 1 1 auto; }
+@media (max-width: 760px) { .contract__explorer { grid-template-columns: minmax(0, 1fr); } }
+.contract__elist { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; min-height: 0; }
+.contract__efilters { display: flex; gap: var(--space-1); }
+.contract__efilters > * { flex: 1 1 0; min-width: 0; }
+.contract__rows { display: flex; flex-direction: column; gap: 1px; overflow: auto; max-height: 62vh; border-radius: var(--radius-3); background: var(--surface-0); box-shadow: inset 0 0 0 1px var(--border-subtle); padding: 2px; }
+.contract__row { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: var(--radius-2); cursor: pointer; min-width: 0; }
+.contract__row:hover { background: var(--surface-hover); }
+.contract__row[data-active] { background: var(--accent-subtle); box-shadow: inset 0 0 0 1px var(--accent-border); }
+.contract__row[data-deprecated] .contract__rpath { text-decoration: line-through; color: var(--text-3); }
+.contract__row:focus-visible { outline: var(--focus-width) solid var(--focus-color); outline-offset: -1px; }
+.contract__rpath { font-family: var(--font-mono); font-size: var(--text-xs); overflow-wrap: anywhere; min-width: 0; }
+.contract__epane { min-width: 0; overflow: auto; }
+.contract__detail { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; padding: var(--space-2) var(--space-3); border-radius: var(--radius-3); background: var(--surface-0); box-shadow: inset 0 0 0 1px var(--border-subtle); }
+.contract__dhead { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.contract__dpath { font-size: var(--text-sm); }
+.contract__chips { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.contract__summary { margin: 0; font-size: var(--text-sm); font-weight: var(--weight-medium); }
+.contract__desc { margin: 0; font-size: var(--text-sm); color: var(--text-2); }
+.contract__h { margin: var(--space-1) 0 0; font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--text-1); }
+.contract__ptable { border-collapse: collapse; font-size: var(--text-sm); width: 100%; }
+.contract__ptable td { padding: 3px 8px 3px 0; vertical-align: top; box-shadow: inset 0 -1px 0 var(--border-subtle); }
+.contract__ptable code { font-family: var(--font-mono); font-size: var(--text-xs); }
+.contract__pin { color: var(--text-3); font-size: var(--text-xs); }
+.contract__schema { display: flex; flex-direction: column; padding: var(--space-1) var(--space-2); border-radius: var(--radius-2); background: var(--surface-1); box-shadow: inset 0 0 0 1px var(--border-subtle); }
+.contract__srow { padding-inline-start: calc(var(--depth, 0) * 14px); }
+.contract__sline { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; padding: 2px 0; }
+.contract__sname { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--text-1); }
+.contract__stype { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--accent-text); }
+.contract__sdesc { font-size: var(--text-xs); color: var(--text-3); }
+.contract__code { margin: 0; padding: var(--space-2); max-height: 280px; overflow: auto; border-radius: var(--radius-2); background: var(--surface-2); color: var(--text-1); font-family: var(--font-mono); font-size: var(--text-xs); white-space: pre; }
+.contract__resp { display: flex; flex-direction: column; gap: 4px; }
+.contract__rhead { display: flex; align-items: center; gap: 6px; }
+.contract__sites { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; font-size: var(--text-sm); }
+.contract__sites li { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.contract__link { all: unset; cursor: pointer; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--accent-text); overflow-wrap: anywhere; }
+.contract__link:hover { text-decoration: underline; }
+.contract__link:focus-visible { outline: var(--focus-width) solid var(--focus-color); outline-offset: 1px; }
+.contract-badge { margin-left: 6px; flex: none; }

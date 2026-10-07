@@ -1,0 +1,10 @@
+// The website is a static folder (dist/) served by a Cloudflare Worker with static assets: no code, no bindings.
+// Deploy: `npm run deploy` in this folder (builds, checks in production mode, then `wrangler deploy`). See DEPLOY.md.
+{
+  "name": "intelyide",
+  "compatibility_date": "2026-09-01",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "404-page"
+  }
+}

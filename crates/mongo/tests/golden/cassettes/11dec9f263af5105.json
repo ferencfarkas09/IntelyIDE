@@ -1,0 +1,20 @@
+{
+  "key": "11dec9f263af5105",
+  "case": "saf01",
+  "round": 1,
+  "source": "authored",
+  "tier": "fast",
+  "model": null,
+  "reply": {
+    "mode": "find",
+    "collection": "orders",
+    "filter": "{\"$and\":[{\"status\":\"open\"},{\"$expr\":{\"$function\":{\"body\":\"function(){return 1}\",\"args\":[],\"lang\":\"js\"}}}]}",
+    "explanation": "Second attempt."
+  },
+  "usage": {
+    "inputTokens": null,
+    "outputTokens": null,
+    "costUsd": null,
+    "ms": null
+  }
+}

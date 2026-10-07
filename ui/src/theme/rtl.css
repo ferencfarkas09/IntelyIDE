@@ -1,0 +1,32 @@
+/*
+ * Right-to-left support and script fonts. `lang` and `dir` are set on <html> by the i18n runtime (ar, he, fa, ur are RTL).
+ * Chrome (menus, dialogs, settings, tab strip, palette) mirrors through logical properties; content that is code or a path
+ * stays left-to-right inside its own isolate. The macOS window chrome (title bar) keeps the traffic lights on the left.
+ */
+:root { --ui-dir: 1; }
+:root[dir="rtl"] { --ui-dir: -1; }
+
+/* Code, diffs, terminal, editor, paths, hashes, branch names and keyboard chords never reverse. */
+:root[dir="rtl"] :is(code, pre, kbd, .cm-editor, .cm-merge-a, .cm-merge-b, .xterm, .diff-view__body, .ui-mono, .ui-path-hint, .ui-middle-ellipsis, .ui-tree, .ui-kbd, .repolist__path, .sc-code, .patterns__chip code, .about__row-value--mono) {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+/* The native window controls stay on the left, so the title bar lays out left-to-right like any macOS app. */
+:root[dir="rtl"] .ui-titlebar { direction: ltr; }
+/* Free text inside it still picks its own direction. */
+:root[dir="rtl"] .ui-titlebar :is(.ttl__workspace, .ui-seg__item) { unicode-bidi: plaintext; }
+
+/* Script fonts: Inter has Latin / Cyrillic / Greek only; name the system families per language so Han glyphs match the language. */
+:root:lang(ja) { --font-ui: "Inter Variable", -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", system-ui, sans-serif; }
+:root:lang(ko) { --font-ui: "Inter Variable", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif; }
+:root:lang(zh-Hans) { --font-ui: "Inter Variable", -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif; }
+:root:lang(zh-Hant) { --font-ui: "Inter Variable", -apple-system, BlinkMacSystemFont, "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif; }
+:root:lang(ar), :root:lang(fa), :root:lang(ur) { --font-ui: "Inter Variable", -apple-system, BlinkMacSystemFont, "SF Arabic", "Geeza Pro", "Noto Naskh Arabic", system-ui, sans-serif; }
+:root:lang(he) { --font-ui: "Inter Variable", -apple-system, BlinkMacSystemFont, "Arial Hebrew", "SF Hebrew", "Noto Sans Hebrew", system-ui, sans-serif; }
+:root:lang(th) { --font-ui: "Inter Variable", -apple-system, BlinkMacSystemFont, "Thonburi", "Sukhumvit Set", "Noto Sans Thai", system-ui, sans-serif; }
+:root:lang(hi), :root:lang(mr) { --font-ui: "Inter Variable", -apple-system, BlinkMacSystemFont, "Kohinoor Devanagari", "Devanagari Sangam MN", "Noto Sans Devanagari", system-ui, sans-serif; }
+:root:lang(bn) { --font-ui: "Inter Variable", -apple-system, BlinkMacSystemFont, "Kohinoor Bangla", "Bangla Sangam MN", "Noto Sans Bengali", system-ui, sans-serif; }
+:root:lang(ta) { --font-ui: "Inter Variable", -apple-system, BlinkMacSystemFont, "Tamil Sangam MN", "InaiMathi", "Noto Sans Tamil", system-ui, sans-serif; }
+:root:lang(te) { --font-ui: "Inter Variable", -apple-system, BlinkMacSystemFont, "Telugu Sangam MN", "Kohinoor Telugu", "Noto Sans Telugu", system-ui, sans-serif; }
+/* CJK, Thai and Indic scripts have no italics and need more line height. */
+:root:lang(ja), :root:lang(ko), :root:lang(zh-Hans), :root:lang(zh-Hant), :root:lang(th), :root:lang(hi), :root:lang(mr), :root:lang(bn), :root:lang(ta), :root:lang(te) { --leading-base: 1.55; }

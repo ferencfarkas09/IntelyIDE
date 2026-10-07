@@ -1,0 +1,8 @@
+#!/bin/bash
+# Fake git for verify-tag tests: only `merge-base --is-ancestor`, answered by FAKE_GIT_ANCESTOR (0 = yes, 1 = no).
+echo "git $*" >> "${FAKE_LOG:?}"
+if [ "${1:-}" = "merge-base" ] && [ "${2:-}" = "--is-ancestor" ]; then
+  exit "${FAKE_GIT_ANCESTOR:-0}"
+fi
+echo "fake git: unexpected call: $*" >&2
+exit 99

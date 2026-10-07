@@ -1,0 +1,6 @@
+// A write permission for a file in the repo (no tool_call announced first): policy decides, the answer is reported back.
+{"op":"on","method":"session/prompt","then":[
+  {"op":"request","name":"perm","method":"session/request_permission","params":{"toolCall":{"toolCallId":"w1","title":"Edit src/a.ts","kind":"edit","locations":[{"path":"${cwd}/src/a.ts"}],"content":[{"type":"diff","path":"${cwd}/src/a.ts","oldText":"a","newText":"b"}]},"options":[{"optionId":"allow","name":"Allow","kind":"allow_once"},{"optionId":"reject","name":"Reject","kind":"reject_once"}]}},
+  {"op":"update","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"answer=${perm.result.outcome.outcome}:${perm.result.outcome.optionId}"}}},
+  {"op":"respond","result":{"stopReason":"end_turn"}}
+]}

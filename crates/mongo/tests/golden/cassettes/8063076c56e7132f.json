@@ -1,0 +1,24 @@
+{
+  "key": "8063076c56e7132f",
+  "case": "hu16",
+  "round": 0,
+  "source": "live",
+  "tier": "fast",
+  "model": "claude-haiku-4-5-20251001",
+  "reply": {
+    "mode": "find",
+    "collection": "orders",
+    "filter": "{\"createdAt\":{\"$gte\":{\"$date\":\"2026-09-30T10:00:00Z\"}},\"status\":\"open\"}",
+    "explanation": "Orders with open status created in the last 3 days (from 2026-09-30 10:00 UTC onwards).",
+    "assumptions": [
+      "The rolling window 'last 3 days' has no upper bound, so all open orders created from 3 days ago to now are included."
+    ],
+    "confidence": "high"
+  },
+  "usage": {
+    "inputTokens": 10,
+    "outputTokens": 712,
+    "costUsd": 0.015895,
+    "ms": 9866
+  }
+}

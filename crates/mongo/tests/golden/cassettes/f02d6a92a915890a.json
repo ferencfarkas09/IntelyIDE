@@ -1,0 +1,24 @@
+{
+  "key": "f02d6a92a915890a",
+  "case": "hu32",
+  "round": 0,
+  "source": "live",
+  "tier": "fast",
+  "model": "claude-haiku-4-5-20251001",
+  "reply": {
+    "mode": "find",
+    "collection": "orders",
+    "filter": "{\"createdAt\":{\"$gte\":{\"$date\":\"2024-12-31T23:00:00Z\"},\"$lt\":{\"$date\":\"2025-12-31T23:00:00Z\"}}}",
+    "explanation": "Finding all orders created in last year (2025), based on the createdAt date field.",
+    "confidence": "high",
+    "assumptions": [
+      "Last year refers to the calendar year 2025, using the exact date range from the context block"
+    ]
+  },
+  "usage": {
+    "inputTokens": 10,
+    "outputTokens": 950,
+    "costUsd": 0.017005,
+    "ms": 11446
+  }
+}

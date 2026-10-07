@@ -1,0 +1,19 @@
+/* MCP chip of the run header and its popover. Tokens only; the state is also written out, never colour alone. */
+.mcp-chip .ui-icon, .mcp-chip svg { flex: none; }
+.mcp-pop { width: min(380px, calc(100vw - 32px)); }
+.mcp-pop__body { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.mcp-pop__head { display: flex; align-items: center; gap: 8px; }
+.mcp-pop__title { flex: 1; color: var(--text-1); font-size: var(--text-base); font-weight: var(--weight-semibold); }
+.mcp-pop__note { margin: 0; padding: 6px 8px; border-radius: var(--radius-2); background: var(--warn-subtle); color: var(--text-1); font-size: var(--text-sm); line-height: 1.4; overflow-wrap: anywhere; }
+.mcp-pop__list { display: flex; flex-direction: column; gap: 2px; max-height: 280px; margin: 0; padding: 0; overflow: auto; list-style: none; }
+.mcp-row { display: flex; flex-direction: column; gap: 2px; padding: 6px 8px; border-radius: var(--radius-2); }
+.mcp-row:hover { background: var(--surface-2); }
+.mcp-row__line { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: var(--text-sm); }
+.mcp-row__name { color: var(--text-1); font-family: var(--font-mono); font-size: var(--text-sm); }
+.mcp-row__state { color: var(--text-3); font-size: var(--text-xs); white-space: nowrap; }
+.mcp-row[data-state="failed"] .mcp-row__state { color: var(--danger); }
+.mcp-row[data-state="needsAuth"] .mcp-row__state, .mcp-row[data-state="pending"] .mcp-row__state { color: var(--warn); }
+.mcp-row__grow { flex: 1; }
+.mcp-row__tools { color: var(--text-3); font-size: var(--text-xs); white-space: nowrap; }
+.mcp-row__error { margin: 0; padding-inline-start: 16px; color: var(--danger); font-size: var(--text-xs); line-height: 1.4; overflow-wrap: anywhere; }
+.mcp-pop__foot { display: flex; align-items: center; gap: 8px; padding-top: 6px; border-block-start: 1px solid var(--border-subtle); }

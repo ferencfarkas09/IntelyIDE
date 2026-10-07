@@ -1,0 +1,25 @@
+{
+  "key": "4a90921f876f72ec",
+  "case": "hu38",
+  "round": 0,
+  "source": "live",
+  "tier": "fast",
+  "model": "claude-haiku-4-5-20251001",
+  "reply": {
+    "mode": "find",
+    "collection": "orders",
+    "filter": "{\"status\":\"closed\",\"closedAt\":{\"$gte\":{\"$date\":\"2026-10-02T10:00:00Z\"}}}",
+    "explanation": "Orders with status closed and closedAt in the last 24 hours (from 2026-10-02 10:00 UTC onwards).",
+    "assumptions": [
+      "The date filter applies to closedAt since the question asks for closed orders",
+      "The status value is stored as 'closed' (Hungarian: lezárt)"
+    ],
+    "confidence": "high"
+  },
+  "usage": {
+    "inputTokens": 10,
+    "outputTokens": 1517,
+    "costUsd": 0.019907,
+    "ms": 16740
+  }
+}

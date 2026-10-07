@@ -1,0 +1,4 @@
+// Long stream plus a running tool: an interrupt must close the tool as cancelled and end the turn as cancelled.
+{"op":"tool","id":"t1","name":"Bash","toolKind":"exec","input":{"command":"sleep 30"},"ms":60000,"output":"never reached"}
+{"op":"text","id":"m1:0","text":"unreachable"}
+{"op":"end"}

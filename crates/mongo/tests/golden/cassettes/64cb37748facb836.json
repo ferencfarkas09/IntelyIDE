@@ -1,0 +1,21 @@
+{
+  "key": "64cb37748facb836",
+  "case": "hu19",
+  "round": 0,
+  "source": "live",
+  "tier": "fast",
+  "model": "claude-haiku-4-5-20251001",
+  "reply": {
+    "mode": "find",
+    "collection": "orders",
+    "filter": "{\"payments.method\":\"cash\"}",
+    "explanation": "Rendelések, ahol legalább egy fizetés módja cash (készpénz).",
+    "confidence": "high"
+  },
+  "usage": {
+    "inputTokens": 10,
+    "outputTokens": 6470,
+    "costUsd": 0.04464300000000001,
+    "ms": 63859
+  }
+}

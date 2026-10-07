@@ -1,0 +1,26 @@
+{
+  "key": "059c8455fc809879",
+  "case": "hu39",
+  "round": 0,
+  "source": "live",
+  "tier": "fast",
+  "model": "claude-haiku-4-5-20251001",
+  "reply": {
+    "mode": "find",
+    "collection": "orders",
+    "filter": "{\"createdAt\":{\"$gte\":{\"$date\":\"2025-12-31T23:00:00Z\"},\"$lt\":{\"$date\":\"2026-12-31T23:00:00Z\"}},\"payments.method\":\"card\",\"total\":{\"$gt\":20000}}",
+    "explanation": "Rendelések, amelyeket 2026-ban kártyával fizettek és az összeg meghaladja a 20 ezer forintot. A szűrés a createdAt mező (év tartománya), a payments.method (kártya) és a total > 20000 feltétel alapján történik.",
+    "confidence": "high",
+    "assumptions": [
+      "This year (idén) refers to the calendar year 2026 (January 1 – December 31, 2026 in Budapest time)",
+      "Card payment is identified by payments.method value 'card'",
+      "The total field contains mixed types (string, int, double) but MongoDB comparison operators handle this correctly"
+    ]
+  },
+  "usage": {
+    "inputTokens": 10,
+    "outputTokens": 4704,
+    "costUsd": 0.035831999999999996,
+    "ms": 45583
+  }
+}

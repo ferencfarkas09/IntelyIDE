@@ -1,0 +1,12 @@
+// Read runs freely; Write asks. Allow -> the write happens with a diff; deny -> a denied result and an apology.
+{"op":"text","dt":30,"id":"m1:0","text":"I will read the file first.","chunk":10,"every":15}
+{"op":"tool","id":"t1","name":"Read","toolKind":"read","input":{"file_path":"/work/README.md"},"output":"# fixture","ms":60}
+{"op":"start","id":"t2","name":"Write","toolKind":"edit","input":{"file_path":"/work/notes.txt","content":"hello"}}
+{"op":"ask","dt":20,"id":"t2","intent":{"class":"write","tool":"Write","paths":["/work/notes.txt"],"summary":"Write /work/notes.txt"},"onDeny":"denied"}
+{"op":"emit","event":{"kind":"tool.result","toolId":"t2","status":"ok","output":"File created","diff":{"path":"/work/notes.txt","old":null,"new":"hello"},"durationMs":40}}
+{"op":"text","dt":20,"id":"m2:0","text":"Done: notes.txt written."}
+{"op":"end"}
+{"op":"label","name":"denied"}
+{"op":"emit","event":{"kind":"tool.result","toolId":"t2","status":"denied","output":"The user declined this action."}}
+{"op":"text","dt":20,"id":"m2:0","text":"Understood, I did not write the file."}
+{"op":"end"}

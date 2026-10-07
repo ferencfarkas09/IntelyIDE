@@ -1,0 +1,48 @@
+/* Diff view: header strip plus a CodeMirror host. Layout only; editor colours live in cm.ts (from the tokens). */
+.diff-view { display: flex; flex-direction: column; width: 100%; height: 100%; min-width: 0; min-height: 0; background: var(--surface-1); }
+.diff-view__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+  height: 40px;
+  padding: 0 var(--space-3);
+  box-shadow: inset 0 -1px 0 var(--border-subtle);
+  container-type: inline-size;
+}
+.diff-view__title { flex: 1 1 96px; min-width: 96px; font-size: var(--text-base); }
+.diff-view__name { font-weight: var(--weight-medium); }
+.diff-view__renamed { margin-left: var(--space-2); }
+.diff-view__stats { display: inline-flex; gap: var(--space-1); flex: none; font-family: var(--font-mono); font-size: var(--text-xs); }
+/* In a narrow centre pane the file name matters more than the counts. */
+@container (max-width: 440px) {
+  .diff-view__stats { display: none; }
+}
+@container (max-width: 300px) {
+  .diff-view__copy { display: none; }
+  .diff-view__title { flex-basis: 56px; min-width: 56px; }
+}
+.diff-view__added { color: var(--ok); }
+.diff-view__removed { color: var(--danger); }
+.diff-view__body { position: relative; flex: 1; min-height: 0; }
+.diff-view__host { position: absolute; inset: 0; }
+.diff-view__host[hidden] { display: none; }
+.diff-view__host[data-mode="split"] { overflow: auto; }
+/* Split view: the merge view's own wrappers sit outside the editors, so their styles cannot live in the CodeMirror theme. */
+.diff-view__host .cm-mergeView { height: 100%; }
+.diff-view__host .cm-mergeViewEditors { min-height: 100%; }
+.diff-view__host .cm-mergeViewEditor { min-width: 0; }
+.diff-view__host .cm-mergeViewEditor + .cm-mergeViewEditor { box-shadow: inset 1px 0 0 var(--border); }
+.diff-view__host .cm-mergeViewEditor:first-child .cm-scroller { mask-image: linear-gradient(to right, #000 calc(100% - 14px), transparent); }
+.diff-view__placeholder { position: absolute; inset: 0; display: grid; place-items: center; padding: var(--space-4); }
+.diff-view__placeholder:has(> .diff-view__loading) { place-items: start; padding: var(--space-5) var(--space-6); }
+.diff-view__loading { animation: diff-fade-in var(--dur-fast) var(--ease) both; display: flex; flex-direction: column; gap: var(--space-3); width: min(420px, 80%); }
+
+/* Start state: the shortcuts under the brand mark */
+.diff-view__start .ui-empty__action { margin-top: var(--space-5); }
+.diff-view__shortcuts { display: flex; flex-direction: column; gap: var(--space-1); min-width: 260px; margin: 0; padding-top: var(--space-4); border-top: 1px solid var(--border-subtle); }
+.diff-view__shortcut { display: flex; align-items: center; justify-content: space-between; gap: var(--space-6); font-size: var(--text-sm); }
+.diff-view__shortcut dt { color: var(--text-2); }
+.diff-view__shortcut dd { margin: 0; }
+
+@keyframes diff-fade-in { from { opacity: 0; } to { opacity: 1; } }

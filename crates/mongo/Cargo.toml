@@ -1,0 +1,50 @@
+[package]
+name = "intely-mongo"
+version = "0.0.0"
+edition = "2021"
+rust-version = "1.88"
+license.workspace = true
+description = "MongoDB Studio core (Tauri-free): read-only command set, mongosh literal parser, EJSON, explain walker. The driver is behind feature `mongo` (off by default)."
+
+[lib]
+name = "intely_mongo"
+
+[features]
+default = []
+# The official driver and everything that talks to a server. Off by default: a lean build has no driver and no TLS stack.
+mongo = ["dep:mongodb", "dep:bson", "dep:tokio", "dep:futures-util"]
+specta = ["dep:specta", "dep:specta-typescript", "dep:specta-serde"]
+
+[dependencies]
+intely-settings = { version = "0.0.0", path = "../settings" }
+sha2 = "0.11.0"
+serde = { version = "1.0.229", features = ["derive"] }
+# preserve_order is required: BSON field order is semantic (sort specs, index keys, sub-document equality).
+serde_json = { version = "1.0.151", features = ["preserve_order"] }
+mongodb = { version = "3.9.1", default-features = false, features = ["compat-3-3-0", "bson-3", "rustls-tls", "dns-resolver", "socks5-proxy", "cert-key-password", "zlib-compression", "snappy-compression"], optional = true }
+bson = { version = "3.1.0", features = ["serde_json-1"], optional = true }
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "sync", "time", "macros", "net", "process", "io-util", "fs"], optional = true }
+futures-util = { version = "0.3", default-features = false, optional = true }
+# Tunnel / secrets plumbing (all MIT or Apache-2.0, GPL-3.0-or-later compatible). `libc` is unix-only code (mkfifo, getuid, kill).
+libc = "0.2"
+getrandom = "0.4"
+percent-encoding = "2.3"
+zeroize = "1.8"
+specta = { version = "=2.0.0-rc.25", optional = true, features = ["derive"] }
+specta-serde = { version = "0.0.12", optional = true }
+specta-typescript = { version = "0.0.12", optional = true }
+
+[[example]]
+name = "gen_bindings"
+required-features = ["specta"]
+
+[[example]]
+name = "fx_load"
+required-features = ["mongo"]
+
+[dev-dependencies]
+tempfile = "3.27.0"
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "sync", "time", "macros", "net", "io-util"] }
+# Docker-free TLS fakes (T14a).
+rcgen = "0.13"
+tokio-rustls = "0.26"

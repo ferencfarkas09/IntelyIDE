@@ -1,0 +1,5 @@
+.cm-blame-gutter { min-width: 148px; padding-right: 8px; color: var(--text-3); font-family: var(--font-ui); font-size: var(--text-xs); white-space: nowrap; }
+.cm-blame-gutter .cm-gutterElement { padding: 0 6px 0 8px; }
+.cm-blame-cell { display: inline-block; max-width: 168px; overflow: hidden; text-overflow: ellipsis; }
+.cm-blame-cell[data-shade="1"], .cm-blame-cell[data-shade="3"] { color: var(--text-2); }
+.cm-blame-note { margin-left: 24px; color: var(--text-4); font-family: var(--font-ui); font-size: var(--text-xs); font-style: italic; pointer-events: none; user-select: none; }

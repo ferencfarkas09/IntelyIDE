@@ -1,0 +1,8 @@
+// Honours cancel, then sends a stale tool_call_update afterwards; the late update must be accepted and dropped.
+{"op":"on","method":"initialize","reply":{"protocolVersion":1}}
+{"op":"on","method":"session/new","reply":{"sessionId":"s1"}}
+{"op":"on","method":"session/prompt","then":[{"op":"send","msg":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"s1","update":{"sessionUpdate":"tool_call","toolCallId":"c1","title":"sleep","kind":"execute","status":"in_progress"}}}}]}
+{"op":"on","method":"session/cancel","then":[
+  {"op":"send","msg":{"jsonrpc":"2.0","id":"end","method":"fake/prompt_done","params":{"stopReason":"cancelled"}}},
+  {"dt":100,"op":"send","msg":{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"s1","update":{"sessionUpdate":"tool_call_update","toolCallId":"c1","status":"completed"}}}}
+]}

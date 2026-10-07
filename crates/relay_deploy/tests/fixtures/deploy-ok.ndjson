@@ -1,0 +1,2 @@
+{"version":1,"type":"wrangler-session","wrangler_version":"4.147.0","command_line_args":["deploy"],"log_file_path":"/tmp/wrangler-logs/wrangler.log"}
+{"version":1,"type":"deploy","worker_name":"intely-relay-0123456789ab","worker_tag":"a1b2c3","version_id":"11111111-2222-3333-4444-555555555555","targets":["https://intely-relay-0123456789ab.my-sub.workers.dev"],"worker_name_overridden":false,"wrangler_environment":null,"worker_version":null}

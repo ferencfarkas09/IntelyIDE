@@ -1,0 +1,15 @@
+name: W
+on: [push]
+permissions: {}
+jobs:
+  a:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@PIN-ME # v1.0.0
+      - uses: org/annotated@PIN-ME # v2.0.0
+        with: { x: 1 }
+      - uses: actions/checkout@1111111111111111111111111111111111111111 # v1.0.0
+      - uses: org/stale@1111111111111111111111111111111111111111 # v3.0.0
+      - uses: org/gone@PIN-ME # v9.9.9
+      - uses: ./.github/actions/mine
+      - uses: org/nocomment@1111111111111111111111111111111111111111

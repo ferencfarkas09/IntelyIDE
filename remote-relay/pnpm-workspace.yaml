@@ -1,0 +1,8 @@
+# Own pnpm root: the relay is deployed separately from the IDE workspace and
+# keeps its own lockfile so the root pnpm-lock.yaml is not touched.
+packages: []
+allowBuilds:
+  esbuild: false
+  workerd: false
+minimumReleaseAgeExclude:
+  - '@cloudflare/workers-types@5.20261003.1'

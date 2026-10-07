@@ -1,0 +1,20 @@
+{
+  "key": "0221138bb6e09294",
+  "case": "en10",
+  "round": 0,
+  "source": "authored",
+  "tier": "fast",
+  "model": null,
+  "reply": {
+    "mode": "find",
+    "collection": "products",
+    "filter": "{\"name\":{\"$regularExpression\":{\"pattern\":\"^T\",\"options\":\"\"}}}",
+    "explanation": "Products with names starting with T."
+  },
+  "usage": {
+    "inputTokens": null,
+    "outputTokens": null,
+    "costUsd": null,
+    "ms": null
+  }
+}
