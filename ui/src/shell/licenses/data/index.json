@@ -2,7 +2,7 @@
   "schema": 1,
   "generator": {
     "tool": "scripts/licenses/gen.mjs",
-    "cargoLockSha256": "0cc03b710278d8472dd7f49d876c38c0c23deccc3d2528ee512c03457a195af3",
+    "cargoLockSha256": "71a76cd995062243aa53dd5d76c30153445b133ce0340097e27b2381cc450809",
     "pnpmLockSha256": {
       "root": "df9baa0a5a3fba972b303e06487d0ef0d94ce1c1964afb3d4f3bdb16339aec50",
       "remote-web": "671ec4d0bc03ce2b693a132dd3c59e313000320d28deb78e89f6db4f46c54998",

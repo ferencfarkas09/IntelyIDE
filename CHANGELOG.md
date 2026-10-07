@@ -4,7 +4,18 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 
 ## [Unreleased]
 
-## [0.1.1] - 2026-10-07
+## [1.0.1] - 2026-10-08
+
+First stable release. It contains everything of the 0.1.1 that was prepared but never published, and the changes below.
+
+### Changed
+
+- IntelyIDE is no longer labelled alpha. The README, the docs, the issue forms and the website describe a stable release; the limits that were true stay stated as plain facts (see Known limitations).
+- The bundle identifier is `com.intelyhome.intelyide` and the Keychain services are `com.intelyhome.intelyide` and `com.intelyhome.intelyide.mongo` (they carried the domain of an unrelated site). Secrets that earlier versions stored under the old service names are read once, copied to the new names and left in place; deleting a secret deletes both. The identifier also names the app's WebKit storage, so interface preferences kept there by 0.1.0 are not carried over; the settings files and the state folder `IntelySwitchIDE` are unchanged.
+- Community files for contributions: SECURITY, SUPPORT, CONTRIBUTING and CODE_OF_CONDUCT describe the real flow (one maintainer; every pull request is reviewed and approved manually; bugs and feature requests in GitHub Issues, questions in Discussions, vulnerabilities through GitHub private vulnerability reporting), with issue forms and a pull request template. A check (`release:check-contacts`) fails when the tree names an e-mail address, a phone number or a web host other than the repository, intelyhome.com, intelyide.com and the listed technical references.
+- One command, `pnpm release`, builds the disk image, writes the checksums and the SBOM, tags and publishes the GitHub release (see docs/releasing.md).
+- A Rust build of the app crate needs the built sidecar (`pnpm --filter @intely/sidecar build`), because the bundle resources are copied on every build. `beforeBuildCommand` builds it for `pnpm tauri build`.
+- CI: the JavaScript and licence jobs install `remote-web` and `remote-relay`, the gates run to the end instead of stopping at the first failure, a failed job prints the failed steps of the gate logs, and two tests that failed once in a handful of runs are re-run once.
 
 ### Fixed
 
@@ -14,15 +25,17 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 - The protocol package mirrored the old classification of a malformed MCP tool name and did not know the `session/mcp-status` messages; its tests failed.
 - Tests that depended on the machine they ran on: the order of keys in a golden file when another crate turns on `preserve_order`, a probe script that needed `sleep` on its own PATH, the date notation of older git versions, the name of the temp folder on Linux.
 
-### Changed
-
-- A Rust build of the app crate needs the built sidecar (`pnpm --filter @intely/sidecar build`), because the bundle resources are copied on every build. `beforeBuildCommand` builds it for `pnpm tauri build`.
-- CI: the JavaScript and licence jobs install `remote-web` and `remote-relay`, the gates run to the end instead of stopping at the first failure, and a failed job prints the failed steps of the gate logs.
-
 ### Known limitations
 
-- The Claude Agent SDK is not shipped with the app. Agent runs need Node.js 24 and Claude Code on the Mac, and the SDK installed once with the installer inside the app. Everything listed under 0.1.0 still applies, except that agent runs now work from the disk image.
+- The Claude Agent SDK is not shipped with the app. Agent runs need Node.js 24 and Claude Code on the Mac, and the SDK installed once with the installer inside the app.
 - The Agent SDK card in Settings > Providers does not appear yet: the app does not ask the sidecar for the state of the SDK. A run that cannot start names the command instead.
+- The agent protections are layered and best-effort, not a guarantee. The installed app starts in normal (writable) mode. Use it on repositories you can restore.
+- Intel (x64) build only; Apple Silicon Macs run it under Rosetta 2.
+- Not notarized: macOS asks you to confirm the first launch (see docs/install-macos.md). Ad-hoc builds get a new identity with every release, so macOS may ask again for Keychain and folder access after you replace the app.
+- The app only tells you that a newer release exists; you replace it with the new disk image yourself.
+- Some features still need files of the source tree: deploying the Remote relay, the Mongo Studio AI helper and the component preview harness.
+- Experimental: providers other than Claude, Happy, MongoDB Studio and Remote are proven only against mocks or on a local machine; Remote and MongoDB Studio have not been verified against every real setup (a Cloudflare account, an iPhone, Atlas).
+- The state folder is still named `IntelySwitchIDE`; a rename with a migration is planned.
 
 ## [0.1.0] - 2026-10-07
 
@@ -56,6 +69,6 @@ First public release. This is alpha software.
 - Providers other than Claude, Happy, MongoDB Studio and Remote are proven only against mocks or on a local machine.
 - Version 0.1.0 still stores its state in the folder `IntelySwitchIDE` and uses Keychain services named after the earlier bundle identifier; a switch to `com.intelyhome.intelyide` with a migration is planned.
 
-[Unreleased]: https://github.com/ferencfarkas09/IntelyIDE/compare/v0.1.1...HEAD
-[0.1.1]: https://github.com/ferencfarkas09/IntelyIDE/compare/v0.1.0...v0.1.1
+[Unreleased]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/ferencfarkas09/IntelyIDE/compare/v0.1.0...v1.0.1
 [0.1.0]: https://github.com/ferencfarkas09/IntelyIDE/releases/tag/v0.1.0

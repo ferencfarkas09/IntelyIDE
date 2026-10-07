@@ -1,6 +1,6 @@
 {
   "name": "intely-switch-ide",
-  "version": "0.1.1",
+  "version": "1.0.1",
   "private": true,
   "license": "GPL-3.0-or-later",
   "author": "Ferenc Farkas (IntelyHome)",
@@ -27,6 +27,12 @@
     "release:check-readme": "node scripts/release/check-readme.mjs",
     "release:no-telemetry": "node scripts/release/verify-no-telemetry.mjs",
     "release:dco": "node scripts/release/check-dco.mjs",
+    "release": "bash scripts/release/release.sh all",
+    "release:status": "bash scripts/release/release.sh status",
+    "release:preflight": "bash scripts/release/release.sh preflight",
+    "release:build": "bash scripts/release/release.sh build",
+    "release:publish": "bash scripts/release/release.sh publish",
+    "release:check-contacts": "node scripts/release/check-contacts.mjs",
     "site:deploy": "pnpm --dir site run deploy"
   },
   "devDependencies": {
