@@ -22,6 +22,7 @@ export function staticCaps(): ProviderCaps {
     cancel: yes(),
     sandbox: { cap: 'partial', note: 'did not hold under bypass in Phase 0; not counted as a layer' },
     attachments: 'files',
+    notes: true,
   };
 }
 

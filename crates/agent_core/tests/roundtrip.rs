@@ -105,7 +105,7 @@ fn sidecar_messages_round_trip_exactly() {
         types.insert(m.body.type_name());
         assert_eq!(strip_nulls(serde_json::to_value(&m).unwrap()), strip_nulls(s));
     }
-    assert_eq!(types.len(), 16, "all message types of 5.5 (and session/permission, session/mcp-status) are covered: {types:?}");
+    assert_eq!(types.len(), 17, "all message types of 5.5 (and session/permission, session/mcp-status, session/note) are covered: {types:?}");
 }
 
 #[test]

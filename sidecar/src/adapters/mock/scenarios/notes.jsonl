@@ -1,0 +1,10 @@
+// A sub-agent that works for a while: add a note to it (or to the lead) while it runs and watch the note go from Queued to Delivered with its next tool call.
+{"op":"text","dt":20,"id":"m1:0","text":"I will let a researcher check the tests."}
+{"op":"start","dt":20,"id":"t1","name":"Agent","toolKind":"other","input":{"subagent_type":"researcher","description":"check the tests"}}
+{"op":"tool","dt":200,"id":"t2","parent":"t1","name":"Grep","toolKind":"search","input":{"pattern":"describe("},"output":"12 matches","ms":600}
+{"op":"tool","dt":200,"id":"t3","parent":"t1","name":"Read","toolKind":"read","input":{"file_path":"/work/a.test.ts"},"output":"export {}","ms":600}
+{"op":"tool","dt":200,"id":"t4","parent":"t1","name":"Read","toolKind":"read","input":{"file_path":"/work/b.test.ts"},"output":"export {}","ms":600}
+{"op":"text","dt":20,"id":"s1:0","parent":"t1","text":"The tests look fine."}
+{"op":"emit","event":{"kind":"tool.result","toolId":"t1","status":"ok","output":"The tests look fine.","durationMs":2400}}
+{"op":"text","dt":20,"id":"m2:0","text":"The researcher is done."}
+{"op":"end"}

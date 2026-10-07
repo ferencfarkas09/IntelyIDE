@@ -106,6 +106,14 @@ pub fn sample_events() -> Vec<AgentEvent> {
             diff: Some(ToolDiff { path: "src/a.ts".into(), old: Some("a".into()), new: "b".into() }),
             duration_ms: Some(120),
         }),
+        (Some("t1"), EventKind::Note {
+            note_id: "n1".into(),
+            state: NoteState::Delivered,
+            parent_tool_id: None,
+            text: Some("Use the staging database, not production".into()),
+            tool_id: Some("t9".into()),
+            reason: None,
+        }),
         (Some("t1"), EventKind::QuestionRequest {
             req_id: "q1".into(),
             tool_id: Some("t10".into()),

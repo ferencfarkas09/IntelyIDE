@@ -15,3 +15,11 @@ const EFFORTS: readonly string[] = ['low', 'medium', 'high', 'xhigh', 'max'];
 export function effortOf(level: string | null | undefined): Effort | null {
   return level && EFFORTS.includes(level) ? (level as Effort) : null;
 }
+
+/** Why a session refused a note; `session/note` answers with it as `error`. */
+export type NoteErrorCode = 'noTurn' | 'tooLong' | 'empty' | 'unknownTarget' | 'failed';
+export class NoteError extends Error {
+  constructor(readonly code: NoteErrorCode, message?: string) { super(message ?? code); }
+}
+/** Longest note the host accepts, in characters of the trimmed text (the Rust host checks the same bound). */
+export const MAX_NOTE_CHARS = 4000;

@@ -125,6 +125,9 @@ const MAX_SAVED_ALLOWS: usize = 64;
 /// Longest feedback (characters) an ExitPlanMode rejection forwards to the model.
 const MAX_FEEDBACK_CHARS: usize = 4000;
 
+/// Longest note (characters) the user can add to a running agent; the sidecar checks the same bound.
+pub const MAX_NOTE_CHARS: usize = 4000;
+
 /// A plan directory nobody touched for this long is removed at startup (permission-modes spec 5.8).
 const PLAN_DIR_MAX_AGE: Duration = Duration::from_secs(30 * 24 * 3600);
 
@@ -652,6 +655,42 @@ impl AgentHost {
             return Err(err("mcpStatus", detail.to_string()));
         }
         serde_json::from_value::<McpStatusReply>(v).map(|r| r.servers).map_err(|e| err("mcpStatus", format!("unexpected reply: {e}")))
+    }
+
+    /// Adds a note to the turn that is running (`session/note`): `parent_tool_id` is the `Agent` call that started the sub-agent it is for,
+    /// absent = the lead. The sidecar delivers it with that agent's next tool call and reports it as `note` events (queued, delivered or
+    /// dropped); this returns the note's id once the sidecar has taken it. Refused when nothing is working, the sub-agent is not running,
+    /// or the provider cannot take notes.
+    pub fn note(&self, agent_id: &str, parent_tool_id: Option<String>, text: &str) -> Result<String, EngineError> {
+        let text = text.trim();
+        if text.is_empty() {
+            return Err(err("noteEmpty", "the note is empty"));
+        }
+        if text.chars().count() > MAX_NOTE_CHARS {
+            return Err(err("noteTooLong", format!("a note is at most {MAX_NOTE_CHARS} characters")));
+        }
+        let sc = {
+            let st = lock(&self.inner.state);
+            self.inner.live_sidecar(&st, agent_id)?
+        };
+        let note_id = format!("n-{}", uuid::Uuid::new_v4());
+        let body = json!({"agentId": agent_id, "noteId": note_id, "text": text, "parentToolId": parent_tool_id});
+        let v = sc.request("session/note", body, Duration::from_secs(10)).map_err(|e| err("note", e.to_string()))?;
+        match v["error"].as_str() {
+            None => Ok(note_id),
+            Some(code) => {
+                let code = match code {
+                    "noTurn" => "noteNoTurn",
+                    "unknownTarget" => "noteUnknownTarget",
+                    "unsupported" => "noteUnsupported",
+                    "noSession" => "noteNoSession",
+                    "tooLong" => "noteTooLong",
+                    "empty" => "noteEmpty",
+                    _ => "note",
+                };
+                Err(err(code, v["detail"].as_str().unwrap_or("the agent did not take the note").to_string()))
+            }
+        }
     }
 
     /// Switches the permission mode of a run, live when it has a session (permission-modes spec 5.1). Rust is the authority; the SDK follows:

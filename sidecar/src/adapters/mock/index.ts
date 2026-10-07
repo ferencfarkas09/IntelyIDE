@@ -12,7 +12,7 @@ const provider: AgentProvider = {
     return {
       streaming: yes, toolEvents: yes, permissions: yes, resume: yes, fork: { cap: 'no', note: 'scripted' }, modelList: yes,
       effort: { cap: 'no', note: 'mock' }, effortLevels: [], subagents: yes, usage: yes, hooks: { cap: 'no' }, modelSwitch: { cap: 'no' }, cancel: yes,
-      sandbox: { cap: 'no' }, attachments: 'files',
+      sandbox: { cap: 'no' }, attachments: 'files', notes: true,
     };
   },
   listModels: async () => [{ id: 'mock-1', label: 'Mock (scripted)', effortLevels: [] }],

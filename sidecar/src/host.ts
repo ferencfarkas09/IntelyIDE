@@ -1,7 +1,7 @@
 // Session registry between the protocol and the adapters: lease per session, gap-free event stream through TurnGuard,
 // cancel protocol (providers-plan 5.6), orphan protection. Everything Rust-facing goes through ProtocolClient.
 import { execFile } from 'node:child_process';
-import { isWriterMode, UnsupportedModeError } from './abstract.js';
+import { isWriterMode, MAX_NOTE_CHARS, NoteError, UnsupportedModeError } from './abstract.js';
 import { ProviderDisabledError, type Loader } from './loader.js';
 import { redact } from './redact.js';
 import { SdkError, sdkSetupHint } from './sdk.js';
@@ -31,6 +31,7 @@ export class SidecarHost {
     proto.on('permission/answer', (b) => this.answer(b));
     proto.on('session/permission', (b) => this.permission(b));
     proto.on('session/mcp-status', (b) => this.mcpStatus(b));
+    proto.on('session/note', (b) => this.note(b));
     proto.on('session/close', (b) => this.close(b.agentId));
   }
 
@@ -150,6 +151,27 @@ export class SidecarHost {
       const servers = await e.session.mcpStatus({ ...(b.reconnect ? { reconnect: b.reconnect } : {}), ...(b.toggle ? { toggle: b.toggle } : {}) });
       return { ok: true, servers };
     } catch (err) {
+      return { error: 'failed', detail: redact(err instanceof Error ? err.message : String(err)) };
+    }
+  }
+
+  /**
+   * A note for the lead or one sub-agent of the running turn. The adapter queues it and reports it (`note` events); this only says whether it
+   * was taken. `noTurn`: nothing is working, the text belongs in a message. `unsupported`: the provider cannot steer a running agent.
+   */
+  private note(b: SidecarMsg['session/note']['body']): SidecarMsg['session/note']['reply'] {
+    const e = this.sessions.get(b.agentId);
+    if (!e) return { error: 'noSession' };
+    if (!e.session.note) return { error: 'unsupported', detail: `${e.provider} cannot take a note for a running agent` };
+    if (!e.guard.turnOpen) return { error: 'noTurn' };
+    const text = b.text.trim();
+    if (!text) return { error: 'empty' };
+    if (text.length > MAX_NOTE_CHARS) return { error: 'tooLong', detail: `at most ${MAX_NOTE_CHARS} characters` };
+    try {
+      e.session.note({ noteId: b.noteId, text, parentToolId: b.parentToolId ?? null });
+      return { ok: true };
+    } catch (err) {
+      if (err instanceof NoteError) return { error: err.code, ...(err.message !== err.code ? { detail: err.message } : {}) };
       return { error: 'failed', detail: redact(err instanceof Error ? err.message : String(err)) };
     }
   }

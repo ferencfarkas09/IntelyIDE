@@ -9,7 +9,7 @@ use intely_agent_core::sidecar::ResolvedRole;
 use crate::config::HostConfig;
 
 /// Scenarios of the mock adapter (`sidecar/src/adapters/mock/scenarios`).
-pub const MOCK_SCENARIOS: [(&str, &str); 11] = [
+pub const MOCK_SCENARIOS: [(&str, &str); 12] = [
     ("plain-reply", "A streamed answer with one read tool call."),
     ("tool-permission", "A shell call that waits for Allow once / Deny."),
     ("ask-question", "A clarifying question card."),
@@ -21,6 +21,7 @@ pub const MOCK_SCENARIOS: [(&str, &str); 11] = [
     ("plan-approval", "Plan mode: a plan, then an approval card with a choice of the working mode."),
     ("mcp-tools", "MCP tools of the fixture server: read-only, writing, denied and not-in-set calls, each judged by the broker."),
     ("bash-twice", "The same shell command twice: a card with Allow always in this session, then the second call runs without one."),
+    ("notes", "A subagent at work: add a note to it or to the lead and watch the note go from Queued to Delivered."),
 ];
 
 /// Scripts of the fake ACP agent (`sidecar/tests/fakes/acp-scripts`) that e2e scenario z plays as roles: the scenario name
@@ -317,6 +318,8 @@ pub fn static_caps(provider: &str) -> ProviderCaps {
     caps.model_list = yes();
     // Images and PDFs as content blocks, text inlined, other files by path under a read-only context directory.
     caps.attachments = Some(AttachmentsCap::Files);
+    // Claude and the scripted adapter take a note for a running agent (`session/note`).
+    caps.notes = Some(true);
     match provider {
         "claude" => {
             caps.fork = yes();

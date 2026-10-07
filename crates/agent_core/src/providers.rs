@@ -128,6 +128,10 @@ wire_types! {
         #[serde(default)]
         #[cfg_attr(feature = "specta", specta(optional))]
         pub attachments: Option<AttachmentsCap>,
+        /// The provider takes a note for a running agent (`session/note`); absent = no. The UI shows the note input only when `true`.
+        #[serde(default)]
+        #[cfg_attr(feature = "specta", specta(optional))]
+        pub notes: Option<bool>,
     }
 
     #[serde(rename_all = "camelCase")]
@@ -247,6 +251,7 @@ impl Default for ProviderCaps {
             cancel: no(),
             sandbox: no(),
             attachments: None,
+            notes: None,
         }
     }
 }

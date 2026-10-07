@@ -2,9 +2,10 @@
 // AskUserQuestion). Separate from the session so the fail-closed behaviour is testable without a CLI process.
 import { randomUUID } from 'node:crypto';
 import type { CanUseTool, HookCallback } from '@anthropic-ai/claude-agent-sdk';
-import { isUnattended } from '../../abstract.js';
+import { isUnattended, NoteError } from '../../abstract.js';
+import { type DropReason, LEAD, NoteQueue } from '../../note-queue.js';
 import { offeredOptions, PLAN_MODES, planPayload } from '../../permission-options.js';
-import type { Actor, EventSink, PermissionAnswer, PermissionMode, PolicyClient, PolicyDecision, ProviderId, ToolIntent } from '../../types.js';
+import type { Actor, EventSink, PermissionAnswer, PermissionMode, PolicyClient, PolicyDecision, ProviderId, SessionNote, ToolIntent } from '../../types.js';
 import { cliPromptMessage, judgeCliPrompt } from './cli-prompts.js';
 import { permissionModeFor } from './facts.js';
 import { intentFor } from './intent.js';
@@ -95,12 +96,22 @@ export class ToolGate {
    */
   private leadToolIds = new Set<string>();
   private tripped = false;
+  /** Notes the user added to the lead or a running sub-agent; handed over with the target's next allowed tool call. */
+  private notes: NoteQueue;
+  /** `Agent`/`Task` calls of the lead that were let through and have no result yet: the sub-agents a note can be addressed to. */
+  private openSpawns = new Set<string>();
+  /** tool_use id -> the `Agent` call it ran under (null = a call of the lead); filled from the CLI's messages, which name the parent. */
+  private toolParents = new Map<string, string | null>();
+  /** agent_id of a hook input -> the `Agent` call it belongs to, learned from the first call whose parent is known. */
+  private agentParents = new Map<string, string>();
 
   /**
    * `denied` is shared with the event mapper so a refused tool's error result is reported as "denied". `delegating` turns the
    * actor bookkeeping on; `onCanary` runs once when a sub-agent's tool call reached policy without an actor.
    */
-  constructor(private o: GateOptions) {}
+  constructor(private o: GateOptions) {
+    this.notes = new NoteQueue(o.sink);
+  }
 
   get activeSubagents(): number { return this.active.size; }
   get canaryTripped(): boolean { return this.tripped; }
@@ -150,14 +161,56 @@ export class ToolGate {
    * has returned no sub-agent is in flight any more, whatever SubagentStop did or did not report.
    */
   toolResult(toolUseId: string): void {
+    if (this.openSpawns.delete(toolUseId)) {
+      this.notes.dropTarget(toolUseId, 'finished');
+      for (const [agent, parent] of this.agentParents) if (parent === toolUseId) this.agentParents.delete(agent);
+    }
     if (!this.agentCalls.delete(toolUseId)) return;
     if (this.agentCalls.size === 0) this.clearSubagents();
   }
 
   /** The turn is over: every sub-agent runs in the foreground (a background call is refused), so none can still be running. */
   turnEnded(): void {
+    this.dropNotes('turnEnded');
+    this.openSpawns.clear();
+    this.agentParents.clear();
     this.agentCalls.clear();
     this.clearSubagents();
+  }
+
+  // ---------- notes ----------
+  /** A message of the CLI carried this tool_use: `parent` is the `Agent` call it ran under, or null for a call of the lead. */
+  noteToolParent(toolId: string, parent: string | null): void {
+    this.toolParents.set(toolId, parent);
+    if (this.toolParents.size > 1024) this.toolParents.delete(this.toolParents.keys().next().value as string);
+  }
+
+  /** Queues a note for the lead or for a sub-agent that is running; throws `NoteError` otherwise. */
+  addNote(n: SessionNote): void {
+    if (n.parentToolId && !this.openSpawns.has(n.parentToolId)) throw new NoteError('unknownTarget', 'that sub-agent is not running');
+    this.notes.add(n);
+  }
+
+  /** Nobody will read the waiting notes any more (turn over, Stop, error, session closed). */
+  dropNotes(reason: DropReason): void { this.notes.dropAll(reason); }
+
+  /** Whose call this is: LEAD, the key of a sub-agent, or undefined when it cannot be told (then no note rides on it). */
+  private targetOf(agentId: string | undefined, toolId: string): string | undefined {
+    const parent = this.toolParents.get(toolId);
+    if (parent !== undefined) {
+      if (parent !== null && agentId) this.agentParents.set(agentId, parent);
+      return parent ?? LEAD;
+    }
+    // the message that carries the call has not been read yet (the hook can be faster than the stream)
+    if (agentId) return this.agentParents.get(agentId);
+    return this.openSpawns.size === 0 ? LEAD : undefined;
+  }
+
+  /** The `additionalContext` for an allowed call: the notes waiting for whoever makes it. */
+  private noteContext(agentId: string | undefined, toolId: string): string | undefined {
+    if (!this.notes.size) return undefined;
+    const target = this.targetOf(agentId, toolId);
+    return target === undefined ? undefined : this.notes.take(target, toolId);
   }
 
   private clearSubagents(): void {
@@ -263,15 +316,19 @@ export class ToolGate {
     }
     // The call is going to start a sub-agent (after the card, for an ask): it stays open until its result reaches the lead.
     if (this.o.delegating && SPAWN_TOOLS.has(input.tool_name) && !actor) this.agentCalls.add(toolId);
+    if (SPAWN_TOOLS.has(input.tool_name) && !actor) this.openSpawns.add(toolId);
     // `ask` forces the prompt even where the CLI would not ask; `allow` leaves the CLI's own rules (incl. our deny rules) in charge:
     // NEVER `permissionDecision: allow`, which would override the CLI workspace boundary and the whole of plan mode (spike Q2, Q5).
     if (d.decision === 'ask') return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'ask' } };
     // An allowed Agent call: neutralise the levers the broker does not need to refuse (omitted run_in_background defaults to background).
     // A run without delegates gets the foreground rewrite alone: the CLI's own sub-agents (Explore, Plan) must not outlive the lead's turn.
+    // Notes the user added for whoever makes this call ride along as context. Only an allowed call carries them: a refused one keeps them.
+    const context = this.noteContext(input.agent_id, toolId);
+    const note = context ? { additionalContext: context } : {};
     if (SPAWN_TOOLS.has(input.tool_name)) {
-      return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'allow', updatedInput: this.o.delegating ? rewriteAgentInput(input.tool_input) : foregroundAgentInput(input.tool_input) } };
+      return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'allow', updatedInput: this.o.delegating ? rewriteAgentInput(input.tool_input) : foregroundAgentInput(input.tool_input), ...note } };
     }
-    return { continue: true };
+    return context ? { continue: true, hookSpecificOutput: { hookEventName: 'PreToolUse', ...note } } : { continue: true };
   };
 
   readonly canUseTool: CanUseTool = async (toolName, input, o) => {

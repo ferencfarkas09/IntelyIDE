@@ -10,6 +10,7 @@ import delegateRoles from './scenarios/delegate-roles.jsonl';
 import planApproval from './scenarios/plan-approval.jsonl';
 import bashTwice from './scenarios/bash-twice.jsonl';
 import mcpTools from './scenarios/mcp-tools.jsonl';
+import notes from './scenarios/notes.jsonl';
 
 export const SCENARIOS: Record<string, string> = {
   'plain-reply': plainReply,
@@ -24,4 +25,5 @@ export const SCENARIOS: Record<string, string> = {
   'plan-approval': planApproval,
   'bash-twice': bashTwice,
   'mcp-tools': mcpTools,
+  notes,
 };

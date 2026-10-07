@@ -58,6 +58,7 @@
             "cap": "no",
             "note": null
           },
+          "notes": null,
           "permissions": {
             "cap": "no",
             "note": null
@@ -319,6 +320,21 @@
       },
       {
         "agentId": "a1",
+        "kind": "note",
+        "noteId": "n1",
+        "parentToolId": null,
+        "provider": "claude",
+        "raw": null,
+        "reason": null,
+        "seq": 13,
+        "state": "delivered",
+        "text": "Use the staging database, not production",
+        "toolId": "t9",
+        "ts": 1790000000520,
+        "turnId": "t1"
+      },
+      {
+        "agentId": "a1",
         "kind": "question.request",
         "options": [
           {
@@ -334,9 +350,9 @@
         "provider": "claude",
         "raw": null,
         "reqId": "q1",
-        "seq": 13,
+        "seq": 14,
         "toolId": "t10",
-        "ts": 1790000000520,
+        "ts": 1790000000560,
         "turnId": "t1"
       },
       {
@@ -354,8 +370,8 @@
         "kind": "plan",
         "provider": "claude",
         "raw": null,
-        "seq": 14,
-        "ts": 1790000000560,
+        "seq": 15,
+        "ts": 1790000000600,
         "turnId": "t1"
       },
       {
@@ -363,8 +379,8 @@
         "kind": "usage",
         "provider": "claude",
         "raw": null,
-        "seq": 15,
-        "ts": 1790000000600,
+        "seq": 16,
+        "ts": 1790000000640,
         "turnId": "t1",
         "usage": {
           "contextSize": 200000,
@@ -411,8 +427,8 @@
         "provider": "claude",
         "raw": null,
         "retryable": true,
-        "seq": 16,
-        "ts": 1790000000640,
+        "seq": 17,
+        "ts": 1790000000680,
         "turnId": "t1"
       },
       {
@@ -420,9 +436,9 @@
         "kind": "turn.end",
         "provider": "claude",
         "raw": null,
-        "seq": 17,
+        "seq": 18,
         "stopReason": "endTurn",
-        "ts": 1790000000680,
+        "ts": 1790000000720,
         "turnId": "t1"
       }
     ],

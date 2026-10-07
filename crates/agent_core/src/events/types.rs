@@ -34,6 +34,16 @@ wire_enums! {
         Cancelled,
     }
 
+    /// Where a note the user added to a running agent stands.
+    pub enum NoteState {
+        /// Accepted; it waits for the target's next tool call.
+        Queued,
+        /// Handed to the target together with that tool call.
+        Delivered,
+        /// The target can no longer see it (its work ended first).
+        Dropped,
+    }
+
     /// Who decided a permission request.
     pub enum DecidedBy {
         HardStop,
@@ -314,6 +324,28 @@ wire_types! {
         },
         #[serde(rename = "plan")]
         Plan { items: Vec<PlanItem> },
+        /// A note the user added to a running agent, the lead or one sub-agent. One event per state, joined by `note_id`.
+        #[serde(rename = "note")]
+        Note {
+            note_id: String,
+            state: NoteState,
+            /// The sub-agent's `Agent` tool call; absent for the lead.
+            #[serde(default)]
+            #[cfg_attr(feature = "specta", specta(optional))]
+            parent_tool_id: Option<String>,
+            /// `queued` only: what the user wrote.
+            #[serde(default)]
+            #[cfg_attr(feature = "specta", specta(optional))]
+            text: Option<String>,
+            /// `delivered` only: the tool call the note rode on.
+            #[serde(default)]
+            #[cfg_attr(feature = "specta", specta(optional))]
+            tool_id: Option<String>,
+            /// `dropped` only: `finished`, `turnEnded` or `cancelled`.
+            #[serde(default)]
+            #[cfg_attr(feature = "specta", specta(optional))]
+            reason: Option<String>,
+        },
         #[serde(rename = "usage")]
         Usage { usage: UsageRecord },
         #[serde(rename = "status")]
@@ -468,7 +500,7 @@ impl BatchEvent {
 
 /// Every `kind` string; `EventKind::name` is an exhaustive match, so a new variant cannot be forgotten
 /// (the samples test compares both lists).
-pub const ALL_KINDS: [&str; 17] = [
+pub const ALL_KINDS: [&str; 18] = [
     "session.started",
     "user.message",
     "text.delta",
@@ -481,6 +513,7 @@ pub const ALL_KINDS: [&str; 17] = [
     "permission.resolved",
     "question.request",
     "plan",
+    "note",
     "usage",
     "status",
     "error",
@@ -503,6 +536,7 @@ impl EventKind {
             EventKind::PermissionResolved { .. } => "permission.resolved",
             EventKind::QuestionRequest { .. } => "question.request",
             EventKind::Plan { .. } => "plan",
+            EventKind::Note { .. } => "note",
             EventKind::Usage { .. } => "usage",
             EventKind::Status { .. } => "status",
             EventKind::Error { .. } => "error",

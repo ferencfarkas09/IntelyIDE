@@ -32,6 +32,7 @@ const KIND_SET: Record<EventKindName, true> = {
   error: true,
   "turn.end": true,
   "session.info": true,
+  note: true,
 };
 
 export const ALL_KINDS = Object.keys(KIND_SET) as EventKindName[];
