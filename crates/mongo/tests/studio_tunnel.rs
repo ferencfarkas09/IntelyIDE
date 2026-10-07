@@ -401,7 +401,8 @@ async fn disconnect_and_the_switch_off_close_the_tunnels() {
     s.set_enabled(false).unwrap();
     assert!(wait_until(Duration::from_secs(5), || fx.leftovers().is_empty() && pids.iter().all(|p| !alive(*p))), "the switch-off closed every tunnel and master");
     assert_eq!(s.tunnels().count(), 0);
-    assert!(sweep::read_entries(&fx.state).is_empty());
+    // the sweep entries are removed by the closing task after the master is gone: wait for them like for everything else
+    assert!(wait_until(Duration::from_secs(5), || sweep::read_entries(&fx.state).is_empty()), "the sweep file is emptied");
     assert!(wait_until(Duration::from_secs(3), || fx.audit_of(event::TUNNEL_CLOSE).len() == 3));
     assert_audit_clean(&fx);
 }

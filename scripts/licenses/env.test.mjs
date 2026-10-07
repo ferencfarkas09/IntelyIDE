@@ -38,6 +38,15 @@ test("child env has no credentials; only the allow-list plus the neutralising va
   assert.equal(scrubbedEnv({ base: dirty, cargoHome: "/c" }).CARGO_HOME, "/c");
 });
 
+test("the pnpm store location passes through (without it `pnpm licenses list` cannot find what `pnpm install` stored), nothing else of pnpm does", () => {
+  const base = { ...dirty, PNPM_HOME: "/home/runner/setup-pnpm/node_modules/.bin", XDG_DATA_HOME: "/home/runner/.local/share", PNPM_AUTH_TOKEN: "x", pnpm_config_registry: "https://evil.example" };
+  const env = scrubbedEnv({ base });
+  assert.equal(env.PNPM_HOME, "/home/runner/setup-pnpm/node_modules/.bin");
+  assert.equal(env.XDG_DATA_HOME, "/home/runner/.local/share");
+  assert.equal(env.PNPM_AUTH_TOKEN, undefined);
+  assert.equal(env.pnpm_config_registry, undefined);
+});
+
 test("git is hardened: isolated config, no hooks, no fsmonitor", () => {
   const env = gitEnv(dirty);
   assert.equal(env.GIT_CONFIG_GLOBAL, "/dev/null");

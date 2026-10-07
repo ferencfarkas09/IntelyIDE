@@ -17,7 +17,9 @@ export class LicenseToolError extends Error {
   }
 }
 
-const ALLOWED = new Set(["PATH", "HOME", "TMPDIR", "LANG"]);
+// PNPM_HOME and XDG_DATA_HOME decide where pnpm looks for its content store; without them `pnpm licenses list` cannot find the
+// index files of what `pnpm install` stored (CI: ERR_PNPM_MISSING_PACKAGE_INDEX_FILE). Both are plain paths, never credentials.
+const ALLOWED = new Set(["PATH", "HOME", "TMPDIR", "LANG", "PNPM_HOME", "XDG_DATA_HOME"]);
 const allowed = (k) => ALLOWED.has(k) || k.startsWith("LC_");
 
 /** Replaces the home directory with ~ so messages and logs carry no machine paths. */
