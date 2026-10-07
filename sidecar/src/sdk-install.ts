@@ -603,7 +603,10 @@ export async function installSdk(opts: InstallOptions): Promise<InstallResult> {
           if (en.dir) { await mkdir(target, { recursive: true }); continue; }
           await mkdir(path.dirname(target), { recursive: true });
           const fh = await open(target, FS.O_WRONLY | FS.O_CREAT | FS.O_EXCL | FS.O_NOFOLLOW, 0o600);
-          try { await fh.writeFile(en.data); await fh.chmod(en.exec ? 0o755 : 0o644); } finally { await fh.close(); }
+          try { await fh.writeFile(en.data); } finally { await fh.close(); }
+          // By path, not through the handle: Node 24.21 and later deny FileHandle.chmod (fchmod) under the permission model, and the
+          // file was created a moment ago in the private staging directory, so the path is the file.
+          await chmod(target, en.exec ? 0o755 : 0o644);
           if (en.path === 'package.json') sawPackageJson = true;
         }
         await checkPackageJson(base, p, sawPackageJson);

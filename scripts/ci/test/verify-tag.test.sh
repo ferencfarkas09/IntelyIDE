@@ -185,7 +185,16 @@ t_rc "no run for this commit: exit 1" 1 "$RC"
 # ---- environment problems
 new_world
 RC=0
-env -i PATH="/usr/bin:/bin" HOME="$W" TAG=v0.1.0 SHA="$SHA" GITHUB_REPOSITORY="$REPO" GITHUB_REF_TYPE=tag bash "$SCRIPT" > "$W/out.txt" 2> "$W/err.txt" || RC=$?
+# A PATH of the system tools without `gh` (a GitHub runner has /usr/bin/gh, so "/usr/bin:/bin" is not a world without it).
+NOGH="$W/nogh"
+mkdir -p "$NOGH"
+for d in /usr/bin /bin; do
+  for f in "$d"/*; do
+    b="${f##*/}"
+    if [ "$b" != gh ] && [ ! -e "$NOGH/$b" ]; then ln -s "$f" "$NOGH/$b" 2>/dev/null || true; fi
+  done
+done
+env -i PATH="$NOGH" HOME="$W" TAG=v0.1.0 SHA="$SHA" GITHUB_REPOSITORY="$REPO" GITHUB_REF_TYPE=tag bash "$SCRIPT" > "$W/out.txt" 2> "$W/err.txt" || RC=$?
 t_rc "gh missing: exit 3" 3 "$RC"
 new_world
 run SHA=not-a-sha

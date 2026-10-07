@@ -1,7 +1,7 @@
 // JS inventory: `pnpm licenses list` per pnpm root, the sidecar esbuild metafile mapping, fontsource classification.
 import fs from "node:fs";
 import path from "node:path";
-import { LicenseToolError, firstLine, runTool, scrubbedEnv } from "./env.mjs";
+import { LicenseToolError, maskHome, runTool, scrubbedEnv } from "./env.mjs";
 import { readSafeFile, safeUrl, textsForPackage } from "./texts.mjs";
 
 export const isFont = (name) => name.startsWith("@fontsource/") || name.startsWith("@fontsource-variable/");
@@ -84,8 +84,10 @@ export function parsePnpmLicenses(json, root) {
 /** Production packages of one pnpm root (root, remote-web or remote-relay); runs pnpm offline with the scrubbed env. */
 export function pnpmInventory({ root, run = runTool, env = scrubbedEnv() }) {
   const r = run("pnpm", ["licenses", "list", "--prod", "--json", "--long"], { cwd: root, env, timeoutMs: 120_000 });
-  // `--json` makes pnpm report some errors on stdout, so a silent stderr is not a silent failure
-  if (r.status !== 0) throw new LicenseToolError(`pnpm licenses failed in ${path.basename(root)} (exit ${r.status}): ${firstLine(r.stderr) || firstLine(r.stdout)}`, "pnpm_licenses", 3);
+  // `--json` makes pnpm report some errors on stdout (as a JSON object over several lines), so the message squeezes the white space of
+  // whichever stream has text and keeps the first 300 characters: enough to name the error, never a dump.
+  const why = (text) => maskHome(String(text).trim().replace(/\s+/g, " ")).slice(0, 300);
+  if (r.status !== 0) throw new LicenseToolError(`pnpm licenses failed in ${path.basename(root)} (exit ${r.status}): ${why(r.stderr) || why(r.stdout)}`, "pnpm_licenses", 3);
   // pnpm prints plain text (not JSON) when a root has no production packages, as remote-relay does
   if (/^\s*no licenses/i.test(r.stdout)) return [];
   let json;

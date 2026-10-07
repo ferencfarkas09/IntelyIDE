@@ -817,13 +817,18 @@ describe('the bundled program', () => {
     await new Promise<void>((r) => srv.listen(0, '127.0.0.1', r));
     return { port: (srv.address() as net.AddressInfo).port, connects, count: () => sockets, close: () => { for (const s of sockList) s.destroy(); srv.close(); } };
   }
-  function run(args: string[], env: NodeJS.ProcessEnv, signalAfterMs?: number): Promise<{ code: number | null; out: string; err: string }> {
+  /** `signalWhen`: a number is a fixed delay, a function is polled and SIGTERM goes out a moment after it first returns true (a start-up time is not a constant: Node 24.21 re-executes more slowly than 24.13). */
+  function run(args: string[], env: NodeJS.ProcessEnv, signalWhen?: number | (() => boolean)): Promise<{ code: number | null; out: string; err: string }> {
     return new Promise((resolve) => {
       const cleanEnv: NodeJS.ProcessEnv = { PATH: process.env.PATH, ...env };
       const c = spawn(process.execPath, [script(), ...args], { env: cleanEnv, stdio: ['ignore', 'pipe', 'pipe'] });
       let out = '', err = '';
       c.stdout.on('data', (d) => { out += d; }); c.stderr.on('data', (d) => { err += d; });
-      if (signalAfterMs) setTimeout(() => c.kill('SIGTERM'), signalAfterMs);
+      if (typeof signalWhen === 'number') setTimeout(() => c.kill('SIGTERM'), signalWhen);
+      else if (signalWhen) {
+        const poll = setInterval(() => { if (signalWhen()) { clearInterval(poll); setTimeout(() => c.kill('SIGTERM'), 150); } }, 25);
+        c.on('close', () => clearInterval(poll));
+      }
       c.on('close', (code) => resolve({ code, out, err }));
     });
   }
@@ -865,7 +870,7 @@ describe('the bundled program', () => {
     const l = await listener(true);
     try {
       mkdirSync(home(), { recursive: true });
-      const r = await run(['--yes'], { HOME: home(), HTTPS_PROXY: `http://127.0.0.1:${l.port}` }, 1500);
+      const r = await run(['--yes'], { HOME: home(), HTTPS_PROXY: `http://127.0.0.1:${l.port}` }, () => l.count() >= 1);
       expect(r.code).toBe(1);
       const out = lines(r.out);
       expect(out[out.length - 1]).toMatchObject({ result: 'error', code: 'cancelled' });
@@ -999,15 +1004,18 @@ describe('the bundled program', () => {
 // real npm tarballs (only where this machine's npm cache still holds them): the extractor against the committed manifest
 
 const cacheRoot = path.join(os.homedir(), '.npm', '_cacache', 'content-v2', 'sha512');
-describe.skipIf(!existsSync(cacheRoot))('real npm tarballs from the local npm cache', () => {
+const pinLock = () => JSON.parse(readFileSync(path.join(root, 'sdk-pin', 'package-lock.json'), 'utf8')) as { packages: Record<string, { optional?: boolean; integrity: string; version: string }> };
+const cachedFile = (integrity: string) => { const hex = Buffer.from(integrity.slice(7), 'base64').toString('hex'); return path.join(cacheRoot, hex.slice(0, 2), hex.slice(2, 4), hex.slice(4)); };
+// A machine that never installed the SDK with npm has a cache without these tarballs (a CI runner has an npm cache for other reasons): nothing to check there.
+const pinCached = existsSync(cacheRoot) && Object.entries(pinLock().packages).some(([key, e]) => key !== '' && !e.optional && existsSync(cachedFile(e.integrity)));
+describe.skipIf(!pinCached)('real npm tarballs from the local npm cache', () => {
   it('every cached tarball of the pin extracts to exactly the files tree.sha256 lists for that package', () => {
-    const lock = JSON.parse(readFileSync(path.join(root, 'sdk-pin', 'package-lock.json'), 'utf8')) as { packages: Record<string, { optional?: boolean; integrity: string; version: string }> };
+    const lock = pinLock();
     const manifest = new Map(readFileSync(path.join(root, 'sdk-pin', 'tree.sha256'), 'utf8').trim().split('\n').map((l) => [l.slice(66), l.slice(0, 64)] as const));
     let verified = 0, files = 0;
     for (const [key, e] of Object.entries(lock.packages)) {
       if (key === '' || e.optional) continue;
-      const hex = Buffer.from(e.integrity.slice(7), 'base64').toString('hex');
-      const file = path.join(cacheRoot, hex.slice(0, 2), hex.slice(2, 4), hex.slice(4));
+      const file = cachedFile(e.integrity);
       if (!existsSync(file)) continue;
       const bytes = readFileSync(file);
       expect(sri(bytes), key).toBe(e.integrity);
