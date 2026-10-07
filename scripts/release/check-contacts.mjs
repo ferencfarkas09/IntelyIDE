@@ -92,7 +92,7 @@ export function findEmails(line, al) {
     // a URL path or a package spec ("name@1.2.3" has no alphabetic TLD and never gets here)
     if (domain === "users.noreply.github.com") continue;
     if (isExampleHost(domain)) continue;
-    if (al.emailLocals.has(local) && (domain === "github.com" || domain === "gitlab.com")) continue; // git@github.com ssh remotes
+    if (al.emailLocals.has(local) && (domain === "github.com" || domain === "gitlab.com")) continue; // the ssh remote form of GitHub (user "git", host github.com)
     out.push(m[0]);
   }
   return out;

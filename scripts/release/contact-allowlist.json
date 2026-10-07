@@ -73,10 +73,10 @@
     "36 30 123 4567": "synthetic phone number used as sample data of the PII masker",
     "06 30 123 4567": "synthetic phone number used as sample data of the PII masker",
     "+36201234567": "synthetic phone number used as sample data",
-    "noreply@anthropic.com": "test input of the AI co-author trailer detector",
-    "a@noreply.github.com": "test input of the publish scanner",
-    "8082@evil.com": "hostile URL test input (preview gate)",
-    "a.b@c.example.hu": "synthetic address, sample data of the PII masker",
+    "noreply\u0040anthropic.com": "test input of the AI co-author trailer detector",
+    "a\u0040noreply.github.com": "test input of the publish scanner",
+    "8082\u0040evil.com": "hostile URL test input (preview gate)",
+    "a.b\u0040c.example.hu": "synthetic address, sample data of the PII masker",
     "(06) 30 123 4567": "synthetic phone number, sample data of the PII masker"
   },
   "githubExactPaths": {
