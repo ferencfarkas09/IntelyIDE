@@ -2644,7 +2644,7 @@ dependencies = [
 name = "intely-relay-bundle"
 version = "0.0.0"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.23.1",
  "hex",
  "intely-core",
  "intely-settings",
@@ -2685,7 +2685,7 @@ dependencies = [
 name = "intely-remote"
 version = "0.0.0"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.23.1",
  "futures-util",
  "getrandom 0.4.3",
  "hex",
@@ -2831,7 +2831,7 @@ dependencies = [
 name = "intely-updater"
 version = "0.0.0"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.23.1",
  "blake2 0.11.0",
  "flate2",
  "hex",
