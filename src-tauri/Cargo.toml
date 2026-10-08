@@ -26,6 +26,7 @@ intely-graph = { version = "0.0.0", path = "../crates/graph" }
 intely-roles = { version = "0.0.0", path = "../crates/roles" }
 intely-settings = { version = "0.0.0", path = "../crates/settings" }
 intely-happy = { version = "0.0.0", path = "../crates/happy" }
+intely-sentry = { version = "0.0.0", path = "../crates/sentry" }
 intely-attachments = { version = "0.0.0", path = "../crates/attachments" }
 intely-l10n = { version = "0.0.0", path = "../crates/l10n" }
 intely-runner = { version = "0.0.0", path = "../crates/runner" }
