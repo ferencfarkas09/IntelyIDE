@@ -28,7 +28,7 @@ const FILES: &[(&str, &[&str])] = &[
         "events",
         &[
             "AgentEvent", "AttachmentRef", "BatchEvent", "EventKind", "Effective", "EffectiveChange", "AuthFact", "ToolDiff", "PermissionOption", "QuestionOption", "PlanItem",
-            "ToolKind", "ToolStatus", "DecidedBy", "PermissionOutcome", "ModeChangeReason", "StatusState", "ErrorClass", "StopReason", "Violation", "ViolationCode", "McpServerState", "McpServerInfo", "McpToolInfo", "McpServerStatus",
+            "ToolKind", "ToolStatus", "DecidedBy", "PermissionOutcome", "ModeChangeReason", "StatusState", "ErrorClass", "StopReason", "Violation", "ViolationCode", "McpServerState", "McpServerInfo", "McpToolInfo", "McpServerStatus", "NoteState",
         ],
     ),
     ("api", &["RunStatus", "PermissionDecision", "Requested", "AgentEffective", "AgentSummary", "AutoQueue", "AutoInfo", "RoleInfo", "AgentStartRequest", "AgentAttachment", "QuestionAnswer"]),

@@ -8,10 +8,10 @@ import { buildChildEnv } from '../../env.js';
 import { redact } from '../../redact.js';
 import { loadSdk } from '../../sdk.js';
 import type {
-  AgentSession, DelegateSpec, EventSink, HostServices, McpStatusOp, McpStatusServer, PermissionAnswer, PermissionMode, PolicyClient, ResolvedRole, SessionSpec, UserInput,
+  AgentSession, DelegateSpec, EventSink, HostServices, McpStatusOp, McpStatusServer, PermissionAnswer, PermissionMode, PolicyClient, ResolvedRole, SessionNote, SessionSpec, UserInput,
 } from '../../types.js';
 import { capsFor, toModelInfo } from './caps.js';
-import { effortOf } from '../../abstract.js';
+import { effortOf, NoteError } from '../../abstract.js';
 import { assertInit, checkCredential, type CliModel, findModel, initSessionInfo, isolationLeak, isWriterMode, mcpState, permissionModeFor } from './facts.js';
 import { CANARY_MARK, ToolGate } from './gate.js';
 import { mapRaw, type MapState, newMapState, type Raw } from './map.js';
@@ -112,6 +112,13 @@ function spawnGrouped(host: HostServices, stderrTail: { text: string }, onSpawn:
       off: ((ev: 'exit' | 'error', fn: never) => child.off(ev, fn)) as SpawnedProcess['off'],
     };
   };
+}
+
+/** The tool_use ids a message of the CLI announces: a finished assistant message, or the start of a block in the partial stream. */
+function toolUseIds(m: Raw): string[] {
+  if (m.type === 'assistant') return (Array.isArray(m.message?.content) ? m.message.content : []).filter((b: Raw) => b?.type === 'tool_use' && typeof b.id === 'string').map((b: Raw) => b.id as string);
+  if (m.type === 'stream_event' && m.event?.type === 'content_block_start' && m.event.content_block?.type === 'tool_use' && typeof m.event.content_block.id === 'string') return [m.event.content_block.id as string];
+  return [];
 }
 
 const withTimeout = <T>(p: Promise<T>, ms: number, what: string): Promise<T> =>
@@ -283,12 +290,14 @@ export class ClaudeSession implements AgentSession {
         this.gate.noteLeadToolUse(m.event.content_block.id);
       }
     }
+    // where each tool call came from (the lead, or the sub-agent an `Agent` call started): a note rides on its own target's next call
+    if (typeof m.parent_tool_use_id === 'string' || m.parent_tool_use_id === null) for (const id of toolUseIds(m)) this.gate.noteToolParent(id, m.parent_tool_use_id);
     // the lead got the result of an `Agent` call, or the turn ended: no sub-agent is in flight any more (SubagentStop is not reported for
-    // one that ran out of turns, which used to leave every later call of the lead attributed to an unknown actor)
-    if (this.delegates && m.type === 'user' && !m.parent_tool_use_id) {
+    // one that ran out of turns, which used to leave every later call of the lead attributed to an unknown actor); the notes meant for it are over too
+    if (m.type === 'user' && !m.parent_tool_use_id) {
       for (const b of Array.isArray(m.message?.content) ? m.message.content : []) if (b?.type === 'tool_result' && typeof b.tool_use_id === 'string') this.gate.toolResult(b.tool_use_id);
     }
-    if (this.delegates && m.type === 'result') this.gate.turnEnded();
+    if (m.type === 'result') this.gate.turnEnded();
     const wasStarted = this.state.started;
     for (const e of mapRaw(this.state, m)) this.sink.emit(e);
     // The CLI's slash commands and MCP servers ride in `session.info` right after the run started (optional fields: older readers skip them).
@@ -326,6 +335,7 @@ export class ClaudeSession implements AgentSession {
   }
 
   private fail(message: string): void {
+    this.gate.dropNotes('error');
     const tail = this.stderrTail.text.trim();
     this.sink.emit({ kind: 'error', class: 'provider', message: redact(tail ? `${message}: ${tail.slice(-400)}` : message), retryable: false });
     this.gate.cancelPending('cancelled');
@@ -339,7 +349,14 @@ export class ClaudeSession implements AgentSession {
 
   async interrupt(): Promise<void> {
     this.gate.cancelPending('cancelled');
+    this.gate.dropNotes('cancelled');
     await this.q.interrupt();
+  }
+
+  /** A note for the lead (no `parentToolId`) or the running sub-agent that call started; it is delivered with that agent's next tool call. */
+  note(n: SessionNote): void {
+    if (this.closed) throw new NoteError('failed', 'the session is closed');
+    this.gate.addNote(n);
   }
 
   async setModel(id: string): Promise<void> {
@@ -380,6 +397,7 @@ export class ClaudeSession implements AgentSession {
     if (this.closed) return;
     this.closed = true;
     this.gate.cancelPending('cancelled');
+    this.gate.dropNotes('cancelled');
     this.input.end();
     try { this.q.close(); } catch { /* already gone */ }
     const c = this.child;

@@ -109,6 +109,8 @@ pub fn run() {
             agents::agent_set_permission,
             agents::agent_modes,
             agents::agent_mcp_status,
+            agents::agent_note,
+            agents::agent_usage_limits,
             agents::agent_mcp_reconnect,
             agents::agent_answer_question,
             agents::agent_list,
@@ -215,6 +217,16 @@ pub fn run() {
             modules::providers::providers_set_weak_writer,
             modules::providers::providers_caps,
             modules::providers::providers_test_run,
+            modules::sentry::sentry_status,
+            modules::sentry::sentry_set_config,
+            modules::sentry::sentry_save_token,
+            modules::sentry::sentry_clear_token,
+            modules::sentry::sentry_test,
+            modules::sentry::sentry_projects,
+            modules::sentry::sentry_issues,
+            modules::sentry::sentry_issue,
+            modules::sentry::sentry_assign_me,
+            modules::sentry::sentry_set_status,
             modules::happy::happy_status,
             modules::happy::happy_set_config,
             modules::happy::happy_save_token,
@@ -353,6 +365,7 @@ pub fn run() {
             modules::gitx::gitx_refresh_env,
             // ==== wave4 agent-ux commands ====
             modules::agentux::agentux_search,
+            modules::agentux::agentux_usage,
             modules::agentux::agentux_night_state,
             modules::agentux::agentux_night_add,
             modules::agentux::agentux_night_remove,
@@ -535,6 +548,7 @@ pub fn run() {
             // MCP state: after settings (it sits on the settings and secret stores), before the agent host asks for its suppliers
             modules::mcp::setup(app)?;
             modules::happy::setup(app)?;
+            modules::sentry::setup(app)?;
             // ==== beta M1 mongo state (cargo feature mongo-studio; opens nothing) ====
             #[cfg(feature = "mongo-studio")]
             modules::mongo::setup(app)?;

@@ -20,7 +20,7 @@ use intely_roles::types::RunState;
 use intely_runindex::brief::facts_text;
 use intely_runindex::index::{Facets, Query, SearchResult};
 use intely_runindex::night::{parse_on_battery, Effect, NewItem, NightPlan, Observation, Paused, Phase, RunObs, MAX_RUNS_PER_NIGHT};
-use intely_runindex::{build_brief, Brief, GitDiff, Index};
+use intely_runindex::{build_brief, Brief, GitDiff, Index, UsageIndex, UsageReport};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State};
 
@@ -96,6 +96,8 @@ struct Inner {
     plan: Mutex<Option<NightPlan>>,
     driver: AtomicBool,
     battery: Mutex<Option<(Instant, bool)>>,
+    /// What the Usage view has read of the run logs; each log is read again only when it changed.
+    usage: Mutex<UsageIndex>,
 }
 
 #[derive(Clone)]
@@ -116,7 +118,7 @@ fn err(code: &str, message: impl Into<String>) -> EngineError {
 /// Called once from `setup`. Reads and starts nothing: the index loads on the first search, the plan on the first queue call.
 pub fn setup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let data_dir = std::env::var_os("INTELY_DATA_DIR").map(PathBuf::from).or_else(intely_agent_core::events::log::JsonlEventLog::default_base_dir).unwrap_or_else(|| PathBuf::from("."));
-    app.manage(AgentuxState(Arc::new(Inner { data_dir, index: Mutex::new(IndexSlot { index: None, refreshed: None }), stamps: Mutex::new(None), plan: Mutex::new(None), driver: AtomicBool::new(false), battery: Mutex::new(None) })));
+    app.manage(AgentuxState(Arc::new(Inner { data_dir, index: Mutex::new(IndexSlot { index: None, refreshed: None }), stamps: Mutex::new(None), plan: Mutex::new(None), driver: AtomicBool::new(false), battery: Mutex::new(None), usage: Mutex::new(UsageIndex::new()) })));
     Ok(())
 }
 
@@ -215,6 +217,19 @@ pub async fn agentux_search(state: State<'_, AgentuxState>, query: Query, reinde
     blocking(move || {
         let started = Instant::now();
         Ok(inner.with_index(reindex.unwrap_or(false), |idx| SearchOut { result: idx.search(&query), facets: idx.facets(), indexed: idx.len() as u32, took_ms: started.elapsed().as_millis() as u32 }))
+    })
+    .await
+}
+
+/// Tokens and API-equivalent cost of the runs the IDE keeps logs of, by local day, hour and weekday, as of now. `tz_offset_min` is the
+/// reader's time zone in minutes east of UTC (`-new Date().getTimezoneOffset()`), so days and hours are the reader's own.
+#[tauri::command]
+pub async fn agentux_usage(state: State<'_, AgentuxState>, tz_offset_min: i32) -> Res<UsageReport> {
+    let inner = state.0.clone();
+    blocking(move || {
+        let mut usage = lock(&inner.usage);
+        usage.refresh(&inner.runs_dir());
+        Ok(usage.report(tz_offset_min, now_ms()))
     })
     .await
 }
@@ -544,7 +559,7 @@ mod tests {
     #[test]
     fn stamps_are_kept_beside_the_plan_and_pruned_with_it() {
         let dir = tempfile::tempdir().unwrap();
-        let inner = Inner { data_dir: dir.path().to_path_buf(), index: Mutex::new(IndexSlot { index: None, refreshed: None }), stamps: Mutex::new(None), plan: Mutex::new(None), driver: AtomicBool::new(false), battery: Mutex::new(None) };
+        let inner = Inner { data_dir: dir.path().to_path_buf(), index: Mutex::new(IndexSlot { index: None, refreshed: None }), stamps: Mutex::new(None), plan: Mutex::new(None), driver: AtomicBool::new(false), battery: Mutex::new(None), usage: Mutex::new(UsageIndex::new()) };
         let added = inner
             .with_plan(|p| p.add(NewItem { role_id: "r".into(), prompt: "p".into(), repo_ids: vec!["a".into()], max_minutes: None, max_tokens: None }).map(|i| i.id.clone()))
             .unwrap();

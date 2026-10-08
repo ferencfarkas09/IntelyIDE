@@ -1,12 +1,13 @@
 import type { LucideIcon } from "lucide-solid";
 import { createMemo, createSignal, For, Match, Show, Switch } from "solid-js";
-import type { ToolItem } from "../../store/agent-reducer";
+import type { NoteItem, ToolItem } from "../../store/agent-reducer";
 import type { DelegateInfo, ToolKind, ToolStatus } from "../../store/agent-types";
 import { Badge, Ban, Brain, Button, Check, ChevronRight, CircleAlert, Globe, Icon, Layers, Pencil, Search, Spinner, SquareTerminal, Trash2, ArrowRight, FileSearch, Wrench, X } from "../../ui-kit";
 import { diffLines } from "./diffLines";
 import { t } from "../../i18n";
 import { lazyLabels } from "../lazyLabels";
 import { fmtDuration, modelLabel, subagentRole } from "./format";
+import { NoteInput, NoteRow } from "./Notes";
 
 const KIND_ICON: Record<ToolKind, LucideIcon> = {
   read: FileSearch,
@@ -109,7 +110,19 @@ function ToolBody(props: { item: ToolItem }) {
 }
 
 /** One tool call: collapsed to a line, expandable to its output or diff. Subagent children nest under it. */
-export function ToolCard(props: { item: ToolItem; children?: ToolItem[]; nested?: boolean; /** The run's role table: names the role (and its model) an Agent call starts. */ delegates?: DelegateInfo[] }) {
+export function ToolCard(props: {
+  item: ToolItem;
+  children?: ToolItem[];
+  nested?: boolean;
+  /** The run's role table: names the role (and its model) an Agent call starts. */
+  delegates?: DelegateInfo[];
+  /** Notes the user added to the subagent this call started. */
+  notes?: NoteItem[];
+  /** Present while a note can be added to this subagent (the run takes notes and is working): adds one, rejects when the host refuses it. */
+  onNote?: (text: string) => Promise<void>;
+  /** Present while a note whose subagent had already finished can still be said to the lead. */
+  onNoteToLead?: (text: string) => void;
+}) {
   const role = () => subagentRole(props.item.name, props.item.input);
   const delegate = () => props.delegates?.find((d) => d.name === role());
   const hasBody = () => !!(props.item.diff || props.item.output);
@@ -118,6 +131,7 @@ export function ToolCard(props: { item: ToolItem; children?: ToolItem[]; nested?
   const [manual, setManual] = createSignal<boolean | undefined>(undefined);
   const open = () => manual() ?? (!!props.item.diff || props.item.status === "error");
   const expandable = () => hasBody() || subagent();
+  const noteable = () => !!props.onNote && (props.item.name === "Agent" || props.item.name === "Task") && props.item.status === "running";
   return (
     <div class="tool-card" data-kind={props.item.toolKind} data-status={props.item.status} data-nested={props.nested ? "" : undefined}>
       <button type="button" class="tool-card__head" aria-expanded={expandable() ? open() : undefined} disabled={!expandable()} onClick={() => setManual(!open())}>
@@ -155,6 +169,14 @@ export function ToolCard(props: { item: ToolItem; children?: ToolItem[]; nested?
         </Show>
         <ToolStatusMark status={props.item.status} />
       </button>
+      <Show when={(props.notes?.length ?? 0) > 0 || noteable()}>
+        <div class="tool-card__notes">
+          <For each={props.notes}>{(n) => <NoteRow item={n} nested onSendToLead={props.onNoteToLead} />}</For>
+          <Show when={noteable()}>
+            <NoteInput label={t("notes.inputSub")} onSend={props.onNote!} />
+          </Show>
+        </div>
+      </Show>
       <Show when={open() && expandable()}>
         <Show when={hasBody()}>
           <ToolBody item={props.item} />

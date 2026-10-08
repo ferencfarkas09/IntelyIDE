@@ -190,6 +190,17 @@ export type SidecarBody = { type: "hello"; body: {
 	agentId: string,
 	reconnect?: string | null,
 	toggle?: McpToggle | null,
+} } | 
+/**
+ *  Adds a note for a running agent: the lead, or the sub-agent that the `Agent` tool call `parent_tool_id` started. The target
+ *  gets the text together with its next tool call. Replies `Acknowledged { ok: true }` or a `ReplyError` with `noSession`,
+ *  `unsupported`, `noTurn` (nothing is working), `unknownTarget` or `tooLong`.
+ */
+{ type: "session/note"; body: {
+	agentId: string,
+	noteId: string,
+	text: string,
+	parentToolId?: string | null,
 } } | { type: "cancel/request"; body: {
 	agentId: string,
 	softMs: number,

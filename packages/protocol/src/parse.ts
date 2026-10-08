@@ -26,6 +26,7 @@ const PAYLOAD: Record<EventKindName, Spec> = {
   error: { class: "string", message: "string", retryable: "boolean" },
   "turn.end": { stopReason: "string" },
   "session.info": { title: "string?", nativeId: "string?", models: "array?", caps: "object?", effective: "object?", delegates: "array?" },
+  note: { noteId: "string", state: "string", parentToolId: "string?", text: "string?", toolId: "string?", reason: "string?" },
 };
 
 const ENVELOPE: Spec = { agentId: "string", seq: "number", ts: "number", provider: "string", turnId: "string?", raw: "any?" };

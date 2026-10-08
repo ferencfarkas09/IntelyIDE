@@ -55,6 +55,8 @@ export type {
   UsageRecord,
 } from '@intely/protocol';
 
+import type { NoteErrorCode } from './abstract.js';
+
 export type ProviderId = string;
 
 /** `reason`, `rule` and `sessionAllow` are optional on the wire; the sidecar needs decision and by, and offers allow_run when `sessionAllow` is present. */
@@ -159,6 +161,9 @@ export interface InterruptOpts { softMs?: number; termMs?: number }
 export type McpStatusOp = { reconnect?: string; toggle?: McpToggle };
 export type McpStatusServer = McpServerStatus;
 
+/** A note the user adds to a running agent (`session/note`): delivered to `parentToolId`'s sub-agent, or the lead when absent, at its next tool call. */
+export type SessionNote = { noteId: string; text: string; parentToolId?: string | null };
+
 export interface AgentSession {
   readonly nativeId: string;
   prompt(input: UserInput): void;
@@ -168,6 +173,8 @@ export interface AgentSession {
   setPermission?(mode: PermissionMode): Promise<void>;
   /** Live MCP status of the session (Claude only). */
   mcpStatus?(op?: McpStatusOp): Promise<McpStatusServer[]>;
+  /** Queues a note for the lead or one sub-agent and reports it (`note` events); throws `NoteError` when it cannot be delivered. Claude and the mock adapter only. */
+  note?(n: SessionNote): void;
   answer(reqId: string, answer: PermissionAnswer): void;
   close(): Promise<void>;
 }
@@ -226,6 +233,10 @@ export interface SidecarMsg {
   'session/permission': { body: { agentId: string; mode: PermissionMode }; reply: { ok: true } | { error: 'noSession' | 'unsupported' | 'rejected' | 'timeout'; detail?: string } };
   /** Live MCP status of a session (Claude): the servers with their state and tools. */
   'session/mcp-status': { body: { agentId: string; reconnect?: string; toggle?: McpToggle }; reply: { ok: true; servers: McpStatusServer[] } | { error: 'noSession' | 'unsupported' | 'failed'; detail?: string } };
+  /** A note for the lead (no `parentToolId`) or the running sub-agent started by that `Agent`/`Task` call; delivered at its next tool call. */
+  'session/note': { body: { agentId: string; noteId: string; text: string; parentToolId?: string | null }; reply: { ok: true } | { error: 'noSession' | 'unsupported' | NoteErrorCode; detail?: string } };
+  /** The plan limits of the signed-in Claude account (limits.ts): no open session needed. */
+  'usage/limits': { body: import('./limits.js').LimitsRequest; reply: import('./limits.js').LimitsReply };
   // session history (history.ts): no open session needed
   'history/list': { body: { dir?: string; limit?: number; offset?: number }; reply: { ok: true; sessions: import('./history.js').SessionInfo[] } | { error: string; detail?: string } };
   'history/messages': { body: { sessionId: string; dir?: string; limit?: number; offset?: number }; reply: { ok: true; messages: import('./history.js').HistoryMessage[] } | { error: string; detail?: string } };

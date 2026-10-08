@@ -12,6 +12,7 @@
     "permission.resolved",
     "question.request",
     "plan",
+    "note",
     "usage",
     "status",
     "error",

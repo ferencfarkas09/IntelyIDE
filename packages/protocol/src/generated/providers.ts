@@ -82,6 +82,8 @@ export type ProviderCaps = {
 	sandbox: CapEntry,
 	/**  Attachments the provider accepts in a user message; absent = none. */
 	attachments?: AttachmentsCap | null,
+	/**  The provider takes a note for a running agent (`session/note`); absent = no. The UI shows the note input only when `true`. */
+	notes?: boolean | null,
 };
 
 export type ProviderDef = {

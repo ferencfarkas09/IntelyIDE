@@ -1,18 +1,37 @@
 import { createVirtualizer } from "@tanstack/solid-virtual";
 import { createEffect, createMemo, createSignal, For, Match, on, onCleanup, Show, Switch } from "solid-js";
-import { buildRows, isExitPlan, pendingPermissions, pendingQuestions, type AgentView, type TranscriptItem, type TranscriptRow } from "../../store/agent-reducer";
-import { agentRow, agentView, answerPermission, answerQuestion, sendMessage } from "../../store/agents";
+import { buildRows, isExitPlan, pendingPermissions, pendingQuestions, type AgentView, type NoteItem, type TranscriptItem, type TranscriptRow } from "../../store/agent-reducer";
+import { agentRow, agentView, answerPermission, answerQuestion, sendMessage, sendNote } from "../../store/agents";
 import { ArrowDown, EmptyState, IconButton, MessageSquare, ScrollArea } from "../../ui-kit";
 import { CONTINUE_TEXT, ErrorCard, PermissionCard, PlanCard, QuestionCard, ThinkingBlock, TurnMarker } from "./Cards";
 import { PlanApprovalCard } from "./PlanApprovalCard";
 import { Markdown } from "./Markdown";
 import { ToolCard } from "./Tools";
+import { NoteRow, noteFailure } from "./Notes";
 import { MessageAttachments } from "../../modules/attachments/Chips";
 import { t } from "../../i18n";
 
 const STICK_PX = 64;
 
 function RowView(props: { agentId: string; row: TranscriptRow; lastErrorKey: string | undefined; lastTurnKey: string | undefined; canRetry: boolean; retryText: string | undefined }) {
+  // A note can be added while the run works and its provider takes notes (the capability of the session beats the static one of the run).
+  const canNote = () => {
+    const view = agentView(props.agentId);
+    return !!view?.turnActive && (view.caps ?? agentRow(props.agentId)?.caps)?.notes === true;
+  };
+  // The turn ended before the agent made another tool call: the latest such note can still go out as a message of its own (an older one
+  // would be stale, and a run that works again has its own notes).
+  const canResend = (n: NoteItem) => {
+    const view = agentView(props.agentId);
+    if (!view || view.turnActive || n.state !== "dropped" || n.reason !== "turnEnded") return false;
+    const last = [...view.items].reverse().find((i) => i.type === "note" || i.type === "user");
+    return last === n || (last?.type === "note" && last.key === n.key);
+  };
+  const noteTo = (parentToolId: string | undefined) => (text: string) =>
+    sendNote(props.agentId, text, parentToolId).catch((e) => {
+      noteFailure(e);
+      throw e;
+    });
   const of = <K extends TranscriptItem["type"]>(type: K) => {
     const item = props.row.item;
     return item.type === type ? (item as Extract<TranscriptItem, { type: K }>) : undefined;
@@ -40,7 +59,19 @@ function RowView(props: { agentId: string; row: TranscriptRow; lastErrorKey: str
         )}
       </Match>
       <Match when={of("thinking")}>{(th) => <ThinkingBlock item={th()} />}</Match>
-      <Match when={of("tool")}>{(tool) => <ToolCard item={tool()} children={props.row.children} delegates={agentView(props.agentId)?.delegates} />}</Match>
+      <Match when={of("tool")}>
+        {(tool) => (
+          <ToolCard
+            item={tool()}
+            children={props.row.children}
+            notes={props.row.notes}
+            delegates={agentView(props.agentId)?.delegates}
+            onNote={canNote() ? noteTo(tool().toolId) : undefined}
+            onNoteToLead={canNote() ? (text) => void noteTo(undefined)(text).catch(() => {}) : undefined}
+          />
+        )}
+      </Match>
+      <Match when={of("note")}>{(n) => <NoteRow item={n()} onSendAsMessage={canResend(n()) ? (text) => void sendMessage(props.agentId, text).catch(() => {}) : undefined} />}</Match>
       <Match when={of("permission")}>
         {(p) => (
           // The card shows a refused answer itself (it goes back to pending with the reason), so the rejection needs no second report here.

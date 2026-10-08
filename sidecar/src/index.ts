@@ -3,6 +3,7 @@
 import { createInterface } from 'node:readline';
 import { HistoryService } from './history.js';
 import { SidecarHost } from './host.js';
+import { LimitsService } from './limits.js';
 import { Loader } from './loader.js';
 import { ProtocolClient } from './protocol.js';
 import { registry } from './registry.js';
@@ -20,6 +21,7 @@ const proto = new ProtocolClient({
 });
 const host = new SidecarHost(proto, loader);
 new HistoryService(proto);
+new LimitsService(proto);
 
 let stopping = false;
 async function stop(code: number): Promise<never> {

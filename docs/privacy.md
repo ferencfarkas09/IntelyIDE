@@ -66,6 +66,7 @@ Notes on the table:
 | MongoDB connections you define, optionally through an SSH tunnel | The servers you configure | `crates/mongo/src/driver.rs` |
 | The Remote relay and phone view | Your own Cloudflare account. `wrangler` runs on your machine with your login; web push uses the push service of your phone's browser | `crates/relay_deploy/src/wrangler.rs`, `crates/remote/src/` |
 | The Happy integration | The base URL you enter | `crates/happy/src/hub.rs` |
+| The Sentry integration (off until you add a token) | The Sentry address you enter, `https://sentry.io` by default, with your own token (kept in the Keychain; it goes only to the address it was entered for, so saving another address removes it): reading issues, and, on your click, assigning an issue to you or marking it resolved | `crates/sentry/src/client.rs` |
 | The preview proxy | Loopback addresses only (127.0.0.1) | `crates/preview-proxy/src/` |
 | The confirm-first Claude Agent SDK installer in the packaged app | `registry.npmjs.org`, nothing else | `sidecar/src/sdk-install.ts` |
 
@@ -83,7 +84,7 @@ Masking is pattern based and best-effort. The run log and `refusals.log` are not
 
 ## Components that may use the network
 
-The Rust crates allowed to depend on a network library are `remote`, `relay_bundle`, `relay_deploy`, `happy`, `mongo`, `mcp`, `preview-proxy` and `updater`. `mcp` makes a request only when you press the connection test of an MCP server, and only to the address you entered for it. In the sidecar, only `sidecar/src/sdk-install.ts` may use the network. `scripts/release/verify-no-telemetry.mjs` fails when any other crate or sidecar file does, or when a package from its deny list (analytics, crash reporting and similar names) appears in a lockfile. A new network-capable crate has to be added to the script, its test and this page together.
+The Rust crates allowed to depend on a network library are `remote`, `relay_bundle`, `relay_deploy`, `happy`, `sentry`, `mongo`, `mcp`, `preview-proxy` and `updater`. `mcp` makes a request only when you press the connection test of an MCP server, and only to the address you entered for it. In the sidecar, only `sidecar/src/sdk-install.ts` may use the network. `scripts/release/verify-no-telemetry.mjs` fails when any other crate or sidecar file does, or when a package from its deny list (analytics, crash reporting and similar names) appears in a lockfile. A new network-capable crate has to be added to the script, its test and this page together.
 
 ## Read, export and delete your data
 

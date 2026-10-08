@@ -2756,6 +2756,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "intely-sentry"
+version = "0.0.0"
+dependencies = [
+ "intely-checks",
+ "intely-settings",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "url",
+]
+
+[[package]]
 name = "intely-settings"
 version = "0.0.0"
 dependencies = [
@@ -2795,6 +2809,7 @@ dependencies = [
  "intely-roles",
  "intely-runindex",
  "intely-runner",
+ "intely-sentry",
  "intely-settings",
  "intely-term",
  "intely-updater",

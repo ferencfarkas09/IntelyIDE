@@ -1,7 +1,8 @@
 // Scripted provider: same AgentSession interface as the real adapters, no CLI. Drives the UI and the Inspector in dev and tests.
-import type { Actor, AgentSession, DecidedBy, EventSink, PermissionAnswer, PermissionMode, PolicyClient, PolicyDecision, SessionSpec, StopReason, ToolKind, UserInput } from '../../types.js';
+import type { Actor, AgentSession, DecidedBy, EventSink, PermissionAnswer, PermissionMode, PolicyClient, PolicyDecision, SessionNote, SessionSpec, StopReason, ToolKind, UserInput } from '../../types.js';
 import { intentFor } from '../claude-sdk/intent.js';
-import { effortOf, isUnattended } from '../../abstract.js';
+import { effortOf, isUnattended, NoteError } from '../../abstract.js';
+import { LEAD, NoteQueue } from '../../note-queue.js';
 import { offeredOptions, PLAN_MODES, planPayload } from '../../permission-options.js';
 import { parseScript, type Step } from './script.js';
 
@@ -33,8 +34,13 @@ export class MockSession implements AgentSession {
   private agents = new Map<string, Actor>();
   /** Agent tool ids the broker refused: the role never started, so the calls the script scripts for it are not played. */
   private refused = new Set<string>();
+  /** Notes the user added to the lead or a running sub-agent; handed over (reported as delivered) at that target's next tool call. */
+  private notes: NoteQueue;
+  /** Scripted `Agent`/`Task` calls that have started and have no result yet: the sub-agents a note can be addressed to. */
+  private openAgents = new Set<string>();
 
   constructor(private spec: SessionSpec, private sink: EventSink, scriptText: string, private policy?: PolicyClient) {
+    this.notes = new NoteQueue(sink);
     this.turns = parseScript(scriptText);
     if (!this.turns.length) throw new Error('mock script has no steps');
     this.speed = spec.mock?.speed ?? 1;
@@ -69,6 +75,24 @@ export class MockSession implements AgentSession {
   }
 
   async close(): Promise<void> { await this.interrupt(); }
+
+  /** A note for the lead or a running sub-agent of the turn in progress; it is reported as delivered at that target's next scripted tool call. */
+  note(n: SessionNote): void {
+    if (!this.running) throw new NoteError('noTurn');
+    if (n.parentToolId && !this.openAgents.has(n.parentToolId) && !this.agents.has(n.parentToolId)) throw new NoteError('unknownTarget', 'that sub-agent is not running');
+    this.notes.add(n);
+  }
+
+  /** A scripted tool call of `parent`'s sub-agent (or of the lead) is starting: the notes waiting for that target ride on it. */
+  private deliver(parent: string | undefined, toolId: string): void {
+    this.notes.take(parent || LEAD, toolId);
+  }
+
+  /** The `Agent`/`Task` call `id` has its result: its sub-agent is over, and so are the notes meant for it. */
+  private agentDone(id: string): void {
+    this.openAgents.delete(id);
+    this.notes.dropTarget(id, 'finished');
+  }
 
   /** Accepts all five modes (the mock is a Claude stand-in for the UI e2e); Rust has already switched its side. */
   async setPermission(mode: PermissionMode): Promise<void> {
@@ -119,6 +143,7 @@ export class MockSession implements AgentSession {
       this.sink.emit({ kind: 'permission.resolved', reqId, outcome: a.outcome, by: 'user' });
       if (a.outcome !== 'allow') { if (!this.aborted) this.sink.emit({ kind: 'tool.result', toolId, status: 'denied', output: a.message ?? 'The user declined this action.', durationMs: 0 }); return false; }
     }
+    this.deliver(parent, toolId);
     if (!finish) return true;
     await this.delay(ms);
     if (this.aborted) return true;
@@ -202,9 +227,12 @@ export class MockSession implements AgentSession {
           break;
         case 'start':
           this.sink.emit({ kind: 'tool.start', toolId: String(s.id), name: String(s.name), toolKind: s.toolKind ?? 'other', input: s.input ?? {}, ...(s.parent ? { parentToolId: s.parent } : {}) });
+          this.deliver(s.parent, String(s.id));
+          if (s.name === 'Agent' || s.name === 'Task') this.openAgents.add(String(s.id));
           break;
         case 'tool': {
           this.sink.emit({ kind: 'tool.start', toolId: String(s.id), name: String(s.name), toolKind: s.toolKind ?? 'other', input: s.input ?? {}, ...(s.parent ? { parentToolId: s.parent } : {}) });
+          this.deliver(s.parent, String(s.id));
           await this.delay(s.ms ?? 50);
           if (this.aborted) break;
           this.sink.emit({ kind: 'tool.result', toolId: String(s.id), status: s.status ?? 'ok', ...(s.output !== undefined ? { output: String(s.output) } : {}), ...(s.diff ? { diff: s.diff } : {}), durationMs: s.ms ?? 50 });
@@ -252,13 +280,16 @@ export class MockSession implements AgentSession {
         }
         case 'enddelegate': {
           const id = String(s.id);
-          if (this.agents.delete(id)) this.sink.emit({ kind: 'tool.result', toolId: id, status: 'ok', output: String(s.output ?? ''), durationMs: s.ms ?? 100 });
+          if (this.agents.delete(id)) { this.agentDone(id); this.sink.emit({ kind: 'tool.result', toolId: id, status: 'ok', output: String(s.output ?? ''), durationMs: s.ms ?? 100 }); }
           break;
         }
         case 'exitplan':
           if (!(await this.exitPlan(s))) { stop = 'cancelled'; break outer; }
           break;
-        case 'emit': this.sink.emit(s.event); break;
+        case 'emit':
+          if (s.event?.kind === 'tool.result' && typeof s.event.toolId === 'string') this.agentDone(s.event.toolId);
+          this.sink.emit(s.event);
+          break;
         case 'usage': this.sink.emit({ kind: 'usage', usage: s.usage }); break;
         case 'error': this.sink.emit({ kind: 'error', class: s.class ?? 'provider', message: String(s.message), retryable: !!s.retryable }); break;
         case 'status': this.sink.emit({ kind: 'status', state: s.state, ...(s.retryAfterMs !== undefined ? { retryAfterMs: s.retryAfterMs } : {}), ...(s.scope ? { scope: s.scope } : {}) }); break;
@@ -268,6 +299,8 @@ export class MockSession implements AgentSession {
         default: break; // label, wait
       }
     }
+    this.notes.dropAll(this.aborted ? 'cancelled' : 'turnEnded'); // before turn.end, like the Claude adapter
+    this.openAgents.clear();
     this.sink.emit({ kind: 'turn.end', stopReason: this.aborted ? 'cancelled' : stop });
   }
 }

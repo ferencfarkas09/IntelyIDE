@@ -33,6 +33,7 @@ export function createTauriIpc(): Ipc {
     agentStart: (req, opts) => call("agent_start", { req, ...(opts?.runWithoutSafetyNet ? { runWithoutSafetyNet: true } : {}), ...(opts?.confirmBypass ? { confirmBypass: true } : {}) }),
     agentSend: (agentId, text, attachments, files) => call("agent_send", { agentId, text, attachments, files }),
     agentInterrupt: (agentId) => call("agent_interrupt", { agentId }),
+    agentNote: (agentId, parentToolId, text) => call("agent_note", { agentId, parentToolId: parentToolId ?? null, text }),
     agentAnswerPermission: (agentId, requestId, decision, extra) => call("agent_answer_permission", { agentId, requestId, decision, ...(extra?.mode ? { mode: extra.mode } : {}), ...(extra?.feedback ? { feedback: extra.feedback } : {}) }),
     agentSetPermission: (agentId, mode, opts) => call("agent_set_permission", { agentId, mode, ...(opts?.confirmBypass ? { confirmBypass: true } : {}) }),
     agentModes: (provider) => call("agent_modes", { provider }),

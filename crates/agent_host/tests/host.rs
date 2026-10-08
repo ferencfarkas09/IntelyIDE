@@ -5,7 +5,7 @@ mod common;
 use common::*;
 use intely_agent_core::api::{AgentStartRequest, PermissionDecision, RunStatus};
 use intely_agent_core::events::invariants::InvariantChecker;
-use intely_agent_core::events::types::{EventKind, PermissionOutcome, StopReason, ToolStatus};
+use intely_agent_core::events::types::{EventKind, NoteState, PermissionOutcome, StopReason, ToolStatus};
 use intely_agent_core::events::log::{EventLog, JsonlEventLog};
 
 fn start(host: &intely_agent_host::AgentHost, role: &str, repo: &intely_agent_host::RepoRef) -> Result<intely_agent_core::api::AgentSummary, intely_core::EngineError> {
@@ -279,4 +279,96 @@ fn history_survives_a_restart_and_an_unfinished_turn_is_closed() {
     let stored = host.history(&id, None).unwrap();
     assert_invariants(&stored);
     assert_eq!(host.sidecar_pid(), None);
+}
+
+/// (state, parent, text, tool) of every `note` event of one note, in log order.
+fn note_states(events: &[intely_agent_core::events::types::AgentEvent], note: &str) -> Vec<(NoteState, Option<String>, Option<String>, Option<String>, Option<String>)> {
+    events
+        .iter()
+        .filter_map(|e| match &e.kind {
+            EventKind::Note { note_id, state, parent_tool_id, text, tool_id, reason } if note_id == note => Some((*state, parent_tool_id.clone(), text.clone(), tool_id.clone(), reason.clone())),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn a_note_rides_with_the_next_tool_call_of_the_agent_it_is_for() {
+    let dir = tempfile::tempdir().unwrap();
+    let repo = fixture_repo(dir.path());
+    let mut cfg = config(&dir.path().join("data"), sidecar_js());
+    cfg.mock_speed = 1.0;
+    let (host, sink) = host_with(cfg);
+    let id = start(&host, "mock-notes", &repo).unwrap().agent_id;
+    // the researcher (the `Agent` call t1) is in the middle of its first tool call
+    sink.wait(&id, "the sub-agent's first tool call", 20, |e| matches!(&e.kind, EventKind::ToolStart { tool_id, .. } if tool_id == "t2"));
+    let note = host.note(&id, Some("t1".into()), "  use the staging database  ").unwrap();
+
+    // refused: not a running sub-agent, nothing to say, too much to say
+    assert_eq!(host.note(&id, Some("t9".into()), "x").unwrap_err().code, "noteUnknownTarget");
+    assert_eq!(host.note(&id, None, "   ").unwrap_err().code, "noteEmpty");
+    assert_eq!(host.note(&id, None, &"x".repeat(4001)).unwrap_err().code, "noteTooLong");
+
+    let end = sink.wait_turn_end(&id);
+    assert_eq!(stop_reason(&end), "EndTurn");
+    let events = sink.of(&id);
+    assert_invariants(&events);
+    let states = note_states(&events, &note);
+    assert_eq!(states.len(), 2, "queued, then delivered: {states:?}");
+    assert_eq!(states[0], (NoteState::Queued, Some("t1".into()), Some("use the staging database".into()), None, None), "the text is trimmed and the target named");
+    assert_eq!((states[1].0, states[1].1.as_deref(), states[1].3.as_deref()), (NoteState::Delivered, Some("t1"), Some("t3")), "it rode on the sub-agent's NEXT tool call");
+    // the log has it too, in the same order
+    let stored = host.history(&id, None).unwrap();
+    assert_eq!(note_states(&stored, &note), states);
+    host.shutdown();
+}
+
+#[test]
+fn a_note_for_the_lead_waits_for_the_lead_and_a_note_the_agent_can_no_longer_read_is_dropped() {
+    let dir = tempfile::tempdir().unwrap();
+    let repo = fixture_repo(dir.path());
+    let mut cfg = config(&dir.path().join("data"), sidecar_js());
+    cfg.mock_speed = 1.0;
+    let (host, sink) = host_with(cfg);
+    let id = start(&host, "mock-notes", &repo).unwrap().agent_id;
+    sink.wait(&id, "the sub-agent's last tool call", 20, |e| matches!(&e.kind, EventKind::ToolStart { tool_id, .. } if tool_id == "t4"));
+    // t4 is the researcher's last call: nothing after it can carry a note, and the lead makes no tool call at all
+    let to_sub = host.note(&id, Some("t1".into()), "too late for you").unwrap();
+    let to_lead = host.note(&id, None, "and for the lead").unwrap();
+    sink.wait_turn_end(&id);
+    let events = sink.of(&id);
+    assert_invariants(&events);
+
+    let sub = note_states(&events, &to_sub);
+    assert_eq!(sub.len(), 2, "{sub:?}");
+    assert_eq!((sub[1].0, sub[1].4.as_deref()), (NoteState::Dropped, Some("finished")), "its sub-agent ended first");
+    let lead = note_states(&events, &to_lead);
+    assert_eq!(lead.len(), 2, "{lead:?}");
+    assert_eq!((lead[0].1.clone(), lead[1].0, lead[1].4.as_deref()), (None, NoteState::Dropped, Some("turnEnded")), "the turn ended before the lead made another call");
+
+    // between turns there is nobody to read a note
+    assert_eq!(host.note(&id, None, "anyone there?").unwrap_err().code, "noteNoTurn");
+    host.shutdown();
+}
+
+#[test]
+fn the_plan_limits_say_why_they_cannot_be_read_and_never_touch_the_model() {
+    let dir = tempfile::tempdir().unwrap();
+    // no claude CLI on the login PATH
+    let mut cfg = config(&dir.path().join("data"), sidecar_js());
+    cfg.claude_bin = None;
+    cfg.env = std::sync::Arc::new(|| std::collections::HashMap::from([("PATH".to_string(), "/nonexistent".to_string())]));
+    let (host, sink) = host_with(cfg);
+    assert_eq!(host.usage_limits().unwrap()["error"], "claudeNotFound");
+    host.shutdown();
+
+    // a "CLI" that is not one: the sidecar answers that it failed, with a reason, instead of the request failing
+    let mut cfg = config(&dir.path().join("data2"), sidecar_js());
+    cfg.claude_bin = Some(std::path::PathBuf::from("/nonexistent/claude"));
+    let (host, _sink) = host_with(cfg);
+    let r = host.usage_limits().unwrap();
+    assert_eq!(r["error"], "failed", "{r}");
+    assert!(r["detail"].as_str().is_some_and(|d| !d.is_empty()), "{r}");
+    assert!(sink.all().is_empty(), "no run, no event");
+    host.shutdown();
 }

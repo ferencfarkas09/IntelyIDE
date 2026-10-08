@@ -43,7 +43,7 @@ fn the_wire_shape_follows_the_plan() {
     assert_eq!((tool["kind"].as_str(), tool["toolKind"].as_str(), tool["turnId"].as_str()), (Some("tool.start"), Some("exec"), Some("t1")));
     let raw = serde_json::to_value(&events[5]).unwrap();
     assert_eq!(raw["raw"]["type"], "stream_event");
-    let usage = serde_json::to_value(&events[14]).unwrap();
+    let usage = serde_json::to_value(events.iter().find(|e| e.kind.name() == "usage").unwrap()).unwrap();
     assert_eq!(usage["usage"]["costBasis"], "estimated");
     assert_eq!(usage["usage"]["perTurn"]["inputTokens"], 1200);
 }
@@ -105,7 +105,7 @@ fn sidecar_messages_round_trip_exactly() {
         types.insert(m.body.type_name());
         assert_eq!(strip_nulls(serde_json::to_value(&m).unwrap()), strip_nulls(s));
     }
-    assert_eq!(types.len(), 16, "all message types of 5.5 (and session/permission, session/mcp-status) are covered: {types:?}");
+    assert_eq!(types.len(), 17, "all message types of 5.5 (and session/permission, session/mcp-status, session/note) are covered: {types:?}");
 }
 
 #[test]

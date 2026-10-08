@@ -1,13 +1,14 @@
 import { createMemo, onMount, Show } from "solid-js";
 import { execute } from "../../platform/commands";
 import { isForeign } from "../../store/agentScope";
-import { agentAnnouncement, agentRow, agentRows, agentsError, agentsLoaded, agentView, bannerDismissed, dismissBanner, interruptRun, isInterrupting, needsYouCount, rewindRun, selectAgent, selectedAgentId, sendMessage, startAgentStore } from "../../store/agents";
+import { agentAnnouncement, agentRow, agentRows, agentsError, agentsLoaded, agentView, bannerDismissed, dismissBanner, interruptRun, isInterrupting, needsYouCount, rewindRun, selectAgent, selectedAgentId, sendMessage, sendNote, startAgentStore } from "../../store/agents";
 import { ArrowLeft, Badge, Button, CircleAlert, EmptyState, Plus, Skeleton, toast } from "../../ui-kit";
 import { t, type MessageKey } from "../../i18n";
 import { AgentList } from "./AgentList";
 import { ModeBanner, ThrottleBanner } from "./Banners";
 import { effectiveMode } from "./modes";
 import { Composer } from "./Composer";
+import { noteFailure } from "./Notes";
 import { RunHeader } from "./RunHeader";
 import { Transcript } from "./Transcript";
 import "./chat.css";
@@ -44,6 +45,7 @@ export function RunView(props: { agentId: string }) {
                   stopping={isInterrupting(a().agentId)}
                   onSend={(text, attachments, files) => void sendMessage(a().agentId, text, attachments, files).catch(fail("chat.fail.send"))}
                   onStop={() => void interruptRun(a().agentId).catch(fail("chat.fail.interrupt"))}
+                  onNote={(v().caps ?? a().caps)?.notes === true ? (text) => sendNote(a().agentId, text).catch((e) => { noteFailure(e); throw e; }) : undefined}
                 />
                 </Show>
               </>

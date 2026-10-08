@@ -284,3 +284,59 @@ describe("mock agent permission modes", () => {
     }
   });
 });
+
+
+describe("notes to a working agent (mock)", () => {
+  // each tool call of the agent-notes scenario runs 10000 ms * scale: slow enough to add a note in the middle of it
+  const slow = () => {
+    const api = createMockAgents("agent-notes", 0.05);
+    const events: AgentEvent[] = [];
+    api.onAgentEvents((batch) => events.push(...batch));
+    return { api, events };
+  };
+  // the whole scenario takes about two seconds at this scale
+  const until = async (cond: () => boolean, what: string) => {
+    for (let i = 0; i < 1600 && !cond(); i++) await new Promise((r) => setTimeout(r, 5));
+    if (!cond()) throw new Error(`timed out waiting for ${what}`);
+  };
+  const notesOf = (events: AgentEvent[], id: string) => events.filter((e) => e.kind === "note" && e.noteId === id) as Extract<AgentEvent, { kind: "note" }>[];
+
+  it("queues a note for the running subagent and hands it over with the subagent's next tool call", async () => {
+    const { api, events } = slow();
+    const [run] = await api.agentList();
+    await until(() => events.some((e) => e.kind === "tool.start" && e.toolId === "n2"), "the subagent's first call");
+    const id = await api.agentNote(run.agentId, "n1", "  use the staging database ");
+    await until(() => events.some((e) => e.kind === "turn.end"), "turn.end");
+    expect(notesOf(events, id).map((e) => [e.state, e.parentToolId, e.toolId ?? null, e.text ?? null])).toEqual([
+      ["queued", "n1", null, "use the staging database"],
+      ["delivered", "n1", "n3", null],
+    ]);
+    expect(invariantViolations(events)).toEqual([]);
+  });
+
+  it("drops a note its subagent can no longer read, and one for the lead that the turn outlived", async () => {
+    const { api, events } = slow();
+    const [run] = await api.agentList();
+    await until(() => events.some((e) => e.kind === "tool.start" && e.toolId === "n4"), "the subagent's last call");
+    const late = await api.agentNote(run.agentId, "n1", "too late");
+    const lead = await api.agentNote(run.agentId, undefined, "for the lead");
+    await until(() => events.some((e) => e.kind === "turn.end"), "turn.end");
+    expect(notesOf(events, late).map((e) => [e.state, e.reason ?? null])).toEqual([["queued", null], ["dropped", "finished"]]);
+    // the lead streams text after the subagent but makes no tool call: nothing carries the note
+    expect(notesOf(events, lead).map((e) => [e.state, e.reason ?? null])).toEqual([["queued", null], ["dropped", "turnEnded"]]);
+    const end = events.findIndex((e) => e.kind === "turn.end");
+    expect(events.map((e, i) => (e.kind === "note" ? i : -1)).filter((i) => i >= 0).every((i) => i < end)).toBe(true);
+  });
+
+  it("refuses what the host would: an unknown agent or subagent, an empty or long note, and a run that is not working", async () => {
+    const { api, events } = slow();
+    const [run] = await api.agentList();
+    await expect(api.agentNote("missing", undefined, "x")).rejects.toMatchObject({ code: "unknownAgent" });
+    await until(() => events.some((e) => e.kind === "tool.start" && e.toolId === "n2"), "the subagent's first call");
+    await expect(api.agentNote(run.agentId, "nope", "x")).rejects.toMatchObject({ code: "noteUnknownTarget" });
+    await expect(api.agentNote(run.agentId, undefined, "   ")).rejects.toMatchObject({ code: "noteEmpty" });
+    await expect(api.agentNote(run.agentId, undefined, "x".repeat(4001))).rejects.toMatchObject({ code: "noteTooLong" });
+    await until(() => events.some((e) => e.kind === "turn.end"), "turn.end");
+    await expect(api.agentNote(run.agentId, undefined, "anyone there?")).rejects.toMatchObject({ code: "noteNoTurn" });
+  });
+});

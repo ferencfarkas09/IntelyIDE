@@ -322,6 +322,18 @@ wire_types! {
             #[cfg_attr(feature = "specta", specta(optional))]
             toggle: Option<McpToggle>,
         },
+        /// Adds a note for a running agent: the lead, or the sub-agent that the `Agent` tool call `parent_tool_id` started. The target
+        /// gets the text together with its next tool call. Replies `Acknowledged { ok: true }` or a `ReplyError` with `noSession`,
+        /// `unsupported`, `noTurn` (nothing is working), `unknownTarget` or `tooLong`.
+        #[serde(rename = "session/note")]
+        SessionNote {
+            agent_id: String,
+            note_id: String,
+            text: String,
+            #[serde(default)]
+            #[cfg_attr(feature = "specta", specta(optional))]
+            parent_tool_id: Option<String>,
+        },
         #[serde(rename = "cancel/request")]
         CancelRequest { agent_id: String, soft_ms: u32, term_ms: u32 },
         /// Sidecar -> Rust, after the turn ended (or the soft deadline passed).
@@ -373,6 +385,7 @@ impl SidecarBody {
             SidecarBody::SessionClose { .. } => "session/close",
             SidecarBody::SessionPermission { .. } => "session/permission",
             SidecarBody::SessionMcpStatus { .. } => "session/mcp-status",
+            SidecarBody::SessionNote { .. } => "session/note",
             SidecarBody::CancelRequest { .. } => "cancel/request",
             SidecarBody::CancelDone { .. } => "cancel/done",
             SidecarBody::PermissionAnswer { .. } => "permission/answer",
@@ -446,6 +459,8 @@ pub fn sample_messages() -> Vec<serde_json::Value> {
         json!({"v":1,"id":63,"type":"session/mcp-status","body":{"agentId":"a1"}}),
         json!({"v":1,"id":64,"type":"session/mcp-status","body":{"agentId":"a1","reconnect":"github"}}),
         json!({"v":1,"id":65,"type":"session/mcp-status","body":{"agentId":"a1","toggle":{"server":"github","enabled":false}}}),
+        json!({"v":1,"id":66,"type":"session/note","body":{"agentId":"a1","noteId":"n1","text":"Use the staging URL, not production.","parentToolId":"toolu_01"}}),
+        json!({"v":1,"id":67,"type":"session/note","body":{"agentId":"a1","noteId":"n2","text":"Also update the changelog."}}),
         json!({"v":1,"id":63,"type":"reply","body":{"ok":true,"servers":[
             {"name":"github","status":"connected","tools":[{"name":"search_issues","description":"Search issues"},{"name":"get_issue"}]},
             {"name":"docs","status":"failed","error":"spawn ENOENT","tools":[]},

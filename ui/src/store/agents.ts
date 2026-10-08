@@ -148,6 +148,11 @@ export async function sendMessage(agentId: string, text: string, attachments?: A
   await client.agentSend(agentId, text, attachments?.length ? attachments : undefined, files);
 }
 
+/** Adds a note to the running turn: for the subagent of the `Agent` call `parentToolId`, or the lead. The transcript shows it through the `note` events. */
+export async function sendNote(agentId: string, text: string, parentToolId?: string): Promise<void> {
+  await client.agentNote(agentId, parentToolId, text);
+}
+
 export async function interruptRun(agentId: string): Promise<void> {
   setInterrupting((m) => ({ ...m, [agentId]: true }));
   try {

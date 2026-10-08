@@ -72,7 +72,8 @@ export class TurnGuard implements EventSink {
   }
 }
 
-const NON_TURN = new Set(['session.started', 'session.info', 'status', 'usage']);
+// `note` is outside the turn bookkeeping: a note the turn could no longer deliver is reported (dropped) around the turn's end
+const NON_TURN = new Set(['session.started', 'session.info', 'status', 'usage', 'note']);
 
 /** Invariant checker used by golden and mock tests (mirrors agent_core invariants.rs). Returns violations. */
 export function checkInvariants(events: ReadonlyArray<{ seq: number; kind: string } & Record<string, any>>): string[] {

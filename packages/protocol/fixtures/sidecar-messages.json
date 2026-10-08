@@ -213,6 +213,7 @@
               "cap": "no",
               "note": null
             },
+            "notes": null,
             "permissions": {
               "cap": "no",
               "note": null
@@ -529,6 +530,27 @@
     },
     "id": 65,
     "type": "session/mcp-status",
+    "v": 1
+  },
+  {
+    "body": {
+      "agentId": "a1",
+      "noteId": "n1",
+      "parentToolId": "toolu_01",
+      "text": "Use the staging URL, not production."
+    },
+    "id": 66,
+    "type": "session/note",
+    "v": 1
+  },
+  {
+    "body": {
+      "agentId": "a1",
+      "noteId": "n2",
+      "text": "Also update the changelog."
+    },
+    "id": 67,
+    "type": "session/note",
     "v": 1
   },
   {

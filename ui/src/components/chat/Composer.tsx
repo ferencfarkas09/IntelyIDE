@@ -4,7 +4,7 @@ import { agentDraft, agentRow, searchRepoFiles, setAgentDraft } from "../../stor
 import { requestChip } from "../../store/chatCommands";
 import { repoConfig } from "../../store/workspace";
 import type { AgentAttachment } from "../../store/agent-types";
-import { Button, Kbd, RepoBadge, SendHorizontal, Square, TextArea, Tooltip } from "../../ui-kit";
+import { Button, Kbd, MessageSquareReply, RepoBadge, SendHorizontal, Square, TextArea, Tooltip } from "../../ui-kit";
 import { activeMention, applyMention, liveAttachments } from "./mentions";
 import { AttachButton, AttachmentChips } from "../../modules/attachments/Chips";
 import { createComposerAttachments, type AttachmentsCap } from "../../modules/attachments/composer";
@@ -33,6 +33,8 @@ export interface ComposerProps {
   slashCommands?: string[];
   onSend: (text: string, attachments: AgentAttachment[], files?: FileSelection) => void;
   onStop: () => void;
+  /** While the run works, this adds the draft as a note the agent reads with its next step. Absent = the provider takes no notes. Rejects when the host refuses (the text then stays). */
+  onNote?: (text: string) => Promise<void>;
 }
 
 export function Composer(props: ComposerProps) {
@@ -119,6 +121,22 @@ export function Composer(props: ComposerProps) {
   };
 
   const canSend = () => !props.running && !props.blockedReason && (text().trim() !== "" || hasFiles()) && !att.store.blocker();
+  /** A working run whose provider takes notes: Send turns into "Add note" (the draft goes to the agent as a note, never as a message). */
+  const noteMode = () => props.running && !!props.onNote;
+  const canNote = () => noteMode() && text().trim() !== "" && !noting();
+  const [noting, setNoting] = createSignal(false);
+  const addNote = async () => {
+    if (!canNote()) return;
+    setNoting(true);
+    try {
+      await props.onNote!(text().trim());
+      setAgentDraft(props.agentId, "");
+    } catch {
+      /* the host refused: the caller said why, the draft stays */
+    } finally {
+      setNoting(false);
+    }
+  };
   const send = () => {
     // `/mcp` typed out and sent (Cmd+Return) runs the command instead of becoming a message
     const ide = ideCommandOf(text().trim());
@@ -154,6 +172,7 @@ export function Composer(props: ComposerProps) {
   const onKeyDown = (e: KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
       e.preventDefault();
+      if (noteMode()) return void addNote();
       if (props.running && text().trim() !== "") flash(t("chat.stopToSend"));
       return send();
     }
@@ -244,7 +263,7 @@ export function Composer(props: ComposerProps) {
         aria-autocomplete="list"
         aria-controls={slashOpen() ? `${listId}-slash` : popupOpen() ? listId : undefined}
         aria-activedescendant={slashOpen() ? `${listId}-s${slashCursor()}` : popupOpen() ? `${listId}-${cursor()}` : undefined}
-        placeholder={props.blockedReason ?? (props.running ? t("chat.placeholderBusy") : t("chat.placeholder"))}
+        placeholder={props.blockedReason ?? (props.running ? (noteMode() ? t("notes.placeholder") : t("chat.placeholderBusy")) : t("chat.placeholder"))}
         minRows={2}
         maxRows={8}
         value={text()}
@@ -263,7 +282,7 @@ export function Composer(props: ComposerProps) {
       <div class="composer__bar">
         <AttachButton onFiles={att.pick} disabled={props.attachmentsCap === "none"} reason={props.attachmentsCap === "none" ? t("chat.noAttachments", { provider: att.provider() }) : undefined} />
         <span class="composer__hint" role={notice() ? "status" : undefined}>
-          <Show when={notice()} fallback={<><Kbd keys={["⌘", "⏎"]} /> {t("chat.sendHint")}</>}>
+          <Show when={notice()} fallback={<><Kbd keys={["⌘", "⏎"]} /> {noteMode() ? t("notes.hint") : t("chat.sendHint")}</>}>
             {(n) => n()}
           </Show>
         </span>
@@ -278,6 +297,13 @@ export function Composer(props: ComposerProps) {
             </Tooltip>
           }
         >
+          <Show when={noteMode()}>
+            <Tooltip label={t("notes.addTip")} shortcut={["⌘", "⏎"]}>
+              <Button size="sm" variant="secondary" icon={MessageSquareReply} aria-disabled={!canNote()} onClick={() => void addNote()}>
+                {t("notes.add")}
+              </Button>
+            </Tooltip>
+          </Show>
           <Tooltip label={t("chat.stopTheRun")} shortcut={["⌘", "."]}>
             <Button size="sm" variant="danger" icon={Square} loading={props.stopping} onClick={props.onStop}>
               {t("chat.stop")}
