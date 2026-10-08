@@ -28,6 +28,7 @@
     "scripts/release/check-contacts.test.mjs"
   ],
   "thirdPartyHosts": {
+    "sentry.io": "default address of the optional Sentry integration (a self-hosted address can be entered instead); not a contact point",
     "api.github.com": "GitHub REST API, release lookup of the update notice",
     "ferencfarkas09.github.io": "the project's own GitHub Pages site (update feed)",
     "cli.github.com": "documentation of the GitHub CLI",

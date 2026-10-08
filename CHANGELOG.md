@@ -7,6 +7,8 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 ### Added
 
 - Notes to a working agent. While a run works, the message box adds a note for the lead and a running subagent has its own note field. The agent reads the note with its next tool call; the transcript shows each note as queued, delivered or not delivered, and why. Claude runs only; other providers answer that they cannot take notes.
+- A Usage view (command "Open Usage", and Settings > Usage): the plan limits of the Claude subscription (5-hour session and 7-day week, with the time they reset), tokens and API-equivalent cost for today, the last 7 and 30 days and all time, a daily bar chart, a year-long grid of days that is darker the more was used, the busiest days, the models, and usage by hour of the day and by weekday. It counts the runs the IDE started, from their run logs, in your own time zone.
+- Sentry issues (Settings > Sentry, command "Open Sentry issues"): the issues of one organization with search, status, period, sort and project filters, event and user counts and times, an issue's newest event with its stack, and "Fix with agent" (assigns the issue to you, starts a run with the issue as its prompt, offers "Mark as resolved" when the run is done). The token is kept in the Keychain; the app reads issues and changes one only on your click.
 
 ## [1.0.1] - 2026-10-08
 
