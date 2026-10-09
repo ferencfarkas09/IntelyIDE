@@ -1,6 +1,6 @@
 # Building and testing
 
-This guide takes you from a fresh clone to a running development build and shows how to run each package's tests. Applies to version 1.0.1.
+This guide takes you from a fresh clone to a running development build and shows how to run each package's tests. Applies to version 1.1.0.
 
 It covers development builds and tests only. How a release is produced is described in [releasing.md](releasing.md).
 

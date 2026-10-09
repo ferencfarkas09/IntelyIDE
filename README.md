@@ -16,7 +16,7 @@ A desktop Git client for working across several repositories at once, with codin
 [![Platform: macOS](https://img.shields.io/badge/platform-macOS-lightgrey)](#requirements)
 
 > [!NOTE]
-> IntelyIDE 1.0.1 is a stable release. The installed app starts in normal (writable) mode: like any Git client it can commit, push and save files in the repositories you open, and agent runs can edit files there. The protections described under "Safety model" are layered and best-effort, not a guarantee, and the in-app enforcement chip reads "Weak" until you run the proof suite on your machine. Use it on repositories you can restore, and do not leave agents running unattended. When started from source with `pnpm dev:app` it is read-only instead (it refuses commits, pushes, saves, agent runs and network access).
+> IntelyIDE 1.1.0 is a stable release. The installed app starts in normal (writable) mode: like any Git client it can commit, push and save files in the repositories you open, and agent runs can edit files there. The protections described under "Safety model" are layered and best-effort, not a guarantee, and the in-app enforcement chip reads "Weak" until you run the proof suite on your machine. Use it on repositories you can restore, and do not leave agents running unattended. When started from source with `pnpm dev:app` it is read-only instead (it refuses commits, pushes, saves, agent runs and network access).
 
 <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/changes-tree-dark.png"><img alt="IntelyIDE Changes view: four repositories in one tree, each file tagged with its repository and branch, with one commit message box for the checked files." src="docs/screenshots/changes-tree-light.png" width="900"></picture>
 
@@ -48,6 +48,8 @@ Agents are part of the same window, within limits:
 - **Agent runs with five permission modes.** Plan, Ask, Accept edits, Automatic and Bypass. Automatic can use a lead agent with delegates (sub-agents with their own roles). Hard stops apply in every mode.
 - **Rewind.** A snapshot of the working tree before each agent run, with a restore action per repository.
 - **Approval drawer and history.** Permission requests, refusals and finished runs in one place.
+- **Notes to a working agent.** Add something for the lead or a running subagent without stopping the run; the agent reads it with its next tool call, and the transcript shows whether it arrived.
+- **Usage.** How much of your Claude plan's 5-hour session and 7-day week is left, and the tokens and API-equivalent cost of the runs this IDE started: by day, hour and model, with a year grid of busy days.
 - **Built-in tools.** A small editor, a project tree, a terminal, and a preview with an element inspector.
 - **53 languages.** English and Hungarian are written by hand. The other 51 are machine-translated and wait for native review; some newer screens (for example MongoDB Studio, workspaces and MCP settings) are not translated yet and show English there. See [docs/i18n.md](docs/i18n.md).
 
@@ -55,6 +57,7 @@ Agents are part of the same window, within limits:
 <summary>More modules (experimental, off by default)</summary>
 
 - **Remote.** A phone view through a relay that you deploy on your own Cloudflare account. The project does not host a relay for you.
+- **Sentry issues.** List the issues of one organization with filters and search, open the newest event with its stack and hand an issue to an agent ("Fix with agent"). It needs your own token and asks Sentry nothing until you add one; it has not been tried against a live Sentry server yet.
 - **MongoDB Studio.** Browse collections with your own connections; credentials go to the macOS Keychain.
 - **Happy integrations.** An optional module for one company's services (time tracker, chat, tasks). It is off by default, has no preset server, and is of no use to most people.
 - **Other agent providers.** Providers other than Claude are proven only against test doubles.
@@ -109,7 +112,7 @@ The full layer table, the enforcement suite and its results are in [docs/safety.
 
 ## Status and known limitations
 
-This is version 1.0.1, the first stable release. It has been used mostly by its author, on an Intel Mac.
+This is version 1.1.0. It has been used mostly by its author, on an Intel Mac.
 
 - Write mode is not judged suitable for unattended daily use on repositories you cannot restore.
 - The agent protections are best-effort. See the safety model above.
@@ -127,7 +130,7 @@ This is version 1.0.1, the first stable release. It has been used mostly by its 
 <!--dmg:available-->
 ### macOS installer (DMG)
 
-1. Download `IntelyIDE_1.0.1_x64.dmg` from the Releases page of this repository. It is built for Intel Macs and also runs on Apple Silicon under Rosetta 2, more slowly. Apple may remove Rosetta in a future macOS. If you are unsure which Mac you have: Apple menu > About This Mac.
+1. Download `IntelyIDE_1.1.0_x64.dmg` from the Releases page of this repository. It is built for Intel Macs and also runs on Apple Silicon under Rosetta 2, more slowly. Apple may remove Rosetta in a future macOS. If you are unsure which Mac you have: Apple menu > About This Mac.
 2. Check the download. `shasum -a 256 --ignore-missing -c SHA256SUMS` in the download folder detects a corrupted download only; the checksums come from the same page as the file, so they cannot prove where it came from.
 3. Open the DMG and drag IntelyIDE to Applications, then open it from there.
 4. First launch. <!--dmg:v:adhoc,developer-id-->This build is not notarized, so macOS refuses the first launch: on macOS 15 and later open System Settings > Privacy & Security, scroll to the message about IntelyIDE, choose Open Anyway and confirm; on macOS 13 and 14 right-click the app and choose Open. Do this only for a file you downloaded from this repository's Releases page.<!--/dmg:v--><!--dmg:v:notarized--><!--The app is notarized and opens normally.--><!--/dmg:v-->
@@ -176,7 +179,7 @@ You need the Xcode Command Line Tools, Rust 1.96 or newer, Node.js 24 and pnpm 1
 
 ## Configuration
 
-- Settings and the workspace registry live in one state folder under `~/Library/Application Support/`. Version 1.0.1 still uses the folder name `IntelySwitchIDE`; a rename to `IntelyIDE` with a migration is planned. The Agent SDK you install lives in its own folder, `~/Library/Application Support/IntelyIDE/sdk`. See [docs/privacy.md](docs/privacy.md) for every file.
+- Settings and the workspace registry live in one state folder under `~/Library/Application Support/`. Version 1.1.0 still uses the folder name `IntelySwitchIDE`; a rename to `IntelyIDE` with a migration is planned. The Agent SDK you install lives in its own folder, `~/Library/Application Support/IntelyIDE/sdk`. See [docs/privacy.md](docs/privacy.md) for every file.
 - Optional modules (Remote, MongoDB Studio, Happy) are off until you switch them on in Settings.
 - Environment variables that change safety behaviour: `INTELY_READONLY` (refuse writes) and `INTELY_WRITABLE` (allow writes when started with `pnpm dev:app`).
 - To uninstall: move the app to the Trash, delete the state folder (this removes run logs and the refusals log), delete the Keychain items of the app in Keychain Access, and remove Rewind refs from your repositories with `git for-each-ref refs/intely/` and `git update-ref -d <ref>`.

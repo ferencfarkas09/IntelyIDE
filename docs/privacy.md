@@ -1,14 +1,14 @@
 # Privacy
 
-This page states what IntelyIDE stores on your Mac, what can leave it and when, and which of these statements a script re-checks. Applies to version 1.0.1.
+This page states what IntelyIDE stores on your Mac, what can leave it and when, and which of these statements a script re-checks. Applies to version 1.1.0.
 
 IntelyIDE has no telemetry: it sends no usage data, identifiers or crash reports to anyone, and there is no account. It does make a few network requests, only when you use the matching feature: your own `claude` installation talks to its vendor, `git` talks to your remotes, and the optional modules you switch on (MongoDB Studio, Remote, Happy) talk to the servers you configure.
 
 Every row of the tables below names the source file that implements it. Where a statement could not be verified in code it says "not verified".
 
-## New-version notice (version 1.0.1)
+## New-version notice (version 1.1.0)
 
-Version 1.0.1 ships a notification only, not the verified in-app update described below. Once a day (the first check about 90 seconds after launch, only while the window is in the foreground) IntelyIDE sends one HTTPS GET to `api.github.com/repos/ferencfarkas09/IntelyIDE/releases` and, when a newer release exists, shows a notice with a link to its release page. You download and install the new version yourself.
+Version 1.1.0 ships a notification only, not the verified in-app update described below. Once a day (the first check about 90 seconds after launch, only while the window is in the foreground) IntelyIDE sends one HTTPS GET to `api.github.com/repos/ferencfarkas09/IntelyIDE/releases` and, when a newer release exists, shows a notice with a link to its release page. You download and install the new version yourself.
 
 - What is sent: the request itself, with the header `User-Agent: IntelyIDE/<version>` and `Accept`, and nothing else. No credentials, cookies, identifiers or project data. GitHub sees your IP address and the time.
 - Before the first automatic check, the app shows a one-time notice that says this. No request is made before that notice has been shown.
@@ -16,9 +16,9 @@ Version 1.0.1 ships a notification only, not the verified in-app update describe
 - Read-only mode allows the check (it is a read). The test jail (`INTELY_E2E`) never makes it. Development builds make no automatic check.
 - The code is `crates/updater/src/notice.rs`: 5 s connect and 15 s total timeout, 1 MiB response limit, redirects only to `api.github.com` over HTTPS. The link it opens must start with `https://github.com/ferencfarkas09/IntelyIDE/releases/`.
 
-## Verified in-app updates (planned, not part of 1.0.1)
+## Verified in-app updates (planned, not part of 1.1.0)
 
-**Status in this version of the source.** Version 1.0.1 contains the new-version notice above and nothing of what this section describes: the network layer, the feed checks and the guarded unpacking exist as the crate `updater`, but the install step is not wired into the app and the update keys are not set. Read the rest of this section as the specified behaviour of the later verified updater, and re-read it when that lands.
+**Status in this version of the source.** Version 1.1.0 contains the new-version notice above and nothing of what this section describes: the network layer, the feed checks and the guarded unpacking exist as the crate `updater`, but the install step is not wired into the app and the update keys are not set. Read the rest of this section as the specified behaviour of the later verified updater, and re-read it when that lands.
 
 By default IntelyIDE downloads one small signed file (`update/stable.json` and its signature) from GitHub (`ferencfarkas09.github.io`, the project's GitHub Pages site, or `raw.githubusercontent.com` if the first is unreachable) once a day, starting a few minutes after launch, and when you choose "Check now". The request is the same for everyone and contains no information about you, your projects or your version; GitHub, which hosts the file, sees your IP address and the time, and macOS may check certificates with their authorities as it does for any HTTPS request.
 
@@ -30,7 +30,7 @@ Nothing is downloaded or installed without your click. The new version is then d
 
 ## What IntelyIDE stores on your Mac
 
-The state folder in 1.0.1 is `~/Library/Application Support/IntelySwitchIDE/` (the product's earlier working name). A rename to `IntelyIDE`, together with a one-time migration of existing data, is planned for a later version; other pages of this documentation may already use the new name for that location. Folders are created with mode 0700 where the code sets a mode (`crates/core/src/registry/fsutil.rs`).
+The state folder in 1.1.0 is `~/Library/Application Support/IntelySwitchIDE/` (the product's earlier working name). A rename to `IntelyIDE`, together with a one-time migration of existing data, is planned for a later version; other pages of this documentation may already use the new name for that location. Folders are created with mode 0700 where the code sets a mode (`crates/core/src/registry/fsutil.rs`).
 
 | Where | What | Written when |
 |---|---|---|
@@ -50,7 +50,7 @@ The state folder in 1.0.1 is `~/Library/Application Support/IntelySwitchIDE/` (t
 
 Notes on the table:
 
-- **The state folder and Keychain names.** Version 1.0.1 still uses the development-era state folder `IntelySwitchIDE`; a rename with a migration is planned. The Keychain services already use the new names `com.intelyhome.intelyide` and `com.intelyhome.intelyide.mongo`; items from earlier versions are read once, copied and left in place (see the table above).
+- **The state folder and Keychain names.** Version 1.1.0 still uses the development-era state folder `IntelySwitchIDE`; a rename with a migration is planned. The Keychain services already use the new names `com.intelyhome.intelyide` and `com.intelyhome.intelyide.mongo`; items from earlier versions are read once, copied and left in place (see the table above).
 - **Run logs are kept until you delete them.** `crates/agent_core/src/events/log.rs` contains a function that deletes run files older than 30 days, but the application does not call it in this version (it is only exercised by tests). Do not rely on automatic deletion.
 - **`refusals.log` is not redacted.** Read both logs before you paste anything from them into a bug report.
 - Rows for files that exist only while a feature is in use (for example the Remote files) can be absent on your machine.

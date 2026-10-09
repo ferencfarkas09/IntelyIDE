@@ -56,7 +56,7 @@ The preset decides the AI prompt and wording. New connections use the generic pr
 | Audit of reads (no bodies, no URIs) | `~/Library/Application Support/IntelyIDE/mongo-audit.jsonl` (+ `.1`, `.2`) |
 | Tunnel control socket (only while a tunnel is up) | `intely-ssh-<uid>-<random>` directory, mode 0700, below `$TMPDIR` (or `/tmp`) |
 
-- The folder `IntelyIDE` in the paths above is the planned name; version 1.0.1 still uses `IntelySwitchIDE` there (see [privacy.md](privacy.md)).
+- The folder `IntelyIDE` in the paths above is the planned name; version 1.1.0 still uses `IntelySwitchIDE` there (see [privacy.md](privacy.md)).
 - Delete one connection: the card menu removes its Keychain item (and its saved host key only if no other connection uses the same bastion).
 - Forget everything: Settings > Database > Reset: type `RESET`; it closes everything, deletes all connections and every Keychain item of the service, `mongo_known_hosts`, `mongo-ssh.pids` and stale tunnel directories; "also delete the audit log" is a separate tick. It works while Studio is off.
 - Uninstall by hand: Keychain Access, search `intelyide` and `intelyswitchide`, delete the items whose service ends in `.mongo` (the `intelyswitchide` ones are the old items of earlier versions); remove the files above; `ls -d "$TMPDIR"/intely-ssh-* /tmp/intely-ssh-*` should be empty (after a crash the next tunnel open sweeps orphans).

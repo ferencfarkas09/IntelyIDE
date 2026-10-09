@@ -4,11 +4,37 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-09
+
 ### Added
 
 - Notes to a working agent. While a run works, the message box adds a note for the lead and a running subagent has its own note field. The agent reads the note with its next tool call; the transcript shows each note as queued, delivered or not delivered, and why. Claude runs only; other providers answer that they cannot take notes.
 - A Usage view (command "Open Usage", and Settings > Usage): the plan limits of the Claude subscription (5-hour session and 7-day week, with the time they reset), tokens and API-equivalent cost for today, the last 7 and 30 days and all time, a daily bar chart, a year-long grid of days that is darker the more was used, the busiest days, the models, and usage by hour of the day and by weekday. It counts the runs the IDE started, from their run logs, in your own time zone.
 - Sentry issues (Settings > Sentry, command "Open Sentry issues"): the issues of one organization with search, status, period, sort and project filters, event and user counts and times, an issue's newest event with its stack, and "Fix with agent" (assigns the issue to you, starts a run with the issue as its prompt, offers "Mark as resolved" when the run is done). The token is kept in the Keychain; the app reads issues and changes one only on your click.
+
+### Changed
+
+- The website is [intelyhome.com](https://intelyhome.com). It is the only web address besides GitHub that the project names (the contact check enforces it); the About menu, the README, SUPPORT, the issue forms and the release notes link to it. The earlier `intelyide.com` was never registered and is gone from every link.
+- Dependencies: base64 0.23, rfd 0.17 (the folder and file pickers), rcgen 0.14 (the certificates of the test fakes) and TypeScript 7 for the phone relay. The third-party licence inventory is regenerated.
+
+### Fixed
+
+- Three mongo tunnel tests asserted that the sweep file was empty before the entry was removed; they wait for it now.
+
+### Known limitations
+
+- The Claude Agent SDK is not shipped with the app. Agent runs need Node.js 24 and Claude Code on the Mac, and the SDK installed once with the installer inside the app.
+- The Agent SDK card in Settings > Providers does not appear yet: the app does not ask the sidecar for the state of the SDK. A run that cannot start names the command instead.
+- The Sentry view follows Sentry's documented API (issues, an issue's newest event, assign, status) but has not been tried against a live Sentry server yet; please report what you see.
+- The Usage view counts only the runs this IDE started, from its own run logs; the plan limits come from the signed-in Claude account and show for a subscription only.
+- Notes reach Claude runs only. The phone remote does not show notes, Usage or Sentry.
+- The agent protections are layered and best-effort, not a guarantee. The installed app starts in normal (writable) mode. Use it on repositories you can restore.
+- Intel (x64) build only; Apple Silicon Macs run it under Rosetta 2.
+- Not notarized: macOS asks you to confirm the first launch (see docs/install-macos.md). Ad-hoc builds get a new identity with every release, so macOS may ask again for Keychain and folder access after you replace the app.
+- The app only tells you that a newer release exists; you replace it with the new disk image yourself.
+- Some features still need files of the source tree: deploying the Remote relay, the Mongo Studio AI helper and the component preview harness.
+- Experimental: providers other than Claude, Happy, MongoDB Studio and Remote are proven only against mocks or on a local machine; Remote and MongoDB Studio have not been verified against every real setup (a Cloudflare account, an iPhone, Atlas).
+- The state folder is still named `IntelySwitchIDE`; a rename with a migration is planned.
 
 ## [1.0.1] - 2026-10-08
 
@@ -75,6 +101,7 @@ First public release. This is alpha software.
 - Providers other than Claude, Happy, MongoDB Studio and Remote are proven only against mocks or on a local machine.
 - Version 0.1.0 still stores its state in the folder `IntelySwitchIDE` and uses Keychain services named after the earlier bundle identifier; a switch to `com.intelyhome.intelyide` with a migration is planned.
 
-[Unreleased]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/ferencfarkas09/IntelyIDE/compare/v0.1.0...v1.0.1
 [0.1.0]: https://github.com/ferencfarkas09/IntelyIDE/releases/tag/v0.1.0

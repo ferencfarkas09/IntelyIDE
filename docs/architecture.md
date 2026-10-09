@@ -2,7 +2,7 @@
 
 This document explains how IntelyIDE is put together: which crates and packages exist, how a commit and an agent run travel through them, what is stored on disk and how the test suites are organised.
 
-Applies to version 1.0.1.
+Applies to version 1.1.0.
 
 IntelyIDE is a desktop app built with Tauri. A Rust engine does the Git work, a SolidJS interface shows it, and a lazily started Node process (the sidecar) talks to AI coding agents. The safety rules that constrain every layer are described in [safety.md](safety.md).
 

@@ -1,6 +1,6 @@
 # FAQ and troubleshooting
 
-This page answers the questions people ask first and lists the fixes for the problems they hit first. Applies to version 1.0.1. Statements about files and behaviour were checked against the source; where something is not verified, the text says so.
+This page answers the questions people ask first and lists the fixes for the problems they hit first. Applies to version 1.1.0. Statements about files and behaviour were checked against the source; where something is not verified, the text says so.
 
 ## About the project
 
@@ -36,7 +36,7 @@ macOS 13.5 or later. There are two DMGs. The `aarch64` DMG is for Apple silicon 
 
 ### macOS shows a warning when I open the app
 
-The 1.0.1 DMG is signed ad hoc unless the release notes say it is notarized. After verifying the download as described in [install-macos.md](install-macos.md), macOS 15 and later: open System Settings > Privacy & Security and choose Open Anyway. macOS 13 and 14: right-click the app and choose Open. Do not weaken Gatekeeper for this.
+The 1.1.0 DMG is signed ad hoc unless the release notes say it is notarized. After verifying the download as described in [install-macos.md](install-macos.md), macOS 15 and later: open System Settings > Privacy & Security and choose Open Anyway. macOS 13 and 14: right-click the app and choose Open. Do not weaken Gatekeeper for this.
 
 ### What does the orange "Read-only" badge mean?
 
@@ -70,7 +70,7 @@ The folder was moved, renamed or sits on an unmounted volume. On Welcome or in t
 
 ### Where does the app keep its state?
 
-In one folder: `~/Library/Application Support/IntelySwitchIDE` in 1.0.1. A rename to `IntelyIDE` with a one-time migration is planned for a later version. Inside it:
+In one folder: `~/Library/Application Support/IntelySwitchIDE` in 1.1.0. A rename to `IntelyIDE` with a one-time migration is planned for a later version. Inside it:
 
 | Path | Content |
 |---|---|
