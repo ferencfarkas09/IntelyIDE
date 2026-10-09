@@ -233,6 +233,8 @@ struct Walker<'a> {
     /// Variables the string assigned from words it knows (`f=src/a.js`, the variable of a `for` over known words): `$f` later in the
     /// string is read as the value. Only a plain sequence of commands is followed (see `const_prop_ok`); anything else stays unknown.
     vars: std::collections::HashMap<String, String>,
+    /// A command that may have changed any variable ran: nothing is followed in the string from there (see `vars::Effect`).
+    vars_off: bool,
     /// Commands walked for loop iterations so far: the work a loop may cost is bounded.
     loop_work: usize,
     a: Analysis,
@@ -240,7 +242,7 @@ struct Walker<'a> {
 
 impl<'a> Walker<'a> {
     fn new(jail: &'a Jail) -> Self {
-        Self { jail, cwd: jail.cwd.clone(), cwd_known: true, alias_depth: 0, shell_aliases: Default::default(), repl: None, src: String::new(), script_stack: Vec::new(), script_dir: None, vars: Default::default(), loop_work: 0, a: Analysis::default() }
+        Self { jail, cwd: jail.cwd.clone(), cwd_known: true, alias_depth: 0, shell_aliases: Default::default(), repl: None, src: String::new(), script_stack: Vec::new(), script_dir: None, vars: Default::default(), vars_off: false, loop_work: 0, a: Analysis::default() }
     }
 
     fn stop(&mut self, rule: &str, reason: &str) {
@@ -267,16 +269,17 @@ impl<'a> Walker<'a> {
         }
         let outer = std::mem::replace(&mut self.src, src.to_string());
         // a nested script (`sh -c`, a script file, a trap) starts without the variables of the shell around it
-        let outer_vars = (depth > 0).then(|| std::mem::take(&mut self.vars));
+        let outer_vars = (depth > 0).then(|| (std::mem::take(&mut self.vars), std::mem::replace(&mut self.vars_off, false)));
         if depth == 0 {
             for cmd in s.commands.iter().filter(|c| !c.nested && !vars::is_marker(c)) {
                 self.a.simple.push(cmd.words.clone());
             }
         }
-        let track = vars::const_prop_ok(&s.commands, s.grouped);
+        let track = vars::const_prop_ok(&s.commands, s.opaque);
         self.walk(&s.commands, depth, track);
-        if let Some(v) = outer_vars {
+        if let Some((v, off)) = outer_vars {
             self.vars = v;
+            self.vars_off = off;
         }
         self.src = outer;
     }
@@ -362,7 +365,8 @@ impl<'a> Walker<'a> {
             return;
         }
         let Some(first) = words.first() else { return };
-        if first.dynamic || first.glob {
+        // (`[` is the `test` command, not a pattern)
+        if first.dynamic || (first.glob && first.text != "[") {
             self.wrangler_unknown_command(first);
             self.issue("command name is not known statically");
             return;

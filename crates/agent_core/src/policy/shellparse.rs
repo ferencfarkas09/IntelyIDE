@@ -20,12 +20,33 @@ pub struct Word {
     pub dynamic: bool,
     /// An unquoted glob metacharacter (`*`, `?`, `[`) is present.
     pub glob: bool,
+    /// A quote or an escape is part of the word: `""` is an (empty) word, an empty `$x` alone is no word at all.
+    pub quoted: bool,
+    /// A dynamic word that holds only literal text and plain `$name` / `${name}` expansions: its pieces in order, so a caller that
+    /// knows the variables can read the word the way the shell will (what is quoted is not split). `None` for every other word, and
+    /// for a dynamic one with any other expansion (`$(...)`, `${x:-y}`, `$1`, braces).
+    pub parts: Option<Vec<Part>>,
+}
+
+/// One piece of a [`Word`] that holds only literal text and plain parameter expansions.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Part {
+    /// Text as the shell sees it (quotes removed; whatever it holds is not expanded again).
+    Lit(String),
+    /// `$name` or `${name}`. `quoted` when it stands inside double quotes: its value is then one piece of the word.
+    Var { name: String, quoted: bool },
 }
 
 impl Word {
     pub fn lit(text: &str) -> Self {
-        Self { text: text.to_string(), dynamic: false, glob: false }
+        Self { text: text.to_string(), ..Self::default() }
     }
+}
+
+/// `[A-Za-z_][A-Za-z0-9_]*`
+pub fn is_name(n: &str) -> bool {
+    let mut chars = n.chars();
+    chars.next().is_some_and(|c| c.is_ascii_alphabetic() || c == '_') && chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -116,9 +137,10 @@ impl fmt::Display for Issue {
 pub struct Script {
     pub commands: Vec<Command>,
     pub issues: Vec<Issue>,
-    /// The string has a parenthesis outside a substitution: a subshell, a function or an array. The flat command list cannot say what
-    /// ran in a copy of the shell, so what an assignment did is not followed (see `hardstop/vars.rs`).
-    pub grouped: bool,
+    /// The string has a construct whose effect on the variables the flat command list cannot show: a parenthesis outside a
+    /// substitution (a subshell, a function, an array), an arithmetic expansion (`$((x=1))`, `$[x=1]`) or a parameter expansion that
+    /// assigns (`${x:=y}`). What an assignment did is not followed then (see `hardstop/vars.rs`).
+    pub opaque: bool,
 }
 
 pub fn parse(src: &str) -> Script {
@@ -150,6 +172,50 @@ struct WordBuf {
     quoted: bool,
     brace_open: u32,
     brace_comma: bool,
+    /// A dynamic part that is not a plain `$name` / `${name}`: the word cannot be read from its pieces.
+    impure: bool,
+    /// The plain expansions in order (see [`Word::parts`]).
+    exps: Vec<Exp>,
+}
+
+/// A plain expansion inside [`WordBuf::text`]: its raw source is `text[start..start + len]`.
+struct Exp {
+    start: usize,
+    len: usize,
+    name: String,
+    quoted: bool,
+}
+
+impl WordBuf {
+    /// Pushes the raw source of an expansion; a plain one (`name` is a valid variable name) is remembered so the word can be read
+    /// from its pieces later.
+    fn expansion(&mut self, raw: &str, name: Option<String>, in_dq: bool) {
+        self.dynamic = true;
+        match name {
+            Some(name) => self.exps.push(Exp { start: self.text.len(), len: raw.len(), name, quoted: in_dq }),
+            None => self.impure = true,
+        }
+        self.text.push_str(raw);
+    }
+
+    fn parts(&self) -> Option<Vec<Part>> {
+        if !self.dynamic || self.impure || self.exps.is_empty() {
+            return None;
+        }
+        let mut out = Vec::new();
+        let mut pos = 0;
+        for e in &self.exps {
+            if e.start > pos {
+                out.push(Part::Lit(self.text[pos..e.start].to_string()));
+            }
+            out.push(Part::Var { name: e.name.clone(), quoted: e.quoted });
+            pos = e.start + e.len;
+        }
+        if pos < self.text.len() {
+            out.push(Part::Lit(self.text[pos..].to_string()));
+        }
+        Some(out)
+    }
 }
 
 struct Lexer {
@@ -235,7 +301,7 @@ impl Lexer {
                     self.end_command();
                     self.i += 1;
                     if ch != ';' {
-                        self.script.grouped = true;
+                        self.script.opaque = true;
                     }
                 }
                 '&' => {
@@ -288,6 +354,7 @@ impl Lexer {
                 b.brace_open -= 1;
                 if b.brace_comma {
                     b.dynamic = true;
+                    b.impure = true;
                     b.brace_comma = false;
                 }
             }
@@ -351,14 +418,16 @@ impl Lexer {
         match self.peek(1) {
             Some('(') => {
                 self.i += 2;
+                // `$((...))` is arithmetic, which can assign (`$((x=1))`): the variables after it are not followed
+                if self.peek(0) == Some('(') {
+                    self.script.opaque = true;
+                }
                 let (body, terminated) = self.paren_body();
                 if !terminated {
                     self.script.issues.push(Issue::Unterminated("command substitution"));
                 }
                 self.nested(&body, Issue::Substitution);
-                let b = self.buf();
-                b.dynamic = true;
-                b.text.push_str("$()");
+                self.buf().expansion("$()", None, in_dq);
             }
             Some('{') => {
                 let start = self.i;
@@ -366,12 +435,23 @@ impl Lexer {
                 while self.i < self.c.len() && self.c[self.i] != '}' {
                     self.i += 1;
                 }
+                let closed = self.i < self.c.len();
                 let end = (self.i + 1).min(self.c.len());
                 let raw: String = self.c[start..end].iter().collect();
                 self.i = end;
-                let b = self.buf();
-                b.dynamic = true;
-                b.text.push_str(&raw);
+                let inner = raw.strip_prefix("${").and_then(|r| r.strip_suffix('}'));
+                // `${x}` is a plain expansion; `${x:-y}`, `${#x}`, `${x[0]}` are not, and `${x:=y}` / `${x=y}` also assign
+                let name = inner.filter(|n| is_name(n)).map(str::to_string);
+                if !closed || inner.is_some_and(|n| n.contains('=')) {
+                    self.script.opaque = true;
+                }
+                self.buf().expansion(&raw, name, in_dq);
+            }
+            Some('[') => {
+                // the old arithmetic expansion `$[x=1]`
+                self.i += 2;
+                self.script.opaque = true;
+                self.buf().expansion("$[]", None, in_dq);
             }
             Some('\'') if !in_dq => {
                 self.i += 2;
@@ -388,16 +468,13 @@ impl Lexer {
                     self.i += 1;
                 }
                 let raw: String = self.c[start..self.i].iter().collect();
-                let b = self.buf();
-                b.dynamic = true;
-                b.text.push_str(&raw);
+                let name = Some(raw[1..].to_string()).filter(|n| is_name(n));
+                self.buf().expansion(&raw, name, in_dq);
             }
             Some(n) if "?$!#@*-0123456789".contains(n) => {
                 let raw = format!("${n}");
                 self.i += 2;
-                let b = self.buf();
-                b.dynamic = true;
-                b.text.push_str(&raw);
+                self.buf().expansion(&raw, None, in_dq);
             }
             _ => {
                 self.buf().text.push('$');
@@ -495,9 +572,7 @@ impl Lexer {
             self.script.issues.push(Issue::Unterminated("backtick substitution"));
         }
         self.nested(&body, Issue::Substitution);
-        let b = self.buf();
-        b.dynamic = true;
-        b.text.push_str("$()");
+        self.buf().expansion("$()", None, false);
     }
 
     /// Reads up to the matching `)` (index is just after the opening paren); returns the body.
@@ -561,9 +636,7 @@ impl Lexer {
                 self.script.issues.push(Issue::Unterminated("process substitution"));
             }
             self.nested(&body, Issue::ProcessSubstitution);
-            let b = self.buf();
-            b.dynamic = true;
-            b.text.push_str("/dev/fd/N");
+            self.buf().expansion("/dev/fd/N", None, false);
             return;
         }
         // `2>file`: a purely numeric unquoted word right before the operator is the descriptor.
@@ -605,7 +678,8 @@ impl Lexer {
 
     fn end_word(&mut self) {
         let Some(b) = self.cur.take() else { return };
-        let word = Word { text: b.text, dynamic: b.dynamic, glob: b.glob };
+        let parts = b.parts();
+        let word = Word { text: b.text, dynamic: b.dynamic, glob: b.glob, quoted: b.quoted, parts };
         match self.pending.take() {
             Some(kind) => {
                 let mut body = None;
@@ -639,11 +713,18 @@ impl Lexer {
                 Some(w) if assignment_name(&w.text).is_some() => {
                     let w = words.remove(0);
                     let name = assignment_name(&w.text).unwrap_or_default();
-                    let mut value = Word { text: w.text[name.len() + 1..].to_string(), ..w.clone() };
+                    let cut = name.len() + 1;
+                    let mut value = Word { text: w.text[cut..].to_string(), parts: w.parts.as_deref().and_then(|p| strip_prefix_parts(p, cut)), ..w.clone() };
                     // `X+=y` appends to a value the parser does not know: the result is not known either (the marker cannot be expanded)
                     if name.ends_with('+') {
                         value.dynamic = true;
+                        value.parts = None;
                         value.text.insert_str(0, "${+=}");
+                    }
+                    // a word that was dynamic only through its name part cannot be (the name is plain text), but never leave a dynamic
+                    // word without pieces looking known
+                    if w.dynamic && !value.dynamic && value.parts.is_none() {
+                        value.dynamic = true;
                     }
                     assigns.push((name.trim_end_matches('+').to_string(), value));
                 }
@@ -724,10 +805,23 @@ impl Lexer {
 /// Parses a substitution body one level deeper than its parent.
 fn expand_nested(body: &str, parent_depth: usize) -> Script {
     if parent_depth + 1 > MAX_DEPTH {
-        Script { commands: Vec::new(), issues: vec![Issue::TooDeep], grouped: false }
+        Script { commands: Vec::new(), issues: vec![Issue::TooDeep], opaque: false }
     } else {
         parse_at(body, parent_depth + 1)
     }
+}
+
+/// The pieces of an assignment word without its `NAME=` prefix of `cut` bytes (always literal text, so it sits in the first piece).
+fn strip_prefix_parts(parts: &[Part], cut: usize) -> Option<Vec<Part>> {
+    let mut out = parts.to_vec();
+    match out.first_mut() {
+        Some(Part::Lit(s)) if s.len() >= cut && s.is_char_boundary(cut) => {
+            s.drain(..cut);
+        }
+        _ => return None,
+    }
+    out.retain(|p| !matches!(p, Part::Lit(s) if s.is_empty()));
+    Some(out)
 }
 
 /// `NAME=` or `NAME+=` prefix of an assignment word.
@@ -847,12 +941,42 @@ mod tests {
         assert!(s.commands[1].reserved == ["do"]);
         let s = parse("for f in a\ndo\n cat $f\ndone < list");
         assert!(s.commands.iter().any(|c| c.reserved.iter().any(|r| r == "done") && !c.redirects.is_empty()));
-        assert!(parse("(cd x; ls)").grouped && parse("g() { ls; }").grouped);
-        assert!(!parse("echo $(ls) <(ls) $((1+2))").grouped);
+        assert!(parse("(cd x; ls)").opaque && parse("g() { ls; }").opaque);
+        assert!(!parse("echo $(ls) <(ls)").opaque);
+        // an expansion that can assign hides what the variables hold afterwards
+        assert!(parse("echo $((x=1))").opaque && parse("echo $[x=1]").opaque && parse("echo ${x:=y}").opaque && parse("echo ${x=y}").opaque);
+        assert!(!parse("echo ${x:-y} ${x} $x").opaque);
         // `+=` appends to something the parser does not know: its value cannot be expanded
         let c = &parse("F+=x cmd").commands[0];
         assert!(c.assigns[0].1.dynamic && c.assigns[0].1.text.starts_with("${+=}"), "{:?}", c.assigns);
         assert!(!parse("F=x cmd").commands[0].assigns[0].1.dynamic);
+    }
+
+    #[test]
+    fn dynamic_words_keep_their_pieces() {
+        let w = |src: &str| parse(src).commands.into_iter().find(|c| !c.nested).map(|c| c.words[1].clone()).unwrap_or_default();
+        let lit = |t: &str| Part::Lit(t.to_string());
+        let var = |n: &str, quoted: bool| Part::Var { name: n.to_string(), quoted };
+        assert_eq!(w("echo $a").parts, Some(vec![var("a", false)]));
+        assert_eq!(w("echo \"$a\"").parts, Some(vec![var("a", true)]));
+        assert_eq!(w("echo x${a}y").parts, Some(vec![lit("x"), var("a", false), lit("y")]));
+        // literal text keeps its quotes removed, an expansion is told apart from a `$` that was quoted or escaped
+        assert_eq!(w("echo \"a b\"$c'$d'").parts, Some(vec![lit("a b"), var("c", false), lit("$d")]));
+        assert_eq!(w("echo \"p $a q\"$b").parts, Some(vec![lit("p "), var("a", true), lit(" q"), var("b", false)]));
+        assert_eq!(w("echo \\$a$b").parts, Some(vec![lit("$a"), var("b", false)]));
+        // every other expansion leaves the word without pieces
+        for src in ["echo $(ls)", "echo `ls`", "echo ${a:-b}", "echo ${#a}", "echo ${a[0]}", "echo $1", "echo $@", "echo {a,b}$c", "echo $a$(ls)", "echo <(ls)"] {
+            let w = w(src);
+            assert!(w.dynamic && w.parts.is_none(), "{src}: {w:?}");
+        }
+        assert!(!w("echo plain").dynamic && w("echo plain").parts.is_none());
+        assert!(w("echo ''").quoted && !w("echo x").quoted);
+        // the value of an assignment loses the `NAME=` prefix, and its pieces with it
+        let c = &parse("F=a$b\"$c\" cmd").commands[0];
+        assert_eq!(c.assigns[0].1.parts, Some(vec![lit("a"), var("b", false), var("c", true)]));
+        let c = &parse("F=$b cmd").commands[0];
+        assert_eq!(c.assigns[0].1.parts, Some(vec![var("b", false)]));
+        assert_eq!(c.assigns[0].1.text, "$b");
     }
 
     #[test]

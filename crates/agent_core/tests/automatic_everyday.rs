@@ -308,6 +308,201 @@ fn a_helper_script_kept_in_the_scratch_folder_runs_after_its_text_is_scanned() {
     refused(&w, "exec.auto.unjudgeable", &["cd {admin} && python3 {root}/home/tool.py"]);
 }
 
+/// A hard stop in every mode: the string runs `git commit`, whatever the variables hide.
+fn hard_stopped(w: &World, cmds: &[&str]) {
+    let misses: Vec<String> = cmds
+        .iter()
+        .filter_map(|c| {
+            let (d, by, rule, reason) = judge(w, c);
+            ((d, by) != (Decision::Deny, DecidedBy::HardStop)).then(|| format!("{c}\n   -> {d:?}/{by:?} {rule}: {reason}  (wanted a hard stop)"))
+        })
+        .collect();
+    assert!(misses.is_empty(), "\n{}", misses.join("\n"));
+}
+
+// What the independent review of the variable following found: each of these once made the analyser read a different command than the
+// shell runs. The ones below must still be judged on what the shell really does, or not be judged at all.
+
+#[test]
+fn a_quoted_variable_stays_one_word_and_an_unquoted_one_splits() {
+    let w = world();
+    // `"$c"` is one argument: `sh -c "git commit -m x"` runs git, where splitting it would have read `sh -c git`
+    hard_stopped(
+        &w,
+        &[
+            r#"c='git commit -m x'; bash -c "$c""#,
+            r#"c='git commit -m x'; sh -c "$c""#,
+            r#"c='git commit -m x'; eval "$c""#,
+            r#"cd {admin} && c='git push'; zsh -c "$c""#,
+            r#"c='git commit -m x'; bash -c "cd .; $c""#,
+            r#"c='git commit'; $c -m x"#,
+            r#"c='git'; "$c" commit -m x"#,
+        ],
+    );
+    // a quoted value with a space is one operand (a file with a space in its name), an unquoted one is two
+    allowed(&w, &[r#"cd {admin} && f="src/Router.js ../outside.txt"; cat "$f""#, r#"cd {admin} && f="src/My Docs"; ls "$f""#]);
+    refused(&w, "exec.auto.outside-jail", &[r#"cd {admin} && f="src/Router.js ../outside.txt"; cat $f"#, r#"cd {admin} && f='src/Router.js  ../outside.txt'; cat x$f"#]);
+    // an empty value leaves no word when unquoted and an empty word when quoted
+    hard_stopped(&w, &["e=; $e git commit -m x"]);
+    allowed(&w, &[r#"e=; ls $e src"#]);
+}
+
+#[test]
+fn a_brace_list_or_a_computed_word_is_never_read_as_a_literal() {
+    let w = world();
+    refused(
+        &w,
+        "exec.auto.unjudgeable",
+        &[
+            "cd {admin} && for d in {src,..}; do ls $d; done",
+            "cd {admin} && for f in {.,..}/../..; do cat $f/outside.txt; done",
+            "cd {admin} && for f in {a..c}; do cat $f; done",
+            "cd {admin} && d={src,..}; ls $d",
+            "cd {admin} && for f in src/Router.js $(echo ../outside.txt); do cat $f; done",
+            "cd {admin} && for f in ${LIST:-src}; do cat $f; done",
+        ],
+    );
+}
+
+#[test]
+fn an_assignment_that_may_not_have_run_is_not_followed_past_its_list() {
+    let w = world();
+    // `cd` into a directory that does not exist fails, and the assignment after it is skipped: the old value is what `cat` reads
+    refused(&w, "exec.auto.unjudgeable", &["f=/etc/passwd; cd {admin}/nodir && f=src/Router.js; cat $f", "f=/etc/passwd; false || f=src/Router.js; cat $f", "f=/etc/passwd; test -f nofile && f=src/Router.js; cat $f"]);
+    // in the same `&&` list the value is certain, and after a `cd` into a directory that exists the list is certain as a whole
+    allowed(&w, &["cd {admin} && f=src/Router.js && cat $f", "cd {admin} && f=src/Router.js; cat $f", "f=/etc/passwd; cd {admin} && f=src/Router.js; cat $f", "f=/etc/passwd; true && f=src/Router.js; cat $f"]);
+    refused(&w, "exec.auto.outside-jail", &["f=src/Router.js; cd {admin}/nodir && f=/etc/passwd && cat $f", "cd {admin} && f=/etc/passwd; cat $f"]);
+    // a list that ends with `&`, or a side of a pipe, ran in a copy of the shell
+    refused(
+        &w,
+        "exec.auto.unjudgeable",
+        &["f=/etc/passwd; f=src/Router.js && true & cat $f", "f=/etc/passwd; f=src/Router.js | cat; cat $f", "f=/etc/passwd; echo x | f=src/Router.js; cat $f", "f=/etc/passwd; f=src/Router.js > /nodir/log; cat $f"],
+    );
+    // the status of a substitution is the status of the assignment
+    refused(&w, "exec.auto.unjudgeable", &["f=/etc/passwd; g=$(false) && f=src/Router.js; cat $f"]);
+}
+
+#[test]
+fn a_substitution_runs_in_a_copy_of_the_shell_and_its_assignments_stay_there() {
+    use intely_agent_core::policy::hardstop::analyze;
+    use intely_agent_core::policy::paths::Jail;
+    let w = world();
+    let jail = Jail::new(&w.backend, &[], None);
+    // (a substitution makes the string unjudgeable for Automatic anyway; the analysis still says where `cat` reads)
+    for cmd in ["f=/etc/passwd; echo $(f=src/Router.js); cat $f", "f=/etc/passwd; echo `f=src/Router.js`; cat $f", "f=/etc/passwd; echo $(for f in a b; do :; done); cat $f"] {
+        let probes = analyze(cmd, &jail).probes;
+        assert!(probes.iter().any(|p| p.ends_with("/etc/passwd")), "{cmd}: {probes:?}");
+    }
+}
+
+#[test]
+fn a_loop_that_may_not_run_or_leaves_early_makes_what_it_assigns_unknown() {
+    let w = world();
+    refused(
+        &w,
+        "exec.auto.unjudgeable",
+        &[
+            // not run: `false &&`
+            "f=/etc/passwd; false && for i in 1; do f=src/Router.js; done; cat $f",
+            // run in a copy of the shell: a pipe, the background
+            "f=/etc/passwd; for i in 1; do f=src/Router.js; done | cat; cat $f",
+            "f=/etc/passwd; for i in 1; do f=src/Router.js; done & cat $f",
+            "f=/etc/passwd; echo x | for i in 1; do f=src/Router.js; done; cat $f",
+            // left early: the last assignment of the pass is not the last one that ran
+            "cd {admin} && f=src/Router.js; for i in a b; do f=/etc/passwd; [ \"$i\" = a ] && break; f=src/Router.js; done; cat $f",
+            "cd {admin} && f=src/Router.js; for i in a b; do f=/etc/passwd; [ \"$i\" = a ] && continue; f=src/Router.js; done; cat $f",
+            "cd {admin} && f=src/Router.js; for i in a b; do cat $f; f=/etc/passwd; [ \"$i\" = a ] && continue; f=src/Router.js; done",
+            // an unknown list: before, in and after the body
+            "cd {admin} && f=src/Router.js; for i in $(ls); do cat $f; f=src/Router.js; done",
+            "f=/etc/passwd; for i in $(ls); do f=src/Router.js; done; cat $f",
+        ],
+    );
+    // a loop that runs for certain and does not leave early keeps what it assigned
+    allowed(&w, &["cd {admin} && for i in a b; do f=src/Router.js; done; cat $f", "cd {admin} && f=src/Router.js; for i in a b; do cat $f; done"]);
+    refused(&w, "exec.auto.outside-jail", &["cd {admin} && for i in a b; do f=/etc/passwd; done; cat $f", "cd {admin} && f=src/Router.js; for i in a b; do cat $f; f=/etc/passwd; done"]);
+}
+
+#[test]
+fn a_command_that_can_change_a_variable_in_another_way_ends_the_following() {
+    let w = world();
+    refused(
+        &w,
+        "exec.auto.unjudgeable",
+        &[
+            "cd {admin} && f=src/Router.js; printf -v f '%s' /etc/passwd; cat $f",
+            "cd {admin} && f=src/Router.js; let f=1; cat $f",
+            "cd {admin} && f=src/Router.js; mapfile f < src/Router.js; cat $f",
+            "cd {admin} && f=src/Router.js; readarray f < src/Router.js; cat $f",
+            "cd {admin} && f=src/Router.js; getopts a f; cat $f",
+            "cd {admin} && f=src/Router.js; eval 'f=/etc/passwd'; cat $f",
+            "cd {admin} && f=src/Router.js; source ./x.sh; cat $f",
+            "cd {admin} && f=src/Router.js; . ./x.sh; cat $f",
+            "cd {admin} && f=src/Router.js; command read f; cat $f",
+            "cd {admin} && f=src/Router.js; builtin read f; cat $f",
+            "cd {admin} && f=src/Router.js; time read f; cat $f",
+            "cd {admin} && f=src/Router.js; declare -n f=g; cat $f",
+            "cd {admin} && f=src/Router.js; declare -i f; f=1+2; cat $f",
+            "cd {admin} && f=src/Router.js; readonly f; f=/etc/passwd; cat $f",
+            "cd {admin} && f=src/Router.js; unset -n f; cat $f",
+            "cd {admin} && f=src/Router.js; trap 'f=/etc/passwd' DEBUG; cat $f",
+            "cd {admin} && f=src/Router.js; x[0]=y; f[0]=/etc/passwd; cat $f",
+            "cd {admin} && f=src/Router.js; export f=/etc/passwd; cat $f",
+            "cd {admin} && f=src/Router.js; $unknown x; cat $f",
+            // arithmetic and `${x:=y}` assign inside an expansion
+            "cd {admin} && f=src/Router.js; echo $((f=1)); cat $f",
+            "cd {admin} && f=src/Router.js; echo $[f=1]; cat $f",
+            "cd {admin} && f=; echo ${f:=/etc/passwd}; cat $f",
+            "cd {admin} && f=; echo ${f=/etc/passwd}; cat $f",
+            // `IFS` changes how every word is split
+            "cd {admin} && IFS=/; f=src/Router.js; cat $f",
+            "cd {admin} && f=src/Router.js; IFS=/ cat $f",
+            "cd {admin} && f=src/Router.js; export IFS=/; cat $f",
+        ],
+    );
+    // a command that changes nothing the string follows does not stop the following
+    allowed(&w, &["cd {admin} && f=src/Router.js; export NODE_ENV=test; printf '%s\\n' x; cat $f", "cd {admin} && f=src/Router.js; read x < /dev/null; cat $f"]);
+}
+
+#[test]
+fn a_value_that_grows_without_end_is_not_followed() {
+    let w = world();
+    let mut cmd = String::from("cd {admin} && a0=0123456789abcdef");
+    for i in 1..40 {
+        cmd.push_str(&format!("; a{i}=$a{}$a{}", i - 1, i - 1));
+    }
+    cmd.push_str("; cat $a39");
+    let started = std::time::Instant::now();
+    refused(&w, "exec.auto.unjudgeable", &[&cmd]);
+    assert!(started.elapsed() < std::time::Duration::from_secs(5), "took {:?}", started.elapsed());
+    // many variables are fine up to a limit, and a long list of words too
+    let many = (0..200).map(|i| format!("v{i}=src/Router.js")).collect::<Vec<_>>().join("; ");
+    allowed(&w, &[&format!("cd {{admin}} && {many}; cat $v0")]);
+}
+
+#[test]
+fn a_relative_path_with_a_space_or_a_double_slash_is_judged_whole() {
+    let w = world();
+    refused(
+        &w,
+        "exec.auto.outside-jail",
+        &[
+            r#"cd {admin}/src && cat "../../My Docs/x.txt""#,
+            r#"cd {admin}/src && ls '../../My Docs'"#,
+            "cat //etc/passwd",
+            "cd {admin} && cat //etc/hosts",
+            "cd {admin} && head -n 1 ///etc/hosts",
+        ],
+    );
+    allowed(&w, &[r#"cd {admin} && cat "src/My Docs/x.txt""#, r#"cd {admin} && ls "src/a b/../Router.js""#, "cd {admin} && git show HEAD:src/Router.js"]);
+    // the rest of a URL is not a path: the network rule judges it, not the folders
+    for cmd in ["git clone https://example.com/r.git", "git fetch ssh://git@example.com/r.git", "curl -s https://example.com/api/x"] {
+        let (_, _, rule, reason) = judge(&w, cmd);
+        assert_ne!(rule, "exec.auto.outside-jail", "{cmd}: {reason}");
+    }
+    // program text with a space and a slash is not mistaken for a path
+    allowed(&w, &[r#"cd {admin} && node -e "const a = require('../../x/y'); console.log(a)""#, r#"cd {admin} && echo "see ../../x for details""#]);
+}
+
 #[test]
 fn the_analysis_lists_where_each_operand_points() {
     use intely_agent_core::policy::hardstop::analyze;
