@@ -4,6 +4,15 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 
 ## [Unreleased]
 
+### Fixed
+
+- Automatic mode no longer refuses the commands developers write every day. In a real run over three repositories 22 of 289 shell calls (most of them reads and edits by developer sub-agents) were refused as "outside the run's folders" or "not known statically" although every path stayed inside the folders. The analyser now judges each operand where it really points, from the directory an earlier `cd` of the same command moved to; a search pattern or a sed or awk program is not a path; a variable the command assigns from literal words (`f=src/a.js; git status $f`) and a `for` loop over literal words are judged on the words the shell will see; a helper script kept in `/tmp` is scanned like one in a repository; and a `git` hidden behind a variable is now found (`g=git; $g commit` is a hard stop). Everything that left the folders or committed is still refused; nothing that was allowed before is refused now.
+- The Claude CLI's own safety prompts for a redirect it cannot split, a skipped parse and the braces of a Python or Node program fed through a quoted heredoc are answered from the policy's verdict instead of ending the call; a sed program with a template literal stays a refusal that points to the Edit tool.
+
+### Changed
+
+- The transcript says why a call was refused: one line under the refusal (the full reason on hover), "Declined by the run's rules" or "Denied by the role" instead of always the role, and a localized sentence for the Claude CLI's own prompt.
+
 ## [1.1.0] - 2026-10-09
 
 ### Added
