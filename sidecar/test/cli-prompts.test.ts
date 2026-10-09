@@ -4,6 +4,8 @@ import { cliPromptMessage, heredocFalsePositive, judgeCliPrompt, stripQuotedHere
 const BRACE = 'Contains brace with quote character (expansion obfuscation)';
 const RANGE = 'Contains zsh <N-M> numeric-range glob';
 const SUBST = 'Contains command_substitution';
+const SKIPPED = 'Parser skipped input between top-level statements';
+const REDIRECT = 'Redirect has multiple targets - post-redirect args swallowed';
 
 describe('stripQuotedHeredocBodies', () => {
   it('cuts the body of a quoted heredoc that only writes a file, keeping the command around it', () => {
@@ -19,11 +21,19 @@ describe('stripQuotedHeredocBodies', () => {
     expect(stripQuotedHeredocBodies("tee out.json <<'EOF' > /dev/null\n{\"k\"}\nEOF")).toBe('tee out.json > /dev/null');
     expect(stripQuotedHeredocBodies("cat > a <<-'EOF'\n\t{\"k\"}\n\tEOF")).toBe('cat > a');
   });
+  it('accepts a Python or Node program fed on stdin, with or without the dash and a trailing 2>&1 | tail', () => {
+    const body = '\ns={"k": [1]}\nEOF';
+    expect(stripQuotedHeredocBodies("python3 - <<'EOF'" + body)).toBe('python3 -');
+    expect(stripQuotedHeredocBodies("cd /w/app && python3 <<'EOF'" + body)).toBe('cd /w/app && python3');
+    expect(stripQuotedHeredocBodies("node - <<'EOF'" + body)).toBe('node -');
+    expect(stripQuotedHeredocBodies("python3.12 - <<'EOF' 2>&1 | tail -n 20" + body)).toBe('python3.12 - 2>&1 | tail -n 20');
+    expect(stripQuotedHeredocBodies("python3 - <<'EOF' | head -5" + body)).toBe('python3 - | head -5');
+  });
   it('refuses to judge what is not a plain file write', () => {
     const body = '\n{"k": 1}\nEOF';
     for (const head of [
       "cat > a <<EOF", // unquoted delimiter: the shell expands the body
-      "bash <<'EOF'", "sh <<'EOF'", "python3 - <<'EOF'", "node <<'EOF'", "cat <<'EOF' | sh", "cat <<'EOF' | tee a", // the body is run, or piped on
+      "bash <<'EOF'", "sh <<'EOF'", "zsh <<'EOF'", "cat <<'EOF' | sh", "cat <<'EOF' | tee a", "python3 - <<'EOF' | sh", "node <<'EOF' && rm -rf x", // a shell runs the body, or it is piped on
       "cat > a <<'EOF' && rm -rf x", "cat > $f <<'EOF'", "cat > 'a b' <<'EOF'", "eval \"$(cat <<'EOF'", "cat > a <<<'x'",
     ]) expect(stripQuotedHeredocBodies(head + body), head).toBeNull();
     expect(stripQuotedHeredocBodies("cat > a <<'EOF'\n{\"k\": 1}")).toBeNull(); // no terminator: the CLI would take the rest as the body
@@ -50,6 +60,32 @@ describe('heredocFalsePositive', () => {
     expect(heredocFalsePositive('Dangerous command', write('x'))).toBe(false);
     expect(heredocFalsePositive("Claude requested permissions to edit /w/.bashrc which is a sensitive file.", write('x'))).toBe(false);
     expect(heredocFalsePositive(BRACE, "bash <<'EOF'\n{\"a\"}\nEOF")).toBe(false);
+  });
+});
+
+describe('the reasons measured in the owner\'s Automatic run', () => {
+  const longWrite = "cd /w/backend && cat > src/api/tests/a.test.js <<'EOF'\njest.mock('../m.js', () => ({ default: { f: (...a) => g(...a) } }));\n// ${x} `y` <1-3>\nEOF\nnpx jest src/api/tests/a.test.js --silent 2>&1 | tail -n 40";
+  const pyEdit = "cd /w/app && python3 - <<'EOF'\nimport json\np='a.json'\no=json.loads(open(p).read())\nprint({'k': o})\nEOF\ngit diff --stat locales | tail -8";
+  it('answers a redirect the CLI cannot split in Automatic and Bypass, whatever the command', () => {
+    for (const mode of ['automatic', 'bypass'] as const) {
+      expect(judgeCliPrompt({ mode, reason: REDIRECT, command: 'cd /w/admin/src && grep -rniE "a|b" --include=*.js comp 2>/dev/null -l | head -20; ls comp | head' }), mode).toBeNull();
+    }
+  });
+  it('answers a skipped parse when the skipped part is the body of a quoted heredoc and nothing else', () => {
+    expect(judgeCliPrompt({ mode: 'automatic', reason: SKIPPED, command: longWrite })).toBeNull();
+    expect(judgeCliPrompt({ mode: 'automatic', reason: SKIPPED, command: pyEdit })).toBeNull();
+    expect(judgeCliPrompt({ mode: 'automatic', reason: BRACE, command: pyEdit })).toBeNull();
+    expect(judgeCliPrompt({ mode: 'automatic', reason: SUBST, command: longWrite.replace('${x}', '$(id)') })).toBeNull();
+  });
+  it('refuses a skipped parse in a command that has no heredoc, an unquoted one, or a feature outside the bodies', () => {
+    expect(judgeCliPrompt({ mode: 'automatic', reason: SKIPPED, command: 'echo a; ; ;; b' })).toEqual({ reason: SKIPPED });
+    expect(judgeCliPrompt({ mode: 'automatic', reason: SKIPPED })).toEqual({ reason: SKIPPED });
+    expect(judgeCliPrompt({ mode: 'automatic', reason: SKIPPED, command: "cat > a <<EOF\nx\nEOF" })).toEqual({ reason: SKIPPED });
+    expect(judgeCliPrompt({ mode: 'automatic', reason: SKIPPED, command: "bash <<'EOF'\nls\nEOF" })).toEqual({ reason: SKIPPED });
+    expect(judgeCliPrompt({ mode: 'automatic', reason: SKIPPED, command: `${longWrite}\necho $(id)` })).toEqual({ reason: SKIPPED });
+    expect(judgeCliPrompt({ mode: 'automatic', reason: SKIPPED, command: `${longWrite}\nls {a,b}` })).toEqual({ reason: SKIPPED });
+    // a sed program with a template literal is shell syntax in the command itself: that stays a refusal, the model has the Edit tool
+    expect(judgeCliPrompt({ mode: 'automatic', reason: BRACE, command: "sed -i 's/t(`a_${w.s}`/t(`a_${x}`/' src/a.js" })).toEqual({ reason: BRACE });
   });
 });
 

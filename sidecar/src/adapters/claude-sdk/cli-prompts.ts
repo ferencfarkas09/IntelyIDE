@@ -19,6 +19,15 @@ import type { PermissionMode } from '../../types.js';
  *   `find with '-delete' executes commands or modifies files ...`           NOT benign (a false denial for a harmless cleanup: widen with the owner's say-so)
  *   `Path contains '..' traversal after a directory segment, which may follow a symlink outside the working directory`   NOT benign
  * The CLI does NOT prompt for .gitignore, .env, .env.example, package.json, tsconfig.json, Makefile, .github/workflows/*.yml, scripts/*.sh, .eslintrc.js.
+ *
+ * Measured in the owner's live Automatic run of 2026-10-08 (a lead with five developer sub-agents over three repositories, 24 refusals), all of
+ * them commands the Rust policy had already judged and allowed:
+ *   `Redirect has multiple targets - post-redirect args swallowed`   `grep ... 2>/dev/null -l | head`: the CLI cannot say which words belong to the
+ *                                                                    redirect; Rust judged every word and every target; BENIGN
+ *   `Parser skipped input between top-level statements`              a quoted heredoc with a long JS/Python body: the CLI's parser gives up on the
+ *                                                                    BODY; BENIGN when the body is all it skipped (see `heredocFalsePositive`)
+ *   `Contains brace with quote character (expansion obfuscation)`    the braces and quotes of a Python/Node heredoc body or of a sed program with
+ *                                                                    a template literal; the first is BENIGN, the second stays a refusal
  */
 export const BOUNDARY_REASON = 'Path is outside allowed working directories';
 
@@ -38,7 +47,13 @@ export const CLI_BENIGN_REASONS: readonly string[] = [BOUNDARY_REASON, NO_RULE_R
  * command (a `cd` out of the run's folders is refused there), so the cached allow stands. Matched by prefix: the CLI appends text.
  */
 export const CD_VCS_PREFIX = 'This command changes directory before running a version-control command';
-export const CLI_BENIGN_PREFIXES: readonly string[] = [CD_VCS_PREFIX];
+/**
+ * `Redirect has multiple targets - post-redirect args swallowed` (measured, owner's run): the CLI's own matcher cannot tell which words after
+ * a redirect are arguments. Rust parses the same string word by word and has judged every operand and every redirect target (a path out of
+ * the run's folders was refused there), so nothing is hidden from the policy; the CLI's guard is only about its own rule matching.
+ */
+export const REDIRECT_TARGETS_PREFIX = 'Redirect has multiple targets';
+export const CLI_BENIGN_PREFIXES: readonly string[] = [CD_VCS_PREFIX, REDIRECT_TARGETS_PREFIX];
 /** `Claude requested permissions to edit <path> which is a sensitive file.` (measured L2/L5). */
 const SENSITIVE_FILE = /sensitive file/i;
 const benign = (reason: string): boolean => CLI_BENIGN_REASONS.includes(reason) || CLI_BENIGN_PREFIXES.some((p) => reason.startsWith(p));
@@ -48,18 +63,23 @@ const benign = (reason: string): boolean => CLI_BENIGN_REASONS.includes(reason) 
  * "Contains command_substitution") scan the RAW command string. A file written through a QUOTED heredoc (`cat > f <<'EOF' ... EOF`)
  * trips them on its content, which the shell never expands: in the owner's live Automatic run every such write of the developer role
  * was refused. Such a prompt is answered from the cached Rust allow when (a) every heredoc of the command is a pure file write
- * (`cat > file`, `tee file`, optionally after `mkdir -p`/`cd`), (b) its delimiter is quoted, and (c) the flagged feature is gone once the
- * bodies are removed. Anything else (an unquoted delimiter, a heredoc fed to bash/sh/python, a here-string, an unterminated body, a
- * feature that remains outside the bodies) keeps the refusal.
+ * (`cat > file`, `tee file`, a Python or Node program fed on stdin, optionally after `mkdir -p`/`cd`), (b) its delimiter is quoted, and
+ * (c) the flagged feature is gone once the bodies are removed. A quoted body is data for the shell either way; what a Python or Node
+ * body does is judged by Rust (inline code is scanned like a script file). Anything else (an unquoted delimiter, a heredoc fed to
+ * bash/sh, a here-string, an unterminated body, a feature that remains outside the bodies) keeps the refusal.
  */
 const HEREDOC_REASONS: ReadonlyArray<{ reason: RegExp; feature: RegExp }> = [
   { reason: /^Contains brace with quote character/i, feature: /[{}]/ },
   { reason: /^Contains zsh <N-M> numeric-range glob/i, feature: /<\s*\d*\s*-\s*\d*\s*>/ },
   { reason: /^Contains command[ _]substitution/i, feature: /\$\(|\x60|<\(|>\(|\$\{/ },
+  // the parser gave up somewhere: with the bodies cut away, none of the three features may be left for it to have stumbled on
+  { reason: /^Parser skipped input between top-level statements/i, feature: /[{}]|<\s*\d*\s*-\s*\d*\s*>|\$\(|\x60|<\(|>\(|\$\{/ },
 ];
 const SINK_PATH = String.raw`[^\s;&|<>$\x60()\\'"{}]+`;
 /** What is left of a heredoc line once the operator is cut out: only a plain write of the body into a file. */
-const SINK = new RegExp(String.raw`^(?:(?:mkdir\s+-p|cd)\s+${SINK_PATH}\s*&&\s*)*(?:cat\s*>>?\s*${SINK_PATH}|tee\s+(?:-a\s+)?${SINK_PATH}(?:\s*>\s*/dev/null)?)$`);
+const SINK = new RegExp(
+  String.raw`^(?:(?:mkdir\s+-p|cd)\s+${SINK_PATH}\s*&&\s*)*(?:cat\s*>>?\s*${SINK_PATH}|tee\s+(?:-a\s+)?${SINK_PATH}(?:\s*>\s*/dev/null)?|(?:python[0-9.]*|node)(?:\s+-)?(?:\s+2>&1)?(?:\s*\|\s*(?:tail|head)(?:\s+-n)?(?:\s+-?\d+)?)?)$`,
+);
 
 type HeredocLine = { delim: string; dash: boolean; rest: string } | 'none' | 'unsafe';
 
