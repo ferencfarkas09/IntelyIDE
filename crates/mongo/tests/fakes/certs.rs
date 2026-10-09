@@ -3,14 +3,15 @@
 use std::net::Ipv4Addr;
 use std::sync::Arc;
 
-use rcgen::{BasicConstraints, CertificateParams, DnType, ExtendedKeyUsagePurpose, IsCa, KeyPair, KeyUsagePurpose, SanType};
+use rcgen::{BasicConstraints, CertificateParams, DnType, ExtendedKeyUsagePurpose, IsCa, Issuer, KeyPair, KeyUsagePurpose, SanType};
 use tokio_rustls::rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer};
 use tokio_rustls::rustls::server::WebPkiClientVerifier;
 use tokio_rustls::rustls::{crypto::aws_lc_rs, RootCertStore, ServerConfig};
 
 pub struct Pki {
     ca: rcgen::Certificate,
-    ca_key: KeyPair,
+    /// The CA's own parameters and key: what signs the leaf certificates.
+    issuer: Issuer<'static, KeyPair>,
     pub ca_pem: String,
 }
 
@@ -38,7 +39,7 @@ impl Pki {
         let ca_key = KeyPair::generate().unwrap();
         let ca = p.self_signed(&ca_key).unwrap();
         let ca_pem = ca.pem();
-        Self { ca, ca_key, ca_pem }
+        Self { ca, issuer: Issuer::new(p, ca_key), ca_pem }
     }
 
     fn issue(&self, names: Names, client: bool, expired: bool) -> Leaf {
@@ -54,7 +55,7 @@ impl Pki {
             p.not_after = rcgen::date_time_ymd(2001, 1, 1);
         }
         let key = KeyPair::generate().unwrap();
-        let cert = p.signed_by(&key, &self.ca, &self.ca_key).unwrap();
+        let cert = p.signed_by(&key, &self.issuer).unwrap();
         Leaf {
             chain: vec![cert.der().clone()],
             key_der: key.serialize_der(),
