@@ -194,7 +194,7 @@ fn a_script_outside_the_folders_is_named_instead_of_the_misleading_static_check_
     assert_eq!(d.decision, Decision::Deny);
     assert_eq!(d.rule.as_deref(), Some("exec.auto.unjudgeable"));
     let want = format!(
-        "the script {} is outside the run's folders and cannot be checked; keep the script inside a repository (and delete it afterwards) or run the code inline, or ask the user to switch to Bypass. The run's folders are: {}",
+        "the script {} is outside the run's folders and cannot be checked; keep the script inside a repository or in /tmp (and delete it afterwards) or run the code inline, or ask the user to switch to Bypass. The run's folders are: {}",
         script.display(),
         fx.cwd.display()
     );
@@ -393,7 +393,6 @@ fn attached_option_values_that_read_files_are_refused() {
             "cmp -i 1 a.txt /etc/passwd",
             "which -p /etc/passwd",
             "basename --suffix=x a.txt",
-            "echo -x",
             "cat --files0 a.txt < /etc/passwd",
         ],
     );
@@ -461,8 +460,9 @@ fn a_word_starting_with_a_tilde_is_never_a_low_risk_operand() {
 #[test]
 fn echo_which_basename_and_dirname_stay_plain() {
     let fx = mfx();
-    refused_everywhere(&fx, &["echo $HOME", "echo $(ls)", "echo `ls`", "echo *", "which $X", "which /etc/passwd", "dirname /etc/passwd", "basename /etc/passwd", "echo > a.txt", "echo hi >> a.txt"]);
-    for ok in ["echo hello world", "echo -n hi", "echo /etc/passwd", "which node", "basename src/a.ts", "dirname src/a.ts", "true"] {
+    refused_everywhere(&fx, &["echo $HOME", "echo $(ls)", "echo `ls`", "echo /etc/*", "which $X", "which /etc/passwd", "dirname /etc/passwd", "basename /etc/passwd", "echo > a.txt", "echo hi >> a.txt"]);
+    // the text of echo is never a file: a label that starts with dashes is printed like any other word
+    for ok in ["echo hello world", "echo -n hi", "echo /etc/passwd", "echo --- label ---", "echo \"--recent/search/palette\"", "echo -x", "which node", "basename src/a.ts", "dirname src/a.ts", "true", "echo *"] {
         assert!(low_risk(&fx, ok), "{ok}");
     }
 }

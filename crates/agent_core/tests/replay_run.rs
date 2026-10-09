@@ -1,7 +1,7 @@
 //! Replays the shell commands of recorded runs through the policy, to compare a change of the analyser with what it did before.
 //!
 //! `REPLAY=<json>` names a file `{"cwd": "<run cwd>", "dirs": ["<other run folders>"], "cmds": [{"seq": 1, "cmd": "..."}]}`, and `MODE` is
-//! `automatic` (default), `edit` or `bypass`. Prints one line per command (`seq verdict by rule`) and a total; nothing is run. The test is
+//! `automatic` (default), `edit`, `readonly` (plan mode and read-only roles) or `bypass`. Prints one line per command (`seq verdict by rule`) and a total; nothing is run. The test is
 //! ignored: it reads the maintainer's own run logs.
 
 mod common;
@@ -18,6 +18,7 @@ fn replay_a_recorded_run() {
     let mode = match std::env::var("MODE").unwrap_or_default().as_str() {
         "edit" => PermissionMode::Edit,
         "bypass" => PermissionMode::Bypass,
+        "readonly" | "plan" => PermissionMode::ReadOnly,
         _ => PermissionMode::Automatic,
     };
     let mut c = PolicyContext::new(mode, file["cwd"].as_str().unwrap());

@@ -77,7 +77,7 @@ fn rows() -> Vec<Row> {
         b("exec: bypass runs a script runner", "npm test", Bypass, (Allow, Default)),
         Row { setup: saved_status, ..b("exec: saved prefix allows", "git status --short", Edit, (Allow, Saved)) },
         Row { setup: saved_status, ..b("exec: saved prefix does not cover a second command", "git status && rm -rf x", Edit, (Ask, Default)) },
-        Row { setup: saved_status, ..b("exec: saved prefix does not cover other verbs", "git stash list", Edit, (Ask, Default)) },
+        Row { setup: saved_status, ..b("exec: saved prefix does not cover other verbs", "git remote show origin", Edit, (Ask, Default)) },
         Row { setup: saved_status, ..b("exec: saved never applies to unparseable", "git status $(rm -rf x)", Edit, (Ask, Default)) },
         Row { setup: saved_all_git, ..b("exec: saved never applies to sh -c", "sh -c 'git status'", Edit, (Ask, Default)) },
         Row { setup: saved_all_git, ..b("exec: a permissive saved allow cannot unlock git commit", "git commit -m x", Edit, (Deny, HardStop)) },

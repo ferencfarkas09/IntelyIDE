@@ -49,7 +49,7 @@ fn commands(f: &Flow) -> Vec<(&'static str, String)> {
         ("git show to /tmp, cp, eslint, rm", format!("cd {admin}; git show HEAD:src/pwa/openInAppPrompt.js > /tmp/oiap_head.js; cp /tmp/oiap_head.js src/pwa/__head_tmp.js; npx eslint src/pwa/__head_tmp.js 2>&1 | grep -c error; rm src/pwa/__head_tmp.js")),
         ("python re edit + jest", format!("cd {admin}; python3 - <<'EOF'\nimport re\np='src/pwa/openInAppPrompt.js'\ns=open(p).read()\nfor a,b in [('{{android = false}} = {{}}', '{{ android = false }} = {{}}')]:\n    s=s.replace(a,b)\nopen(p,'w').write(s)\nEOF\nnpx jest src/pwa/openInAppPrompt.test.js 2>&1 | tail -20")),
         ("git add file + diff stat + status", format!("cd {admin}; git add src/pwa/openInAppPrompt.test.js && git --no-pager diff --stat -- src/pwa public/.well-known; git status --porcelain -- src/pwa; cd ../app && git --no-pager diff --stat -- app/helpers/deepLink")),
-        ("plain git read commands", format!("cd {admin} && git log --oneline -5 && git diff HEAD --stat && git branch --show-current && git rev-parse HEAD")),
+        ("plain git read commands", format!("cd {admin} && git log --oneline -5 && git diff HEAD --stat && git config --get remote.origin.url && git rev-parse HEAD")),
         ("npm run in the other repo", format!("cd {app} && npm run lint 2>&1 | tail -20")),
     ]
 }

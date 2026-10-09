@@ -12,7 +12,7 @@ use super::{base_name, paths, Walker, Word};
 const READERS: &[&str] = &[
     "cat", "head", "tail", "less", "more", "ls", "wc", "grep", "egrep", "fgrep", "rg", "diff", "cmp", "file", "stat", "tree", "du", "bat", "echo", "printf",
     "realpath", "dirname", "basename", "readlink", "shasum", "md5", "md5sum", "sha256sum", "cksum", "hexdump", "od", "strings", "nl", "pwd", "which", "test", "[",
-    "true", "false", "cd", "pushd", "popd",
+    "true", "false", "cd", "pushd", "popd", "cut", "tr", "tac", "rev", "column", "uname", "whoami",
 ];
 
 /// Programs that run a script given as an argument; their code-like arguments are scanned token by token.
@@ -73,7 +73,8 @@ impl<'a> Walker<'a> {
             return;
         }
         let rest: &[Word] = if base == "git" { words } else { words.get(1..).unwrap_or(&[]) };
-        let wrote_flag = rest.iter().any(|w| is_output_flag(&w.text));
+        // (`-o` of `find` is the OR operator; what `find` writes is `find_writes`)
+        let wrote_flag = base != "find" && rest.iter().any(|w| is_output_flag(&w.text));
         let in_place = rest.iter().any(|w| {
             let t = w.text.as_str();
             t == "--in-place" || t.starts_with("--in-place=") || (t.starts_with('-') && !t.starts_with("--") && t[1..].contains('i') && matches!(base, "sed" | "gsed" | "perl"))

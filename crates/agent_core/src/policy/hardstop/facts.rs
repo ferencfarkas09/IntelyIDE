@@ -7,6 +7,7 @@ use std::path::Path;
 
 use super::protected_args::{candidates, code_like, code_tokens};
 use super::{base_name, paths, Ctx, NetOperand, Walker, Word, PM_PUBLISH};
+use crate::policy::glob;
 
 /// Programs that print the environment of other processes or read another process's memory, where MCP servers and tools keep their
 /// secrets (`ps` only with an `e` or `E` flag, `sysctl` only with `kern.procargs*`, `launchctl` only with `procinfo`, `print`,
@@ -19,7 +20,7 @@ const SYSTEM_PROGRAMS: &[&str] = &["security", "osascript", "dscl", "wrangler"];
 const PM_WORDS: &[&str] = &["npm", "pnpm", "yarn", "bun", "cnpm", "cargo", "twine", "gem", "poetry", "uv", "hatch", "flit"];
 
 /// Builtins and printers whose arguments are not paths a program opens: no never-read test on their words.
-const PRINTERS: &[&str] = &["echo", "printf", "true", "false", ":", "test", "["];
+const PRINTERS: &[&str] = &["echo", "printf", "true", "false", ":", "test", "[", "tr"];
 /// Programs whose dynamic arguments cannot turn into a file access (the redirect target is judged separately).
 const HARMLESS_DYNAMIC: &[&str] = &["echo", "printf", "true", "false", ":", "test", "[", "sleep", "exit", "return", "shift", "wait", "set", "unset", "read"];
 
@@ -62,32 +63,89 @@ fn glob_dir(c: &str) -> Option<&str> {
 }
 
 /// Indices (into the words after the command name) of the operands that are a search pattern or an editing program, not a file:
-/// `grep PATTERN file`, `sed -n '/x/p' file`, `awk 'prog' file`, `rg -e PATTERN`. Such a word is matched against content, never opened.
+/// `grep PATTERN file`, `sed -n '/x/p' file`, `awk 'prog' file`, `rg -e PATTERN`, the glob of `rg -g '*.js'` and the value of
+/// `grep -A 3`, the pattern of `find -name '*.js'`. Such a word is matched against content or names, never opened.
 fn pattern_operands(base: &str, rest: &[Word]) -> Vec<usize> {
-    if !matches!(base, "grep" | "egrep" | "fgrep" | "rg" | "ag" | "ack" | "sed" | "gsed" | "awk" | "gawk" | "mawk" | "nawk") {
-        return Vec::new();
+    if base == "find" {
+        let names = ["-name", "-iname", "-path", "-ipath", "-wholename", "-iwholename", "-regex", "-iregex", "-lname", "-ilname"];
+        return (1..rest.len()).filter(|i| names.contains(&rest[i - 1].text.as_str())).collect();
     }
+    // the short options whose value is the next word (`-e` and `-f` are told apart below)
+    let valued = match base {
+        "grep" | "egrep" | "fgrep" => "ABCDdm",
+        "rg" | "ag" | "ack" => "ABCEMTgjmrt",
+        "sed" | "gsed" => "l",
+        "awk" | "gawk" | "mawk" | "nawk" => "Fv",
+        _ => return Vec::new(),
+    };
     let mut skip = Vec::new();
+    // the program or pattern comes from `-e`, `--regexp` or a file, not from the first operand
     let mut explicit = false;
-    for (i, w) in rest.iter().enumerate() {
-        let t = w.text.as_str();
+    let mut first: Option<usize> = None;
+    let mut i = 0;
+    while i < rest.len() {
+        let t = rest[i].text.as_str();
+        if t == "--" {
+            if first.is_none() && i + 1 < rest.len() {
+                first = Some(i + 1);
+            }
+            break;
+        }
         if matches!(t, "-e" | "--regexp") {
             explicit = true;
             if i + 1 < rest.len() {
                 skip.push(i + 1);
             }
-        } else if t.starts_with("--regexp=") || t.starts_with("-e") && t.len() > 2 && !t.starts_with("--") {
-            explicit = true;
-        } else if matches!(t, "-f" | "--file") || t.starts_with("--file=") {
-            explicit = true;
+            i += 2;
+            continue;
         }
+        if t.starts_with("--regexp=") || t.starts_with("-e") && t.len() > 2 && !t.starts_with("--") {
+            explicit = true;
+        } else if matches!(t, "-f" | "--file" | "--files" | "--type-list") || t.starts_with("--file=") {
+            // (`rg --files DIR` lists files: it takes no pattern, its first operand is a folder)
+            explicit = true;
+        } else if t.starts_with('-') && t.len() > 1 && !t.starts_with("--") {
+            // a bundle: its last letter takes the next word when it is a valued option with nothing attached
+            if t.chars().last().is_some_and(|c| valued.contains(c)) && i + 1 < rest.len() {
+                skip.push(i + 1);
+                i += 2;
+                continue;
+            }
+        } else if !t.starts_with('-') && first.is_none() {
+            first = Some(i);
+        }
+        i += 1;
     }
     if !explicit {
-        if let Some(i) = rest.iter().position(|w| !w.text.starts_with('-')) {
-            skip.push(i);
-        }
+        skip.extend(first);
     }
     skip
+}
+
+/// `candidates` of one word, less the value of an option that holds text (`cut -d/`, `sort -t:`, `uniq -f1`): a delimiter is not a path.
+fn operand_candidates<'t>(base: &str, t: &'t str) -> Vec<&'t str> {
+    if let Some(opt) = t.strip_prefix('-').filter(|o| !o.starts_with('-')).and_then(|o| o.chars().next()) {
+        let text = match base {
+            "cut" => "dfcb",
+            "sort" => "tkS",
+            "uniq" => "fsw",
+            "column" => "sco",
+            "head" | "tail" => "nc",
+            "fold" => "w",
+            "paste" => "d",
+            _ => "",
+        };
+        if text.contains(opt) {
+            return Vec::new();
+        }
+    }
+    if t.starts_with("--") && matches!(base, "cut" | "sort" | "uniq" | "column" | "head" | "tail" | "fold" | "paste") {
+        let name = t[2..].split('=').next().unwrap_or("");
+        if matches!(name, "delimiter" | "field-separator" | "separator" | "fields" | "characters" | "bytes" | "key" | "lines" | "width" | "skip-fields" | "skip-chars" | "check-chars") {
+            return Vec::new();
+        }
+    }
+    candidates(t)
 }
 
 /// `git` subcommands that print names or status and never the content of the paths they are given.
@@ -101,6 +159,12 @@ fn git_names_only(rest: &[Word]) -> bool {
         }
     }
     false
+}
+
+/// A word with white space in it that is shaped like a file name rather than like program text: it has none of the characters of
+/// code (`"../../My Docs/x.txt"`, `"my notes.md"`, not `"require('../x')"`).
+fn spaced_path(t: &str) -> bool {
+    t.contains(char::is_whitespace) && !t.trim().is_empty() && !t.contains(['\n', ';', '|', '&', '<', '>', '(', ')', '{', '}', '"', '\'', '`', '$'])
 }
 
 /// A token of program text names something that exists, or sits in a directory that does (a URL route such as `/api/users`
@@ -130,13 +194,36 @@ impl<'a> Walker<'a> {
     /// part resolved. A relative word after a `cd` that could not be followed is not recorded (that `cd` is an issue already).
     pub(super) fn probe(&mut self, cand: &str) {
         let t = strip_file_scheme(cand);
-        // `//host/x` is what is left of a URL after its scheme, not a path
-        if t.is_empty() || t.starts_with('-') || t.starts_with("//") || (!self.cwd_known && !t.starts_with('/') && !t.starts_with('~')) {
+        if t.is_empty() || t.starts_with('-') || (!self.cwd_known && !t.starts_with('/') && !t.starts_with('~')) {
             return;
         }
         let p = paths::resolve(&self.cwd, t, self.jail.home.as_deref()).display().to_string();
         if !self.a.probes.contains(&p) {
             self.a.probes.push(p);
+        }
+    }
+
+    /// An unquoted glob stands for the files it matches: each one is judged like a plain operand (so `cat .e*` is `cat .env`). A pattern
+    /// that matches nothing is passed to the program as written and judged as written by the caller; one that matches more than is
+    /// listed is not judged either (`glob_overflow`).
+    fn glob_operands(&mut self, t: &str, secret: bool) {
+        let t = strip_file_scheme(t);
+        if !self.cwd_known && !t.starts_with('/') && !t.starts_with('~') {
+            return;
+        }
+        match glob::expand(&self.lexical_path(t)) {
+            glob::Expansion::Files(list) => {
+                for m in list {
+                    let m = m.display().to_string();
+                    self.probe(&m);
+                    self.note_candidate(&m, true, false, secret);
+                    if self.a.hard_stop.is_some() {
+                        return;
+                    }
+                }
+            }
+            // not judged one by one: the pattern is judged as written (the read-only modes refuse, see `Analysis::glob_overflow`)
+            glob::Expansion::TooMany => self.a.glob_overflow = true,
         }
     }
 
@@ -230,7 +317,18 @@ impl<'a> Walker<'a> {
                 continue;
             }
             let t = w.text.as_str();
-            if t.is_empty() || patterns.contains(&idx) {
+            if t.is_empty() {
+                continue;
+            }
+            // an unquoted glob names the files it matches, also where the program reads a pattern: the shell expands it first
+            if w.glob && !t.starts_with('-') && !code_like(t) {
+                // (the names a printer lists are no secret, but they must be inside the run's folders)
+                self.glob_operands(t, !names_only && !printer);
+                if self.a.hard_stop.is_some() {
+                    return;
+                }
+            }
+            if patterns.contains(&idx) {
                 continue;
             }
             if !after_dd && t == "--" {
@@ -243,6 +341,9 @@ impl<'a> Walker<'a> {
                     if t.starts_with('/') || t.starts_with('~') || t.starts_with("file://") {
                         self.probe(t);
                         self.note_candidate(t, true, false, !names_only);
+                    } else if !code_runner && spaced_path(t) {
+                        // `"../../My Docs/x.txt"`: a relative path with a space in it names one file; where it points is judged whole
+                        self.probe(t);
                     }
                     for tok in code_tokens(t) {
                         self.note_candidate(tok, code_runner, true, !names_only);
@@ -254,8 +355,9 @@ impl<'a> Walker<'a> {
                 continue;
             }
             // `git show HEAD:.env`: the part after the colon is the path.
-            let colon = (base == "git").then(|| t.rsplit_once(':').map(|(_, p)| p)).flatten();
-            for c in candidates(t).into_iter().chain(colon) {
+            // (`//host/x` is what is left of a URL after its scheme, not a path)
+            let colon = (base == "git").then(|| t.rsplit_once(':').map(|(_, p)| p)).flatten().filter(|p| !p.starts_with("//"));
+            for c in operand_candidates(base, t).into_iter().chain(colon) {
                 self.probe(c);
                 self.note_candidate(c, true, false, !names_only);
             }

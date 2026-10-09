@@ -76,6 +76,9 @@ pub struct Analysis {
     /// (`grep /x/ f`, `sed -n '/^a/,/^b/p' f`, `echo /etc/hosts`) and are left out. Automatic refuses what leaves the run's folders
     /// (`cat lnk/hosts` and `cd lnk` are judged by where the link goes).
     pub probes: Vec<String>,
+    /// An unquoted glob matched more files than are listed (see `glob::MAX_MATCHES`): it is judged as written only. Plan mode and
+    /// the read-only roles do not run such a command; Automatic does, as it did before globs were expanded.
+    pub glob_overflow: bool,
 }
 
 /// One operand of a network client. `upload` is true when an option or a redirect sends a file out.

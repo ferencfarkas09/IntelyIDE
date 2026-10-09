@@ -979,7 +979,7 @@ fn low_risk_reads_are_allowed_only_inside_the_workspace_and_only_when_they_are_p
     let home = tempfile::tempdir().unwrap();
     let mut c = edit(&fx);
     c.home = Some(std::fs::canonicalize(home.path()).unwrap());
-    for cmd in ["ls", "ls -la src", "cat a.txt", "head -n 5 a.txt", "rg foo src", "grep -rn foo .", "git status", "git log --oneline -5 -- a.txt", "git diff HEAD~1", "node --check a.txt", "ls && git status", "git status | head -n 3", "cat a.txt | grep x"] {
+    for cmd in ["ls", "ls -la src", "cat a.txt", "head -n 5 a.txt", "rg foo src", "grep -rn foo .", "git status", "git log --oneline -5 -- a.txt", "git diff HEAD~1", "node --check a.txt", "ls && git status", "git status | head -n 3", "cat a.txt | grep x", "cat *.txt", "ls *.txt | head -n 3", "grep -rn foo . 2>/dev/null | sort | uniq", "sed -n 1,5p a.txt"] {
         let d = bash(&c, cmd);
         assert_eq!((d.decision, d.rule.as_deref()), (Decision::Allow, Some("exec.low-risk-read")), "{cmd}: {d:?}");
     }
@@ -990,7 +990,14 @@ fn low_risk_reads_are_allowed_only_inside_the_workspace_and_only_when_they_are_p
         "ls ~",
         "cat a.txt > out.txt",
         "cat $F",
-        "cat *.txt",
+        // a glob stands for the files it matches: a secret, or something outside the workspace
+        "cat .e*",
+        "cat /etc/h*",
+        "cat ../*",
+        "cat *.txt > out.txt",
+        "sed -n 'w out.txt' a.txt",
+        "sed -i s/a/b/ a.txt",
+        "uniq a.txt out.txt",
         "rg --pre ./x foo",
         "git diff --output=o.patch",
         "git log --ext-diff",

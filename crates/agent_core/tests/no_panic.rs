@@ -27,12 +27,12 @@ const PIECES: &[&str] = &[
     "git", "commit", "push", "add", "-A", "-c", "-C", "env", "sh", "-c", "bash", "eval", "xargs", "find", "-exec", "sudo", "cd", "echo", "x", "é", "日本", "\u{0}", "\r", "~", ".git", "$X", "{a,b}", "2>&1", "gh", "pr", "merge", "npm", "publish",
 ];
 
-/// `echo`, `true` and a `find` without predicates read and run nothing, so a random string whose every command is one of them is a legitimate low-risk read.
+/// `echo`, `true`, the tests `[` and `test`, and a `find` without predicates read and run nothing, so a random string whose every command is one of them is a legitimate low-risk read.
 fn only_prints(fx: &Fx, cmd: &str) -> bool {
     let a = intely_agent_core::policy::hardstop::analyze(cmd, &intely_agent_core::policy::paths::Jail::new(&fx.cwd, &[], None));
     // a `find` without predicates lists names and nothing else; every predicate that writes or runs something is refused by the policy itself
     a.simple.iter().filter(|w| !w.is_empty()).all(|w| match w[0].text.as_str() {
-        "echo" | "true" => true,
+        "echo" | "true" | "false" | ":" | "test" | "[" => true,
         "find" => w[1..].iter().all(|x| !["-exec", "-execdir", "-ok", "-okdir", "-delete", "-fprint", "-fprint0", "-fprintf", "-fls", "-files0-from"].contains(&x.text.as_str())),
         _ => false,
     })
