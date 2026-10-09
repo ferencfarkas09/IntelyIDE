@@ -235,7 +235,8 @@ test("config.yml disables blank issues and links discussions, advisories and the
   assert.match(c, /github\.com\/ferencfarkas09\/IntelyIDE\/discussions/);
   assert.match(c, /github\.com\/ferencfarkas09\/IntelyIDE\/security\/advisories\/new/);
   assert.match(c, /docs\/faq\.md/);
-  assert.match(c, /https:\/\/intelyide\.com$/m);
+  assert.match(c, /https:\/\/intelyhome\.com$/m);
+  assert.doesNotMatch(c, /intelyide\.com/);
 });
 
 test("bug form warns about refusals.log and run logs and requires the key fields", () => {
@@ -247,7 +248,7 @@ test("bug form warns about refusals.log and run logs and requires the key fields
   }
   assert.match(t, /Intel/);
   assert.match(t, /Apple Silicon/);
-  assert.match(t, /placeholder: 1\.0\.1/);
+  assert.match(t, /placeholder: \d+\.\d+\.\d+$/m);
   assert.ok(!/alpha/i.test(t));
   assert.match(t, /render: shell/);
   const checks = t.slice(t.indexOf("id: checks"));
