@@ -324,7 +324,7 @@ async fn a_lease_dropped_without_keep_closes_the_tunnel() {
         pid
     };
     assert!(wait_until(Duration::from_secs(5), || fx.leftovers().is_empty() && !alive(pid)), "the dropped lease closed the tunnel");
-    assert!(sweep::read_entries(&fx.state).is_empty());
+    assert!(wait_until(Duration::from_secs(3), || sweep::read_entries(&fx.state).is_empty()), "the sweep file is emptied once the master is gone");
     assert_eq!(s.tunnels().count(), 0);
     assert!(wait_until(Duration::from_secs(3), || fx.audit_of(event::TUNNEL_CLOSE).len() == 1));
 
@@ -361,7 +361,7 @@ async fn cancelling_a_test_stops_an_open_in_progress_and_closes_a_finished_tunne
     let err = tokio::time::timeout(Duration::from_secs(10), pending).await.expect("the open returned").unwrap().unwrap_err();
     assert_eq!(err.code, code::CANCELLED, "{err}");
     assert!(wait_until(Duration::from_secs(5), || fx.leftovers().is_empty()), "the half-built tunnel was removed");
-    assert!(sweep::read_entries(&fx.state).is_empty());
+    assert!(wait_until(Duration::from_secs(3), || sweep::read_entries(&fx.state).is_empty()), "the sweep file is emptied once the master is gone");
     assert_eq!(s.tunnels().count(), 0);
 
     // a finished tunnel is closed and awaited
@@ -430,7 +430,7 @@ fn quitting_closes_every_tunnel_without_a_runtime() {
     assert!(t0.elapsed() < Duration::from_secs(8), "three tunnels close in parallel: {:?}", t0.elapsed());
     assert!(fx.leftovers().is_empty(), "{:?}", fx.leftovers());
     assert!(wait_until(Duration::from_secs(3), || pids.iter().all(|p| !alive(*p))), "every master is gone");
-    assert!(sweep::read_entries(&fx.state).is_empty());
+    assert!(wait_until(Duration::from_secs(3), || sweep::read_entries(&fx.state).is_empty()), "the sweep file is emptied once the master is gone");
     assert_eq!(s.tunnels().count(), 0);
     assert_eq!(fx.audit_of(event::TUNNEL_CLOSE).len(), 3);
     drop(rt);
