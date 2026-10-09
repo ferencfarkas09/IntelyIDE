@@ -260,9 +260,12 @@ describe("dependabot.yml", () => {
     assert.ok(!dep.updates.some((u) => /sdk-pin/.test(u.directory || "")));
   });
 
-  it("ignores the Agent SDK and its pinned peers in the npm block, which the sidecar pins agree with", () => {
+  it("ignores the Agent SDK and its pinned peers in the npm block, which the sidecar pins agree with, and new majors of the Node types", () => {
     const ignored = block("npm").ignore.map((i) => i["dependency-name"]);
-    assert.deepEqual(ignored, ["@anthropic-ai/claude-agent-sdk", "@anthropic-ai/sdk", "@modelcontextprotocol/sdk", "zod"]);
+    assert.deepEqual(ignored, ["@anthropic-ai/claude-agent-sdk", "@anthropic-ai/sdk", "@modelcontextprotocol/sdk", "zod", "@types/node"]);
+    // the Node types follow the Node major the sidecar and CI run on: only a new major is held back
+    const types = block("npm").ignore.find((i) => i["dependency-name"] === "@types/node");
+    assert.deepEqual([types["update-types"]].flat(), ["version-update:semver-major"]);
     const side = JSON.parse(read("sidecar/package.json"));
     assert.ok(JSON.stringify(side).includes("@anthropic-ai/claude-agent-sdk"));
   });
