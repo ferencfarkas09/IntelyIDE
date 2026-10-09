@@ -14,6 +14,7 @@ use super::shellparse::{self, Command, RedirKind, Word, MAX_DEPTH};
 mod facts;
 mod protected_args;
 mod scripts;
+mod vars;
 
 pub use facts::{raw_text_stop, PROC_ENV_PROGRAMS};
 pub(crate) use facts::HARMLESS_DEVICES;
@@ -68,6 +69,13 @@ pub struct Analysis {
     pub read_redirects: Vec<Word>,
     /// Targets of output redirects (`> file`, `>> file`): Automatic resolves them like any other path (a symlink may point out).
     pub write_redirects: Vec<Word>,
+    /// Where every operand really points: the operand words of every command (also the value of `--opt=value` and `key=value`, and the
+    /// options and operands of a wrapper such as `xargs` or `env`), a command word that names a path, and every redirect target,
+    /// resolved from the directory the walker was in when it saw the word (a `cd` earlier in the string is followed), symlinks of the
+    /// existing part resolved. A search pattern, a sed or awk program and the text a printer prints are not operands of this kind
+    /// (`grep /x/ f`, `sed -n '/^a/,/^b/p' f`, `echo /etc/hosts`) and are left out. Automatic refuses what leaves the run's folders
+    /// (`cat lnk/hosts` and `cd lnk` are judged by where the link goes).
+    pub probes: Vec<String>,
 }
 
 /// One operand of a network client. `upload` is true when an option or a redirect sends a file out.
@@ -222,12 +230,17 @@ struct Walker<'a> {
     script_stack: Vec<String>,
     /// Directory of the non-shell script whose text is being scanned (relative `..` tokens in it are judged from there).
     script_dir: Option<PathBuf>,
+    /// Variables the string assigned from words it knows (`f=src/a.js`, the variable of a `for` over known words): `$f` later in the
+    /// string is read as the value. Only a plain sequence of commands is followed (see `const_prop_ok`); anything else stays unknown.
+    vars: std::collections::HashMap<String, String>,
+    /// Commands walked for loop iterations so far: the work a loop may cost is bounded.
+    loop_work: usize,
     a: Analysis,
 }
 
 impl<'a> Walker<'a> {
     fn new(jail: &'a Jail) -> Self {
-        Self { jail, cwd: jail.cwd.clone(), cwd_known: true, alias_depth: 0, shell_aliases: Default::default(), repl: None, src: String::new(), script_stack: Vec::new(), script_dir: None, a: Analysis::default() }
+        Self { jail, cwd: jail.cwd.clone(), cwd_known: true, alias_depth: 0, shell_aliases: Default::default(), repl: None, src: String::new(), script_stack: Vec::new(), script_dir: None, vars: Default::default(), loop_work: 0, a: Analysis::default() }
     }
 
     fn stop(&mut self, rule: &str, reason: &str) {
@@ -253,11 +266,17 @@ impl<'a> Walker<'a> {
             self.issue(&i.to_string());
         }
         let outer = std::mem::replace(&mut self.src, src.to_string());
-        for cmd in &s.commands {
-            if depth == 0 && !cmd.nested {
+        // a nested script (`sh -c`, a script file, a trap) starts without the variables of the shell around it
+        let outer_vars = (depth > 0).then(|| std::mem::take(&mut self.vars));
+        if depth == 0 {
+            for cmd in s.commands.iter().filter(|c| !c.nested && !vars::is_marker(c)) {
                 self.a.simple.push(cmd.words.clone());
             }
-            self.command(cmd, depth);
+        }
+        let track = vars::const_prop_ok(&s.commands, s.grouped);
+        self.walk(&s.commands, depth, track);
+        if let Some(v) = outer_vars {
+            self.vars = v;
         }
         self.src = outer;
     }
@@ -348,6 +367,9 @@ impl<'a> Walker<'a> {
             self.issue("command name is not known statically");
             return;
         }
+        if first.text.contains('/') {
+            self.probe(&first.text);
+        }
         if let Some(value) = self.shell_aliases.get(&first.text).cloned().filter(|_| self.alias_depth < 4) {
             let mut expanded = shellparse::split_words(&value);
             expanded.extend_from_slice(&words[1..]);
@@ -371,6 +393,9 @@ impl<'a> Walker<'a> {
             return;
         }
         if let Some((inner, xargs)) = self.peel(&base, words) {
+            for w in &words[1..words.len().saturating_sub(inner.len()).max(1)] {
+                self.probe_wrapper_word(w);
+            }
             self.wrangler_wrapper(&words[1..words.len().saturating_sub(inner.len()).max(1)], inner.is_empty(), ctx.xargs || xargs);
             if self.a.hard_stop.is_some() {
                 return;

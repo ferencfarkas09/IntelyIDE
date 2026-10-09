@@ -117,7 +117,8 @@ impl<'a> Walker<'a> {
         if !meta.is_file() {
             return;
         }
-        if !self.jail.contains(&p) {
+        // a script the run keeps in its scratch folder (`/tmp/fix.py`) is read like one in a repository: the agent may write both
+        if !self.jail.contains(&p) && !self.jail.in_scratch(&p) {
             self.issue("script outside the working directories");
             if !self.a.outside_scripts.contains(&word.text) {
                 self.a.outside_scripts.push(word.text.clone());

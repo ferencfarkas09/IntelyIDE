@@ -577,7 +577,6 @@ const AUTO_ALLOWED: &[&str] = &[
 const UNKNOWN: &[&str] = &[
     "eval \"$CMD\"",
     "eval echo hi",
-    "g=git; $g status",
     "git $verb",
     "git status $(ls)",
     "echo `date`",

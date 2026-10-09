@@ -61,6 +61,22 @@ impl Redirect {
     }
 }
 
+/// How a command is joined to the one before it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Sep {
+    /// `;`, a newline, a parenthesis or the start of the script.
+    #[default]
+    Seq,
+    /// `&&`: runs only when the command before it succeeded.
+    And,
+    /// `||`: runs only when the command before it failed.
+    Or,
+    /// `|` and `|&`: both sides run in subshells.
+    Pipe,
+    /// The command before it ended with `&` (it ran in the background).
+    Bg,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Command {
     pub assigns: Vec<(String, Word)>,
@@ -70,6 +86,11 @@ pub struct Command {
     pub piped_from_prev: bool,
     /// Came from inside a substitution.
     pub nested: bool,
+    /// How it is joined to the command before it.
+    pub after: Sep,
+    /// The reserved words that were peeled off its front (`do`, `then`, `done` ...). A `done` that is left with nothing to run is kept
+    /// as a command without words, so the end of a `for` loop can be found in the flat list.
+    pub reserved: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -95,6 +116,9 @@ impl fmt::Display for Issue {
 pub struct Script {
     pub commands: Vec<Command>,
     pub issues: Vec<Issue>,
+    /// The string has a parenthesis outside a substitution: a subshell, a function or an array. The flat command list cannot say what
+    /// ran in a copy of the shell, so what an assignment did is not followed (see `hardstop/vars.rs`).
+    pub grouped: bool,
 }
 
 pub fn parse(src: &str) -> Script {
@@ -138,6 +162,8 @@ struct Lexer {
     redirects: Vec<Redirect>,
     pending: Option<RedirKind>,
     piped: bool,
+    /// How the command being read is joined to the one before it (set by the separator that ended the previous one).
+    sep: Sep,
     heredoc_specs: Vec<HereDocSpec>,
     heredoc_bodies: Vec<String>,
 }
@@ -154,6 +180,7 @@ impl Lexer {
             redirects: Vec::new(),
             pending: None,
             piped: false,
+            sep: Sep::Seq,
             heredoc_specs: Vec::new(),
             heredoc_bodies: Vec::new(),
         }
@@ -207,6 +234,9 @@ impl Lexer {
                     self.end_word();
                     self.end_command();
                     self.i += 1;
+                    if ch != ';' {
+                        self.script.grouped = true;
+                    }
                 }
                 '&' => {
                     self.end_word();
@@ -218,10 +248,12 @@ impl Lexer {
                         Some('&') => {
                             self.end_command();
                             self.i += 2;
+                            self.sep = Sep::And;
                         }
                         _ => {
                             self.end_command();
                             self.i += 1;
+                            self.sep = Sep::Bg;
                         }
                     }
                 }
@@ -231,6 +263,7 @@ impl Lexer {
                     let or = self.peek(1) == Some('|');
                     self.i += if or || self.peek(1) == Some('&') { 2 } else { 1 };
                     self.piped = !or;
+                    self.sep = if or { Sep::Or } else { Sep::Pipe };
                 }
                 '<' | '>' => self.redirect(),
                 _ => {
@@ -597,15 +630,21 @@ impl Lexer {
         let mut words = std::mem::take(&mut self.words);
         let redirects = std::mem::take(&mut self.redirects);
         let mut assigns = Vec::new();
+        let mut reserved = Vec::new();
         loop {
             match words.first() {
                 Some(w) if !w.dynamic && RESERVED.contains(&w.text.as_str()) => {
-                    words.remove(0);
+                    reserved.push(words.remove(0).text);
                 }
                 Some(w) if assignment_name(&w.text).is_some() => {
                     let w = words.remove(0);
                     let name = assignment_name(&w.text).unwrap_or_default();
-                    let value = Word { text: w.text[name.len() + 1..].to_string(), ..w.clone() };
+                    let mut value = Word { text: w.text[name.len() + 1..].to_string(), ..w.clone() };
+                    // `X+=y` appends to a value the parser does not know: the result is not known either (the marker cannot be expanded)
+                    if name.ends_with('+') {
+                        value.dynamic = true;
+                        value.text.insert_str(0, "${+=}");
+                    }
                     assigns.push((name.trim_end_matches('+').to_string(), value));
                 }
                 _ => break,
@@ -613,9 +652,15 @@ impl Lexer {
         }
         let piped = std::mem::take(&mut self.piped);
         if words.is_empty() && assigns.is_empty() && redirects.is_empty() {
+            // an empty command is dropped, but the end of a loop stays visible
+            if reserved.iter().any(|r| r == "done") {
+                let after = std::mem::take(&mut self.sep);
+                self.script.commands.push(Command { reserved, after, ..Command::default() });
+            }
             return;
         }
-        self.script.commands.push(Command { assigns, words, redirects, piped_from_prev: piped, nested: false });
+        let after = std::mem::take(&mut self.sep);
+        self.script.commands.push(Command { assigns, words, redirects, piped_from_prev: piped, nested: false, after, reserved });
     }
 
     /// Called right after a newline was consumed: reads the bodies of the heredocs opened on that line.
@@ -679,7 +724,7 @@ impl Lexer {
 /// Parses a substitution body one level deeper than its parent.
 fn expand_nested(body: &str, parent_depth: usize) -> Script {
     if parent_depth + 1 > MAX_DEPTH {
-        Script { commands: Vec::new(), issues: vec![Issue::TooDeep] }
+        Script { commands: Vec::new(), issues: vec![Issue::TooDeep], grouped: false }
     } else {
         parse_at(body, parent_depth + 1)
     }
@@ -789,6 +834,25 @@ mod tests {
         assert!(s.issues.is_empty(), "quoted delimiter: no expansion");
         let s = parse("bash <<< 'git commit'");
         assert_eq!(s.commands[0].redirects[0].body.as_deref(), Some("git commit"));
+    }
+
+    #[test]
+    fn separators_markers_and_groups_are_kept() {
+        let s = parse("a && b || c | d; e & f\ng");
+        assert_eq!(s.commands.iter().map(|c| c.after).collect::<Vec<_>>(), vec![Sep::Seq, Sep::And, Sep::Or, Sep::Pipe, Sep::Seq, Sep::Bg, Sep::Seq]);
+        // the end of a loop stays visible although `done` has nothing to run
+        let s = parse("for f in a b; do cat $f; done; ls");
+        assert_eq!(s.commands.len(), 4, "{:?}", s.commands);
+        assert!(s.commands[2].reserved == ["done"] && s.commands[2].words.is_empty());
+        assert!(s.commands[1].reserved == ["do"]);
+        let s = parse("for f in a\ndo\n cat $f\ndone < list");
+        assert!(s.commands.iter().any(|c| c.reserved.iter().any(|r| r == "done") && !c.redirects.is_empty()));
+        assert!(parse("(cd x; ls)").grouped && parse("g() { ls; }").grouped);
+        assert!(!parse("echo $(ls) <(ls) $((1+2))").grouped);
+        // `+=` appends to something the parser does not know: its value cannot be expanded
+        let c = &parse("F+=x cmd").commands[0];
+        assert!(c.assigns[0].1.dynamic && c.assigns[0].1.text.starts_with("${+=}"), "{:?}", c.assigns);
+        assert!(!parse("F=x cmd").commands[0].assigns[0].1.dynamic);
     }
 
     #[test]

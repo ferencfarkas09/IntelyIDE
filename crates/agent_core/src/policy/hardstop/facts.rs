@@ -122,7 +122,35 @@ impl<'a> Walker<'a> {
             return;
         }
         let text = target.text.clone();
+        self.probe(&text);
         self.note_candidate(&text, true, false, true);
+    }
+
+    /// Records where an operand points ([`Analysis::probes`]): resolved from the directory the walker is in, symlinks of the existing
+    /// part resolved. A relative word after a `cd` that could not be followed is not recorded (that `cd` is an issue already).
+    pub(super) fn probe(&mut self, cand: &str) {
+        let t = strip_file_scheme(cand);
+        // `//host/x` is what is left of a URL after its scheme, not a path
+        if t.is_empty() || t.starts_with('-') || t.starts_with("//") || (!self.cwd_known && !t.starts_with('/') && !t.starts_with('~')) {
+            return;
+        }
+        let p = paths::resolve(&self.cwd, t, self.jail.home.as_deref()).display().to_string();
+        if !self.a.probes.contains(&p) {
+            self.a.probes.push(p);
+        }
+    }
+
+    /// One option or operand of a wrapper (`xargs -a list`, `env -C dir`, `time -o file`): judged like the operand of a program.
+    pub(super) fn probe_wrapper_word(&mut self, w: &Word) {
+        if w.dynamic {
+            return;
+        }
+        for c in candidates(&w.text) {
+            self.probe(c);
+        }
+        if let Some((_, v)) = w.text.split_once('=') {
+            self.probe(v);
+        }
     }
 
     /// One candidate path of the command being walked: judged against the never-read list (a hard stop) and recorded in
@@ -149,7 +177,12 @@ impl<'a> Walker<'a> {
             let mut text = strip_file_scheme(cand).to_string();
             if known && (program_text || (self.cwd != self.jail.cwd && !text.starts_with('/') && !text.starts_with('~'))) {
                 let p = paths::resolve(&self.cwd, &text, self.jail.home.as_deref());
-                if program_text && (!plausible(&p) || self.jail.contains(&p)) {
+                // a relative token of program text (`'../../seed'` in a string that is being written into a source file) counts only
+                // when it names something that exists: a module specifier or a name for another directory is not a file this program opens
+                let relative = !text.starts_with('/') && !text.starts_with('~');
+                // a token that is only slashes and dots (`/.` out of a regex literal such as `/(^|[/.\s])x/i`) resolves to the root, which no
+                // program text names as a file
+                if program_text && (!plausible(&p) || self.jail.contains(&p) || (relative && !p.exists()) || p == Path::new("/")) {
                     return;
                 }
                 text = p.display().to_string();
@@ -208,6 +241,7 @@ impl<'a> Walker<'a> {
                 if !printer {
                     // a path with a space in it (`~/Library/Application Support/x`) is one operand, not program text
                     if t.starts_with('/') || t.starts_with('~') || t.starts_with("file://") {
+                        self.probe(t);
                         self.note_candidate(t, true, false, !names_only);
                     }
                     for tok in code_tokens(t) {
@@ -222,6 +256,7 @@ impl<'a> Walker<'a> {
             // `git show HEAD:.env`: the part after the colon is the path.
             let colon = (base == "git").then(|| t.rsplit_once(':').map(|(_, p)| p)).flatten();
             for c in candidates(t).into_iter().chain(colon) {
+                self.probe(c);
                 self.note_candidate(c, true, false, !names_only);
             }
         }
@@ -476,7 +511,7 @@ impl<'a> Walker<'a> {
             let tok = tok.trim_start_matches("file://");
             !tok.starts_with("//") && (tok.starts_with('/') || tok.starts_with('~')) && {
                 let p = paths::resolve(&self.cwd, tok, self.jail.home.as_deref());
-                !self.jail.contains(&p) && !p.starts_with("/dev/") && plausible(&p)
+                !self.jail.contains(&p) && !self.jail.in_scratch(&p) && !p.starts_with("/dev/") && plausible(&p)
             }
         });
         let what = if names_git {

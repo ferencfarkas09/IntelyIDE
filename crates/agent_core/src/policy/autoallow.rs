@@ -331,27 +331,25 @@ pub fn automatic_refusal(a: &Analysis, jail: &Jail) -> Option<AutoRefusal> {
     if let Some(script) = a.outside_scripts.first() {
         return refusal(
             "exec.auto.unjudgeable",
-            format!("the script {script} is outside the run's folders and cannot be checked; keep the script inside a repository (and delete it afterwards) or run the code inline, or ask the user to switch to Bypass. The run's folders are: {}", jail.folders_hint()),
+            format!("the script {script} is outside the run's folders and cannot be checked; keep the script inside a repository or in /tmp (and delete it afterwards) or run the code inline, or ask the user to switch to Bypass. The run's folders are: {}", jail.folders_hint()),
         );
     }
     if !a.issues.is_empty() {
         return refusal(
             "exec.auto.unjudgeable",
-            format!("this command cannot be checked statically ({}); rewrite it without command substitution, eval or variable command names, or ask the user to switch to Bypass", a.issues.join(", ")),
+            format!(
+                "this command cannot be checked statically ({}); rewrite it without command substitution, eval, `${{x:-y}}` or variables the command does not set from literal words (`f=src/a.js; cat $f` and `for f in a b; do cat $f; done` are fine), or ask the user to switch to Bypass",
+                a.issues.join(", ")
+            ),
         );
     }
     if a.inline_code {
         return refusal("exec.auto.inline-code", "this interpreter reads its code from another command in a pipe, which cannot be checked; give the code as a heredoc (python3 - <<'EOF') or write it to a file inside the repository, or ask the user to switch to Bypass");
     }
-    // a relative word that is a symlink out of the run's folders (`cat lnk/hosts`, `cd lnk`) is not in `a.paths`: judge every word of
-    // every command by where it really points (non-existing targets resolve lexically, so a new file inside a folder stays fine)
-    let words = a.simple.iter().flatten().chain(&a.write_redirects).chain(&a.read_redirects).filter(|w| !w.dynamic && !w.text.is_empty());
-    let escaping = words.flat_map(|w| {
-        let t = w.text.as_str();
-        [Some(t), t.split_once('=').map(|(_, v)| v)].into_iter().flatten().map(str::to_string).collect::<Vec<_>>()
-    });
-    for p in a.paths.iter().cloned().chain(escaping) {
-        let p = &p;
+    // a relative word that is a symlink out of the run's folders (`cat lnk/hosts`, `cd lnk`) is not in `a.paths`: every operand is judged by
+    // where it really points, from the directory its command ran in (`a.probes`; non-existing targets resolve lexically, so a new file
+    // inside a folder stays fine, and a search pattern is not a path)
+    for p in a.paths.iter().chain(&a.probes) {
         if HARMLESS_DEVICES.contains(&p.as_str()) {
             continue;
         }

@@ -357,7 +357,11 @@ fn bypass_scans_the_raw_text_of_a_command_it_cannot_analyse() {
     };
     let hs = |r: &str| (Deny, DecidedBy::HardStop, r.to_string());
     // a git write or a secret path anywhere in the text of an unjudgeable command
-    assert_eq!(rule("g=/usr/bin/git; $g commit -m x"), hs("exec.raw-text"));
+    // a variable the string assigns is read as its value, so the git write is found by the analyser itself
+    let (decision, by, why) = rule("g=/usr/bin/git; $g commit -m x");
+    assert_eq!((decision, by), (Deny, DecidedBy::HardStop), "{why}");
+    // one it assigns from a computed word is not known: the raw text is searched
+    assert_eq!(rule("g=$(echo /usr/bin/git); $g commit -m x"), hs("exec.raw-text"));
     assert_eq!(rule("$(echo git) push"), hs("exec.raw-text"));
     assert_eq!(rule("cat \"$HOME/.aws/credentials\" $(echo x)"), hs("exec.raw-text"));
     assert_eq!(rule("cat \"$HOME/Library/Application Support/IntelySwitchIDE/settings.json\" $(echo x)"), hs("exec.raw-text"));
@@ -371,8 +375,10 @@ fn bypass_scans_the_raw_text_of_a_command_it_cannot_analyse() {
     // an unjudgeable command with nothing of that kind runs
     assert_eq!(rule("echo $(date)"), (Allow, DecidedBy::Default, "exec.bypass".to_string()));
     assert_eq!(rule("rm -rf $(echo build)"), (Allow, DecidedBy::Default, "exec.bypass".to_string()));
-    // documented limit: a path assembled from several variables is NOT seen (a literal `.aws/credentials` in the text is: stricter than spec P-24)
-    assert_eq!(rule("a=.a; b=ws; cat ~/$a$b/credentials"), (Allow, DecidedBy::Default, "exec.bypass".to_string()));
+    // a path assembled from variables the string assigns is read as the path it makes (this was a documented limit); one built from a
+    // variable the string does not know is still not seen
+    assert_eq!(rule("a=.a; b=ws; cat ~/$a$b/credentials").1, DecidedBy::HardStop);
+    assert_eq!(rule("a=.a; cat ~/$a$B/credentials"), (Allow, DecidedBy::Default, "exec.bypass".to_string()));
     // a literal secret path anywhere in the text is seen, even in an assignment (spec P-24 lists `x=.aws/credentials` as unseen; the scan of
     // `code_tokens` it prescribes does see it)
     assert_eq!(rule("x=.aws/credentials; cat ~/$x").1, DecidedBy::HardStop);
