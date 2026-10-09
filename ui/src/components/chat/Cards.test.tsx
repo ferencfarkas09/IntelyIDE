@@ -137,6 +137,9 @@ describe("<PermissionCard>", () => {
     expect(resolvedWording({ outcome: "deny", by: "user", decision: "deny" })).toBe("Denied by you");
     expect(resolvedWording({ outcome: "allow", by: "saved" })).toBe("Allowed by a saved rule");
     expect(resolvedWording({ outcome: "deny", by: "roleDeny" })).toBe("Denied by the role");
+    // a refusal of the run's own rules is not the role's
+    expect(resolvedWording({ outcome: "deny", by: "roleDeny", refusal: { reason: "x", rule: "exec.auto.outside-jail" } })).toBe("Declined by the run's rules");
+    expect(resolvedWording({ outcome: "deny", by: "roleDeny", refusal: { reason: "x", rule: "role.read-only" } })).toBe("Denied by the role");
     expect(resolvedWording({ outcome: "cancelled", by: "user" })).toBe("Cancelled");
   });
 });
@@ -189,6 +192,25 @@ describe("<PermissionCard> allow always in this session", () => {
     unmount();
     render(() => <PermissionCard item={offered({ sessionAllow: { kind: "exec", scope: "ls" } })} onAnswer={() => {}} />);
     expect(screen.queryByText(/can only be allowed once/)).toBeNull();
+  });
+
+  it("tells why a refused call was refused, under the resolved line, and the full reason on hover", () => {
+    const refused = perm({ outcome: "deny", by: "roleDeny", intent: { class: "exec", rawCommand: "cat ../x", summary: "cat ../x", actor: { agentId: "s1", role: "developer" } }, refusal: { reason: "../x is outside the run's folders; Automatic works only inside them.", rule: "exec.auto.outside-jail" } });
+    render(() => <PermissionCard item={refused} onAnswer={() => {}} />);
+    const row = document.querySelector(".perm--done") as HTMLElement;
+    expect(row.textContent).toMatch(/^developer: Declined by the run's rules: cat \.\.\/x/);
+    const why = row.querySelector(".perm__why") as HTMLElement;
+    expect(why.textContent).toBe("Outside the run's folders: work inside them, or switch the run to Bypass.");
+    expect(why.title).toBe("../x is outside the run's folders; Automatic works only inside them.");
+  });
+
+  it("shows no reason line for an answer a person gave or for a refusal nobody explained", () => {
+    render(() => <PermissionCard item={perm({ outcome: "deny", by: "user", decision: "deny" })} onAnswer={() => {}} />);
+    expect(document.querySelector(".perm__why")).toBeNull();
+    cleanup();
+    render(() => <PermissionCard item={perm({ outcome: "deny", by: "roleDeny" })} onAnswer={() => {}} />);
+    expect(document.querySelector(".perm__why")).toBeNull();
+    expect(document.querySelector(".perm--done")?.textContent).toMatch(/Denied by the role/);
   });
 
   it("does not claim a once-only call for a read", () => {

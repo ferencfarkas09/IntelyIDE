@@ -126,6 +126,31 @@ describe("cancel", () => {
   });
 });
 
+describe("a refused call", () => {
+  const ask = (reqId: string, toolId: string) => ({ kind: "permission.request", reqId, toolId, intent: { class: "exec", tool: "Bash", rawCommand: "ls ../x", summary: "ls ../x" }, options: ["deny"] });
+  it("keeps the reason the refused tool's result carries, on the resolved request", () => {
+    const v = run([
+      ask("perm-t1", "t1"),
+      { kind: "permission.resolved", reqId: "perm-t1", outcome: "deny", by: "roleDeny" },
+      { kind: "tool.result", toolId: "t1", status: "denied", output: "PreToolUse:Bash hook error: INTELY-HARDSTOP: ../x is outside the run's folders (roleDeny, exec.auto.outside-jail)" },
+    ]);
+    const p = items<PermissionItem>(v, "permission")[0];
+    expect(p.refusal).toEqual({ reason: "../x is outside the run's folders", rule: "exec.auto.outside-jail" });
+    expect(p.outcome).toBe("deny");
+  });
+  it("finds the request of the right call among several, and ignores a result that is not a refusal", () => {
+    const v = run([
+      ask("perm-t1", "t1"),
+      ask("perm-t2", "t2"),
+      { kind: "tool.result", toolId: "t2", status: "denied", output: "INTELY-HARDSTOP: nope (hardStop, git.commit)" },
+      { kind: "tool.result", toolId: "t1", status: "denied", output: "some other failure" },
+    ]);
+    const [p1, p2] = items<PermissionItem>(v, "permission");
+    expect(p1.refusal).toBeUndefined();
+    expect(p2.refusal).toEqual({ reason: "nope", rule: "git.commit" });
+  });
+});
+
 describe("status", () => {
   it("is needsYou while something waits, running during a turn", () => {
     let v = run([{ kind: "user.message", messageId: "u", text: "x" }]);

@@ -22,6 +22,7 @@ import type {
 } from "./agent-types";
 import type { AttachmentRef, PermissionOption, PlanItem } from "@intely/protocol";
 import { toolSummary } from "../components/chat/format";
+import { refusalOf, type Refusal } from "../components/chat/refusal";
 
 interface ItemBase {
   /** Unique within the transcript; also the virtualiser key. */
@@ -84,6 +85,8 @@ export interface PermissionItem extends ItemBase {
   error?: { code: string; message?: string };
   /** The rules changed while the request waited and the host withdrew it (a tightening switch). */
   withdrawn?: boolean;
+  /** Why the policy refused the call, read from the refused tool's result (the reason the model got, and the rule that decided). */
+  refusal?: Refusal;
 }
 /** An offered answer; the label is its identity (the SDK answers a question with the chosen label). */
 export interface QuestionChoice {
@@ -230,6 +233,19 @@ function clone(v: AgentView): AgentView {
   return { ...v, items: v.items.slice(), index: { ...v.index }, gaps: v.gaps.slice() };
 }
 
+/** A refused call's result carries the IDE's reason: keep it on the resolved request so the transcript can say why. */
+function attachRefusal(v: AgentView, toolId: string, output: string | null | undefined): void {
+  const refusal = refusalOf(output);
+  if (!refusal) return;
+  for (let i = v.items.length - 1, seen = 0; i >= 0 && seen < 400; i--, seen++) {
+    const it = v.items[i];
+    if (it.type === "permission" && it.toolId === toolId) {
+      v.items[i] = { ...it, refusal };
+      return;
+    }
+  }
+}
+
 function applyOne(v: AgentView, ev: AgentEvent): AgentView {
   if (v.lastSeq > 0 && ev.seq > v.lastSeq + 1) v.gaps.push({ from: v.lastSeq + 1, to: ev.seq - 1 });
   v.lastSeq = ev.seq;
@@ -286,6 +302,7 @@ function applyOne(v: AgentView, ev: AgentEvent): AgentView {
       update<ToolItem>(TOOL(ev.toolId), (t) => ({ ...t, status: ev.status, output: ev.output ?? t.output }));
       break;
     case "tool.result":
+      if (ev.status === "denied") attachRefusal(v, ev.toolId, ev.output);
       update<ToolItem>(TOOL(ev.toolId), (t) => ({ ...t, status: ev.status, output: ev.output ?? t.output, diff: ev.diff ? { path: ev.diff.path, old: ev.diff.old ?? null, new: ev.diff.new } : t.diff, durationMs: ev.durationMs ?? t.durationMs }));
       break;
     case "permission.request":

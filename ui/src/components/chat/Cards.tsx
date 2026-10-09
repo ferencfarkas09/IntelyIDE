@@ -4,6 +4,7 @@ import type { DelegateInfo, PermissionDecision, QuestionAnswer, SessionAllowKind
 import { Badge, Ban, Brain, Button, Check, ChevronRight, CircleAlert, CircleQuestionMark, Icon, Input, ListChecks, ShieldAlert, ShieldCheck, Spinner, TriangleAlert } from "../../ui-kit";
 import { t, type MessageKey } from "../../i18n";
 import { errorWording, intentActor, RISK } from "./format";
+import { isRoleRule, refusalHeadline } from "./refusal";
 import { modeErrorText } from "./modes";
 import "./modes.css";
 
@@ -46,7 +47,7 @@ export function refocusAfterAnswer(card: HTMLElement | undefined): void {
 
 const DECISION_BY_YOU = { allowOnce: "chat.resolved.allowOnce", allowRun: "modes.resolved.allowSession", allowAlways: "chat.resolved.allowAlways", deny: "chat.resolved.denyYou" } as const satisfies Record<PermissionDecision, MessageKey>;
 /** One sentence for a resolved request, worded by who decided. */
-export function resolvedWording(p: Pick<PermissionItem, "outcome" | "by" | "decision" | "withdrawn">): string {
+export function resolvedWording(p: Pick<PermissionItem, "outcome" | "by" | "decision" | "withdrawn"> & Partial<Pick<PermissionItem, "refusal">>): string {
   if (p.outcome === "cancelled") return t("chat.resolved.cancelled");
   if (p.withdrawn) return t("modes.resolved.withdrawn");
   const allowed = p.outcome === "allow";
@@ -54,7 +55,8 @@ export function resolvedWording(p: Pick<PermissionItem, "outcome" | "by" | "deci
     case "hardStop":
       return t("chat.resolved.hardStop");
     case "roleDeny":
-      return t("chat.resolved.roleDeny");
+      // the run's own rules (what Automatic judges inside the run's folders) are not the role's: say which one declined
+      return t(p.refusal?.rule && !isRoleRule(p.refusal.rule) ? "chat.resolved.runDeny" : "chat.resolved.roleDeny");
     case "failClosed":
       return t("chat.resolved.failClosed");
     case "saved":
@@ -119,6 +121,13 @@ export function PermissionCard(props: { item: PermissionItem; onAnswer: (decisio
             <Show when={actor()}>{(a) => <strong class="perm__actor">{a().role}: </strong>}</Show>
             {resolvedWording(props.item)}{props.item.withdrawn ? " · " : ": "}
             <span class="ui-mono">{props.item.intent.summary}</span>
+            <Show when={props.item.outcome === "deny" && props.item.refusal}>
+              {(r) => (
+                <span class="perm__why" title={r().reason}>
+                  {refusalHeadline(r())}
+                </span>
+              )}
+            </Show>
           </span>
         </div>
       }

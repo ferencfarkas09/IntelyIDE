@@ -3,6 +3,7 @@ import type { Throttle } from "../../store/agent-reducer";
 import type { Tone } from "../../ui-kit";
 import { t } from "../../i18n";
 import { lazyLabels } from "../lazyLabels";
+import { cliPromptHint } from "./refusal";
 
 /** `claude-sonnet-5-5` -> `Sonnet 5.5`, `claude-haiku-4-5-20251001` -> `Haiku 4.5`; unknown ids pass through. */
 export function modelLabel(id: string): string {
@@ -102,7 +103,7 @@ export function errorWording(cls: ErrorClass, message: string): { title: string;
     case "provider":
       return { title: t("chat.error.provider"), hint: message };
     case "policy":
-      return { title: t("chat.error.policy"), hint: message };
+      return { title: t("chat.error.policy"), hint: cliPromptHint(message) ?? message };
     default:
       return { title: t("chat.error.internal"), hint: message };
   }

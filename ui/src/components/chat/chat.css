@@ -136,6 +136,7 @@
 .perm--done[data-outcome="allow"] { color: var(--ok); }
 .perm--done[data-outcome="deny"] { color: var(--warn); }
 .perm__done-text { min-width: 0; overflow-wrap: anywhere; color: var(--text-2); }
+.perm__why { display: block; margin-top: 2px; color: var(--text-3); font-size: var(--text-xs); line-height: var(--leading-snug, 1.35); }
 .perm__head { display: flex; align-items: center; gap: 6px; color: var(--warn); }
 .perm__title { color: var(--text-1); font-weight: var(--weight-semibold); }
 .perm__head .ui-badge { margin-left: auto; }
