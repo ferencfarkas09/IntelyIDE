@@ -186,7 +186,7 @@ ${demote(body)}
 - Safety model and the limits of the agent protections: [docs/safety.md](${base}/docs/safety.md)
 - Privacy and the network destinations of the app: [docs/privacy.md](${base}/docs/privacy.md)
 - Questions: [GitHub Discussions](https://github.com/${repo}/discussions). Bugs and feature requests: [GitHub Issues](https://github.com/${repo}/issues). Pull requests are welcome; every one is reviewed and approved by the maintainer. Security reports: [private vulnerability reporting](https://github.com/${repo}/security/advisories/new).
-- Websites: [intelyide.com](https://intelyide.com), [intelyhome.com](https://intelyhome.com)
+- Website: [intelyhome.com](https://intelyhome.com)
 `;
 }
 

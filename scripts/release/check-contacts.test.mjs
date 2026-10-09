@@ -48,15 +48,16 @@ test("phone: international and keyword lines are found, versions and dates are n
 
 test("urls: hosts and github paths", () => {
   const p = (u) => urlProblem(findUrls(u)[0], al);
-  assert.equal(p("https://intelyide.com/docs"), "");
+  assert.equal(p("https://intelyhome.com/docs"), "");
   assert.equal(p("https://www.intelyhome.com"), "");
   assert.equal(p("https://github.com/ferencfarkas09/IntelyIDE/issues/1"), "");
   assert.equal(p("https://github.com/ferencfarkas09/IntelyIDE.git"), "");
   assert.match(p("https://github.com/ferencfarkas09/IntelyIDE-fork"), /not this repository/);
   assert.match(p("https://github.com/someone/else"), /not this repository/);
   assert.match(p("https://twitter.com/me"), /not on the allowlist/);
-  assert.match(p("https://evilintelyide.com"), /not on the allowlist/);
-  assert.match(p("https://intelyide.com.evil.org"), /not on the allowlist/);
+  assert.match(p("https://evilintelyhome.com"), /not on the allowlist/);
+  assert.match(p("https://intelyhome.com.evil.org"), /not on the allowlist/);
+  assert.match(p("https://intelyide.com"), /not on the allowlist/); // a name the project does not own
   assert.equal(p("http://localhost:3000/x"), "");
   assert.equal(p("http://127.0.0.1:8080"), "");
   assert.equal(p("https://api.example.com/v1"), "");
@@ -73,12 +74,12 @@ test("allowlist: every third-party host needs a reason", () => {
 });
 
 test("scanText reports line numbers and kinds", () => {
-  const f = scanText(`ok\nmail bob${at}corp.io\nsee https://twitter.com/x and https://intelyide.com\n`, al);
+  const f = scanText(`ok\nmail bob${at}corp.io\nsee https://twitter.com/x and https://intelyhome.com\n`, al);
   assert.deepEqual(f.map((x) => [x.line, x.kind]), [[2, "email"], [3, "url"]]);
 });
 
 test("main: clean tree exits 0", () => {
-  const root = tree({ "README.md": "See https://intelyide.com and https://github.com/ferencfarkas09/IntelyIDE\n", "src/a.rs": `// ${"bot"}${at}users.noreply.github.com\n` });
+  const root = tree({ "README.md": "See https://intelyhome.com and https://github.com/ferencfarkas09/IntelyIDE\n", "src/a.rs": `// ${"bot"}${at}users.noreply.github.com\n` });
   try {
     const r = run(root);
     assert.equal(r.code, 0, r.out);

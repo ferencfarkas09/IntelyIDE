@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Contact-point check of the public tree. The only public contact points of the project are GitHub
-// (the repository), intelyhome.com and intelyide.com. This script fails on anything else that looks like
+// (the repository) and intelyhome.com. This script fails on anything else that looks like
 // a contact point in a public file:
 //   (a) an e-mail address (except users.noreply.github.com and the RFC 2606 / RFC 6761 example names),
 //   (b) a phone number,
@@ -256,7 +256,7 @@ export function main(argv, out = process.stdout, err = process.stderr) {
       return 0;
     }
     for (const f of r.findings) out.write(`${f.file}:${f.line}: ${f.kind}: ${f.text} (${f.why})\n`);
-    out.write(r.findings.length ? `RESULT: ${r.findings.length} contact point(s) outside GitHub, intelyhome.com and intelyide.com\n` : `RESULT: OK (${r.files} files scanned)\n`);
+    out.write(r.findings.length ? `RESULT: ${r.findings.length} contact point(s) outside GitHub and intelyhome.com\n` : `RESULT: OK (${r.files} files scanned)\n`);
     return r.findings.length ? 1 : 0;
   } catch (e) {
     err.write(`${e instanceof EnvError ? e.message : `environment problem: ${e.message}`}\n`);

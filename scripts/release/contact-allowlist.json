@@ -1,8 +1,7 @@
 {
   "own": {
     "domains": [
-      "intelyhome.com",
-      "intelyide.com"
+      "intelyhome.com"
     ],
     "githubPrefixes": [
       "/ferencfarkas09/IntelyIDE"

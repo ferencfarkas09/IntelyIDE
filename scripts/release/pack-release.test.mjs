@@ -123,7 +123,7 @@ describe("checksums, notes and site data", () => {
     assert.match(notes, /#### Fixed/);
     assert.doesNotMatch(notes, /\balpha\b|\bbeta\b|pre-release/i);
     assert.doesNotMatch(notes, /[\w.+-]+@[\w-]+\.[\w.]+/);
-    for (const host of notes.match(/https?:\/\/[^/\s)`]+/g)) assert.ok(["https://github.com", "https://intelyide.com", "https://intelyhome.com"].includes(host), host);
+    for (const host of notes.match(/https?:\/\/[^/\s)`]+/g)) assert.ok(["https://github.com", "https://intelyhome.com"].includes(host), host);
   });
 
   it("builds the site's download record for a stable release", () => {

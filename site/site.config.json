@@ -1,6 +1,6 @@
 {
   "_comment": "Single place for site-wide settings. Environment variables SITE_URL and BASE_PATH override siteUrl and basePath.",
-  "siteUrl": "https://intelyide.com",
+  "siteUrl": "https://intelyhome.com",
   "basePath": "",
   "repoUrl": "https://github.com/ferencfarkas09/IntelyIDE",
   "orgUrl": "https://intelyhome.com"

@@ -219,7 +219,7 @@ Read [CONTRIBUTING.md](CONTRIBUTING.md) first: contributions are signed off with
 - Bugs and feature requests: [GitHub Issues](https://github.com/ferencfarkas09/IntelyIDE/issues).
 - Questions and ideas: [GitHub Discussions](https://github.com/ferencfarkas09/IntelyIDE/discussions). More in [SUPPORT.md](SUPPORT.md).
 - Security reports: privately, through [GitHub's private vulnerability reporting](https://github.com/ferencfarkas09/IntelyIDE/security/advisories/new), as described in [SECURITY.md](SECURITY.md).
-- The project's websites are [intelyide.com](https://intelyide.com) and [intelyhome.com](https://intelyhome.com).
+- The project's website is [intelyhome.com](https://intelyhome.com).
 
 ## License
 

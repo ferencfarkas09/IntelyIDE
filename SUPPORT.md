@@ -6,7 +6,7 @@ This page explains where to ask questions and how to report problems with Intely
 
 - Read the [FAQ and troubleshooting guide](docs/faq.md) first; it covers the common install and first-run problems.
 - Ask usage questions and share ideas in [GitHub Discussions](https://github.com/ferencfarkas09/IntelyIDE/discussions) (Q&A category).
-- Product information and downloads are on [intelyide.com](https://intelyide.com); the maker's site is [intelyhome.com](https://intelyhome.com).
+- Product information and downloads are on [intelyhome.com](https://intelyhome.com).
 - Feature requests go to [GitHub Issues](https://github.com/ferencfarkas09/IntelyIDE/issues/new/choose) with the feature request form.
 
 ## Bug reports

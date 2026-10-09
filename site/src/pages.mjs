@@ -174,13 +174,12 @@ function footer(ctx) {
     [`${cfg.repoUrl}/discussions`, l.discussions],
     [`${cfg.repoUrl}/pulls`, l.pulls],
     [`${cfg.repoUrl}/security/advisories/new`, l.security],
-    [cfg.orgUrl, 'intelyhome.com'],
-    [cfg.siteUrl, 'intelyide.com'],
+    [cfg.siteUrl, 'intelyhome.com'],
     [href(ctx, dlPath(ctx.lang)), l.download],
   ]
     .map(([u, label]) => `<li><a href="${u}">${label}</a></li>`)
     .join('');
-  // The project publishes no personal contact details: people reach it through GitHub, intelyhome.com and intelyide.com.
+  // The project publishes no personal contact details: people reach it through GitHub and intelyhome.com.
   return `<footer class="site-footer">
 <div class="wrap">
 <div class="foot-grid">

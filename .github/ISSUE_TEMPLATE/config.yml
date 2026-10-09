@@ -7,7 +7,7 @@ contact_links:
     url: https://github.com/ferencfarkas09/IntelyIDE/security/advisories/new
     about: Never report a vulnerability in a public issue. Use private vulnerability reporting.
   - name: Website and documentation
-    url: https://intelyide.com
+    url: https://intelyhome.com
     about: Downloads, documentation and product information.
   - name: Read the FAQ first
     url: https://github.com/ferencfarkas09/IntelyIDE/blob/main/docs/faq.md

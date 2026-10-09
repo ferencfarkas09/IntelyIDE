@@ -18,9 +18,9 @@ pub fn build(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
                 app,
                 None,
                 Some(AboutMetadata {
-                    website: Some("https://intelyide.com".into()),
-                    website_label: Some("intelyide.com".into()),
-                    comments: Some("GitHub: https://github.com/ferencfarkas09/IntelyIDE\nIntelyHome: https://intelyhome.com".into()),
+                    website: Some("https://intelyhome.com".into()),
+                    website_label: Some("intelyhome.com".into()),
+                    comments: Some("GitHub: https://github.com/ferencfarkas09/IntelyIDE".into()),
                     ..Default::default()
                 }),
             )?,
