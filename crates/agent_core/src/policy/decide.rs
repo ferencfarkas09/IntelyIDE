@@ -793,6 +793,13 @@ fn decide_spawn(eff: &Eff, intent: &ToolIntent) -> PolicyDecision {
 fn denied_by_role_list_unknown_actor(eff: &Eff) -> Option<PolicyDecision> {
     let actor = eff.unknown_actor?;
     let valid: Vec<&str> = eff.ctx.delegates.iter().flat_map(|m| m.keys().map(String::as_str)).collect();
+    if actor.role == "?" {
+        // the Claude CLI sent no agent id for a call made while a sub-agent was running; the call may be the sub-agent's or the lead's
+        return Some(role_deny(
+            "delegate.unknown-actor",
+            "the IDE could not tell which agent made this call (the Claude CLI sent no agent id while a sub-agent was running), so it refused the call to stay safe; run the same call again",
+        ));
+    }
     Some(role_deny("delegate.unknown-actor", format!("the caller ({}) is not one of this run's roles; valid roles: {}", actor.role, valid.join(", "))))
 }
 

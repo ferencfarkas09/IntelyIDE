@@ -297,6 +297,12 @@ impl<'a> Walker<'a> {
             }
             let expanded = self.run(cmd, depth);
             ok[i] = always_ok(cmd) || self.entered_dir(&expanded);
+            // a `cd` that fails leaves the shell where it was, and `;` or `||` go on: a folder that does not exist (and that the string
+            // does not create) leaves the next paths in doubt. After `&&` the next command runs only if the `cd` worked.
+            if !cmd.nested && self.left_for_missing_dir(&expanded) && !cmds.iter().skip(i + 1).find(|n| !n.nested).is_none_or(|n| n.after == Sep::And) {
+                self.cwd_known = false;
+                self.issue("a cd to a folder that does not exist (the commands after it may run in the folder it was left from)");
+            }
             if track && !self.vars_off && !cmd.nested {
                 self.note_assignment(cmds, i, &mut pending, &ok);
                 match effect_of(&expanded) {
@@ -325,6 +331,11 @@ impl<'a> Walker<'a> {
     /// `cd dir` (or `pushd`) that the walker followed into a directory that exists.
     fn entered_dir(&self, cmd: &Command) -> bool {
         cmd.words.first().is_some_and(|w| !w.dynamic && matches!(w.text.as_str(), "cd" | "pushd")) && self.cwd_known && self.cwd.is_dir()
+    }
+
+    /// `cd dir` (or `pushd`) that the walker followed into a folder that does not exist and that no `mkdir` of the string made.
+    fn left_for_missing_dir(&self, cmd: &Command) -> bool {
+        cmd.words.first().is_some_and(|w| !w.dynamic && matches!(w.text.as_str(), "cd" | "pushd")) && self.cwd_known && !self.cwd.is_dir() && !self.made_dirs.iter().any(|d| self.cwd.starts_with(d))
     }
 
     fn forget(&mut self, names: &[String]) {

@@ -615,7 +615,10 @@ pub fn is_low_risk_read(a: &Analysis, jail: &Jail) -> bool {
         && a.issues.is_empty()
         && !a.has_assigns
         && a.hard_stop.is_none()
-        && !a.glob_overflow
+        // a here-string or a here-document with an expansion puts the environment (or anything) into the command's input
+        && !a.stdin_expands
+        // a subshell, a function, an array or an arithmetic expansion: what runs is not what the flat list of words shows
+        && !a.opaque
         // `2>/dev/null` discards output; any other target is a file written
         && a.write_redirects.iter().all(|w| !w.dynamic && HARMLESS_DEVICES.contains(&w.text.as_str()))
         && a.scripts.is_empty()
@@ -637,7 +640,9 @@ fn command_ok(words: &[Word], jail: &Jail) -> bool {
         "sed" | "gsed" => sed_ok(args),
         "awk" | "gawk" | "mawk" | "nawk" => awk_ok(args),
         // text and tests: they open nothing but the paths they are given, which are judged where they point
-        "echo" | "test" | "[" | ":" | "false" | "true" => true,
+        "echo" | ":" | "false" | "true" => true,
+        // a test of a path tells whether it exists: a path outside the run's folders is not asked about
+        "test" | "[" => args.iter().all(|w| w.text.starts_with('-') || !(w.text.contains('/') || w.text.starts_with('.')) || operand_ok(&w.text, jail)),
         "printf" => !args.first().is_some_and(|w| w.text.starts_with("-v")),
         n if spec_of(n).is_some() => spec_ok(&spec_of(n).unwrap_or(NONE), args),
         n if READ_TOOLS.contains(&n) => args_ok(n, args),

@@ -120,6 +120,9 @@ pub enum Issue {
     ProcessSubstitution,
     Unterminated(&'static str),
     TooDeep,
+    /// A parenthesis stuck to a word (`*(D)`, `.e(n)v`, `f(){`, `a=(1 2)`) or text stuck to a closing one (`(.)env`): in zsh a glob qualifier
+    /// or a group of a pattern, which names files the words do not show.
+    Parenthesis,
 }
 
 impl fmt::Display for Issue {
@@ -129,6 +132,7 @@ impl fmt::Display for Issue {
             Issue::ProcessSubstitution => f.write_str("process substitution"),
             Issue::Unterminated(what) => write!(f, "unterminated {what}"),
             Issue::TooDeep => f.write_str("nesting too deep"),
+            Issue::Parenthesis => f.write_str("a parenthesis inside a word (zsh reads it as part of a glob)"),
         }
     }
 }
@@ -200,6 +204,11 @@ impl WordBuf {
 
     fn parts(&self) -> Option<Vec<Part>> {
         if !self.dynamic || self.impure || self.exps.is_empty() {
+            return None;
+        }
+        // zsh reads `$x[1,4]` and `${x}[1,4]` as a slice of the value, bash as the value followed by text: not read from its pieces
+        let end_of = |e: &Exp| e.start + e.len;
+        if self.exps.iter().any(|e| self.text[end_of(e)..].starts_with('[')) {
             return None;
         }
         let mut out = Vec::new();
@@ -297,6 +306,12 @@ impl Lexer {
                 '`' => self.backtick(),
                 '$' => self.dollar(false),
                 ';' | '(' | ')' => {
+                    // `*(D)`, `.e(n)v`, `f(){`, `a=(1 2)`: a parenthesis stuck to a word; `(.)env`: text stuck to a closing one
+                    let stuck_before = ch == '(' && self.cur.as_ref().is_some_and(|b| !b.text.is_empty());
+                    let stuck_after = ch == ')' && self.peek(1).is_some_and(|n| !n.is_whitespace() && !matches!(n, ';' | '&' | '|' | '<' | '>' | ')' | '#'));
+                    if stuck_before || stuck_after {
+                        self.script.issues.push(Issue::Parenthesis);
+                    }
                     self.end_word();
                     self.end_command();
                     self.i += 1;
@@ -677,7 +692,12 @@ impl Lexer {
     }
 
     fn end_word(&mut self) {
-        let Some(b) = self.cur.take() else { return };
+        let Some(mut b) = self.cur.take() else { return };
+        // zsh expands an unquoted `=git` to the path of the program: the word is not what it says
+        if !b.quoted && b.text.len() > 1 && b.text.starts_with('=') && b.text[1..].chars().next().is_some_and(|c| c.is_alphanumeric() || matches!(c, '_' | '/' | '.' | '-')) {
+            b.dynamic = true;
+            b.impure = true;
+        }
         let parts = b.parts();
         let word = Word { text: b.text, dynamic: b.dynamic, glob: b.glob, quoted: b.quoted, parts };
         match self.pending.take() {

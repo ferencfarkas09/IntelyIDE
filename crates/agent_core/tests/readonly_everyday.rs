@@ -388,19 +388,118 @@ fn what_is_discarded_is_not_a_file_written() {
 }
 
 #[test]
-fn a_glob_that_matches_thousands_of_files_is_judged_as_written() {
+fn a_glob_that_matches_thousands_of_files_is_not_judged_one_by_one() {
     let w = world();
     let many = w.backend.join("many");
     std::fs::create_dir_all(&many).unwrap();
     for i in 0..5100 {
         std::fs::write(many.join(format!("f{i}.txt")), "").unwrap();
     }
-    // too many to judge one by one: the read-only modes do not run it, Automatic judges the pattern as written (as before globs were expanded)
+    // too many to judge: no read-only mode runs it, and Automatic does not either (the matches found first are judged, the rest cannot be)
     does_not_run(&w, &["cat many/*.txt | head -n 1", "wc -l many/*"]);
     let mut auto = PolicyContext::new(PermissionMode::Automatic, &w.backend);
     auto.add_dirs = vec![w.admin.clone()];
     let d = bash(&auto, "wc -l many/*.txt | tail -n 1");
-    assert_eq!(d.decision, Decision::Allow, "{d:?}");
+    assert_eq!((d.decision, d.rule.as_deref()), (Decision::Deny, Some("exec.auto.unjudgeable")), "{d:?}");
     // a small directory of the same shape is expanded and judged
     runs(&w, &["cat src/api/models/*.js | head -n 1"]);
+}
+
+// The second independent review: each of these was allowed and read a secret or something outside the run's folders.
+
+#[test]
+fn an_option_bundle_or_a_long_option_cannot_hide_a_file_as_the_pattern() {
+    let w = world();
+    does_not_run(
+        &w,
+        &[
+            "sed -nes/a/b/p .env",
+            "sed -nes/a/b/ .env",
+            "sed --expression=p .env",
+            "sed --expression p .env",
+            "sed -n -e p .env",
+            "sed -ne p .env",
+            "grep -ie KEY .env",
+            "grep -rniA2 KEY .env",
+            "grep -e KEY -- .env",
+            "rg --files .env",
+            "rg -e KEY .env",
+            "awk -F: '{print $1}' .env",
+            "awk -v x=1 '{print $1}' .env",
+        ],
+    );
+    // the value of an option is not a file, and the first plain word is still the pattern
+    runs(&w, &["grep -rniA2 const src", "grep -ie const package.json", "sed -ne 1p package.json", "awk -F: '{print $1}' package.json", "rg -g '*.js' -A 2 const src"]);
+}
+
+#[test]
+fn a_cd_to_a_folder_that_does_not_exist_leaves_the_next_paths_in_doubt() {
+    let w = world();
+    does_not_run(
+        &w,
+        &[
+            "cd nope; cat ../outside.txt",
+            "cd nope; cd ..; cat outside.txt",
+            "cd \"nope\"; sed -n p ../outside.txt",
+            "cd nope || cat ../outside.txt",
+            "cd nope\ncat ../outside.txt",
+            "cd {admin}/nope; ls ../..",
+        ],
+    );
+    // after `&&` the next command runs only if the `cd` worked; a folder that exists is a `cd` that works
+    runs(&w, &["cd {admin} && ls src", "cd {admin}/src; cat Router.js | head -n 1", "cd {admin} || echo missing; ls"]);
+}
+
+#[test]
+fn an_expansion_in_the_input_of_a_command_puts_the_environment_in_front_of_the_agent() {
+    let w = world();
+    does_not_run(
+        &w,
+        &[
+            "cat <<< \"$ANTHROPIC_API_KEY\"",
+            "grep x <<< \"$ANTHROPIC_API_KEY\"",
+            "head <<< $HOME",
+            "cat <<EOF\n$ANTHROPIC_API_KEY\nEOF",
+            "cat <<EOF\n${ANTHROPIC_API_KEY}\nEOF",
+            "cat <<EOF\n$(ls)\nEOF",
+            "cat <<EOF\n`ls`\nEOF",
+        ],
+    );
+    runs(&w, &["cat <<'EOF'\nhello $HOME\nEOF", "cat <<\"EOF\"\nhello $HOME\nEOF", "cat <<EOF\nhello\nEOF", "grep -c a <<< 'a b'"]);
+}
+
+#[test]
+fn zsh_globs_and_subscripts_are_not_read_as_plain_words() {
+    let w = world();
+    does_not_run(
+        &w,
+        &[
+            "cat *(D)",
+            "cat .e(n)v",
+            "cat (.)env",
+            "ls -d *(D)",
+            "cat *(.D)",
+            "cat **/*(D)",
+            "cat ***/.env",
+            "cat **/.env",
+            "x=.envxx; cat $x[1,4]",
+            "x=.envxx; cat ${x}[1,4]",
+            "setopt GLOB_DOTS; cat *",
+            "unsetopt NO_GLOB_DOTS; cat *",
+            "shopt -s dotglob; cat *",
+            "set -o noglob; cat *",
+            "emulate sh; cat *",
+            "cat =ls",
+            "=git status",
+            "f() { cat .env; }; f",
+            "a=(.env); cat $a",
+        ],
+    );
+}
+
+#[test]
+fn a_test_of_a_path_outside_the_run_is_not_a_read() {
+    let w = world();
+    does_not_run(&w, &["[ -f /etc/passwd ]", "test -e /Users", "[ -d ../ ] && ls", "test -f ../outside.txt && cat package.json"]);
+    runs(&w, &["[ -f package.json ] && cat package.json | head -n 1", "test -d src && ls src", "[ \"a\" = \"a\" ] && ls"]);
 }

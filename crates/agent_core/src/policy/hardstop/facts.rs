@@ -70,7 +70,8 @@ fn pattern_operands(base: &str, rest: &[Word]) -> Vec<usize> {
         let names = ["-name", "-iname", "-path", "-ipath", "-wholename", "-iwholename", "-regex", "-iregex", "-lname", "-ilname"];
         return (1..rest.len()).filter(|i| names.contains(&rest[i - 1].text.as_str())).collect();
     }
-    // the short options whose value is the next word (`-e` and `-f` are told apart below)
+    // the short options whose value is the rest of the bundle or the next word and is never a path; `-e` (the pattern or program) and
+    // `-f` (a file that holds it) are told apart below
     let valued = match base {
         "grep" | "egrep" | "fgrep" => "ABCDdm",
         "rg" | "ag" | "ack" => "ABCEMTgjmrt",
@@ -79,7 +80,7 @@ fn pattern_operands(base: &str, rest: &[Word]) -> Vec<usize> {
         _ => return Vec::new(),
     };
     let mut skip = Vec::new();
-    // the program or pattern comes from `-e`, `--regexp` or a file, not from the first operand
+    // the program or pattern comes from `-e`, `--regexp`, `--expression` or a file, not from the first operand
     let mut explicit = false;
     let mut first: Option<usize> = None;
     let mut i = 0;
@@ -91,27 +92,54 @@ fn pattern_operands(base: &str, rest: &[Word]) -> Vec<usize> {
             }
             break;
         }
-        if matches!(t, "-e" | "--regexp") {
-            explicit = true;
-            if i + 1 < rest.len() {
-                skip.push(i + 1);
+        if let Some(long) = t.strip_prefix("--") {
+            let (name, attached) = long.split_once('=').map_or((long, false), |(n, _)| (n, true));
+            match name {
+                "regexp" | "expression" => {
+                    explicit = true;
+                    if !attached && i + 1 < rest.len() {
+                        skip.push(i + 1);
+                        i += 1;
+                    }
+                }
+                // (`rg --files DIR` lists files: it takes no pattern, its first operand is a folder)
+                "file" | "files" | "type-list" => explicit = true,
+                _ => {}
             }
-            i += 2;
+            i += 1;
             continue;
         }
-        if t.starts_with("--regexp=") || t.starts_with("-e") && t.len() > 2 && !t.starts_with("--") {
-            explicit = true;
-        } else if matches!(t, "-f" | "--file" | "--files" | "--type-list") || t.starts_with("--file=") {
-            // (`rg --files DIR` lists files: it takes no pattern, its first operand is a folder)
-            explicit = true;
-        } else if t.starts_with('-') && t.len() > 1 && !t.starts_with("--") {
-            // a bundle: its last letter takes the next word when it is a valued option with nothing attached
-            if t.chars().last().is_some_and(|c| valued.contains(c)) && i + 1 < rest.len() {
-                skip.push(i + 1);
-                i += 2;
-                continue;
+        if t.starts_with('-') && t.len() > 1 {
+            // a bundle read from the left: the first letter that takes a value ends it, the value is the rest of the word or the next word
+            let body = &t[1..];
+            let mut next_taken = false;
+            for (at, c) in body.char_indices() {
+                let tail = &body[at + c.len_utf8()..];
+                if c == 'e' {
+                    explicit = true;
+                    if tail.is_empty() && i + 1 < rest.len() {
+                        skip.push(i + 1);
+                        next_taken = true;
+                    }
+                    break;
+                }
+                if c == 'f' {
+                    // the file that holds the patterns stays an operand
+                    explicit = true;
+                    break;
+                }
+                if valued.contains(c) {
+                    if tail.is_empty() && i + 1 < rest.len() {
+                        skip.push(i + 1);
+                        next_taken = true;
+                    }
+                    break;
+                }
             }
-        } else if !t.starts_with('-') && first.is_none() {
+            i += 1 + usize::from(next_taken);
+            continue;
+        }
+        if !t.starts_with('-') && first.is_none() {
             first = Some(i);
         }
         i += 1;
@@ -204,26 +232,31 @@ impl<'a> Walker<'a> {
     }
 
     /// An unquoted glob stands for the files it matches: each one is judged like a plain operand (so `cat .e*` is `cat .env`). A pattern
-    /// that matches nothing is passed to the program as written and judged as written by the caller; one that matches more than is
-    /// listed is not judged either (`glob_overflow`).
+    /// that matches nothing is passed to the program as written and judged as written by the caller. One that matches more than is
+    /// listed has the matches found so far judged and then makes the command unjudgeable.
     fn glob_operands(&mut self, t: &str, secret: bool) {
         let t = strip_file_scheme(t);
         if !self.cwd_known && !t.starts_with('/') && !t.starts_with('~') {
             return;
         }
-        match glob::expand(&self.lexical_path(t)) {
-            glob::Expansion::Files(list) => {
-                for m in list {
-                    let m = m.display().to_string();
-                    self.probe(&m);
-                    self.note_candidate(&m, true, false, secret);
-                    if self.a.hard_stop.is_some() {
-                        return;
-                    }
-                }
+        if self.glob_untrusted {
+            self.issue("a glob after setopt, shopt or set -o, which change what it matches");
+            return;
+        }
+        let (list, too_many) = match glob::expand(&self.lexical_path(t)) {
+            glob::Expansion::Files(list) => (list, false),
+            glob::Expansion::TooMany(partial) => (partial, true),
+        };
+        for m in list {
+            let m = m.display().to_string();
+            self.probe(&m);
+            self.note_candidate(&m, true, false, secret);
+            if self.a.hard_stop.is_some() {
+                return;
             }
-            // not judged one by one: the pattern is judged as written (the read-only modes refuse, see `Analysis::glob_overflow`)
-            glob::Expansion::TooMany => self.a.glob_overflow = true,
+        }
+        if too_many {
+            self.issue("a glob matches too many files to judge (name the folder, or quote the pattern)");
         }
     }
 

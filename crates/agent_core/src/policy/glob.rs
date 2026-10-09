@@ -16,8 +16,8 @@ const MAX_VISITED: usize = 100_000;
 pub enum Expansion {
     /// The matches (none when the pattern names nothing: the shell then passes the pattern itself).
     Files(Vec<PathBuf>),
-    /// More matches, or more directory entries, than are judged.
-    TooMany,
+    /// More matches, or more directory entries, than are judged: the matches found before the limit was reached.
+    TooMany(Vec<PathBuf>),
 }
 
 /// True when the text holds a glob metacharacter.
@@ -36,11 +36,12 @@ pub fn expand(pattern: &Path) -> Expansion {
         .collect();
     let mut out = Vec::new();
     let mut visited = 0usize;
-    if walk(Path::new("/"), &comps, &mut out, &mut visited) {
-        out.sort();
+    let complete = walk(Path::new("/"), &comps, &mut out, &mut visited);
+    out.sort();
+    if complete {
         Expansion::Files(out)
     } else {
-        Expansion::TooMany
+        Expansion::TooMany(out)
     }
 }
 
@@ -50,7 +51,8 @@ fn walk(dir: &Path, rest: &[String], out: &mut Vec<PathBuf>, visited: &mut usize
         out.push(dir.to_path_buf());
         return out.len() <= MAX_MATCHES;
     };
-    if comp == "**" && !tail.is_empty() {
+    // (`***/` of zsh also follows links and is read the same way here: it includes the folder itself)
+    if comp.len() >= 2 && comp.chars().all(|c| c == '*') && !tail.is_empty() {
         // zero directories, then one or more (not through links, and not into dot directories)
         if !walk(dir, tail, out, visited) {
             return false;
@@ -214,7 +216,7 @@ mod tests {
         }
         let names = |pat: &str| match expand(&root.join(pat)) {
             Expansion::Files(v) => v.iter().map(|p| p.strip_prefix(&root).unwrap().display().to_string()).collect::<Vec<_>>(),
-            Expansion::TooMany => vec!["TOO MANY".to_string()],
+            Expansion::TooMany(_) => vec!["TOO MANY".to_string()],
         };
         assert_eq!(names("src/*.js"), ["src/a.js", "src/b.js"]);
         assert_eq!(names("src/*"), ["src/a.js", "src/b.js", "src/c.ts", "src/deep"]);
@@ -235,7 +237,7 @@ mod tests {
         for i in 0..MAX_MATCHES + 5 {
             std::fs::write(root.join(format!("f{i}.txt")), "").unwrap();
         }
-        assert_eq!(expand(&root.join("*.txt")), Expansion::TooMany);
+        assert!(matches!(expand(&root.join("*.txt")), Expansion::TooMany(_)));
         assert!(matches!(expand(&root.join("f1.*")), Expansion::Files(v) if v.len() == 1));
     }
 }

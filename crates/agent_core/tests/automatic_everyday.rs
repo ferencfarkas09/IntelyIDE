@@ -503,6 +503,42 @@ fn a_relative_path_with_a_space_or_a_double_slash_is_judged_whole() {
     allowed(&w, &[r#"cd {admin} && node -e "const a = require('../../x/y'); console.log(a)""#, r#"cd {admin} && echo "see ../../x for details""#]);
 }
 
+// The second independent review, the part that concerns Automatic mode.
+
+#[test]
+fn a_cd_that_fails_does_not_move_the_paths_that_follow_it() {
+    let w = world();
+    refused(
+        &w,
+        "exec.auto.unjudgeable",
+        &["cd nope; cat ../outside.txt", "cd nope; cd ..; cat outside.txt", "cd nope; echo x > ../outside.txt", "cd nope; git -C .. log", "cd {backend}/nope || cat ../outside.txt"],
+    );
+    // a folder the string makes, a folder that exists, and `&&` (the next command runs only if the `cd` worked) are fine
+    allowed(&w, &["mkdir -p out; cd out; ls", "mkdir out && cd out && ls", "cd {admin}; cat src/Router.js | head -n 1", "cd {admin}/src && cat Router.js"]);
+}
+
+#[test]
+fn zsh_forms_of_a_glob_or_a_command_name_are_not_judged_as_plain_words() {
+    let w = world();
+    refused(
+        &w,
+        "exec.auto.unjudgeable",
+        &["cat *(D)", "cat .e(n)v", "cat (.)env", "x=.envxx; cat $x[1,4]", "setopt GLOB_DOTS; cat *", "shopt -s dotglob; cat *", "=git status"],
+    );
+}
+
+#[test]
+fn a_glob_is_judged_by_the_files_it_matches() {
+    let w = world();
+    std::fs::write(w.backend.join(".env"), "SECRET=1\n").unwrap();
+    for cmd in ["cat .e*", "cat .en?", "cat .en[v]", "cat **/.env", "head -n 1 .e*"] {
+        let (d, by, rule, reason) = judge(&w, cmd);
+        assert_eq!((d, by), (Decision::Deny, DecidedBy::HardStop), "{cmd}: {rule}: {reason}");
+    }
+    refused(&w, "exec.auto.outside-jail", &["cat ../*.txt", "ls /etc/h*"]);
+    allowed(&w, &["ls src/api/models/*.js", "cat src/api/*/customer*.js | head -n 1", "wc -l src/**/*.js | tail -n 1"]);
+}
+
 #[test]
 fn the_analysis_lists_where_each_operand_points() {
     use intely_agent_core::policy::hardstop::analyze;

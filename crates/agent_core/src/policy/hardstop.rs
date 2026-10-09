@@ -76,9 +76,11 @@ pub struct Analysis {
     /// (`grep /x/ f`, `sed -n '/^a/,/^b/p' f`, `echo /etc/hosts`) and are left out. Automatic refuses what leaves the run's folders
     /// (`cat lnk/hosts` and `cd lnk` are judged by where the link goes).
     pub probes: Vec<String>,
-    /// An unquoted glob matched more files than are listed (see `glob::MAX_MATCHES`): it is judged as written only. Plan mode and
-    /// the read-only roles do not run such a command; Automatic does, as it did before globs were expanded.
-    pub glob_overflow: bool,
+    /// A here-string or an unquoted here-document holds an expansion (`<<< "$KEY"`, a body with `$VAR`): the shell puts something in the
+    /// command's input that the words do not show (the environment, for one).
+    pub stdin_expands: bool,
+    /// The string has a subshell, a function, an array or an arithmetic expansion (see `shellparse::Script::opaque`).
+    pub opaque: bool,
 }
 
 /// One operand of a network client. `upload` is true when an option or a redirect sends a file out.
@@ -238,6 +240,10 @@ struct Walker<'a> {
     vars: std::collections::HashMap<String, String>,
     /// A command that may have changed any variable ran: nothing is followed in the string from there (see `vars::Effect`).
     vars_off: bool,
+    /// Folders the string itself creates (`mkdir -p out`): a `cd` into one of them is not a `cd` to a missing folder.
+    made_dirs: Vec<PathBuf>,
+    /// `setopt`, `shopt` or `set -o` changed how globs match (`GLOB_DOTS`, `dotglob`): a glob after it cannot be judged.
+    glob_untrusted: bool,
     /// Commands walked for loop iterations so far: the work a loop may cost is bounded.
     loop_work: usize,
     a: Analysis,
@@ -245,7 +251,7 @@ struct Walker<'a> {
 
 impl<'a> Walker<'a> {
     fn new(jail: &'a Jail) -> Self {
-        Self { jail, cwd: jail.cwd.clone(), cwd_known: true, alias_depth: 0, shell_aliases: Default::default(), repl: None, src: String::new(), script_stack: Vec::new(), script_dir: None, vars: Default::default(), vars_off: false, loop_work: 0, a: Analysis::default() }
+        Self { jail, cwd: jail.cwd.clone(), cwd_known: true, alias_depth: 0, shell_aliases: Default::default(), repl: None, src: String::new(), script_stack: Vec::new(), script_dir: None, vars: Default::default(), vars_off: false, made_dirs: Vec::new(), glob_untrusted: false, loop_work: 0, a: Analysis::default() }
     }
 
     fn stop(&mut self, rule: &str, reason: &str) {
@@ -278,6 +284,9 @@ impl<'a> Walker<'a> {
                 self.a.simple.push(cmd.words.clone());
             }
         }
+        if depth == 0 {
+            self.a.opaque |= s.opaque;
+        }
         let track = vars::const_prop_ok(&s.commands, s.opaque);
         self.walk(&s.commands, depth, track);
         if let Some((v, off)) = outer_vars {
@@ -298,6 +307,14 @@ impl<'a> Walker<'a> {
         }
         for r in cmd.redirects.iter().filter(|r| !matches!(r.kind, RedirKind::HereDoc | RedirKind::HereString)) {
             self.redirect_fact(&r.target);
+        }
+        for r in &cmd.redirects {
+            let expands = match r.kind {
+                RedirKind::HereString => r.target.dynamic,
+                RedirKind::HereDoc => !r.target.quoted && r.body.as_deref().is_some_and(|b| b.contains(['$', '`'])),
+                _ => false,
+            };
+            self.a.stdin_expands |= expands;
         }
         self.a.write_redirects.extend(cmd.redirects.iter().filter(|r| r.writes_file()).map(|r| r.target.clone()));
         self.a.read_redirects.extend(cmd.redirects.iter().filter(|r| r.kind == RedirKind::Read).map(|r| r.target.clone()));
@@ -486,6 +503,14 @@ impl<'a> Walker<'a> {
                 }
             }
             "cd" | "pushd" => self.cd(words),
+            "mkdir" => {
+                for w in words[1..].iter().filter(|w| !w.dynamic && !w.text.starts_with('-')) {
+                    let made = paths::resolve(&self.cwd, &w.text, self.jail.home.as_deref());
+                    self.made_dirs.push(made);
+                }
+            }
+            "setopt" | "unsetopt" | "shopt" | "emulate" => self.glob_untrusted = true,
+            "set" if words[1..].iter().any(|w| w.dynamic || (matches!(w.text.as_bytes().first(), Some(b'-' | b'+')) && w.text.len() > 1 && w.text != "--")) => self.glob_untrusted = true,
             "popd" => {
                 self.cwd_known = false;
                 if self.script_stack.is_empty() {
