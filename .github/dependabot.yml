@@ -19,6 +19,8 @@ updates:
       - dependency-name: "@anthropic-ai/sdk"                # peers pinned together with the SDK
       - dependency-name: "@modelcontextprotocol/sdk"
       - dependency-name: "zod"
+      - dependency-name: "@types/node"                      # follows the Node major the sidecar and CI run on (24); a new major is taken by hand with the runtime
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly }
