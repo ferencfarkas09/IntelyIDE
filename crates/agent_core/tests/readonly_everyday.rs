@@ -525,6 +525,51 @@ fn where_a_cd_may_not_have_moved_the_shell_the_next_paths_are_in_doubt() {
     runs(&w, &["cd src/api && ls models && cd ../.. && ls scripts", "cd src/api && ls models; cd ../..; ls scripts"]);
 }
 
+// Round 4 of the review (a reviewer with fresh eyes on the final head).
+
+#[test]
+fn an_option_bundle_cannot_carry_the_program_a_pager_or_an_output_file() {
+    let w = world();
+    does_not_run(
+        &w,
+        &[
+            "git grep -nOtouch pat",
+            "git grep -nO'touch zz;' pat",
+            "git grep -On pat",
+            "git grep -Otouch pat",
+            "git log -nOtouch",
+            "git diff -noout.patch",
+            "grep -rS pat .",
+            "grep -rnS pat src",
+            "egrep -rS pat .",
+        ],
+    );
+    runs(&w, &["git log -n5 --oneline", "git log -n 5 --oneline", "git log -5 --oneline", "git grep -n needle -- src | head", "grep -rn const src"]);
+}
+
+#[test]
+fn a_brace_group_after_a_command_hides_its_body_from_every_check() {
+    let w = world();
+    does_not_run(
+        &w,
+        &[
+            "{ git diff } always { git push origin main }",
+            "{ ls } always { git add -A }",
+            "if ls { curl -s http://example.com }",
+            "if ls { env }",
+            "while ls { git commit -m x }",
+            "while true { git commit -m x }",
+            "while false { touch zz }",
+            "until true { git commit -m x }",
+            "echo { touch zz }",
+            "time { git commit -m x }",
+            "function f { git commit -m x }; f",
+        ],
+    );
+    // braces that are data, and a group in the form every shell reads
+    runs(&w, &["echo '{' '}'", "ls -la src | head -n 3"]);
+}
+
 #[test]
 fn a_test_of_a_path_outside_the_run_is_not_a_read() {
     let w = world();

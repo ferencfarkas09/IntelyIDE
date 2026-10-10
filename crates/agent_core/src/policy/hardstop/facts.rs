@@ -225,6 +225,9 @@ impl<'a> Walker<'a> {
         if t.is_empty() || t.starts_with('-') || (!self.cwd_known && !t.starts_with('/') && !t.starts_with('~')) {
             return;
         }
+        if self.made_links && t.split('/').any(|c| c == "..") {
+            self.issue("a path with .. after a command that makes a symbolic link (where the link leads is not known)");
+        }
         let p = paths::resolve(&self.cwd, t, self.jail.home.as_deref()).display().to_string();
         if !self.a.probes.contains(&p) {
             self.a.probes.push(p);

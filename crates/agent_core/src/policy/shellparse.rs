@@ -129,6 +129,9 @@ pub enum Issue {
     /// A parenthesis stuck to a word (`*(D)`, `.e(n)v`) or text stuck to a closing one (`(.)env`): in zsh a glob qualifier or a group of a
     /// pattern, which names files the words do not show. A function (`f()`) and an array (`a=(1 2)`) are not meant.
     Parenthesis,
+    /// A lone `{` or `}` among the arguments of a command (`if ls { git push }`, `{ ls } always { git push }`, `function f { ... }`): zsh
+    /// reads a brace group there, which runs words the command's own words do not show.
+    Brace,
 }
 
 impl fmt::Display for Issue {
@@ -139,6 +142,7 @@ impl fmt::Display for Issue {
             Issue::Unterminated(what) => write!(f, "unterminated {what}"),
             Issue::TooDeep => f.write_str("nesting too deep"),
             Issue::Parenthesis => f.write_str("a parenthesis inside a word (zsh reads it as part of a glob)"),
+            Issue::Brace => f.write_str("a brace group after a command (zsh reads `if cond { ... }` and `{ ... } always { ... }` that way)"),
         }
     }
 }
@@ -775,6 +779,9 @@ impl Lexer {
                 }
                 _ => break,
             }
+        }
+        if words.iter().skip(1).any(|w| !w.quoted && !w.dynamic && matches!(w.text.as_str(), "{" | "}")) {
+            self.script.issues.push(Issue::Brace);
         }
         // `=git commit`: the program is git (zsh looks it up in PATH); an `=name` anywhere else stays dynamic
         if let Some(first) = words.first_mut().filter(|w| w.eq) {

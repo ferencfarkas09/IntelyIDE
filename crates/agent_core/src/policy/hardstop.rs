@@ -253,6 +253,9 @@ struct Walker<'a> {
     cwd_stack: Vec<(u16, PathBuf, bool, Vec<(PathBuf, bool)>)>,
     /// `CDPATH` is set in the string: a `cd` to a relative name may go somewhere else.
     cdpath: bool,
+    /// An earlier command of the string made a symbolic link: a `..` after a component that does not exist yet may climb out of where the
+    /// link goes, which the lexical resolution of the path cannot see.
+    made_links: bool,
     /// The string being walked defines a function (its body is in the flat list where it is written, but runs where it is called), or
     /// has `if`/`while`/`case`: a `cd` in it may not run.
     cd_unreliable: bool,
@@ -265,7 +268,7 @@ struct Walker<'a> {
 
 impl<'a> Walker<'a> {
     fn new(jail: &'a Jail) -> Self {
-        Self { jail, cwd: jail.cwd.clone(), cwd_known: true, alias_depth: 0, shell_aliases: Default::default(), repl: None, src: String::new(), script_stack: Vec::new(), script_dir: None, vars: Default::default(), vars_off: false, made_dirs: Vec::new(), cwd_pending: Vec::new(), cwd_alts: Vec::new(), cwd_stack: Vec::new(), cdpath: false, cd_unreliable: false, glob_untrusted: false, loop_work: 0, a: Analysis::default() }
+        Self { jail, cwd: jail.cwd.clone(), cwd_known: true, alias_depth: 0, shell_aliases: Default::default(), repl: None, src: String::new(), script_stack: Vec::new(), script_dir: None, vars: Default::default(), vars_off: false, made_dirs: Vec::new(), cwd_pending: Vec::new(), cwd_alts: Vec::new(), cwd_stack: Vec::new(), cdpath: false, made_links: false, cd_unreliable: false, glob_untrusted: false, loop_work: 0, a: Analysis::default() }
     }
 
     fn stop(&mut self, rule: &str, reason: &str) {
@@ -623,6 +626,9 @@ impl<'a> Walker<'a> {
                 (rest(i), false)
             }
             "builtin" => (rest(1), false),
+            // zsh precommand modifiers: `noglob git push`, `nocorrect git commit`, `repeat 2 git commit`
+            "noglob" | "nocorrect" => (rest(1), false),
+            "repeat" => (rest(2), false),
             "exec" => {
                 if words[1..].iter().take_while(|w| w.text.starts_with('-') && w.text != "--").any(|w| !w.text.starts_with("--") && w.text[1..].contains('c')) {
                     self.stop("env.path-override", "exec -c clears the environment, which removes the git shim");

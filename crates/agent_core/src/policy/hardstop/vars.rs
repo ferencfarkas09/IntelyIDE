@@ -167,6 +167,12 @@ fn feeds_xargs(cmds: &[Command], i: usize) -> bool {
             .is_some_and(|n| n.after == Sep::Pipe && n.words.first().is_some_and(|w| !w.dynamic && matches!(super::base_name(&w.text).as_str(), "xargs" | "parallel")))
 }
 
+/// `ln -s` (or `--symbolic`): a symbolic link comes into being where nothing was.
+fn makes_symlink(cmd: &Command) -> bool {
+    cmd.words.first().is_some_and(|w| !w.dynamic && super::base_name(&w.text) == "ln")
+        && cmd.words[1..].iter().any(|w| w.text == "--symbolic" || (w.text.starts_with('-') && !w.text.starts_with("--") && w.text.contains('s')))
+}
+
 /// `break`, `continue`, `return`, `exit`: the commands after it may not run.
 fn is_flow_control(cmd: &Command) -> bool {
     cmd.words.first().is_some_and(|w| !w.dynamic && matches!(w.text.as_str(), "break" | "continue" | "return" | "exit"))
@@ -336,6 +342,9 @@ impl<'a> Walker<'a> {
             }
             let expanded = self.run(cmd, depth);
             ok[i] = always_ok(cmd) || self.entered_dir(&expanded);
+            if makes_symlink(&expanded) {
+                self.made_links = true;
+            }
             if !cmd.nested && self.moves_the_shell(&expanded) {
                 self.after_cd(cmds, i, &ok, before_cmd);
             }

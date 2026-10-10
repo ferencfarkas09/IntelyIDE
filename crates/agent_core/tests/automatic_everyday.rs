@@ -623,6 +623,26 @@ fn names_printed_into_xargs_are_judged_like_operands() {
 }
 
 #[test]
+fn a_symlink_the_command_makes_is_not_seen_through_by_a_dotdot_after_it() {
+    let w = world();
+    refused(&w, "exec.auto.unjudgeable", &["ln -s . me; cat me/../outside.txt", "ln -s . me && ls me/..", "ln -sf . me; echo x > me/../poc.txt", "ln --symbolic . me; cp me/../outside.txt .", "ln -s . me; rm -rf me/../sibling"]);
+    // a link whose own operands stay inside, and a path without `..`, are fine
+    allowed(&w, &["cd {backend}/src && ln -s ../scripts s", "cd {backend} && ln -s src s2; ls s2", "ln src/api/models/customer.model.js hard; ls hard"]);
+}
+
+#[test]
+fn the_precommand_modifiers_of_zsh_do_not_hide_git() {
+    let w = world();
+    for cmd in ["noglob git push", "nocorrect git commit -m x", "repeat 1 git commit -m x", "repeat 2 git add -A", "cd {admin} && noglob git push"] {
+        let (d, by, rule, reason) = judge(&w, cmd);
+        assert_eq!((d, by), (Decision::Deny, DecidedBy::HardStop), "{cmd}: {rule}: {reason}");
+    }
+    // a brace group after a command is a zsh short form of `if` and `while`: its body is not judged, so the command is not
+    refused(&w, "exec.auto.unjudgeable", &["{ ls } always { git push origin main }", "if ls { git commit -m x }", "while true { git push }", "time { git commit -m x }", "function f { git commit -m x }; f"]);
+    allowed(&w, &["noglob ls src", "repeat 2 echo hi"]);
+}
+
+#[test]
 fn a_glob_is_judged_by_the_files_it_matches() {
     let w = world();
     std::fs::write(w.backend.join(".env"), "SECRET=1\n").unwrap();

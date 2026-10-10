@@ -668,8 +668,15 @@ fn dangerous_option(t: &str) -> bool {
         let name = t[2..].split('=').next().unwrap_or("");
         return DANGEROUS_LONG.iter().any(|d| d == &name || ((name.len() >= 3 || (name.len() == 2 && d.starts_with("pre"))) && d.starts_with(name)));
     }
-    // short options that name an output file or a program: `-o`, `-O`
-    t.starts_with('-') && t.len() > 1 && t[1..].chars().any(|c| matches!(c, 'o' | 'O')) && !t.starts_with("-n") && !t[1..].chars().all(|c| c.is_ascii_digit())
+    // short options that name an output file or a program: `-o`, `-O`, also inside a bundle (`-nOpager` runs `pager`); `-5` and `-n5` are numbers
+    if !t.starts_with('-') || t.len() < 2 {
+        return false;
+    }
+    let body = &t[1..];
+    if body.chars().all(|c| c.is_ascii_digit()) || body.strip_prefix('n').is_some_and(|d| d.chars().all(|c| c.is_ascii_digit())) {
+        return false;
+    }
+    body.chars().any(|c| matches!(c, 'o' | 'O'))
 }
 
 fn args_ok(cmd: &str, args: &[Word]) -> bool {
@@ -695,7 +702,8 @@ fn args_ok(cmd: &str, args: &[Word]) -> bool {
             }
             // a bundled `-f` (`-rnf FILE`, `-fFILE`) takes patterns from a file
             let follows = match cmd {
-                "grep" | "egrep" | "fgrep" => t[1..].contains('R'),
+                // (`-R` follows links; so does `-S` of the BSD grep of macOS)
+                "grep" | "egrep" | "fgrep" => t[1..].contains('R') || t[1..].contains('S'),
                 "rg" => t[1..].contains('L'),
                 _ => false,
             };
