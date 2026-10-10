@@ -6,7 +6,7 @@ import { notImplemented } from "./rpc";
 describe("ipc namespaces", () => {
   it("are composed next to the flat methods of the mock Ipc", () => {
     const ipc = createMockIpc("normal", { delayScale: 0 });
-    expect(Object.keys(createMockNamespaces()).sort()).toEqual(["branches", "files", "graph", "happy", "hud", "mcp", "mongo", "mongoAi", "picker", "preview", "providers", "remote", "roles", "run", "runs", "search", "secrets", "settings", "term", "tray", "updates", "viewers", "workspaces"]);
+    expect(Object.keys(createMockNamespaces()).sort()).toEqual(["branches", "files", "graph", "happy", "hud", "mcp", "mongo", "mongoAi", "notify", "picker", "preview", "providers", "remote", "roles", "run", "runs", "search", "secrets", "servers", "settings", "term", "tray", "updates", "viewers", "workspaces"]);
     expect(typeof ipc.snapshotGet).toBe("function");
     expect(typeof ipc.files.readFile).toBe("function");
   });

@@ -10,7 +10,7 @@ Typical use: a build server with a lot of CPU and RAM, and a task such as "run t
 - **Host key.** The server's host key must already be in your `known_hosts`. IntelyIDE never accepts an unknown key by itself. Connect once from a terminal (`ssh <server>`), check the fingerprint, and answer yes there.
 - **The server.** Linux (x86_64 or arm64) with `git`, `tar`, `curl` or `wget`, and `sha256sum`. Node.js 24 or newer is installed for you if it is missing. A Mac works as a server too when Node.js 24 is already installed there. Plan for a few hundred megabytes of free space in the home folder (Node.js and the Agent SDK).
 - **Claude Code on the server.** The agent is your own Claude Code, signed in on the server. IntelyIDE can install it, but it cannot sign in for you and it never sees your credentials: run `ssh -t <server> claude` once and sign in there.
-- **Your repositories on the server.** Each repository lives in its own folder below a root folder (default `~/work`), named like the folder on your Mac: `~/work/orders-api`. Clone them yourself, or let **Clone missing** do it (it clones the `origin` of your local repository with the server's own git credentials). If both copies have an `origin`, a run starts only when they name the same repository (the ssh and https spellings of one address count as the same), so a copy of another project under the same name is not worked on. A folder name that starts with a dot (`.ssh`) is not used.
+- **Your repositories on the server.** Each repository lives in its own folder below a root folder (default `~/work`), named like the folder on your Mac: `~/work/orders-api`. Clone them yourself, or let **Clone missing** do it (it clones the `origin` of your local repository with the server's own git credentials). If both copies have an `origin`, a run starts only when they name the same repository (the path `owner/repo` is compared; scheme, user name, ssh alias and `.git` do not count), so a copy of another project under the same name is not worked on. A folder name that starts with a dot (`.ssh`) is not used.
 
 ## Add a server
 
@@ -24,7 +24,7 @@ Open Settings > Servers and choose **Add server**.
 | Repository folder on the server | The root folder (default `~/work`) |
 | Most agents at once | A limit for this server (1 to 64, default 4) |
 
-Changing the SSH target, the port or the repository folder of a server closes the connection to the old one, so it waits until the runs there that work or wait for you are stopped.
+Changing the SSH target or the port of a server makes it another machine: the finished runs let go of their sessions on the old one, the connection to it is closed, and the change waits until the runs there that work or wait for you are stopped. A run can never be put on the old connection under the new address.
 
 **Test connection** looks at the server (system, Node, Claude Code, git, the IDE's agent files, the Agent SDK) and shows what is missing. The server's card shows a checklist and a status: Ready, Needs setup or Unreachable.
 

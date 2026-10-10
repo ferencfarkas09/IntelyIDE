@@ -137,10 +137,14 @@ fn yes() -> bool {
 #[tauri::command]
 pub async fn servers_save(state: State<'_, ServersState>, agents: State<'_, AgentSlot>, cfg: SaveRequest) -> Res<ServerCfg> {
     let store = state_store(&state)?.clone();
-    // Another destination, port or folder is another place: the connection to the old one is closed first, and runs that are still open
-    // there keep it, so the change waits until they are stopped. (Before the list lock: closing a connection can take seconds.)
+    // Another destination or port is another machine: the connection to the old one is closed first, and runs that are still open there
+    // keep it, so the change waits until they are stopped. An entry that would be refused anyway is refused before anything is closed.
+    // (Before the list lock: closing a connection can take seconds. The host also binds each connection to the address it was started
+    // for, so a run that starts in between cannot end up on the old machine under the new address.)
     if let Some(id) = cfg.id.as_deref().filter(|i| !i.is_empty()) {
-        let moved = read_list(&store).into_iter().find(|s| s.id == id).is_some_and(|old| old.destination != cfg.destination.trim() || old.port != cfg.port || old.root != cfg.root.trim());
+        let wanted = ServerCfg { id: id.to_string(), name: cfg.name.trim().to_string(), destination: cfg.destination.trim().to_string(), port: cfg.port, root: cfg.root.trim().to_string(), max_agents: cfg.max_agents, enabled: cfg.enabled };
+        wanted.validate().map_err(|e| err("invalidServer", e.to_string()))?;
+        let moved = read_list(&store).into_iter().find(|s| s.id == id).is_some_and(|old| old.destination != wanted.destination || old.port != wanted.port);
         if moved {
             let (host, id) = (agents.host().clone(), id.to_string());
             blocking(move || host.release_server(&id)).await?;
@@ -172,9 +176,8 @@ pub async fn servers_save(state: State<'_, ServersState>, agents: State<'_, Agen
     let entry = ServerCfg { id: id.clone(), name: cfg.name.trim().to_string(), destination: cfg.destination.trim().to_string(), port: cfg.port, root: cfg.root.trim().to_string(), max_agents: cfg.max_agents, enabled: cfg.enabled };
     entry.validate().map_err(|e| err("invalidServer", e.to_string()))?;
     if let Some(slot) = list.iter_mut().find(|s| s.id == id) {
-        // another destination (or folder) is another place: what was learned about the old one does not apply, and the connection to it is
-        // closed; runs that are still open there keep it, so the change waits until they are stopped
-        if slot.destination != entry.destination || slot.port != entry.port || slot.root != entry.root {
+        // another destination is another machine: what was learned about the old one does not apply
+        if slot.destination != entry.destination || slot.port != entry.port {
             state.registry.forget(&id);
         }
         *slot = entry.clone();

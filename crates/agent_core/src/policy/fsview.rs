@@ -124,10 +124,14 @@ struct Restore(Option<Arc<dyn FsView>>, Option<bool>);
 impl Drop for Restore {
     fn drop(&mut self) {
         let prev = self.0.take();
-        let failed = self.1;
         // (the thread is going away when the slot is gone: nothing to restore then)
         let _ = CURRENT.try_with(|c| *c.borrow_mut() = prev);
-        let _ = FAILED.try_with(|f| f.set(failed));
+        let _ = FAILED.try_with(|f| {
+            // A scope inside another one looked at files on behalf of the same decision: what it could not see, the outer one did not see
+            // either.
+            let inner_failed = f.get() == Some(true);
+            f.set(self.1.map(|outer| outer || inner_failed));
+        });
     }
 }
 
@@ -353,17 +357,28 @@ mod tests {
             assert!(!failed());
             mark_failed();
             assert!(failed());
-            // an inner scope starts clean and does not hand its mark to the outer one
-            with_fs(Some(view.clone()), || {
+        });
+        assert!(!failed(), "nothing leaks out of the outermost scope");
+        // the next decision starts clean
+        with_fs(Some(view), || assert!(!failed()));
+    }
+
+    #[test]
+    fn what_an_inner_scope_could_not_see_the_outer_one_did_not_see_either() {
+        let view: Arc<dyn FsView> = Arc::new(Counting(AtomicUsize::new(0)));
+        with_fs(Some(view.clone()), || {
+            // a clean inner scope starts clean and leaves the outer one as it was
+            with_fs(Some(view.clone()), || assert!(!failed()));
+            assert!(!failed());
+            // a failed look inside is a failed look of the whole decision
+            with_fs(None, || {
                 assert!(!failed());
                 mark_failed();
                 assert!(failed());
             });
-            assert!(failed(), "the outer mark is back");
+            assert!(failed());
         });
-        assert!(!failed(), "nothing leaks out of the scope");
-        // the next decision starts clean
-        with_fs(Some(view), || assert!(!failed()));
+        assert!(!failed());
     }
 
     #[test]

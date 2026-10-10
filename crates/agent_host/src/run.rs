@@ -244,11 +244,14 @@ pub struct Run {
     pub card_epoch: BTreeMap<String, u64>,
     /// The policy's look at the files of the server this run executes on (`None` for a run on this Mac); runtime only.
     pub remote_fs: Option<Arc<crate::remote::RemoteFs>>,
+    /// Until then the run counts as busy although its events do not say so yet: its session is being opened, or a message is on its way
+    /// (the turn opens only when the sidecar's first event for it arrives). Keeps a run that is coming back from being taken for an idle one.
+    pub busy_until: Option<std::time::Instant>,
 }
 
 impl Run {
     pub fn new(meta: Meta, state: RunState, ctx: PolicyContext, quiet: bool) -> Self {
-        Self { meta, state, ctx, live: None, cancel: None, muted: false, quiet, mode_busy: false, mcp_ids: BTreeMap::new(), mcp_secret: BTreeSet::new(), rules_epoch: 0, card_epoch: BTreeMap::new(), remote_fs: None }
+        Self { meta, state, ctx, live: None, cancel: None, muted: false, quiet, mode_busy: false, mcp_ids: BTreeMap::new(), mcp_secret: BTreeSet::new(), rules_epoch: 0, card_epoch: BTreeMap::new(), remote_fs: None, busy_until: None }
     }
 
     /// Forgets everything that belongs to one session and only to it: the in-memory session allows (D10, never persisted) and the MCP
@@ -266,6 +269,7 @@ impl Run {
     /// The session behind this run is gone (start failure, cancel escalation, idle reclaim, sidecar exit): the allows of that session go with it.
     pub fn end_session(&mut self) {
         self.live = None;
+        self.busy_until = None;
         self.ctx.saved.clear();
         self.ctx.saved_by_role.clear();
     }
@@ -273,7 +277,7 @@ impl Run {
     /// The session is open and nothing is going on in it: the run is finished (or failed) and nobody is asked anything. Such a session may
     /// give up its place for a new run, and is closed after a while.
     pub fn is_idle(&self) -> bool {
-        self.live.is_some() && self.cancel.is_none() && !self.mode_busy && matches!(self.state.status(), RunStatus::Done | RunStatus::Error)
+        self.live.is_some() && self.cancel.is_none() && !self.mode_busy && self.busy_until.is_none_or(|t| std::time::Instant::now() >= t) && matches!(self.state.status(), RunStatus::Done | RunStatus::Error)
     }
 
     /// The run holds (or needs) the repository writer lease: a writer mode, or a session allow for edits inside the run directories.

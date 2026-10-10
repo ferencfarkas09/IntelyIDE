@@ -111,7 +111,7 @@ struct Inner {
     /// because the policy's look at a server's files needs the sidecar while a decision is being made, and a decision must never need
     /// `state` (an answer to a card judges again while it holds `state`). Order: `state` first, then this; this one is held only to copy
     /// or change the map, never across a call.
-    remote: Mutex<HashMap<String, Arc<Sidecar>>>,
+    remote: Mutex<HashMap<String, RemoteLink>>,
     reaper: Mutex<Option<Reaper>>,
     /// The sidecar's canary fired: a sub-agent call reached policy without an actor. Delegation stays off until the host restarts.
     delegation_tripped: AtomicBool,
@@ -200,6 +200,14 @@ fn local_origin(git: &Path, repo: &Path) -> Option<String> {
         },
         None => url,
     })
+}
+
+/// The connection to one server: its sidecar, and the machine it was started for (address and port). A server whose address was edited
+/// since is another machine, so its old connection is never used for a new run.
+#[derive(Clone)]
+struct RemoteLink {
+    sc: Arc<Sidecar>,
+    target: String,
 }
 
 /// What the answer to a card of a run on a server needs to know about the rules, worked out BEFORE `state` is locked: the look at the
@@ -702,36 +710,33 @@ impl AgentHost {
         self.inner.summary_of(agent_id).ok_or_else(|| unknown_agent(agent_id))
     }
 
-    /// The server `id` changed (another machine, another folder) or was taken out of the settings: its finished runs give up their sessions
-    /// and the connection to the old machine is closed. Refused while a run there works or waits for the person, because that run is on
-    /// the old machine.
+    /// The server `id` moved to another machine or was taken out of the settings: its finished runs give up their sessions and the
+    /// connection to the old machine is closed. Refused while a run there works or waits for the person, because that run is on the old
+    /// machine. Looking at the runs and ending the idle sessions happen under one lock, so a run cannot become busy in between.
     pub fn release_server(&self, id: &str) -> Result<(), EngineError> {
         let inner = &self.inner;
-        let (busy, idle): (usize, Vec<String>) = {
-            let st = lock(&inner.state);
-            let here = st.agents.iter().filter(|(_, r)| r.meta.location.as_deref() == Some(id) && r.live.is_some());
-            let (idle, busy): (Vec<_>, Vec<_>) = here.partition(|(_, r)| r.is_idle());
-            (busy.len(), idle.into_iter().map(|(id, _)| id.clone()).collect())
-        };
-        if busy > 0 {
-            return Err(err("serverBusy", format!("{busy} run{} on this server {} still working or waiting for you; stop {} first", if busy == 1 { "" } else { "s" }, if busy == 1 { "is" } else { "are" }, if busy == 1 { "it" } else { "them" })));
-        }
-        {
+        let idle: Vec<String> = {
             let mut st = lock(&inner.state);
-            for agent_id in &idle {
+            let here: Vec<(String, bool)> = st.agents.iter().filter(|(_, r)| r.meta.location.as_deref() == Some(id) && r.live.is_some()).map(|(agent_id, r)| (agent_id.clone(), r.is_idle())).collect();
+            let busy = here.iter().filter(|(_, idle)| !idle).count();
+            if busy > 0 {
+                return Err(err("serverBusy", format!("{busy} run{} on this server {} still working or waiting for you; stop {} first", if busy == 1 { "" } else { "s" }, if busy == 1 { "is" } else { "are" }, if busy == 1 { "it" } else { "them" })));
+            }
+            for (agent_id, _) in &here {
                 if let Some(run) = st.agents.get_mut(agent_id) {
                     run.end_session();
                 }
             }
-        }
+            here.into_iter().map(|(agent_id, _)| agent_id).collect()
+        };
         // the sessions are closed properly (in parallel, each bounded by its timeout) before the connection goes
         // (the map is not locked meanwhile: the closing sidecar takes that lock itself in `on_closed`)
         let gone = lock(&inner.remote).remove(id);
-        if let Some(sc) = gone {
+        if let Some(link) = gone {
             let closers: Vec<_> = idle
                 .into_iter()
                 .map(|agent_id| {
-                    let sc = sc.clone();
+                    let sc = link.sc.clone();
                     std::thread::spawn(move || {
                         let _ = sc.request("session/close", json!({"agentId": agent_id}), Duration::from_secs(5));
                     })
@@ -740,7 +745,7 @@ impl AgentHost {
             for t in closers {
                 let _ = t.join();
             }
-            inner.stop_sidecar(&sc);
+            inner.stop_sidecar(&link.sc);
         }
         Ok(())
     }
@@ -1254,7 +1259,7 @@ impl AgentHost {
         let (sc, remote): (Option<Arc<Sidecar>>, Vec<Arc<Sidecar>>) = {
             let mut st = lock(&inner.state);
             st.shutting_down = true;
-            (st.sidecar.clone(), lock(&inner.remote).values().cloned().collect())
+            (st.sidecar.clone(), lock(&inner.remote).values().map(|r| r.sc.clone()).collect())
         };
         // the sidecars on servers stop in parallel (each ends with its ssh pipe); this Mac's one first
         let stoppers: Vec<_> = remote
@@ -1711,39 +1716,51 @@ impl Inner {
     /// place up (it resumes with its next message), as on this Mac; only when every session is working or waiting for the person is the
     /// start refused.
     fn check_server_slot(&self, loc: &str, name: &str, max: u32, except: Option<&str>) -> Result<(), EngineError> {
-        loop {
-            let (open, idlest) = {
+        let mut open = 0;
+        // (a candidate that became busy before it could be closed is looked for again; the number of tries is bounded)
+        for _ in 0..8 {
+            let (now_open, idlest) = {
                 let st = lock(&self.state);
                 let here: Vec<(&String, &Run)> = st.agents.iter().filter(|(id, r)| Some(id.as_str()) != except && r.meta.location.as_deref() == Some(loc) && r.live.is_some()).collect();
                 let idlest = here.iter().filter(|(_, r)| r.is_idle()).min_by_key(|(_, r)| r.state.last_ts).map(|(id, _)| (*id).clone());
                 (here.len(), idlest)
             };
+            open = now_open;
             if open < max as usize {
                 return Ok(());
             }
             match idlest {
-                Some(id) => self.close_remote_session(&id),
-                None => return Err(err("serverBusy", format!("{name} already runs {open} agents and none of them is finished (the limit in Settings > Servers)"))),
+                Some(id) => {
+                    self.close_remote_session(&id, None);
+                }
+                None => break,
             }
         }
+        Err(err("serverBusy", format!("{name} already runs {open} agents and none of them is finished (the limit in Settings > Servers)")))
     }
 
-    /// Ends the session of a finished run on a server, here and there: the run stays in the list and resumes with its next message.
-    fn close_remote_session(&self, agent_id: &str) {
-        let sc = {
+    /// Ends the session of a finished run on a server, here and there: the run stays in the list and resumes with its next message. The
+    /// run is looked at again under the lock that ends the session (and, with `min_idle`, for how long it has been finished), so one that
+    /// started a turn or is being resumed since the caller looked is left alone. Returns whether the session was closed.
+    fn close_remote_session(&self, agent_id: &str, min_idle: Option<Duration>) -> bool {
+        let loc = {
             let mut st = lock(&self.state);
-            let Some(run) = st.agents.get_mut(agent_id) else { return };
+            let Some(run) = st.agents.get_mut(agent_id) else { return false };
+            if !run.is_idle() || min_idle.is_some_and(|d| now_ms().saturating_sub(run.state.last_ts) < d.as_millis() as u64) {
+                return false;
+            }
             let loc = run.meta.location.clone();
             run.end_session();
             loc
-        }
-        .and_then(|loc| lock(&self.remote).get(&loc).cloned());
+        };
+        let sc = loc.and_then(|loc| lock(&self.remote).get(&loc).map(|r| r.sc.clone()));
         if let Some(sc) = sc {
             let id = agent_id.to_string();
             std::thread::spawn(move || {
                 let _ = sc.request("session/close", json!({"agentId": id}), Duration::from_secs(5));
             });
         }
+        true
     }
 
     /// Closes the sessions on the server `loc` that have been finished for `idle` or longer.
@@ -1751,10 +1768,10 @@ impl Inner {
         let now = now_ms();
         let stale: Vec<String> = {
             let st = lock(&self.state);
-            st.agents.iter().filter(|(_, r)| r.meta.location.as_deref() == Some(loc) && r.live.is_some() && r.is_idle() && now.saturating_sub(r.state.last_ts) >= idle.as_millis() as u64).map(|(id, _)| id.clone()).collect()
+            st.agents.iter().filter(|(_, r)| r.meta.location.as_deref() == Some(loc) && r.is_idle() && now.saturating_sub(r.state.last_ts) >= idle.as_millis() as u64).map(|(id, _)| id.clone()).collect()
         };
         for id in stale {
-            self.close_remote_session(&id);
+            self.close_remote_session(&id, Some(idle));
         }
     }
 
@@ -1820,7 +1837,7 @@ impl Inner {
         Arc::new(RpcFs::new(SidecarFs::new(move |body| {
             let inner = weak.upgrade()?;
             // (only the lock of the sidecar map: a decision may be made while `state` is held, see `Inner::remote`)
-            let sc = lock(&inner.remote).get(&loc).filter(|s| s.alive()).cloned()?;
+            let sc = lock(&inner.remote).get(&loc).filter(|r| r.sc.alive()).map(|r| r.sc.clone())?;
             sc.request("fs/query", body, FS_QUERY_TIMEOUT).ok()
         })))
     }
@@ -1849,15 +1866,31 @@ impl Inner {
     fn ensure_remote_sidecar(&self, loc: &str) -> Result<(Arc<Sidecar>, remote::RemoteEnv), EngineError> {
         let registry = self.cfg.servers.clone().ok_or_else(|| err("serversUnavailable", "servers are not available in this build"))?;
         let (scfg, _status, paths) = registry.ready(loc).map_err(|e| err("serverNotReady", e.message()))?;
+        // the machine this connection is for: a server whose address or port was edited meanwhile is another machine
+        let target = format!("{}|{}", scfg.destination, scfg.port.map(|p| p.to_string()).unwrap_or_default());
+        let mut stale: Option<Arc<Sidecar>> = None;
         let spawned = {
             let mut st = lock(&self.state);
             if st.shutting_down {
                 return Err(err("shuttingDown", "the IDE is closing"));
             }
-            let alive = lock(&self.remote).get(loc).filter(|s| s.alive()).cloned();
+            let alive = lock(&self.remote).get(loc).filter(|r| r.sc.alive()).cloned();
             match alive {
-                Some(sc) => sc,
-                None => {
+                Some(link) if link.target == target => link.sc,
+                other => {
+                    if let Some(link) = other {
+                        // The old connection goes to another machine. A run that works or waits there is on that machine: no new run may
+                        // be put on it under the new address, and the connection cannot be closed under it. Finished runs give their
+                        // sessions up (they come back with their next message).
+                        let on_old = |r: &Run| r.meta.location.as_deref() == Some(loc) && r.live.as_ref().is_some_and(|l| l.generation == link.sc.generation);
+                        if st.agents.values().any(|r| on_old(r) && !r.is_idle()) {
+                            return Err(err("serverBusy", format!("{} was moved to another address while runs are working on the old one; stop them first", scfg.name)));
+                        }
+                        for run in st.agents.values_mut().filter(|r| on_old(r)) {
+                            run.end_session();
+                        }
+                        stale = Some(link.sc);
+                    }
                     let providers: Vec<String> = self.cfg.sidecar_providers().into_iter().filter(|p| matches!(p.as_str(), "claude" | "mock")).collect();
                     let command = intely_servers::sidecar_command(&paths, &providers, REMOTE_POLICY_TIMEOUT_MS);
                     let cmd = registry.ssh().command(&scfg, &command);
@@ -1865,12 +1898,16 @@ impl Inner {
                     let handler: Weak<dyn Handler> = self.me.clone();
                     let sc = Sidecar::spawn(cmd, st.generation, handler).map_err(|e| err("sidecarSpawn", format!("cannot reach {}: {e}", scfg.name)))?;
                     self.gate.register_owner(&sc.owner, None);
-                    lock(&self.remote).insert(loc.to_string(), sc.clone());
+                    lock(&self.remote).insert(loc.to_string(), RemoteLink { sc: sc.clone(), target });
                     self.spawn_remote_reaper(loc, &sc);
                     sc
                 }
             }
         };
+        // (outside the state lock: stopping a connection takes a moment)
+        if let Some(old) = stale {
+            self.stop_sidecar(&old);
+        }
         if spawned.wait_hello(Duration::from_secs(45)).is_none() {
             spawned.signal(libc::SIGKILL);
             let tail = spawned.stderr_tail();
@@ -1902,7 +1939,7 @@ impl Inner {
 
     /// The sidecar of one generation, here or on a server.
     fn sidecar_gen(&self, st: &State, generation: u64) -> Option<Arc<Sidecar>> {
-        st.sidecar.iter().find(|s| s.generation == generation).cloned().or_else(|| lock(&self.remote).values().find(|s| s.generation == generation).cloned())
+        st.sidecar.iter().find(|s| s.generation == generation).cloned().or_else(|| lock(&self.remote).values().find(|r| r.sc.generation == generation).map(|r| r.sc.clone()))
     }
 
     fn live_sidecar(&self, st: &State, agent_id: &str) -> Result<Arc<Sidecar>, EngineError> {
@@ -2153,6 +2190,8 @@ impl Inner {
             if let Some(run) = st.agents.get_mut(agent_id) {
                 run.live = Some(Live { generation: sc.generation, lease_id: None });
                 run.muted = false;
+                // (a resumed run still reads "finished" until its first event: it is not idle while its session starts)
+                run.busy_until = Some(std::time::Instant::now() + self.cfg.start_timeout + Duration::from_secs(30));
             }
         }
         let fail = |code: &str, message: String| -> EngineError {
@@ -2188,11 +2227,16 @@ impl Inner {
 
     fn prompt(&self, agent_id: &str, text: &str, files: Vec<serde_json::Value>) -> Result<(), EngineError> {
         let sc = {
-            let st = lock(&self.state);
+            let mut st = lock(&self.state);
             if !files.is_empty() && st.agents.get(agent_id).is_some_and(|r| r.meta.location.is_some()) {
                 return Err(err("remoteAttachments", "attachments are not available for runs on a server yet"));
             }
-            self.live_sidecar(&st, agent_id)?
+            let sc = self.live_sidecar(&st, agent_id)?;
+            // the turn opens when the first event for this message arrives; until then the run must not be taken for an idle one
+            if let Some(run) = st.agents.get_mut(agent_id) {
+                run.busy_until = Some(std::time::Instant::now() + Duration::from_secs(30));
+            }
+            sc
         };
         let reply = sc.request("session/prompt", if files.is_empty() { json!({"agentId": agent_id, "text": text}) } else { json!({"agentId": agent_id, "text": text, "attachments": files}) }, Duration::from_secs(15)).map_err(|e| err("sidecarUnavailable", e.to_string()))?;
         if let Some(code) = reply["error"].as_str() {
@@ -2288,7 +2332,11 @@ impl Inner {
             EventKind::PermissionResolved { req_id, .. } => {
                 run.card_epoch.remove(req_id);
             }
-            EventKind::TurnEnd { .. } => run.card_epoch.clear(),
+            EventKind::TurnEnd { .. } => {
+                run.card_epoch.clear();
+                // the turn that was on its way has come and gone: what the events say is the truth again
+                run.busy_until = None;
+            }
             _ => {}
         }
         if let Some(t) = &run.cancel {
@@ -2580,7 +2628,7 @@ impl Handler for Inner {
             if st.sidecar.as_ref().is_some_and(|s| s.generation == sc.generation) {
                 st.sidecar = None;
             }
-            lock(&self.remote).retain(|_, s| s.generation != sc.generation);
+            lock(&self.remote).retain(|_, r| r.sc.generation != sc.generation);
             st.shutting_down
         };
         // kills the CLI groups the sidecar registered; the gate's callback ignores this reason

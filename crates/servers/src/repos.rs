@@ -41,33 +41,25 @@ fn redact_url(u: &str) -> String {
     u.to_string()
 }
 
-/// `host/owner/repo` of a git URL, to tell whether two spellings name the same repository: the scheme, the user name, the port and a
-/// trailing `.git` or `/` do not count, `host:owner/repo` is `host/owner/repo`, and case does not matter.
+/// Which repository a git URL names, apart from where it is reached: the path (`owner/repo`) without the scheme, the user name, the host
+/// and the port, without a trailing `.git` or `/`, and in lower case. The host is left out on purpose. An alias from `~/.ssh/config`
+/// (`git@gh-work:org/repo`), another port of the same service (`ssh.example.com:443`) and the plain address are one place that this
+/// program cannot tell apart, and refusing a run for the spelling of an address is worse than accepting two hosts that happen to serve
+/// the same `owner/repo`. A fork has another owner, a different project another path: those are told apart.
 fn normalize_origin(url: &str) -> String {
     let u = url.trim();
-    let (has_scheme, rest) = match u.split_once("://") {
-        Some((_, rest)) => (true, rest),
-        None => (false, u),
-    };
-    // user[:password]@ in front of the host
-    let host_end = rest.find('/').unwrap_or(rest.len());
-    let rest = match rest[..host_end].rfind('@') {
-        Some(at) => &rest[at + 1..],
-        None => rest,
-    };
-    let mut out = rest.to_string();
-    // scp style (`host:owner/repo`) has a colon in the first segment and no scheme; a URL has `host:port/...`
-    if let Some(colon) = out.split('/').next().and_then(|first| first.find(':')) {
-        let after = &out[colon + 1..];
-        let port = after.split('/').next().unwrap_or("");
-        if has_scheme && !port.is_empty() && port.bytes().all(|b| b.is_ascii_digit()) {
-            out = format!("{}{}", &out[..colon], &out[colon + 1 + port.len()..]);
-        } else {
-            out = format!("{}/{}", &out[..colon], after.trim_start_matches('/'));
+    let path = if let Some((_, rest)) = u.split_once("://") {
+        // scheme://[user[:password]@]host[:port]/path
+        rest.split_once('/').map_or("", |(_, path)| path)
+    } else {
+        match u.split_once(':') {
+            // scp style, [user@]host:path (a colon after a slash is part of a path)
+            Some((host, path)) if !host.contains('/') => path,
+            _ => u,
         }
-    }
-    let out = out.trim_end_matches('/');
-    out.strip_suffix(".git").unwrap_or(out).trim_end_matches('/').to_ascii_lowercase()
+    };
+    let path = path.trim_matches('/');
+    path.strip_suffix(".git").unwrap_or(path).trim_matches('/').to_ascii_lowercase()
 }
 
 /// Do these two `origin` URLs name the same repository?
@@ -354,16 +346,26 @@ mod tests {
             ("ssh://git@git.example.com:22/org/repo.git", "git.example.com:org/repo"),
             ("https://Git.Example.com/Org/Repo/", "git@git.example.com:org/repo.git"),
             ("git://example.com/o/r.git", "https://example.com/o/r"),
+            // an alias of ~/.ssh/config and another port of the same service are the same repository
+            ("git@gh-work:org/repo.git", "https://git.example.com/org/repo"),
+            ("ssh://git@ssh.example.com:443/org/repo.git", "https://git.example.com/org/repo"),
+            // a folder on a disk, spelled as a path and as a file URL
+            ("/srv/git/app.git", "file:///srv/git/app"),
+            // a project in a subgroup
+            ("git@git.example.com:team/sub/app.git", "https://git.example.com/team/sub/app"),
         ] {
             assert!(same_origin(a, b), "{a} vs {b}");
             assert!(same_origin(b, a), "{b} vs {a}");
         }
         for (a, b) in [
             ("https://git.example.com/org/repo.git", "https://git.example.com/org/other.git"),
+            // a fork has another owner
             ("https://git.example.com/org/repo.git", "https://git.example.com/fork/repo.git"),
-            ("https://git.example.com/org/repo.git", "https://other.example.com/org/repo.git"),
             ("git@git.example.com:org/repo.git", "git@git.example.com:org/repo-two.git"),
+            ("git@git.example.com:team/sub/app.git", "https://git.example.com/team/app"),
+            ("https://git.example.com/org/repo.git", "https://git.example.com/"),
             ("", ""),
+            ("   ", "https://git.example.com/"),
         ] {
             assert!(!same_origin(a, b), "{a} vs {b}");
         }

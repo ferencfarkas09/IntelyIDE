@@ -7,14 +7,16 @@
 mod common;
 
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::path::Path;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use common::bash;
 use intely_agent_core::policy::decide::{session_allow_for, Decision, PolicyContext};
 use intely_agent_core::policy::fsrpc::{FsTransport, RpcFs};
-use intely_agent_core::policy::fsview::FsView;
+use intely_agent_core::policy::fsview::{self, FsEntry, FsMeta, FsView};
 use intely_agent_core::policy::intent::ToolIntent;
 use intely_agent_core::providers::PermissionMode;
 use serde_json::{json, Value};
@@ -127,47 +129,103 @@ fn a_cut_off_listing_is_not_a_complete_glob() {
 #[test]
 fn a_session_allow_is_not_offered_on_a_half_seen_tree() {
     let server = Arc::new(Server::new());
-    let intent = ToolIntent::from_claude_tool("Bash", &json!({"command": "npm run build"}));
+    // `mkdir` inside the folder asks in Ask mode, and "allow always in this session" is on offer for it
+    let intent = ToolIntent::exec("mkdir src/new");
     let c = ctx_of(&server, PermissionMode::Ask);
-    // (with the link up, whatever the answer is, it is the ordinary one)
     let ordinary = session_allow_for(&c, &intent);
+    assert!(ordinary.is_some(), "with the link up the offer is made, otherwise this test proves nothing");
     server.down.store(true, Ordering::SeqCst);
-    assert!(session_allow_for(&c, &intent).is_none());
+    assert!(session_allow_for(&c, &intent).is_none(), "nothing is offered on a tree that could not be seen");
     server.down.store(false, Ordering::SeqCst);
     assert_eq!(session_allow_for(&c, &intent).map(|x| x.0), ordinary.map(|x| x.0));
 }
 
-/// The mark of a failed look belongs to its decision. Two decisions run at once on two threads (the host judges every tool call on
-/// a thread of its own, and Claude issues tool calls in parallel): the one whose look fails is denied however the other one goes.
+/// One view for every decision of a run, as the host has it. The first look at a path with "slow" in it fails (and says so); the next one
+/// waits until the test lets it go; everything else is answered by the server double.
+struct Gated {
+    inner: RpcFs<Wire>,
+    slow_looks: Arc<AtomicUsize>,
+    failed: Mutex<std::sync::mpsc::Sender<()>>,
+    release: Mutex<std::sync::mpsc::Receiver<()>>,
+    released: AtomicBool,
+}
+
+impl Gated {
+    /// `true` = this look must fail.
+    fn fails(&self, p: &Path) -> bool {
+        if !p.to_string_lossy().contains("slow") {
+            return false;
+        }
+        match self.slow_looks.fetch_add(1, Ordering::SeqCst) {
+            0 => {
+                fsview::mark_failed();
+                self.failed.lock().unwrap().send(()).unwrap();
+                true
+            }
+            _ => {
+                if !self.released.load(Ordering::SeqCst) {
+                    let _ = self.release.lock().unwrap().recv_timeout(Duration::from_secs(10));
+                    self.released.store(true, Ordering::SeqCst);
+                }
+                false
+            }
+        }
+    }
+}
+
+impl FsView for Gated {
+    fn metadata(&self, p: &Path) -> Option<FsMeta> {
+        if self.fails(p) { None } else { self.inner.metadata(p) }
+    }
+    fn symlink_metadata(&self, p: &Path) -> Option<FsMeta> {
+        if self.fails(p) { None } else { self.inner.symlink_metadata(p) }
+    }
+    fn read_link(&self, p: &Path) -> Option<PathBuf> {
+        if self.fails(p) { None } else { self.inner.read_link(p) }
+    }
+    fn canonicalize(&self, p: &Path) -> Option<PathBuf> {
+        if self.fails(p) { None } else { self.inner.canonicalize(p) }
+    }
+    fn canonical_lossy(&self, p: &Path) -> Option<PathBuf> {
+        if self.fails(p) { None } else { self.inner.canonical_lossy(p) }
+    }
+    fn read_dir(&self, p: &Path) -> Option<Vec<FsEntry>> {
+        if self.fails(p) { None } else { self.inner.read_dir(p) }
+    }
+    fn read_to_string(&self, p: &Path, max: usize) -> Option<String> {
+        if self.fails(p) { None } else { self.inner.read_to_string(p, max) }
+    }
+}
+
+/// The mark of a failed look belongs to its decision. Claude issues tool calls in parallel and the host judges each on a thread of its
+/// own, all through ONE view. A decision whose look failed must still be denied when another decision of the same run starts and ends
+/// after the failure and before the first one is done (a flag in the shared view, cleared at the start of a decision, loses the mark here).
 #[test]
 fn a_failure_is_not_lost_to_a_decision_that_runs_beside_it() {
     let server = Arc::new(Server::new());
-    let (reached_tx, reached_rx) = channel::<()>();
-    let reached_tx = Mutex::new(reached_tx);
-    let (go_tx, go_rx) = channel::<()>();
-    let go_rx = Mutex::new(go_rx);
-    let first = Mutex::new(true);
-    // the first request of the "slow" decision (the one that looks at /srv/work/app/slow.js) waits until the other decision is finished,
-    // then fails; every other request answers
-    *server.on_request.lock().unwrap() = {
-        let server = server.clone();
-        Arc::new(move |path: &str| {
-            if path.ends_with("slow.js") && std::mem::replace(&mut *first.lock().unwrap(), false) {
-                reached_tx.lock().unwrap().send(()).unwrap();
-                go_rx.lock().unwrap().recv().unwrap();
-                server.down.store(true, Ordering::SeqCst);
-            }
-        })
-    };
+    let (failed_tx, failed_rx) = channel::<()>();
+    let (release_tx, release_rx) = channel::<()>();
+    let slow_looks = Arc::new(AtomicUsize::new(0));
+    let view: Arc<dyn FsView> = Arc::new(Gated {
+        inner: RpcFs::new(Wire(server)),
+        slow_looks: slow_looks.clone(),
+        failed: Mutex::new(failed_tx),
+        release: Mutex::new(release_rx),
+        released: AtomicBool::new(false),
+    });
+    let mut ctx = PolicyContext::new(PermissionMode::Automatic, "/srv/work/app").with_fs(view);
+    ctx.home = Some(PathBuf::from("/home/u"));
+
     let slow = {
-        let c = ctx_of(&server, PermissionMode::Automatic);
-        std::thread::spawn(move || bash(&c, "cat slow.js"))
+        let ctx = ctx.clone();
+        std::thread::spawn(move || bash(&ctx, "cat slow.js"))
     };
-    reached_rx.recv().unwrap();
-    // the fast decision runs completely, and ends before the slow one's request fails
-    let fast = bash(&ctx_of(&server, PermissionMode::Automatic), "cat a.js");
+    failed_rx.recv_timeout(Duration::from_secs(10)).expect("the slow decision made its failing look");
+    // another decision of the same run, on the same view, starts and ends while the first is still in flight
+    let fast = bash(&ctx, "cat a.js");
     assert_eq!(fast.decision, Decision::Allow, "{fast:?}");
-    go_tx.send(()).unwrap();
+    assert!(slow_looks.load(Ordering::SeqCst) >= 2, "the slow decision was waiting in a second look while the fast one ran, otherwise this test proves nothing");
+    release_tx.send(()).unwrap();
     let slow = slow.join().unwrap();
     assert_eq!((slow.decision, slow.rule.as_deref()), (Decision::Deny, Some("fail-closed")), "{slow:?}");
 }

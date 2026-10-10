@@ -6,7 +6,7 @@ mod common;
 
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use common::*;
 use intely_agent_core::api::{AgentStartRequest, PermissionDecision, RunStatus};
@@ -27,6 +27,10 @@ struct Server {
     home: PathBuf,
     /// Every line the host sent to the sidecar there.
     wire_log: PathBuf,
+    /// The destination of every `ssh` call that starts a sidecar, one per line: a connection to another machine shows up here.
+    dest_log: PathBuf,
+    /// The entry of the server in the settings; a test edits it like the person does in Settings > Servers.
+    cfg: Arc<Mutex<ServerCfg>>,
     registry: Arc<ServerRegistry>,
 }
 
@@ -54,16 +58,19 @@ fn server(root: &Path, max_agents: u32, filter: &str) -> Server {
     let wire_log = root.join("wire.log");
     script(&bin.join("node"), &format!("#!/bin/sh\ntee -a '{log}' | {filter} | '{node}' \"$@\"\n", log = wire_log.display(), node = node_path()));
     let ssh = root.join("fake-ssh");
+    let dest_log = root.join("destinations.log");
     script(
         &ssh,
         &format!(
-            "#!/bin/sh\n# ssh [options] -- destination command...\nwhile [ $# -gt 0 ]; do case \"$1\" in --) shift; break ;; -o|-p|-i|-J|-F|-l) shift 2 ;; -*) shift ;; *) break ;; esac; done\nshift\nHOME='{home}' PATH='{bin}':\"$PATH\" exec sh -c \"$*\"\n",
+            "#!/bin/sh\n# ssh [options] -- destination command...\nwhile [ $# -gt 0 ]; do case \"$1\" in --) shift; break ;; -o|-p|-i|-J|-F|-l) shift 2 ;; -*) shift ;; *) break ;; esac; done\ncase \"$*\" in *index.js*) echo \"$1\" >> '{dests}' ;; esac\nshift\nHOME='{home}' PATH='{bin}':\"$PATH\" exec sh -c \"$*\"\n",
             home = home.display(),
-            bin = bin.display()
+            bin = bin.display(),
+            dests = dest_log.display()
         ),
     );
-    let cfg = ServerCfg { id: "srv".into(), name: "Test server".into(), destination: "dev@fake".into(), port: None, root: "~/work".into(), max_agents, enabled: true };
-    let registry = Arc::new(ServerRegistry::new(Arc::new(move || vec![cfg.clone()]), Ssh::from_bin(Some(ssh.into_os_string()), root.join("ctl")), VERSION));
+    let cfg = Arc::new(Mutex::new(ServerCfg { id: "srv".into(), name: "Test server".into(), destination: "dev@fake".into(), port: None, root: "~/work".into(), max_agents, enabled: true }));
+    let supplied = cfg.clone();
+    let registry = Arc::new(ServerRegistry::new(Arc::new(move || vec![supplied.lock().unwrap().clone()]), Ssh::from_bin(Some(ssh.into_os_string()), root.join("ctl")), VERSION));
     registry.set_status(
         "srv",
         ServerStatus {
@@ -81,7 +88,7 @@ fn server(root: &Path, max_agents: u32, filter: &str) -> Server {
             error: None,
         },
     );
-    Server { home, wire_log, registry }
+    Server { home, wire_log, dest_log, cfg, registry }
 }
 
 /// The repo of the run on this Mac, and its copy on the server (`~/work/<name>`).
@@ -371,6 +378,49 @@ fn a_server_is_released_when_its_runs_are_finished_not_while_one_waits() {
     // a new run starts a new connection
     let again = start_on(&host, &repo, "mock-plain-reply", Some("srv")).expect("a new run after the release");
     sink.wait_turn_end(&again.agent_id);
+    host.shutdown();
+}
+
+fn destinations(srv: &Server) -> Vec<String> {
+    std::fs::read_to_string(&srv.dest_log).unwrap_or_default().lines().map(str::to_string).collect()
+}
+
+#[test]
+fn a_server_that_moved_gets_a_new_connection_not_the_old_one() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().canonicalize().unwrap();
+    let srv = server(&root, 4, "cat");
+    let repo = repos(&root, &srv, true);
+    let (host, sink) = host(&root.join("data"), &srv);
+    let first = start_on(&host, &repo, "mock-plain-reply", Some("srv")).expect("first");
+    sink.wait_turn_end(&first.agent_id);
+    assert!(destinations(&srv).iter().all(|d| d == "dev@fake"), "{:?}", destinations(&srv));
+
+    // the person edits the address in Settings > Servers (and the settings page forgets what it knew of the old one)
+    srv.cfg.lock().unwrap().destination = "dev@elsewhere".into();
+    // the finished run only holds a session on the old machine: a new run goes to the new address
+    let second = start_on(&host, &repo, "mock-plain-reply", Some("srv")).expect("a run on the new address");
+    sink.wait_turn_end(&second.agent_id);
+    assert!(destinations(&srv).iter().any(|d| d == "dev@elsewhere"), "the new run did not connect to the new address: {:?}", destinations(&srv));
+    host.shutdown();
+}
+
+#[test]
+fn a_run_that_works_keeps_the_old_address_and_no_new_run_is_put_there() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().canonicalize().unwrap();
+    let srv = server(&root, 4, "cat");
+    let repo = repos(&root, &srv, true);
+    let (host, sink) = host(&root.join("data"), &srv);
+    let waiting = start_on(&host, &repo, "mock-bash-twice", Some("srv")).expect("start");
+    sink.wait_kind(&waiting.agent_id, "permission.request");
+    srv.cfg.lock().unwrap().destination = "dev@elsewhere".into();
+    let e = start_on(&host, &repo, "mock-plain-reply", Some("srv")).unwrap_err();
+    assert_eq!(e.code, "serverBusy", "{e:?}");
+    assert!(e.message.contains("moved to another address"), "{}", e.message);
+    assert!(destinations(&srv).iter().all(|d| d == "dev@fake"), "nothing connected to the new address: {:?}", destinations(&srv));
+    // the settings page refuses the change as well while that run waits
+    assert_eq!(host.release_server("srv").unwrap_err().code, "serverBusy");
     host.shutdown();
 }
 
