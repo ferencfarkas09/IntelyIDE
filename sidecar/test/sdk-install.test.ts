@@ -18,7 +18,7 @@ import {
   childEnv, DEFAULT_LIMITS, installSdk, InstallError, makeScrub, planSdk, readLockPlan, readTar, repairSdkState, resolvedProblem, runCli, sandboxFlags, stateDirOf,
   uninstallSdk, unsafeEnv, type CliIo, type InstallOptions, type ProgressEvent,
 } from '../src/sdk-install.js';
-import { SDK_NAME } from '../src/sdk.js';
+import { SDK_NAME, stateDirOf as loaderStateDirOf } from '../src/sdk.js';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const sha256 = (b: Buffer | string) => createHash('sha256').update(b).digest('hex');
@@ -726,6 +726,19 @@ describe('runCli', () => {
     };
     return { io: { ...base, ...extra }, out, err, calls };
   };
+
+  it('state dir: macOS and Linux locations, and the same function as the loader\'s', () => {
+    expect(stateDirOf('/Users/u', 'darwin')).toBe('/Users/u/Library/Application Support/IntelyIDE');
+    expect(stateDirOf('/home/u', 'linux')).toBe('/home/u/.local/share/IntelyIDE');
+    expect(stateDirOf('/home/u', 'linux')).toBe(loaderStateDirOf('/home/u', 'linux'));
+    expect(stateDirOf('/Users/u', 'darwin')).toBe(loaderStateDirOf('/Users/u', 'darwin'));
+  });
+
+  it('planSdk on linux plans <home>/.local/share/IntelyIDE/sdk', async () => {
+    const plan = await planSdk({ home: home(), platform: 'linux', pinDir: path.join(root, 'sdk-pin') });
+    expect(plan.stateDir).toBe(path.join(home(), '.local', 'share', 'IntelyIDE'));
+    expect(plan.finalDir).toBe(path.join(home(), '.local', 'share', 'IntelyIDE', 'sdk'));
+  });
 
   it('--plan prints one JSON line, masks the home directory and proxy credentials, and creates nothing', async () => {
     mkdirSync(home(), { recursive: true });

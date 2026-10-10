@@ -4,6 +4,12 @@ import type { Envelope, PolicyClient, PolicyDecision, PolicyRequest, ProviderId,
 
 export const HEARTBEAT_MS = 2000;
 export const POLICY_TIMEOUT_MS = 2000;
+/** `--policy-timeout=<ms>` (a remote sidecar answers over a slower link), clamped to 1000..30000; absent or not a number: the default. */
+export function parsePolicyTimeout(argv: readonly string[]): number {
+  const a = argv.find((x) => x.startsWith('--policy-timeout='));
+  const n = a === undefined ? NaN : Number(a.slice('--policy-timeout='.length).trim() || NaN);
+  return Number.isFinite(n) ? Math.min(30_000, Math.max(1000, Math.round(n))) : POLICY_TIMEOUT_MS;
+}
 export const BATCH_MS = 33;
 export const BATCH_MAX = 64;
 const REQUEST_TIMEOUT_MS = 10_000;

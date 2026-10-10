@@ -3,6 +3,7 @@
 //   node sdk-install.js [--plan | --yes] [--uninstall --yes]
 //
 // It installs the pinned, user-owned copy of the proprietary Claude Agent SDK into `<home>/Library/Application Support/IntelyIDE/sdk`
+// (Linux: `<home>/.local/share/IntelyIDE/sdk`)
 // WITHOUT npm: the lock in `sdk-pin/package-lock.json` gives a URL and a sha512 per tarball, `sdk-pin/tree.sha256` the file-by-file
 // manifest of the finished tree. Nothing downloaded is ever executed (no lifecycle scripts), nothing is parsed before its sha512
 // matches, and the finished tree must equal the manifest exactly (the same `treeLines` the loader in sdk.ts uses) before it is
@@ -23,7 +24,7 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import zlib from 'node:zlib';
 import { redact } from './redact.js';
-import { parseManifest, SDK_NAME, SDK_PIN, treeLines } from './sdk.js';
+import { parseManifest, SDK_NAME, SDK_PIN, stateDirOf as platformStateDir, treeLines } from './sdk.js';
 
 /** The only registry the CLI talks to. */
 export const REGISTRY_ORIGIN = 'https://registry.npmjs.org';
@@ -78,6 +79,8 @@ export type ProgressEvent =
 export interface InstallOptions {
   /** Home directory (tests). Production: os.homedir(). */
   home?: string;
+  /** Platform that picks the state directory (tests). Production: process.platform. */
+  platform?: NodeJS.Platform;
   /** Directory holding package.json, package-lock.json, tree.sha256 (Resources/sdk-pin). */
   pinDir: string;
   /** Tests only: a loopback origin standing in for the registry. Anything else than the real registry or a loopback address is refused. */
@@ -356,7 +359,8 @@ async function homeOf(home: string | undefined): Promise<string> {
     throw new InstallError('state_unsafe', 'the home directory cannot be resolved');
   }
 }
-export const stateDirOf = (home: string) => path.join(home, 'Library', 'Application Support', STATE_DIR_NAME);
+/** Same function as the loader's (one definition in sdk.ts): macOS `<home>/Library/Application Support/IntelyIDE`, Linux `<home>/.local/share/IntelyIDE`. */
+export const stateDirOf = (home: string, platform: NodeJS.Platform = process.platform) => platformStateDir(home, platform);
 
 /** Creates the state directory (mode 0700) when it is missing. Used by the launcher and by the installer. */
 async function ensureStateDir(stateDir: string): Promise<void> {
@@ -519,7 +523,7 @@ async function checkPackageJson(base: string, p: LockPackage, present: boolean):
 // ---------------------------------------------------------------------------------------------------------------------
 // public API
 
-export interface PlanOptions { home?: string; pinDir: string; registryOrigin?: string; expectedVersion?: string }
+export interface PlanOptions { home?: string; platform?: NodeJS.Platform; pinDir: string; registryOrigin?: string; expectedVersion?: string }
 
 function originOf(registryOrigin: string | undefined): Origin {
   if (registryOrigin === undefined) return PRODUCTION;
@@ -535,7 +539,7 @@ export async function planSdk(opts: PlanOptions): Promise<SdkPlan> {
   const lock = await readLockPlan(opts.pinDir, originOf(opts.registryOrigin));
   const expected = opts.expectedVersion ?? SDK_PIN;
   if (lock.version !== expected) throw new InstallError('plan_invalid', `the pin lock has ${SDK_NAME} ${lock.version}, this build needs exactly ${expected}`);
-  const stateDir = stateDirOf(home);
+  const stateDir = stateDirOf(home, opts.platform);
   return {
     version: lock.version, packages: lock.packages, skippedOptional: lock.skippedOptional, pin: lock.pin,
     hosts: [...new Set(lock.packages.map((p) => new URL(p.resolved).host))],

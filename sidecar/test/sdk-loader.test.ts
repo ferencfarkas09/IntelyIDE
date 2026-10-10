@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  isPackagedPath, loadSdk, parseManifest, resetSdkCache, SDK_NAME, SDK_PIN, SdkBrokenError, SdkError, SdkIncompatibleError, SdkMissingError, sdkReport, sdkSetupHint, SdkUnverifiedError, STATE_DIR_NAME,
+  isPackagedPath, loadSdk, parseManifest, resetSdkCache, SDK_NAME, SDK_PIN, SdkBrokenError, SdkError, SdkIncompatibleError, SdkMissingError, sdkReport, sdkSetupHint, SdkUnverifiedError, STATE_DIR_NAME, stateDirOf,
   treeLines, type LoadOptions,
 } from '../src/sdk.js';
 
@@ -44,8 +44,8 @@ async function staged(name?: string) {
 }
 
 /** A verified install at `<home>/Library/Application Support/<stateName>/sdk` (fake tree, deterministic modes) and its manifest. */
-async function stageHome(home: string, stateName = STATE_DIR_NAME): Promise<{ state: string; dir: string; manifest: string }> {
-  const state = path.join(home, 'Library', 'Application Support', stateName);
+async function stageHome(home: string, stateName = STATE_DIR_NAME, platform: NodeJS.Platform = 'darwin'): Promise<{ state: string; dir: string; manifest: string }> {
+  const state = path.join(path.dirname(stateDirOf(home, platform)), stateName);
   const dir = path.join(state, 'sdk');
   mkdirSync(state, { recursive: true });
   for (let p = state; p !== tmp; p = path.dirname(p)) chmodSync(p, 0o755);
@@ -241,6 +241,24 @@ describe('no environment switch', () => {
     expect(await loadSdk({ checkoutDir: null, home, manifest, pin: FAKE_PIN, log: () => {} })).toBeTruthy();
   });
 
+  it('state dir: macOS keeps Library/Application Support, Linux uses ~/.local/share, from the home only', () => {
+    expect(stateDirOf('/Users/u', 'darwin')).toBe('/Users/u/Library/Application Support/IntelyIDE');
+    expect(stateDirOf('/home/u', 'linux')).toBe('/home/u/.local/share/IntelyIDE');
+    const saved = process.env.XDG_DATA_HOME;
+    process.env.XDG_DATA_HOME = '/elsewhere';
+    try { expect(stateDirOf('/home/u', 'linux')).toBe('/home/u/.local/share/IntelyIDE'); } finally { if (saved === undefined) delete process.env.XDG_DATA_HOME; else process.env.XDG_DATA_HOME = saved; }
+    expect(stateDirOf('/Users/u')).toBe(stateDirOf('/Users/u', process.platform));
+  });
+
+  it('linux: the verified install is looked for at <home>/.local/share/IntelyIDE/sdk, and only there', async () => {
+    const home = path.join(tmp, 'home');
+    const { manifest } = await stageHome(home, STATE_DIR_NAME, 'linux');
+    expect(await loadSdk({ checkoutDir: null, home, platform: 'linux', manifest, pin: FAKE_PIN, log: () => {} })).toBeTruthy();
+    resetSdkCache();
+    const e = await loadSdk({ checkoutDir: null, home, platform: 'darwin', manifest, pin: FAKE_PIN, log: () => {} }).catch((x) => x);
+    expect(e).toBeInstanceOf(SdkMissingError); // the macOS location is empty
+  });
+
   it('the pre-rename state directory IntelySwitchIDE is never looked at', async () => {
     const home = path.join(tmp, 'home');
     const { manifest } = await stageHome(home, 'IntelySwitchIDE');
@@ -392,6 +410,18 @@ describe('packaged mode (PK18)', () => {
     expect(isPackagedPath('/Applications/.app/Contents/Resources/x.js')).toBe(false);
     expect(isPackagedPath('/Applications/IntelyIDE.app.evil/Contents/Resources/x.js')).toBe(false);
     expect(isPackagedPath('/Users/x/repo/sidecar/dist/index.js')).toBe(false);
+    // the layout Setup uploads to a Linux server: <dir>/.intely/<version>/resources/sidecar/...
+    expect(isPackagedPath('/home/u/.intely/1.2.0/resources/sidecar/index.js')).toBe(true);
+    expect(isPackagedPath('/root/.intely/1.2.0-rc.1/resources/sidecar/sdk-install.js')).toBe(true);
+    expect(isPackagedPath('/home/u/.intely/1.2.0/resources/sidecar')).toBe(false);
+    expect(isPackagedPath('/home/u/.intely/resources/sidecar/index.js')).toBe(false);
+    expect(isPackagedPath('/home/u/.intely/1.2.0/resources/sdk-pin/x')).toBe(false);
+    expect(isPackagedPath('/home/u/.intely/a/b/resources/sidecar/index.js')).toBe(false);
+    expect(isPackagedPath('/home/u/intely/1.2.0/resources/sidecar/index.js')).toBe(false);
+    expect(isPackagedPath('/home/u/.intely2/1.2.0/resources/sidecar/index.js')).toBe(false);
+    expect(isPackagedPath('/home/u/x.intely/1.2.0/resources/sidecar/index.js')).toBe(false);
+    expect(isPackagedPath('/home/u/.intely/1.2.0/Resources/sidecar/index.js')).toBe(false); // Linux is case-sensitive
+    expect(isPackagedPath('/home/u/.intely/../x/resources/sidecar/index.js')).toBe(false); // resolved first
     expect(isPackagedPath(fileURLToPath(new URL('../src/sdk.ts', import.meta.url)))).toBe(false); // the tests themselves run as a source checkout
   });
 

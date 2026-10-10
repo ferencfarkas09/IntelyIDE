@@ -237,6 +237,8 @@ export interface SidecarMsg {
   'session/note': { body: { agentId: string; noteId: string; text: string; parentToolId?: string | null }; reply: { ok: true } | { error: 'noSession' | 'unsupported' | NoteErrorCode; detail?: string } };
   /** The plan limits of the signed-in Claude account (limits.ts): no open session needed. */
   'usage/limits': { body: import('./limits.js').LimitsRequest; reply: import('./limits.js').LimitsReply };
+  /** File-system questions of the permission broker about THIS machine (fsquery.ts); a read-only oracle, sent ad hoc by the host (not in the generated Rust enum). */
+  'fs/query': { body: { ops: import('./fsquery.js').FsOp[] }; reply: import('./fsquery.js').FsQueryReply };
   // session history (history.ts): no open session needed
   'history/list': { body: { dir?: string; limit?: number; offset?: number }; reply: { ok: true; sessions: import('./history.js').SessionInfo[] } | { error: string; detail?: string } };
   'history/messages': { body: { sessionId: string; dir?: string; limit?: number; offset?: number }; reply: { ok: true; messages: import('./history.js').HistoryMessage[] } | { error: string; detail?: string } };

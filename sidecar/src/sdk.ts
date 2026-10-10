@@ -39,8 +39,12 @@ export class SdkBrokenError extends SdkError { constructor(detail: string) { sup
 
 export type Sdk = typeof import('@anthropic-ai/claude-agent-sdk');
 
-/** Name of the per-user state directory below ~/Library/Application Support (the verified install is `<it>/sdk`). */
+/** Name of the per-user state directory below ~/Library/Application Support (macOS) or ~/.local/share (Linux); the verified install is `<it>/sdk`. */
 export const STATE_DIR_NAME = 'IntelyIDE';
+
+/** The per-user state directory, from the home directory and the platform only (never from XDG_* or any other variable). `platform` is for tests. */
+export const stateDirOf = (home: string, platform: NodeJS.Platform = process.platform): string =>
+  platform === 'linux' ? path.join(home, '.local', 'share', STATE_DIR_NAME) : path.join(home, 'Library', 'Application Support', STATE_DIR_NAME);
 
 export interface LoadOptions {
   /** Verified-install root (tests). Production: `<state dir>/sdk`. When given, the checkout lookup is skipped. */
@@ -56,6 +60,8 @@ export interface LoadOptions {
   pin?: string;
   /** Home directory used to derive the state dir (tests). Production: os.homedir(). */
   home?: string;
+  /** Platform used to derive the state dir (tests). Production: process.platform. */
+  platform?: NodeJS.Platform;
   log?: (line: string) => void;
 }
 
@@ -67,8 +73,11 @@ const MAX_BYTES = 256 * 1024 * 1024;
 const SKIP = new Set(['node_modules/.bin', 'node_modules/.package-lock.json']);
 
 const sidecarDir = () => path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-/** True for a file inside `<name>.app/Contents/Resources/` (the bundle layout of (design notes: release-packaging-spec) 4.1). Case-insensitive: APFS usually is, and a false positive only makes the loader stricter. */
-export const isPackagedPath = (file: string): boolean => /[^/]\.app\/Contents\/Resources\//i.test(path.resolve(file));
+/** True for a file inside `<name>.app/Contents/Resources/` (the bundle layout of (design notes: release-packaging-spec) 4.1), or inside `<dir>/.intely/<version>/resources/sidecar/` (the layout Setup uploads to a remote Linux server). The first is case-insensitive: APFS usually is, and a false positive only makes the loader stricter. */
+export const isPackagedPath = (file: string): boolean => {
+  const abs = path.resolve(file);
+  return /[^/]\.app\/Contents\/Resources\//i.test(abs) || /[^/]\/\.intely\/[^/]+\/resources\/sidecar\//.test(abs);
+};
 const packagedHere = isPackagedPath(fileURLToPath(import.meta.url));
 const mask = (s: string, home = os.homedir()) => redact(home && home.length > 1 ? s.split(home).join('~') : s);
 const code = (e: unknown) => (e as NodeJS.ErrnoException | undefined)?.code;
@@ -131,7 +140,7 @@ async function resolveAndImport(opts: LoadOptions, home: string, packaged: boole
       }
     }
   }
-  const dir = opts.dir ?? path.join(home, 'Library', 'Application Support', STATE_DIR_NAME, 'sdk');
+  const dir = opts.dir ?? path.join(stateDirOf(home, opts.platform), 'sdk');
   let st;
   try { st = await lstat(dir); } catch (e) {
     if (code(e) === 'ENOENT' || code(e) === 'ENOTDIR') throw new SdkMissingError(`${SDK_NAME} ${pin} is not installed`);
