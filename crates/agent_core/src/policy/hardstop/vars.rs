@@ -20,6 +20,7 @@
 use super::{Walker, Word};
 use crate::policy::shellparse::{is_name, Command, Part, RedirKind, Sep};
 use std::borrow::Cow;
+use std::path::PathBuf;
 
 /// Most words a `for` list may hold.
 const MAX_LOOP_VALUES: usize = 40;
@@ -44,6 +45,9 @@ const WRAPPERS: &[&str] = &["command", "builtin", "time", "exec"];
 /// Builtins that can change any variable, or whose arguments name none of them: nothing is followed after one.
 const POISON: &[&str] = &["let", "eval", "source", ".", "mapfile", "readarray", "getopts", "wait", "coproc", "select", "trap"];
 
+/// Most places the shell may be in at once (after `cd` commands that may not have run) before the directory is called unknown.
+const MAX_CWD_WORLDS: usize = 3;
+
 /// Assignments that may not have run: the name and what the variable held before (`None` when it was not known).
 type Pending = Vec<(String, Option<String>)>;
 
@@ -54,6 +58,11 @@ enum Effect {
     Forget(Vec<String>),
     /// It may have changed any variable (or made one unchangeable): nothing is followed from here.
     Poison,
+}
+
+/// The string has `if`, `while`, `case`, a function or `{ }`: a command in it may not run, or runs elsewhere.
+pub(super) fn has_control_flow(cmds: &[Command]) -> bool {
+    cmds.iter().any(|c| c.reserved.iter().any(|r| CONTROL_WORDS.contains(&r.as_str())) || c.words.first().is_some_and(|w| !w.dynamic && CONTROL_COMMANDS.contains(&w.text.as_str())))
 }
 
 /// A command that only assigns (`f=src/a.js`, `a=1 b=2`, `f=x > log`).
@@ -280,6 +289,9 @@ impl<'a> Walker<'a> {
         let mut i = 0;
         while i < cmds.len() {
             let cmd = &cmds[i];
+            if !cmd.nested {
+                self.enter_or_leave_groups(cmd);
+            }
             let follow = track && !self.vars_off && !cmd.nested;
             if follow && matches!(cmd.after, Sep::Seq | Sep::Bg | Sep::Or) {
                 // a new list starts, or the commands after `||` run only when the ones before failed
@@ -289,19 +301,29 @@ impl<'a> Walker<'a> {
                 if let Some(end) = matching_done(cmds, i) {
                     // the loop runs for certain when its header does and nothing sets it aside; `done` stays in the body, so
                     // its redirects (`done < list`) are judged with the loop and a `&` after the last command is seen
-                    let certain = chain_always_runs(cmds, i, &ok) && !runs_aside(cmds, end);
-                    self.for_loop(cmd, &cmds[i + 1..=end], depth, certain);
+                    let aside = cmd.after == Sep::Pipe || runs_aside(cmds, end);
+                    let runs = chain_always_runs(cmds, i, &ok);
+                    let certain = runs && !aside;
+                    let before = (self.cwd.clone(), self.cwd_known);
+                    let exact = self.for_loop(cmd, &cmds[i + 1..=end], depth, certain);
+                    // a `cd` in the body: in a pipe or in the background the shell around does not move; when the loop may not run, or
+                    // runs a number of times that is not known, the directory is in doubt
+                    if (self.cwd.clone(), self.cwd_known) != before {
+                        if aside {
+                            (self.cwd, self.cwd_known) = before;
+                        } else if !runs || !exact {
+                            self.cwd_pending.push(before);
+                        }
+                    }
                     i = end + 1;
                     continue;
                 }
             }
+            let before_cmd = (self.cwd.clone(), self.cwd_known);
             let expanded = self.run(cmd, depth);
             ok[i] = always_ok(cmd) || self.entered_dir(&expanded);
-            // a `cd` that fails leaves the shell where it was, and `;` or `||` go on: a folder that does not exist (and that the string
-            // does not create) leaves the next paths in doubt. After `&&` the next command runs only if the `cd` worked.
-            if !cmd.nested && self.left_for_missing_dir(&expanded) && !cmds.iter().skip(i + 1).find(|n| !n.nested).is_none_or(|n| n.after == Sep::And) {
-                self.cwd_known = false;
-                self.issue("a cd to a folder that does not exist (the commands after it may run in the folder it was left from)");
+            if !cmd.nested && self.moves_the_shell(&expanded) {
+                self.after_cd(cmds, i, &ok, before_cmd);
             }
             if track && !self.vars_off && !cmd.nested {
                 self.note_assignment(cmds, i, &mut pending, &ok);
@@ -316,16 +338,26 @@ impl<'a> Walker<'a> {
         self.settle(&mut pending);
     }
 
-    /// Judges one command with the variables of the string replaced by their values; returns the command as it was judged.
+    /// Judges one command with the variables of the string replaced by their values; returns the command as it was judged. When the shell
+    /// may be in more than one place (`cwd_alts`), the command is judged from each of them.
     fn run<'c>(&mut self, cmd: &'c Command, depth: usize) -> Cow<'c, Command> {
-        if self.vars.is_empty() {
-            self.command(cmd, depth);
-            Cow::Borrowed(cmd)
-        } else {
-            let expanded = self.expand_command(cmd);
-            self.command(&expanded, depth);
-            Cow::Owned(expanded)
+        let expanded = if self.vars.is_empty() { Cow::Borrowed(cmd) } else { Cow::Owned(self.expand_command(cmd)) };
+        self.command(&expanded, depth);
+        if !self.cwd_alts.is_empty() {
+            let primary = (self.cwd.clone(), self.cwd_known);
+            let mut alts = std::mem::take(&mut self.cwd_alts);
+            for alt in &mut alts {
+                (self.cwd, self.cwd_known) = alt.clone();
+                self.command(&expanded, depth);
+                *alt = (self.cwd.clone(), self.cwd_known);
+            }
+            (self.cwd, self.cwd_known) = primary.clone();
+            // the places that met again are one place
+            alts.retain(|a| *a != primary);
+            alts.dedup();
+            self.cwd_alts = alts;
         }
+        expanded
     }
 
     /// `cd dir` (or `pushd`) that the walker followed into a directory that exists.
@@ -333,9 +365,58 @@ impl<'a> Walker<'a> {
         cmd.words.first().is_some_and(|w| !w.dynamic && matches!(w.text.as_str(), "cd" | "pushd")) && self.cwd_known && self.cwd.is_dir()
     }
 
-    /// `cd dir` (or `pushd`) that the walker followed into a folder that does not exist and that no `mkdir` of the string made.
-    fn left_for_missing_dir(&self, cmd: &Command) -> bool {
-        cmd.words.first().is_some_and(|w| !w.dynamic && matches!(w.text.as_str(), "cd" | "pushd")) && self.cwd_known && !self.cwd.is_dir() && !self.made_dirs.iter().any(|d| self.cwd.starts_with(d))
+    /// `cd` or `pushd` with a known target (the walker moved into it).
+    fn moves_the_shell(&self, cmd: &Command) -> bool {
+        cmd.words.first().is_some_and(|w| !w.dynamic && matches!(w.text.as_str(), "cd" | "pushd")) && self.cwd_known
+    }
+
+    /// Where a `cd` leaves the shell is certain only when it is in the main shell, always runs and goes to a folder that exists. In a pipe
+    /// or in the background the shell does not move at all (the directory is not known from there on). After a condition, in a function,
+    /// or into a folder that does not exist (the `cd` fails) the shell may be where it was: the commands of the same `&&` list are judged
+    /// from the new directory (they run only if the `cd` worked), and from the next list on from both places.
+    fn after_cd(&mut self, cmds: &[Command], i: usize, ok: &[bool], before: (PathBuf, bool)) {
+        if runs_aside(cmds, i) {
+            self.cwd_known = false;
+            self.issue("a cd in a pipe or in the background (the shell stays where it was)");
+            return;
+        }
+        let certain = chain_always_runs(cmds, i, ok) && !self.cd_unreliable;
+        let missing = !self.cwd.is_dir() && !self.made_dirs.contains(&self.cwd);
+        if !certain || missing {
+            self.cwd_pending.push(before);
+        }
+    }
+
+    /// The start of a command: a `)` restores the directory from before the `(`, and from a new list on the shell may be in the place it
+    /// was before a `cd` that may not have moved it.
+    fn enter_or_leave_groups(&mut self, cmd: &Command) {
+        while let Some((depth, dir, known, alts)) = self.cwd_stack.last().cloned() {
+            if cmd.depth >= depth {
+                break;
+            }
+            self.cwd_stack.pop();
+            self.cwd = dir;
+            self.cwd_known = known;
+            self.cwd_alts = alts;
+            self.cwd_pending.clear();
+        }
+        if !self.cwd_pending.is_empty() && cmd.after != Sep::And {
+            let primary = (self.cwd.clone(), self.cwd_known);
+            for place in std::mem::take(&mut self.cwd_pending) {
+                if place == primary || self.cwd_alts.contains(&place) {
+                    continue;
+                }
+                if self.cwd_alts.len() >= MAX_CWD_WORLDS {
+                    self.cwd_known = false;
+                    self.issue("too many places the shell may be in after cd commands that may not have run");
+                    break;
+                }
+                self.cwd_alts.push(place);
+            }
+        }
+        if cmd.depth > self.cwd_stack.last().map_or(0, |t| t.0) {
+            self.cwd_stack.push((cmd.depth, self.cwd.clone(), self.cwd_known, self.cwd_alts.clone()));
+        }
     }
 
     fn forget(&mut self, names: &[String]) {
@@ -366,7 +447,7 @@ impl<'a> Walker<'a> {
     }
 
     /// `body` ends with the `done` of the loop. A loop whose words are unknown or too many is judged once with its variable unknown.
-    fn for_loop(&mut self, header: &Command, body: &[Command], depth: usize, certain: bool) {
+    fn for_loop(&mut self, header: &Command, body: &[Command], depth: usize, certain: bool) -> bool {
         let name = header.words.get(1).filter(|w| !w.dynamic && is_name(&w.text) && !SPECIAL_VARS.contains(&w.text.as_str())).map(|w| w.text.clone());
         let values: Option<Vec<String>> = if name.is_some() && header.words.get(2).is_some_and(|w| !w.dynamic && w.text == "in") {
             let words: Vec<Word> = header.words[3..].iter().flat_map(|w| self.expand_word(w)).collect();
@@ -381,6 +462,7 @@ impl<'a> Walker<'a> {
         match (&name, values) {
             (Some(n), Some(values)) if values.len() <= MAX_LOOP_VALUES && self.loop_work + values.len() * (body.len() + 1) <= MAX_LOOP_WORK => {
                 self.loop_work += values.len() * (body.len() + 1);
+                let runs_at_all = !values.is_empty();
                 for v in values {
                     if flow {
                         self.forget(&assigned);
@@ -394,12 +476,15 @@ impl<'a> Walker<'a> {
                 if flow || !certain {
                     self.forget(&assigned);
                 }
+                // the body ran once per word, all the way through
+                runs_at_all && !flow
             }
             _ => {
                 // the body runs an unknown number of times, perhaps never: what it assigns is not known before, in or after it
                 self.forget(&assigned);
                 self.walk(body, depth, true);
                 self.forget(&assigned);
+                false
             }
         }
     }

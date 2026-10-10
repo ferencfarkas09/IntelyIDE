@@ -112,6 +112,8 @@ pub struct Command {
     /// The reserved words that were peeled off its front (`do`, `then`, `done` ...). A `done` that is left with nothing to run is kept
     /// as a command without words, so the end of a `for` loop can be found in the flat list.
     pub reserved: Vec<String>,
+    /// How many parentheses (subshells) it sits in: what a `cd` does inside them ends at the closing one.
+    pub depth: u16,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -120,8 +122,8 @@ pub enum Issue {
     ProcessSubstitution,
     Unterminated(&'static str),
     TooDeep,
-    /// A parenthesis stuck to a word (`*(D)`, `.e(n)v`, `f(){`, `a=(1 2)`) or text stuck to a closing one (`(.)env`): in zsh a glob qualifier
-    /// or a group of a pattern, which names files the words do not show.
+    /// A parenthesis stuck to a word (`*(D)`, `.e(n)v`) or text stuck to a closing one (`(.)env`): in zsh a glob qualifier or a group of a
+    /// pattern, which names files the words do not show. A function (`f()`) and an array (`a=(1 2)`) are not meant.
     Parenthesis,
 }
 
@@ -145,6 +147,8 @@ pub struct Script {
     /// substitution (a subshell, a function, an array), an arithmetic expansion (`$((x=1))`, `$[x=1]`) or a parameter expansion that
     /// assigns (`${x:=y}`). What an assignment did is not followed then (see `hardstop/vars.rs`).
     pub opaque: bool,
+    /// The string defines a function (`f() { ... }`, `function f`): its body is in the flat list where it is written, but it runs where it is called.
+    pub functions: bool,
 }
 
 pub fn parse(src: &str) -> Script {
@@ -176,6 +180,8 @@ struct WordBuf {
     quoted: bool,
     brace_open: u32,
     brace_comma: bool,
+    /// The first character of the word is an unquoted `=` (zsh expands `=git` to the path of the program, also as `=\git`).
+    eq_start: bool,
     /// A dynamic part that is not a plain `$name` / `${name}`: the word cannot be read from its pieces.
     impure: bool,
     /// The plain expansions in order (see [`Word::parts`]).
@@ -239,6 +245,8 @@ struct Lexer {
     piped: bool,
     /// How the command being read is joined to the one before it (set by the separator that ended the previous one).
     sep: Sep,
+    /// Parentheses open around the position being read.
+    paren_depth: u16,
     heredoc_specs: Vec<HereDocSpec>,
     heredoc_bodies: Vec<String>,
 }
@@ -256,6 +264,7 @@ impl Lexer {
             pending: None,
             piped: false,
             sep: Sep::Seq,
+            paren_depth: 0,
             heredoc_specs: Vec::new(),
             heredoc_bodies: Vec::new(),
         }
@@ -306,15 +315,24 @@ impl Lexer {
                 '`' => self.backtick(),
                 '$' => self.dollar(false),
                 ';' | '(' | ')' => {
-                    // `*(D)`, `.e(n)v`, `f(){`, `a=(1 2)`: a parenthesis stuck to a word; `(.)env`: text stuck to a closing one
-                    let stuck_before = ch == '(' && self.cur.as_ref().is_some_and(|b| !b.text.is_empty());
+                    // `*(D)`, `.e(n)v`: a parenthesis stuck to a word, which zsh reads as a qualifier or a group of a glob; `(.)env`: text
+                    // stuck to a closing one. `f()` (a function) and `a=(1 2)` (an array) are not globs.
+                    let stuck_before = ch == '(' && self.peek(1) != Some(')') && self.cur.as_ref().is_some_and(|b| !b.text.is_empty() && !b.text.ends_with('='));
                     let stuck_after = ch == ')' && self.peek(1).is_some_and(|n| !n.is_whitespace() && !matches!(n, ';' | '&' | '|' | '<' | '>' | ')' | '#'));
                     if stuck_before || stuck_after {
                         self.script.issues.push(Issue::Parenthesis);
                     }
+                    if ch == '(' && self.peek(1) == Some(')') {
+                        self.script.functions = true;
+                    }
                     self.end_word();
                     self.end_command();
                     self.i += 1;
+                    match ch {
+                        '(' => self.paren_depth = self.paren_depth.saturating_add(1),
+                        ')' => self.paren_depth = self.paren_depth.saturating_sub(1),
+                        _ => {}
+                    }
                     if ch != ';' {
                         self.script.opaque = true;
                     }
@@ -361,6 +379,7 @@ impl Lexer {
     fn plain(&mut self, ch: char) {
         let b = self.buf();
         match ch {
+            '=' if b.text.is_empty() => b.eq_start = true,
             '*' | '?' | '[' => b.glob = true,
             '{' => b.brace_open += 1,
             ',' if b.brace_open > 0 => b.brace_comma = true,
@@ -693,10 +712,12 @@ impl Lexer {
 
     fn end_word(&mut self) {
         let Some(mut b) = self.cur.take() else { return };
-        // zsh expands an unquoted `=git` to the path of the program: the word is not what it says
-        if !b.quoted && b.text.len() > 1 && b.text.starts_with('=') && b.text[1..].chars().next().is_some_and(|c| c.is_alphanumeric() || matches!(c, '_' | '/' | '.' | '-')) {
-            b.dynamic = true;
-            b.impure = true;
+        // zsh expands an unquoted `=git` (and `=\git`) to the path of the program: it runs git, so the word is read as `git`
+        if b.eq_start && b.text.len() > 1 && b.text[1..].chars().next().is_some_and(|c| c.is_alphanumeric() || matches!(c, '_' | '/' | '.' | '-')) {
+            b.text.remove(0);
+            for e in &mut b.exps {
+                e.start -= 1;
+            }
         }
         let parts = b.parts();
         let word = Word { text: b.text, dynamic: b.dynamic, glob: b.glob, quoted: b.quoted, parts };
@@ -756,12 +777,15 @@ impl Lexer {
             // an empty command is dropped, but the end of a loop stays visible
             if reserved.iter().any(|r| r == "done") {
                 let after = std::mem::take(&mut self.sep);
-                self.script.commands.push(Command { reserved, after, ..Command::default() });
+                self.script.commands.push(Command { reserved, after, depth: self.paren_depth, ..Command::default() });
             }
             return;
         }
         let after = std::mem::take(&mut self.sep);
-        self.script.commands.push(Command { assigns, words, redirects, piped_from_prev: piped, nested: false, after, reserved });
+        if reserved.iter().any(|r| r == "function") {
+            self.script.functions = true;
+        }
+        self.script.commands.push(Command { assigns, words, redirects, piped_from_prev: piped, nested: false, after, reserved, depth: self.paren_depth });
     }
 
     /// Called right after a newline was consumed: reads the bodies of the heredocs opened on that line.
@@ -825,7 +849,7 @@ impl Lexer {
 /// Parses a substitution body one level deeper than its parent.
 fn expand_nested(body: &str, parent_depth: usize) -> Script {
     if parent_depth + 1 > MAX_DEPTH {
-        Script { commands: Vec::new(), issues: vec![Issue::TooDeep], opaque: false }
+        Script { commands: Vec::new(), issues: vec![Issue::TooDeep], opaque: false, functions: false }
     } else {
         parse_at(body, parent_depth + 1)
     }

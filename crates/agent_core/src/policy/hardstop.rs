@@ -240,8 +240,22 @@ struct Walker<'a> {
     vars: std::collections::HashMap<String, String>,
     /// A command that may have changed any variable ran: nothing is followed in the string from there (see `vars::Effect`).
     vars_off: bool,
-    /// Folders the string itself creates (`mkdir -p out`): a `cd` into one of them is not a `cd` to a missing folder.
+    /// Folders the string itself creates (`mkdir -p out`, `mkdir out` inside a folder that exists): a `cd` into one of them is not a
+    /// `cd` to a missing folder.
     made_dirs: Vec<PathBuf>,
+    /// Where the shell was before a `cd` that may not have moved it (it may not have run, or the folder is missing). From the next
+    /// list on the shell may be there, and `cwd_alts` holds it (see `vars::Walker::after_cd`).
+    cwd_pending: Vec<(PathBuf, bool)>,
+    /// Other places the shell may be in besides `cwd`: every command is judged from each of them.
+    cwd_alts: Vec<(PathBuf, bool)>,
+    /// The working directory and the other places at each open parenthesis (depth, directory, known, others): what a `cd` inside
+    /// `( ... )` did ends at the `)`.
+    cwd_stack: Vec<(u16, PathBuf, bool, Vec<(PathBuf, bool)>)>,
+    /// `CDPATH` is set in the string: a `cd` to a relative name may go somewhere else.
+    cdpath: bool,
+    /// The string being walked defines a function (its body is in the flat list where it is written, but runs where it is called), or
+    /// has `if`/`while`/`case`: a `cd` in it may not run.
+    cd_unreliable: bool,
     /// `setopt`, `shopt` or `set -o` changed how globs match (`GLOB_DOTS`, `dotglob`): a glob after it cannot be judged.
     glob_untrusted: bool,
     /// Commands walked for loop iterations so far: the work a loop may cost is bounded.
@@ -251,7 +265,7 @@ struct Walker<'a> {
 
 impl<'a> Walker<'a> {
     fn new(jail: &'a Jail) -> Self {
-        Self { jail, cwd: jail.cwd.clone(), cwd_known: true, alias_depth: 0, shell_aliases: Default::default(), repl: None, src: String::new(), script_stack: Vec::new(), script_dir: None, vars: Default::default(), vars_off: false, made_dirs: Vec::new(), glob_untrusted: false, loop_work: 0, a: Analysis::default() }
+        Self { jail, cwd: jail.cwd.clone(), cwd_known: true, alias_depth: 0, shell_aliases: Default::default(), repl: None, src: String::new(), script_stack: Vec::new(), script_dir: None, vars: Default::default(), vars_off: false, made_dirs: Vec::new(), cwd_pending: Vec::new(), cwd_alts: Vec::new(), cwd_stack: Vec::new(), cdpath: false, cd_unreliable: false, glob_untrusted: false, loop_work: 0, a: Analysis::default() }
     }
 
     fn stop(&mut self, rule: &str, reason: &str) {
@@ -287,8 +301,18 @@ impl<'a> Walker<'a> {
         if depth == 0 {
             self.a.opaque |= s.opaque;
         }
+        self.cdpath |= s.commands.iter().any(|c| c.assigns.iter().any(|(n, _)| n == "CDPATH") || c.words.iter().any(|w| w.text.contains("CDPATH")));
+        let outer_unreliable = std::mem::replace(&mut self.cd_unreliable, s.functions || vars::has_control_flow(&s.commands));
+        // a nested script has its own parentheses and its own list boundaries; a doubt about the directory it ends in stays a doubt
+        let outer_stack = std::mem::take(&mut self.cwd_stack);
+        let outer_alts = std::mem::take(&mut self.cwd_alts);
+        let outer_pending = std::mem::take(&mut self.cwd_pending);
         let track = vars::const_prop_ok(&s.commands, s.opaque);
         self.walk(&s.commands, depth, track);
+        self.cwd_stack = outer_stack;
+        self.cwd_alts = outer_alts;
+        self.cwd_pending = outer_pending;
+        self.cd_unreliable = outer_unreliable;
         if let Some((v, off)) = outer_vars {
             self.vars = v;
             self.vars_off = off;
@@ -385,8 +409,8 @@ impl<'a> Walker<'a> {
             return;
         }
         let Some(first) = words.first() else { return };
-        // (`[` is the `test` command, not a pattern)
-        if first.dynamic || (first.glob && first.text != "[") {
+        // (`[` and `[[` are the `test` command and keyword, not patterns)
+        if first.dynamic || (first.glob && !matches!(first.text.as_str(), "[" | "[[")) {
             self.wrangler_unknown_command(first);
             self.issue("command name is not known statically");
             return;
@@ -503,12 +527,7 @@ impl<'a> Walker<'a> {
                 }
             }
             "cd" | "pushd" => self.cd(words),
-            "mkdir" => {
-                for w in words[1..].iter().filter(|w| !w.dynamic && !w.text.starts_with('-')) {
-                    let made = paths::resolve(&self.cwd, &w.text, self.jail.home.as_deref());
-                    self.made_dirs.push(made);
-                }
-            }
+            "mkdir" => self.note_made_dirs(words),
             "setopt" | "unsetopt" | "shopt" | "emulate" => self.glob_untrusted = true,
             "set" if words[1..].iter().any(|w| w.dynamic || (matches!(w.text.as_bytes().first(), Some(b'-' | b'+')) && w.text.len() > 1 && w.text != "--")) => self.glob_untrusted = true,
             "popd" => {
@@ -710,14 +729,21 @@ impl<'a> Walker<'a> {
         if let Some(at) = script_at {
             match words.get(at) {
                 Some(w) if w.dynamic => self.issue("shell -c script is not known statically"),
-                Some(w) => self.script(&w.text.clone(), depth + 1),
+                // (a child shell: what its `cd` does ends with it)
+                Some(w) => {
+                    let saved = (self.cwd.clone(), self.cwd_known);
+                    self.script(&w.text.clone(), depth + 1);
+                    (self.cwd, self.cwd_known) = saved;
+                }
                 None => {}
             }
             return;
         }
         let has_file = words.get(i).is_some();
         if let Some(body) = &ctx.stdin_script {
+            let saved = (self.cwd.clone(), self.cwd_known);
             self.script(&body.clone(), depth + 1);
+            (self.cwd, self.cwd_known) = saved;
         } else if reads_stdin || (!has_file && ctx.piped) {
             self.issue("shell reads its script from stdin");
         }
@@ -1117,9 +1143,29 @@ impl<'a> Walker<'a> {
         self.alias_depth -= 1;
     }
 
+    /// `mkdir -p a/b/c` makes `a`, `a/b` and `a/b/c`; `mkdir a/b` makes `a/b` only when `a` exists (or was made).
+    fn note_made_dirs(&mut self, words: &[Word]) {
+        let parents = words[1..].iter().any(|w| w.text.starts_with('-') && !w.text.starts_with("--") && w.text.contains('p') || w.text == "--parents");
+        for w in words[1..].iter().filter(|w| !w.dynamic && !w.text.starts_with('-')) {
+            let made = paths::resolve(&self.cwd, &w.text, self.jail.home.as_deref());
+            let mut chain = vec![made.clone()];
+            if parents {
+                chain.extend(made.ancestors().skip(1).filter(|a| !a.exists()).map(Path::to_path_buf));
+            } else if !made.parent().is_some_and(|p| p.is_dir() || self.made_dirs.iter().any(|d| d == p)) {
+                continue;
+            }
+            self.made_dirs.extend(chain);
+        }
+    }
+
     fn cd(&mut self, words: &[Word]) {
         let target = words[1..].iter().find(|w| !w.text.starts_with('-') || w.text == "-");
         match target {
+            // `CDPATH` lets a relative name go to a folder somewhere else
+            Some(w) if self.cdpath && !w.text.starts_with('/') && !w.text.starts_with('~') => {
+                self.cwd_known = false;
+                self.issue("cd with CDPATH set");
+            }
             Some(w) if !w.dynamic && w.text != "-" => {
                 self.cwd = paths::resolve(&self.cwd, &w.text, self.jail.home.as_deref());
             }

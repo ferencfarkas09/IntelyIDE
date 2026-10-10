@@ -489,12 +489,40 @@ fn zsh_globs_and_subscripts_are_not_read_as_plain_words() {
             "shopt -s dotglob; cat *",
             "set -o noglob; cat *",
             "emulate sh; cat *",
-            "cat =ls",
-            "=git status",
+            "=git commit -m x",
+            "=\\git add -A",
             "f() { cat .env; }; f",
             "a=(.env); cat $a",
         ],
     );
+}
+
+// Round 2 of the review: the working directory after a `cd` that may not have moved the shell.
+
+#[test]
+fn where_a_cd_may_not_have_moved_the_shell_the_next_paths_are_in_doubt() {
+    let w = world();
+    does_not_run(
+        &w,
+        &[
+            "cd nope && cat package.json; cat ../outside.txt",
+            "cd nope && ls; ls ..",
+            "cd nope && :; ls ..",
+            "cd nope && cd ..; ls ..",
+            "cd nope && true || true; cat ../outside.txt",
+            "cd src | cat; cat ../outside.txt",
+            "cd src & cat ../outside.txt",
+            "(cd src); cat ../outside.txt",
+            "test -f flag && cd src; cat ../outside.txt",
+            "[ -d src ] && cd src; cat ../outside.txt",
+            "if true; then cd src; fi; cat ../outside.txt",
+            "f() { cd src; }; cat ../outside.txt",
+            "bash -c 'cd src'; cat ../outside.txt",
+            "for d in $(ls); do cd $d; done; cat ../outside.txt",
+        ],
+    );
+    // (a subshell, a loop and a function are not read-only commands; a plain chain of `cd` and reads is)
+    runs(&w, &["cd src/api && ls models && cd ../.. && ls scripts", "cd src/api && ls models; cd ../..; ls scripts"]);
 }
 
 #[test]

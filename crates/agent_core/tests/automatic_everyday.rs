@@ -61,6 +61,9 @@ fn world() -> World {
     w("scratch/apply_i18n.js", "const fs = require('fs');\nconsole.log(fs.existsSync('src/localization/index.js'));\n");
     w("scratch/commit.sh", "git commit -m x\n");
     w("scratch/spawn.py", "import subprocess\nsubprocess.run(['git', 'status'])\n");
+    // a shell script with a function, an array and a pattern test: ordinary shell, not a glob qualifier
+    w("scratch/fn.sh", "#!/bin/bash\nset -e\nlog() { echo \"$1\"; }\nfiles=(a b c)\nfor f in \"${files[@]}\"; do log \"$f\"; done\nif [[ $x == (a|b) ]]; then echo ok; fi\n");
+    w("backend/scripts/fn.sh", "#!/bin/bash\nlog() { echo \"$1\"; }\nfiles=(a b)\nfor f in \"${files[@]}\"; do log \"$f\"; done\n");
     w("home/tool.py", "print(1)\n");
     World { _dir: dir, root, backend, admin, mobile, scratch }
 }
@@ -300,6 +303,8 @@ fn a_file_written_by_a_heredoc_inside_a_repository_runs() {
 fn a_helper_script_kept_in_the_scratch_folder_runs_after_its_text_is_scanned() {
     let w = world();
     allowed(&w, &["cd {admin} && python3 {scratch}/edit_stock_table.py && grep -n \"processedData\" src/components/pages/stock/components/table/index.js | head -3; git diff --stat src/components/pages/stock/components/table/index.js", "cd {admin} && node {scratch}/apply_i18n.js && git --no-pager diff --stat -- src/localization | tail -5"]);
+    // functions and arrays are ordinary shell
+    allowed(&w, &["cd {admin} && bash {scratch}/fn.sh", "cd {backend} && bash scripts/fn.sh", "f() { echo hi; }; f", "files=(a b); echo done", "cd {admin} && for f in src/Router.js; do cat $f; done"]);
     // a script in the scratch folder is judged like one in a repository: a git write is a hard stop, spawning programs next to git is a risk
     let (d, by, rule, reason) = judge(&w, "cd {admin} && sh {scratch}/commit.sh");
     assert_eq!((d, by), (Decision::Deny, DecidedBy::HardStop), "{rule}: {reason}");
@@ -508,13 +513,77 @@ fn a_relative_path_with_a_space_or_a_double_slash_is_judged_whole() {
 #[test]
 fn a_cd_that_fails_does_not_move_the_paths_that_follow_it() {
     let w = world();
+    // `nope` does not exist: the `cd` fails, and what follows `;` or `||` runs where the shell was, so it is judged from both places
     refused(
         &w,
-        "exec.auto.unjudgeable",
+        "exec.auto.outside-jail",
         &["cd nope; cat ../outside.txt", "cd nope; cd ..; cat outside.txt", "cd nope; echo x > ../outside.txt", "cd nope; git -C .. log", "cd {backend}/nope || cat ../outside.txt"],
     );
     // a folder the string makes, a folder that exists, and `&&` (the next command runs only if the `cd` worked) are fine
-    allowed(&w, &["mkdir -p out; cd out; ls", "mkdir out && cd out && ls", "cd {admin}; cat src/Router.js | head -n 1", "cd {admin}/src && cat Router.js"]);
+    allowed(&w, &["mkdir -p out; cd out; ls", "mkdir out && cd out && ls", "cd {admin}; cat src/Router.js | head -n 1", "cd {admin}/src && cat Router.js", "mkdir -p {scratch}/u && cd {admin}/src && ls; cat Router.js"]);
+}
+
+#[test]
+fn the_directory_is_judged_from_every_place_a_cd_may_have_left_the_shell() {
+    let w = world();
+    // the `cd` may not have moved the shell: what follows the list is judged from the old place too, where `..` leaves the run's folders
+    refused(
+        &w,
+        "exec.auto.outside-jail",
+        &[
+            "cd nope && cat src/Router.js; cat ../outside.txt",
+            "cd nope && cat src/Router.js; echo x > ../outside.txt",
+            "cd nope && ls; ls ..",
+            "cd nope && :; ls ..",
+            "cd nope && cd ..; ls ..",
+            "cd nope && true || true; cat ../outside.txt",
+            "test -f flag && cd {backend}/src; cat ../outside.txt",
+            "if true; then cd {backend}/src; fi; cat ../outside.txt",
+            "f() { cd {backend}/src; }; cat ../outside.txt",
+            "mkdir nope; cd nope/deeper; cat ../../outside.txt",
+            "mkdir nope/x; cd nope/x; cat ../../outside.txt",
+            "(cd {backend}/src); cat ../outside.txt",
+            "bash -c 'cd {backend}/src'; cat ../outside.txt",
+        ],
+    );
+    // a `cd` in a pipe or in the background leaves the place of the shell unknown, and so does `CDPATH`
+    refused(
+        &w,
+        "exec.auto.unjudgeable",
+        &[
+            "cd {backend}/src | cat; cat ../outside.txt",
+            "cd {backend}/src & cat ../outside.txt",
+            "CDPATH={root} cd backend; cat x",
+            "export CDPATH={root}; cd src; cat x",
+            "CDPATH={root}; cd src; cat x",
+            "for d in $(ls); do cd {backend}/$d; done; cat ../outside.txt",
+        ],
+    );
+    allowed(
+        &w,
+        &[
+            "(cd {backend}/src && ls) && ls",
+            "(cd {admin}/src; cat Router.js); cat src/api/models/customer.model.js",
+            "mkdir -p out/deep; cd out/deep; ls ..",
+            "mkdir out && cd out && ls ..",
+            "for d in src scripts; do cd {backend}/$d && ls; done; ls",
+            "cd {backend}/src && ls ..; cd ..; ls",
+            "test -f flag && cd {backend}/src; ls",
+        ],
+    );
+}
+
+#[test]
+fn a_program_expansion_of_zsh_is_read_as_the_program_it_names() {
+    let w = world();
+    // zsh runs `=git` as git (also when the equals sign is followed by an escape): the hard stops apply to it
+    for cmd in ["=\\git commit -m x", "=git push", "=\\git add -A", "cd {admin} && =git commit -m x", "=\\rm -rf /"] {
+        let (d, by, rule, reason) = judge(&w, cmd);
+        assert_eq!((d, by), (Decision::Deny, DecidedBy::HardStop), "{cmd}: {rule}: {reason}");
+    }
+    allowed(&w, &["=ls", "cd {admin} && =git status"]);
+    // a quoted equals sign is a plain character
+    allowed(&w, &["echo '=git'", "echo \"=ls\""]);
 }
 
 #[test]
@@ -523,7 +592,7 @@ fn zsh_forms_of_a_glob_or_a_command_name_are_not_judged_as_plain_words() {
     refused(
         &w,
         "exec.auto.unjudgeable",
-        &["cat *(D)", "cat .e(n)v", "cat (.)env", "x=.envxx; cat $x[1,4]", "setopt GLOB_DOTS; cat *", "shopt -s dotglob; cat *", "=git status"],
+        &["cat *(D)", "cat .e(n)v", "cat (.)env", "x=.envxx; cat $x[1,4]", "setopt GLOB_DOTS; cat *", "shopt -s dotglob; cat *"],
     );
 }
 

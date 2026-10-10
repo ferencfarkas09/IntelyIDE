@@ -443,8 +443,8 @@ fn plan_dir_of(eff: &Eff) -> Option<PathBuf> {
     eff.ctx.plan_dir.as_ref().map(|d| canonical_lossy(d))
 }
 
-const PLAN_EXEC_REASON: &str = "plan mode runs only read-only commands such as git status, git log, git diff, ls, cat, tail, grep, rg and find (without -exec or -delete) inside the repositories; switch to Ask, Accept edits or Automatic to run this";
-const DELEGATE_EXEC_REASON: &str = "this role is read-only: it runs only read-only commands such as git status, git log, git diff, ls, cat, tail, grep, rg and find (without -exec or -delete) inside the repositories; use the Read, Grep and Glob tools, or report back so the lead hands the change to a role that can write";
+const PLAN_EXEC_REASON: &str = "plan mode runs only read-only commands inside the repositories (git status/log/diff/show/branch, ls, cat, head, tail, wc, grep, rg, sed -n 1,20p, awk '{print $1}', sort, uniq, cut, find without -exec or -delete; 2>/dev/null is fine, any other redirect, variable, substitution or script is not); switch to Ask, Accept edits or Automatic to run this";
+const DELEGATE_EXEC_REASON: &str = "this role is read-only: it runs only read-only commands inside the repositories (git status/log/diff/show/branch, ls, cat, head, tail, wc, grep, rg, sed -n 1,20p, awk '{print $1}', sort, uniq, cut, find without -exec or -delete; 2>/dev/null is fine, any other redirect, variable, substitution or script is not); use the Read, Grep and Glob tools, or report back so the lead hands the change to a role that can write";
 
 /// Why a read-only run or a read-only sub-agent may not run this command (the model re-plans from the text, so it must name what works).
 fn read_only_exec_reason(eff: &Eff, jail: &Jail) -> String {
