@@ -1,8 +1,8 @@
 # Getting started
 
-This guide takes you from a fresh download or clone to a first commit in a throwaway repository, and explains the run modes you will meet on the way. Applies to version 1.1.1.
+This guide takes you from a fresh download or clone to a first commit in a throwaway repository, and explains the run modes you will meet on the way. Applies to version 1.2.0.
 
-IntelyIDE 1.1.1 is a stable release, but the protections are best-effort and the installed app starts in writable mode. Read the section "Read-only and writing" before you point it at a repository you care about.
+IntelyIDE 1.2.0 is a stable release, but the protections are best-effort and the installed app starts in writable mode. Read the section "Read-only and writing" before you point it at a repository you care about.
 
 ## Install
 

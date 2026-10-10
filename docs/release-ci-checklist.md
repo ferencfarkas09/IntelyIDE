@@ -1,6 +1,6 @@
 # Release CI checklist
 
-This page lists what the repository's continuous integration does today and what a maintainer still does by hand around a release. Applies to version 1.1.1.
+This page lists what the repository's continuous integration does today and what a maintainer still does by hand around a release. Applies to version 1.2.0.
 
 ## Workflows that exist
 

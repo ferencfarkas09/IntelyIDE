@@ -4,6 +4,8 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-10
+
 ### Added
 
 - Runs on your own servers (Settings > Servers, and "Where to run" in New run). Add a server by its `ssh` target, let the IDE set it up (Node.js 24 if missing, the agent files, the Agent SDK, optionally Claude Code), and start runs there: 3 on the build server and 2 on this Mac from one dialog, with a limit of agents per server. The agent's shell, file edits and the Claude CLI run on the server through your own `ssh` (keys and `known_hosts` as in a terminal, no password typed or stored, forwarding switched off). The permission broker stays in the IDE and judges the server's files through a read-only `fs/query` of the sidecar there; a look that cannot be answered denies the call. The git guard is made for the server's git and uploaded per run. A finished run gives up its place when the server is full, and its session is closed after ten minutes. See docs/remote-servers.md.
@@ -137,7 +139,8 @@ First public release. This is alpha software.
 - Providers other than Claude, Happy, MongoDB Studio and Remote are proven only against mocks or on a local machine.
 - Version 0.1.0 still stores its state in the folder `IntelySwitchIDE` and uses Keychain services named after the earlier bundle identifier; a switch to `com.intelyhome.intelyide` with a migration is planned.
 
-[Unreleased]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.1.1...HEAD
+[Unreleased]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/ferencfarkas09/IntelyIDE/compare/v0.1.0...v1.0.1

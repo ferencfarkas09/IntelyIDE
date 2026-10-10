@@ -2859,7 +2859,7 @@ dependencies = [
 
 [[package]]
 name = "intely-switch-ide"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
  "block2",
  "intely-agent-core",

@@ -1,6 +1,6 @@
 # Packaging
 
-This page describes how the macOS app and its disk image are built today, by hand on one Mac, and which parts of a fuller release pipeline do not exist yet. Applies to version 1.1.1.
+This page describes how the macOS app and its disk image are built today, by hand on one Mac, and which parts of a fuller release pipeline do not exist yet. Applies to version 1.2.0.
 
 It is written for the maintainer. Users want [install-macos.md](install-macos.md).
 
@@ -34,7 +34,7 @@ The app still does not contain Node, Claude Code or the Agent SDK: the Mac needs
 ## 3. Build the disk image
 
 ```sh
-scripts/release/dmg/make-dmg.sh --app <path to the .app> --out dist-release/IntelyIDE_1.1.1_x64.dmg --ad-hoc-sign
+scripts/release/dmg/make-dmg.sh --app <path to the .app> --out dist-release/IntelyIDE_1.2.0_x64.dmg --ad-hoc-sign
 ```
 
 The script stages a copy of the app (signed ad hoc when `--ad-hoc-sign` is given), the licence files and a short read-me, draws the background, builds the image with `dmgbuild`, verifies it with `hdiutil`, and writes `<image>.sha256` next to it. It does not use Finder or AppleScript.
@@ -43,7 +43,7 @@ The script stages a copy of the app (signed ad hoc when `--ad-hoc-sign` is given
 
 ```sh
 cd dist-release
-shasum -a 256 IntelyIDE_1.1.1_x64.dmg > SHA256SUMS
+shasum -a 256 IntelyIDE_1.2.0_x64.dmg > SHA256SUMS
 shasum -a 256 -c SHA256SUMS
 ```
 
