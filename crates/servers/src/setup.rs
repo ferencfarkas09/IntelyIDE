@@ -381,8 +381,16 @@ fn run_setup(
         let out = ssh.exec(cfg, &sdk_script(node, v), T_LONG).map_err(|e| from_ssh(S::Sdk, e))?;
         let text = out.stdout_text();
         let (progress, result) = parse_sdk_lines(&text);
+        // the installer reports every package: the same word a hundred times becomes one line with a count
+        let mut lines: Vec<(String, usize)> = Vec::new();
         for p in progress {
-            ev(on, S::Sdk, T::Info, p);
+            match lines.last_mut() {
+                Some((last, n)) if *last == p => *n += 1,
+                _ => lines.push((p, 1)),
+            }
+        }
+        for (p, n) in lines {
+            ev(on, S::Sdk, T::Info, if n > 1 { format!("{p} (x{n})") } else { p });
         }
         match result {
             Some(Ok(msg)) if out.success() => ev(on, S::Sdk, T::Done, msg),
@@ -413,11 +421,13 @@ fn run_setup(
     ev(on, S::Verify, T::Started, "checking the server again");
     let again = probe_facts(ssh, cfg, v).map_err(|e| from_ssh(S::Verify, e))?;
     let status = status_from_facts(&again, v);
-    if !status.ready {
-        let missing = status.missing().join(", ");
-        return Err(fail(S::Verify, format!("the server is not ready, missing: {missing}"), &missing));
+    // What the person asked for was done step by step above (a step that failed ended the run there). What is still missing now is
+    // what they chose not to install, or what only they can do (Claude Code must be signed in on the server): that is a result, not an error.
+    if status.ready {
+        ev(on, S::Verify, T::Done, "the server is ready");
+    } else {
+        ev(on, S::Verify, T::Done, format!("setup finished; still missing: {}", status.missing().join(", ")));
     }
-    ev(on, S::Verify, T::Done, "the server is ready");
     Ok(status)
 }
 
@@ -512,11 +522,11 @@ mod tests {
         let o = opts(&f, res);
         // The fixture's probe keeps saying "no SDK", so Verify fails after the installer ran: that is the point here.
         let (r, ev) = run(&f, &o);
-        let err = r.unwrap_err();
-        assert_eq!(err.step, SetupStep::Verify);
-        assert!(err.message.contains("agent SDK"));
+        let st = r.unwrap();
+        assert!(!st.ready && st.missing().iter().any(|m| m.contains("agent SDK")), "{:?}", st.missing());
         assert_eq!(state_of(&ev, SetupStep::Sdk), [StepState::Started, StepState::Info, StepState::Done]);
-        assert_eq!(state_of(&ev, SetupStep::Verify), [StepState::Started, StepState::Failed]);
+        assert_eq!(state_of(&ev, SetupStep::Verify), [StepState::Started, StepState::Done]);
+        assert!(ev.iter().any(|e| e.step == SetupStep::Verify && e.state == StepState::Done && e.message.contains("agent SDK")));
         assert!(f.home.join("sdk-install-ran").is_file());
     }
 
@@ -692,7 +702,7 @@ mod tests {
     }
 
     #[test]
-    fn verify_names_the_missing_pieces() {
+    fn verify_names_what_is_still_missing() {
         let f = Fake::new();
         if fixed_claude_present() {
             return;
@@ -701,9 +711,13 @@ mod tests {
         let res = f.resources("res", true);
         let mut o = opts(&f, res);
         o.install_sdk = false;
-        let e = run(&f, &o).0.unwrap_err();
-        assert_eq!(e.step, SetupStep::Verify);
-        assert_eq!(e.message, "the server is not ready, missing: claude CLI");
+        // what is still missing is a result of the setup, not a failure of it
+        let (r, ev) = run(&f, &o);
+        let st = r.unwrap();
+        assert!(!st.ready);
+        let verify = ev.iter().filter(|e| e.step == SetupStep::Verify).last().unwrap();
+        assert_eq!(verify.state, StepState::Done);
+        assert!(verify.message.contains("still missing") && verify.message.contains("claude CLI"), "{}", verify.message);
     }
 
     #[test]

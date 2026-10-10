@@ -187,6 +187,29 @@ describe('happy path', () => {
     expectClean(); // no staging, no lock, no old copy
   });
 
+  it('a login with umask 002 (Ubuntu) still gets a tree the loader accepts: no group-writable directory', async () => {
+    const f = fixture([
+      { key: 'node_modules/@scope/dep', files: { 'index.js': 'dep\n', 'deep/er/x.js': 'x\n' } },
+      { key: 'node_modules/plain', files: { 'x/y.js': 'y\n' } },
+    ]);
+    const before = process.umask(0o002);
+    try {
+      await installSdk(options(f));
+    } finally {
+      process.umask(before);
+    }
+    const bad: string[] = [];
+    const walk = (dir: string) => {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        const p = path.join(dir, e.name);
+        if (statSync(p).mode & 0o022) bad.push(p);
+        if (e.isDirectory()) walk(p);
+      }
+    };
+    walk(finalDir());
+    expect(bad).toEqual([]);
+  });
+
   it('--plan content: the plan lists the packages and hosts and creates nothing', async () => {
     const f = fixture();
     const plan = await planSdk({ home: home(), pinDir: f.pinDir, registryOrigin: origin, expectedVersion: FAKE_VERSION });

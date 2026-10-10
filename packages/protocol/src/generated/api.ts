@@ -53,6 +53,8 @@ export type AgentSummary = {
 	switchableModes?: PermissionMode[],
 	/**  MCP servers of this run and how many of their tools run without a prompt in Automatic and Bypass (empty = no MCP). */
 	mcp?: McpExposure[],
+	/**  The id of the server the run executes on; absent = this Mac. */
+	location?: string | null,
 };
 
 /**  What an Auto run would do on these repositories (`agents_auto_info`); computed with the same delegate set `start` uses. */

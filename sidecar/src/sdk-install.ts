@@ -596,7 +596,8 @@ export async function installSdk(opts: InstallOptions): Promise<InstallResult> {
       const base = path.join(staging, ...p.key.split('/'));
       let sawPackageJson = false;
       try {
-        await mkdir(base, { recursive: true });
+        // (an explicit mode: under umask 002, the default of a Linux login, a plain mkdir makes group-writable directories, which the loader refuses)
+        await mkdir(base, { recursive: true, mode: 0o755 });
         for (const en of readTar(tar, { maxEntries: limits.maxEntries - entries, maxFile: limits.maxUnpacked })) {
           check();
           if (++entries > limits.maxEntries) throw bad('too many entries in total');
@@ -604,8 +605,8 @@ export async function installSdk(opts: InstallOptions): Promise<InstallResult> {
           if (bytes > limits.maxTotal) throw bad('the SDK is larger than the pinned tree');
           const target = path.join(base, ...en.path.split('/'));
           if (!target.startsWith(`${base}${path.sep}`)) throw bad('a tar entry would leave its package directory');
-          if (en.dir) { await mkdir(target, { recursive: true }); continue; }
-          await mkdir(path.dirname(target), { recursive: true });
+          if (en.dir) { await mkdir(target, { recursive: true, mode: 0o755 }); continue; }
+          await mkdir(path.dirname(target), { recursive: true, mode: 0o755 });
           const fh = await open(target, FS.O_WRONLY | FS.O_CREAT | FS.O_EXCL | FS.O_NOFOLLOW, 0o600);
           try { await fh.writeFile(en.data); } finally { await fh.close(); }
           // By path, not through the handle: Node 24.21 and later deny FileHandle.chmod (fchmod) under the permission model, and the
@@ -692,6 +693,8 @@ const USAGE = 'usage: sdk-install.js [--plan | --yes] [--uninstall --yes]';
 
 /** `restricted` is true when this process already runs under the permission model (it does the work); false: it launches that child. */
 export async function runCli(argv: string[], io: CliIo, restricted: boolean): Promise<number> {
+  // Nothing this program creates is meant to be group- or world-writable, whatever the login's umask is (Ubuntu gives users 002).
+  try { process.umask(0o022); } catch { /* not allowed here: the explicit modes below still hold */ }
   const scrub = makeScrub([io.env.HOME ?? '', os.homedir()], io.env);
   const emit = (o: Record<string, unknown>) => io.stdout(scrub(JSON.stringify(o)));
   const fail = (e: unknown): number => {
