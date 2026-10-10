@@ -318,6 +318,26 @@ fn a_full_server_makes_room_by_closing_the_session_of_a_finished_run() {
 }
 
 #[test]
+fn a_run_that_was_just_resumed_is_not_closed_to_make_room_for_another() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().canonicalize().unwrap();
+    let srv = server(&root, 1, "cat");
+    let repo = repos(&root, &srv, true);
+    let (host, sink) = host(&root.join("data"), &srv);
+    let first = start_on(&host, &repo, "mock-plain-reply", Some("srv")).expect("first");
+    sink.wait_turn_end(&first.agent_id);
+    let second = start_on(&host, &repo, "mock-plain-reply", Some("srv")).expect("second makes room");
+    sink.wait_turn_end(&second.agent_id);
+    wait_until("the first session to be closed", 10, || session_closes(&srv).contains(&first.agent_id));
+    // the first run comes back (the second gives its place up); until its first event it still reads "finished"
+    host.resume(&first.agent_id).expect("the first run comes back");
+    let e = start_on(&host, &repo, "mock-plain-reply", Some("srv")).unwrap_err();
+    assert_eq!(e.code, "serverBusy", "a run that is coming back is not an idle one: {e:?}");
+    assert_eq!(session_closes(&srv).iter().filter(|id| **id == first.agent_id).count(), 1, "the session that was reopened was not closed again");
+    host.shutdown();
+}
+
+#[test]
 fn a_server_whose_sessions_all_work_or_wait_refuses_a_start_and_a_resume() {
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path().canonicalize().unwrap();
@@ -335,6 +355,27 @@ fn a_server_whose_sessions_all_work_or_wait_refuses_a_start_and_a_resume() {
     // the finished run cannot come back while the server is full of runs that work or wait
     let e = host.resume(&finished.agent_id).unwrap_err();
     assert_eq!(e.code, "serverBusy", "{e:?}");
+    host.shutdown();
+}
+
+#[test]
+fn many_finished_sessions_do_not_block_a_start_when_the_limit_was_lowered() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().canonicalize().unwrap();
+    let srv = server(&root, 12, "cat");
+    let repo = repos(&root, &srv, true);
+    let (host, sink) = host(&root.join("data"), &srv);
+    let mut ids = Vec::new();
+    for _ in 0..11 {
+        let run = start_on(&host, &repo, "mock-plain-reply", Some("srv")).expect("start");
+        sink.wait_turn_end(&run.agent_id);
+        ids.push(run.agent_id);
+    }
+    // the person lowers the limit to two: eleven finished sessions are open, and a new start closes as many as it has to
+    srv.cfg.lock().unwrap().max_agents = 2;
+    let run = start_on(&host, &repo, "mock-plain-reply", Some("srv")).expect("a start after the limit was lowered");
+    sink.wait_turn_end(&run.agent_id);
+    assert!(session_closes(&srv).len() >= 10, "{:?}", session_closes(&srv));
     host.shutdown();
 }
 

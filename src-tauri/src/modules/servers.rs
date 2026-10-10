@@ -315,7 +315,7 @@ pub async fn servers_repos(app: AppHandle, state: State<'_, ServersState>, id: S
 
 /// The URL a local repository was cloned from, without credentials in it; the server clones it with its own.
 fn origin_of(git: &Path, repo: &Path) -> Res<String> {
-    let out = std::process::Command::new(git).arg("-C").arg(repo).args(["remote", "get-url", "origin"]).env("GIT_TERMINAL_PROMPT", "0").output().map_err(|e| err("git", e.to_string()))?;
+    let out = intely_core::exec::hardened_git(git).arg("-C").arg(repo).args(["remote", "get-url", "origin"]).env("GIT_TERMINAL_PROMPT", "0").output().map_err(|e| err("git", e.to_string()))?;
     let url = String::from_utf8_lossy(&out.stdout).trim().to_string();
     if !out.status.success() || url.is_empty() {
         return Err(err("noOrigin", "that repository has no remote called origin to clone from"));

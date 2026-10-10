@@ -6,7 +6,8 @@ import { loadSdk, sdkReport, SdkError } from './sdk.js';
 export type ProbeSdk = { ok: true; version: string } | { ok: false; code: string; detail: string };
 export interface Probe { sidecar: string; node: string; platform: string; arch: string; home: string; sdk: ProbeSdk }
 
-export const PROBE_SDK_TIMEOUT_MS = 8000;
+/** Checking the SDK hashes thousands of files; a busy server or a slow disk needs its time (the host gives the whole probe 60 s). */
+export const PROBE_SDK_TIMEOUT_MS = 40_000;
 
 /** `load` and `timeoutMs` are for tests. The SDK check is the loader's own (location, pin and hash verification), nothing else. */
 export async function probe(version: string, o: { load?: () => Promise<unknown>; report?: () => { version: string } | null; timeoutMs?: number } = {}): Promise<Probe> {

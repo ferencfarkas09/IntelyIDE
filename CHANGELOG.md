@@ -12,6 +12,7 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 ### Fixed
 
 - The Agent SDK installer made group-writable folders under a `umask` of 002 (the default of many Linux accounts) and then refused its own tree; the folders get an explicit mode and the installer sets its own `umask`.
+- The check of the Agent SDK on a server (Settings > Servers > Test connection) gave up after 8 seconds, which a busy server or a slow disk exceeds while the SDK is fine; it has 40 seconds now.
 
 ### Known limitations
 

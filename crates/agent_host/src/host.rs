@@ -187,7 +187,7 @@ fn sweep_plan_dirs(dir: &Path, max_age: Duration) {
 
 /// The `origin` URL of a local repository as git spells it, without credentials; `None` when it has none.
 fn local_origin(git: &Path, repo: &Path) -> Option<String> {
-    let out = std::process::Command::new(git).arg("-C").arg(repo).args(["remote", "get-url", "origin"]).env("GIT_TERMINAL_PROMPT", "0").stdin(std::process::Stdio::null()).output().ok()?;
+    let out = intely_core::exec::hardened_git(git).arg("-C").arg(repo).args(["remote", "get-url", "origin"]).env("GIT_TERMINAL_PROMPT", "0").stdin(std::process::Stdio::null()).output().ok()?;
     let url = String::from_utf8_lossy(&out.stdout).trim().to_string();
     if !out.status.success() || url.is_empty() {
         return None;
@@ -715,7 +715,7 @@ impl AgentHost {
     /// machine. Looking at the runs and ending the idle sessions happen under one lock, so a run cannot become busy in between.
     pub fn release_server(&self, id: &str) -> Result<(), EngineError> {
         let inner = &self.inner;
-        let idle: Vec<String> = {
+        let (idle, gone): (Vec<String>, Option<RemoteLink>) = {
             let mut st = lock(&inner.state);
             let here: Vec<(String, bool)> = st.agents.iter().filter(|(_, r)| r.meta.location.as_deref() == Some(id) && r.live.is_some()).map(|(agent_id, r)| (agent_id.clone(), r.is_idle())).collect();
             let busy = here.iter().filter(|(_, idle)| !idle).count();
@@ -727,11 +727,12 @@ impl AgentHost {
                     run.end_session();
                 }
             }
-            here.into_iter().map(|(agent_id, _)| agent_id).collect()
+            // (the link leaves the map under the same lock: a run that starts meanwhile connects anew instead of reusing it)
+            let gone = lock(&inner.remote).remove(id);
+            (here.into_iter().map(|(agent_id, _)| agent_id).collect(), gone)
         };
         // the sessions are closed properly (in parallel, each bounded by its timeout) before the connection goes
         // (the map is not locked meanwhile: the closing sidecar takes that lock itself in `on_closed`)
-        let gone = lock(&inner.remote).remove(id);
         if let Some(link) = gone {
             let closers: Vec<_> = idle
                 .into_iter()
@@ -1717,8 +1718,10 @@ impl Inner {
     /// start refused.
     fn check_server_slot(&self, loc: &str, name: &str, max: u32, except: Option<&str>) -> Result<(), EngineError> {
         let mut open = 0;
-        // (a candidate that became busy before it could be closed is looked for again; the number of tries is bounded)
-        for _ in 0..8 {
+        // A candidate that became busy before it could be closed is looked for again; only such misses are counted (every other round
+        // closes a session, so the loop ends).
+        let mut misses = 0;
+        while misses < 8 {
             let (now_open, idlest) = {
                 let st = lock(&self.state);
                 let here: Vec<(&String, &Run)> = st.agents.iter().filter(|(id, r)| Some(id.as_str()) != except && r.meta.location.as_deref() == Some(loc) && r.live.is_some()).collect();
@@ -1729,19 +1732,20 @@ impl Inner {
             if open < max as usize {
                 return Ok(());
             }
-            match idlest {
-                Some(id) => {
-                    self.close_remote_session(&id, None);
-                }
-                None => break,
+            let Some(id) = idlest else { break };
+            if !self.close_remote_session(&id, None) {
+                misses += 1;
             }
         }
         Err(err("serverBusy", format!("{name} already runs {open} agents and none of them is finished (the limit in Settings > Servers)")))
     }
 
-    /// Ends the session of a finished run on a server, here and there: the run stays in the list and resumes with its next message. The
-    /// run is looked at again under the lock that ends the session (and, with `min_idle`, for how long it has been finished), so one that
-    /// started a turn or is being resumed since the caller looked is left alone. Returns whether the session was closed.
+    /// Ends the session of a finished run on a server, there and here: the run stays in the list and resumes with its next message. The
+    /// run is looked at again under the lock that marks it, so one that started a turn or is being resumed since the caller looked is left
+    /// alone (and with `min_idle`, for how long it has been finished). The sidecar closes the session FIRST and the run lets go of it
+    /// after, so a message that resumes the run cannot reach the sidecar ahead of the close (a `session/start` for a session that still
+    /// exists is refused as a duplicate). While the close is on its way the run reads busy, so nobody else picks it. Returns whether the
+    /// session was closed.
     fn close_remote_session(&self, agent_id: &str, min_idle: Option<Duration>) -> bool {
         let loc = {
             let mut st = lock(&self.state);
@@ -1749,16 +1753,15 @@ impl Inner {
             if !run.is_idle() || min_idle.is_some_and(|d| now_ms().saturating_sub(run.state.last_ts) < d.as_millis() as u64) {
                 return false;
             }
-            let loc = run.meta.location.clone();
-            run.end_session();
-            loc
+            run.busy_until = Some(std::time::Instant::now() + Duration::from_secs(10));
+            run.meta.location.clone()
         };
         let sc = loc.and_then(|loc| lock(&self.remote).get(&loc).map(|r| r.sc.clone()));
         if let Some(sc) = sc {
-            let id = agent_id.to_string();
-            std::thread::spawn(move || {
-                let _ = sc.request("session/close", json!({"agentId": id}), Duration::from_secs(5));
-            });
+            let _ = sc.request("session/close", json!({"agentId": agent_id}), Duration::from_secs(5));
+        }
+        if let Some(run) = lock(&self.state).agents.get_mut(agent_id) {
+            run.end_session();
         }
         true
     }
@@ -1869,14 +1872,14 @@ impl Inner {
         // the machine this connection is for: a server whose address or port was edited meanwhile is another machine
         let target = format!("{}|{}", scfg.destination, scfg.port.map(|p| p.to_string()).unwrap_or_default());
         let mut stale: Option<Arc<Sidecar>> = None;
-        let spawned = {
+        let spawned: Result<Arc<Sidecar>, EngineError> = {
             let mut st = lock(&self.state);
             if st.shutting_down {
                 return Err(err("shuttingDown", "the IDE is closing"));
             }
             let alive = lock(&self.remote).get(loc).filter(|r| r.sc.alive()).cloned();
             match alive {
-                Some(link) if link.target == target => link.sc,
+                Some(link) if link.target == target => Ok(link.sc),
                 other => {
                     if let Some(link) = other {
                         // The old connection goes to another machine. A run that works or waits there is on that machine: no new run may
@@ -1889,6 +1892,8 @@ impl Inner {
                         for run in st.agents.values_mut().filter(|r| on_old(r)) {
                             run.end_session();
                         }
+                        // it is out of the map now, and stopped below whether or not the new one comes up
+                        lock(&self.remote).remove(loc);
                         stale = Some(link.sc);
                     }
                     let providers: Vec<String> = self.cfg.sidecar_providers().into_iter().filter(|p| matches!(p.as_str(), "claude" | "mock")).collect();
@@ -1896,11 +1901,15 @@ impl Inner {
                     let cmd = registry.ssh().command(&scfg, &command);
                     st.generation += 1;
                     let handler: Weak<dyn Handler> = self.me.clone();
-                    let sc = Sidecar::spawn(cmd, st.generation, handler).map_err(|e| err("sidecarSpawn", format!("cannot reach {}: {e}", scfg.name)))?;
-                    self.gate.register_owner(&sc.owner, None);
-                    lock(&self.remote).insert(loc.to_string(), RemoteLink { sc: sc.clone(), target });
-                    self.spawn_remote_reaper(loc, &sc);
-                    sc
+                    match Sidecar::spawn(cmd, st.generation, handler) {
+                        Ok(sc) => {
+                            self.gate.register_owner(&sc.owner, None);
+                            lock(&self.remote).insert(loc.to_string(), RemoteLink { sc: sc.clone(), target });
+                            self.spawn_remote_reaper(loc, &sc);
+                            Ok(sc)
+                        }
+                        Err(e) => Err(err("sidecarSpawn", format!("cannot reach {}: {e}", scfg.name))),
+                    }
                 }
             }
         };
@@ -1908,6 +1917,7 @@ impl Inner {
         if let Some(old) = stale {
             self.stop_sidecar(&old);
         }
+        let spawned = spawned?;
         if spawned.wait_hello(Duration::from_secs(45)).is_none() {
             spawned.signal(libc::SIGKILL);
             let tail = spawned.stderr_tail();
@@ -2203,6 +2213,10 @@ impl Inner {
         match sc.request("session/start", body, self.cfg.start_timeout) {
             Err(e) => Err(fail("sidecarUnavailable", format!("the agent sidecar did not start the session: {e}"))),
             Ok(v) if v["ok"] == true => {
+                // the session is open: what remains is the moment until the first message of the run reaches it
+                if let Some(run) = lock(&self.state).agents.get_mut(agent_id) {
+                    run.busy_until = Some(std::time::Instant::now() + Duration::from_secs(30));
+                }
                 if let Some(native) = v["nativeId"].as_str() {
                     let meta = {
                         let mut st = lock(&self.state);

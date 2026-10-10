@@ -221,10 +221,15 @@ fn a_failure_is_not_lost_to_a_decision_that_runs_beside_it() {
         std::thread::spawn(move || bash(&ctx, "cat slow.js"))
     };
     failed_rx.recv_timeout(Duration::from_secs(10)).expect("the slow decision made its failing look");
+    // wait until the slow decision stands in a second look (it waits there for the release): only then do the two decisions overlap
+    let until = std::time::Instant::now() + Duration::from_secs(10);
+    while slow_looks.load(Ordering::SeqCst) < 2 {
+        assert!(std::time::Instant::now() < until, "the slow decision made no second look, so this test would prove nothing");
+        std::thread::sleep(Duration::from_millis(5));
+    }
     // another decision of the same run, on the same view, starts and ends while the first is still in flight
     let fast = bash(&ctx, "cat a.js");
     assert_eq!(fast.decision, Decision::Allow, "{fast:?}");
-    assert!(slow_looks.load(Ordering::SeqCst) >= 2, "the slow decision was waiting in a second look while the fast one ran, otherwise this test proves nothing");
     release_tx.send(()).unwrap();
     let slow = slow.join().unwrap();
     assert_eq!((slow.decision, slow.rule.as_deref()), (Decision::Deny, Some("fail-closed")), "{slow:?}");
