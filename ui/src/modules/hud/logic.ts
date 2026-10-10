@@ -39,7 +39,6 @@ export function pressure(totalBytes: number): "ok" | "warn" | "danger" {
 }
 
 export const ECO_MINUTES = [1, 2, 5, 10, 15, 30] as const;
-export const THROTTLE_SECONDS = [5, 10, 30, 60] as const;
 
 export interface HudSettings {
   enabled: boolean;
@@ -56,17 +55,10 @@ export function readHud(v: Record<string, unknown> | undefined): HudSettings {
 
 export interface TraySettings {
   enabled: boolean;
-  permission: boolean;
-  question: boolean;
-  finished: boolean;
-  error: boolean;
-  throttleSeconds: number;
 }
 
-export const DEFAULT_TRAY: TraySettings = { enabled: false, permission: true, question: true, finished: true, error: true, throttleSeconds: 10 };
+export const DEFAULT_TRAY: TraySettings = { enabled: false };
 
 export function readTray(v: Record<string, unknown> | undefined): TraySettings {
-  const flag = (k: keyof TraySettings) => (typeof v?.[k] === "boolean" ? (v[k] as boolean) : (DEFAULT_TRAY[k] as boolean));
-  const t = typeof v?.throttleSeconds === "number" && v.throttleSeconds >= 1 && v.throttleSeconds <= 3600 ? Math.round(v.throttleSeconds) : DEFAULT_TRAY.throttleSeconds;
-  return { enabled: v?.enabled === true, permission: flag("permission"), question: flag("question"), finished: flag("finished"), error: flag("error"), throttleSeconds: t };
+  return { enabled: v?.enabled === true };
 }

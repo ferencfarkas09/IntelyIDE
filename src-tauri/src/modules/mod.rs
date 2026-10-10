@@ -17,6 +17,7 @@ pub mod mcp;
 pub mod mongo;
 #[cfg(test)]
 mod mongo_lean;
+pub mod notify;
 pub mod picker;
 pub mod preview;
 pub mod providers;

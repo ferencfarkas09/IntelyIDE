@@ -1,4 +1,4 @@
-use intely_hud::notify::{applescript, applescript_quote};
+use intely_hud::notify::{applescript, applescript_quote, applescript_with};
 use intely_hud::*;
 
 fn raw(pid: u32, ppid: u32, rss_kb: u64, command: &str) -> RawProc {
@@ -108,6 +108,50 @@ fn notifications_respect_kind_focus_and_throttle() {
     assert_eq!(g.check(Kind::Permission, &prefs, false, 5_000), Verdict::Throttled);
     assert_eq!(g.check(Kind::Error, &prefs, false, 5_000), Verdict::Show, "the throttle is per kind");
     assert_eq!(g.check(Kind::Permission, &prefs, false, 11_001), Verdict::Show);
+}
+
+#[test]
+fn the_throttle_is_per_run_and_a_burst_is_capped() {
+    let prefs = NotifyPrefs { throttle_ms: 10_000, burst: 3, ..NotifyPrefs::default() };
+    let mut g = NotifyGate::default();
+    assert_eq!(g.check_run(Kind::Question, "a", &prefs, false, 0), Verdict::Show);
+    assert_eq!(g.check_run(Kind::Question, "a", &prefs, false, 1_000), Verdict::Throttled, "the same run asks again");
+    assert_eq!(g.check_run(Kind::Question, "b", &prefs, false, 1_000), Verdict::Show, "another run is its own throttle");
+    assert_eq!(g.check_run(Kind::Finished, "a", &prefs, false, 2_000), Verdict::Show);
+    assert_eq!(g.check_run(Kind::Error, "c", &prefs, false, 3_000), Verdict::Flooded, "the fourth banner within a minute");
+    assert_eq!(g.check_run(Kind::Error, "c", &prefs, false, 62_000), Verdict::Show, "the window moves on after a minute");
+    let unlimited = NotifyPrefs { burst: 0, ..NotifyPrefs::default() };
+    let mut g = NotifyGate::default();
+    for i in 0..40 {
+        assert_eq!(g.check_run(Kind::Permission, &format!("run{i}"), &unlimited, false, i), Verdict::Show);
+    }
+}
+
+#[test]
+fn the_master_switch_and_the_table_size() {
+    let off = NotifyPrefs { enabled: false, ..NotifyPrefs::default() };
+    let mut g = NotifyGate::default();
+    assert_eq!(g.check_run(Kind::Permission, "a", &off, false, 0), Verdict::Disabled);
+    // a long session with many runs does not grow the throttle table without bound
+    let prefs = NotifyPrefs { burst: 0, throttle_ms: 1, ..NotifyPrefs::default() };
+    for i in 0..2_000u64 {
+        let _ = g.check_run(Kind::Finished, &format!("r{i}"), &prefs, false, i * 1_000);
+    }
+    assert!(g.tracked() < 1_000, "{}", g.tracked());
+}
+
+#[test]
+fn old_payloads_without_the_new_fields_keep_their_defaults() {
+    let p: NotifyPrefs = serde_json::from_str(r#"{"permission":true,"question":false,"finished":true,"error":true,"throttleMs":5000}"#).unwrap();
+    assert!(p.enabled && !p.question && p.burst == 12 && !p.sound && p.throttle_ms == 5_000);
+}
+
+#[test]
+fn a_subtitle_and_a_sound_are_quoted_like_the_rest() {
+    let s = applescript_with("Needs you", Some("Fix \"login\" bug"), "Waiting for your approval", true);
+    assert_eq!(s, "display notification \"Waiting for your approval\" with title \"Needs you\" subtitle \"Fix \\\"login\\\" bug\" sound name \"Glass\"");
+    assert_eq!(applescript_with("t", Some("  "), "b", false), "display notification \"b\" with title \"t\"");
+    assert_eq!(applescript("t", "b"), applescript_with("t", None, "b", false));
 }
 
 #[test]

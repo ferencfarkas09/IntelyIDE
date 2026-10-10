@@ -43,7 +43,7 @@ impl TauriSink {
         Self(app, Mutex::new(BadgeInputs::default()))
     }
 
-    /// Updates the Dock badge when the number changed. macOS only; a no-op without a main window (E2E jail), never panics.
+    /// Reports the Happy part of the Dock badge when the number changed. macOS only; never panics.
     fn refresh_badge(&self, change: impl FnOnce(&mut BadgeInputs)) {
         if !cfg!(target_os = "macos") {
             return;
@@ -58,9 +58,8 @@ impl TauriSink {
             b.shown = next;
             next
         };
-        if let Some(window) = self.0.get_webview_window("main") {
-            let _ = window.set_badge_count(next);
-        }
+        // the Dock number is shared with the runs that wait for you (notify.rs adds the two)
+        super::notify::set_happy_badge(&self.0, next);
     }
 }
 

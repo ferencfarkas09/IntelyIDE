@@ -10,7 +10,6 @@ import HudChip from "./HudChip";
 import { byKind, formatMb, pressure, readHud, readTray } from "./logic";
 import { applyHudSettings } from "./state";
 import { register } from "./index";
-import { transitionOf } from "./trayBridge";
 import { startHud } from "./watcher";
 
 class NoopObserver {
@@ -72,18 +71,8 @@ describe("pure helpers", () => {
   it("reads settings with safe defaults", () => {
     expect(readHud(undefined)).toEqual({ enabled: false, eco: false, ecoMinutes: 5 });
     expect(readHud({ enabled: true, eco: true, ecoMinutes: 0 })).toEqual({ enabled: true, eco: true, ecoMinutes: 5 });
-    expect(readTray({ enabled: true, finished: false, throttleSeconds: 30 })).toMatchObject({ enabled: true, permission: true, finished: false, throttleSeconds: 30 });
-    expect(readTray({ throttleSeconds: -4 }).throttleSeconds).toBe(10);
-  });
-
-  it("turns run state changes into notification kinds", () => {
-    expect(transitionOf(undefined, "needsYou", "t")).toBeUndefined();
-    expect(transitionOf("running", "running", "t")).toBeUndefined();
-    expect(transitionOf("running", "needsYou", "Fix it", "permission")).toMatchObject({ kind: "permission", body: "Fix it" });
-    expect(transitionOf("running", "needsYou", "Fix it", "question")).toMatchObject({ kind: "question" });
-    expect(transitionOf("running", "done", "t")).toMatchObject({ kind: "finished" });
-    expect(transitionOf("needsYou", "done", "t")).toBeUndefined();
-    expect(transitionOf("running", "error", "t")).toMatchObject({ kind: "error" });
+    expect(readTray({ enabled: true })).toEqual({ enabled: true });
+    expect(readTray(undefined)).toEqual({ enabled: false });
   });
 });
 

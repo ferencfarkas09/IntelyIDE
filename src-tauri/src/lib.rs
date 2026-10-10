@@ -427,7 +427,9 @@ pub fn run() {
             modules::hud::hud_eco_active,
             modules::tray::tray_configure,
             modules::tray::tray_update,
-            modules::tray::tray_notify,
+            modules::notify::notify_configure,
+            modules::notify::notify_badge,
+            modules::notify::notify_show,
             modules::viewers::viewers_stat,
             modules::viewers::viewers_read_range,
             modules::viewers::viewers_open_external,
@@ -569,6 +571,7 @@ pub fn run() {
             // ==== wave3 X3 state (empty until the UI switches a feature on) ====
             modules::hud::setup(app)?;
             modules::tray::setup(app)?;
+            modules::notify::setup(app)?;
             // ==== update notification (no request before the disclosure; no scheduler in debug builds) ====
             modules::updates::setup(app)?;
             // No agent process exists before the first run; this only prepares the host (and sweeps leftovers).

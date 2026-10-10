@@ -1,21 +1,14 @@
-//! Menu-bar status item and native notifications (wave3 X3, ideas #23). The UI owns the facts (agents, Needs-you, timer)
-//! and pushes them with `tray_update`; this file draws the item and applies the notification gate from `intely_hud`.
+//! Menu-bar status item (wave3 X3, ideas #23). The UI owns the facts (agents, Needs-you, timer) and pushes them with
+//! `tray_update`; this file draws the item. Desktop notifications of runs live in `notify.rs`.
 //!
 //! Optional and lazy: no icon exists until `tray_configure { enabled: true }`; switching it off removes the icon.
 //! Events: `tray:action {id}` for menu entries the UI handles (`new-run`, `needs-you`, `stop-all`).
-//!
-//! Notifications use `osascript display notification` (no new dependency, title and body are quoted by
-//! `intely_hud::notify`). Under `INTELY_E2E=1` they are appended to `$INTELY_DATA_DIR/notifications.log` instead, so a test
-//! never pops a banner on the desktop.
 
-use std::io::Write;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
-use std::time::Instant;
 
 use intely_core::EngineError;
-use intely_hud::notify::applescript;
-use intely_hud::{menu_items, title_text, Kind, MenuItem as Item, NotifyGate, NotifyPrefs, TrayStatus, Verdict};
+use intely_hud::{menu_items, title_text, MenuItem as Item, TrayStatus};
 use serde::Deserialize;
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
@@ -30,19 +23,10 @@ const ID_PREFIX: &str = "tray.";
 pub struct TrayState {
     enabled: AtomicBool,
     status: Mutex<TrayStatus>,
-    prefs: Mutex<NotifyPrefs>,
-    gate: Mutex<NotifyGate>,
-    started: Instant,
 }
 
 pub fn setup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-    app.manage(TrayState {
-        enabled: AtomicBool::new(false),
-        status: Mutex::new(TrayStatus::default()),
-        prefs: Mutex::new(NotifyPrefs::default()),
-        gate: Mutex::new(NotifyGate::default()),
-        started: Instant::now(),
-    });
+    app.manage(TrayState { enabled: AtomicBool::new(false), status: Mutex::new(TrayStatus::default()) });
     Ok(())
 }
 
@@ -115,15 +99,10 @@ fn create(app: &AppHandle, state: &TrayState) -> tauri::Result<()> {
 #[serde(rename_all = "camelCase")]
 pub struct TrayConfig {
     pub enabled: bool,
-    #[serde(default)]
-    pub notify: NotifyPrefs,
 }
 
 #[tauri::command]
 pub fn tray_configure(app: AppHandle, state: State<'_, TrayState>, config: TrayConfig) -> Res<bool> {
-    if let Ok(mut p) = state.prefs.lock() {
-        *p = config.notify;
-    }
     state.enabled.store(config.enabled, Ordering::SeqCst);
     if config.enabled {
         create(&app, &state).map_err(|e| EngineError::new("tray", e.to_string()))?;
@@ -141,39 +120,3 @@ pub fn tray_update(app: AppHandle, state: State<'_, TrayState>, status: TrayStat
     }
 }
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct NotifyRequest {
-    pub kind: Kind,
-    pub title: String,
-    pub body: String,
-}
-
-/// Shows a native notification when the per-kind switch, the throttle and the focus rule allow it.
-#[tauri::command]
-pub fn tray_notify(app: AppHandle, state: State<'_, TrayState>, req: NotifyRequest) -> Verdict {
-    let focused = app.get_webview_window("main").and_then(|w| w.is_focused().ok()).unwrap_or(false);
-    let prefs = state.prefs.lock().map(|p| *p).unwrap_or_default();
-    let now = state.started.elapsed().as_millis() as u64;
-    let verdict = state.gate.lock().map(|mut g| g.check(req.kind, &prefs, focused, now)).unwrap_or(Verdict::Disabled);
-    if verdict == Verdict::Show {
-        deliver(&req.title, &req.body);
-    }
-    verdict
-}
-
-fn deliver(title: &str, body: &str) {
-    if std::env::var("INTELY_E2E").is_ok_and(|v| v == "1") {
-        if let Some(dir) = std::env::var_os("INTELY_DATA_DIR") {
-            let line = format!("{}\t{}\n", title.replace('\n', " "), body.replace('\n', " "));
-            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(std::path::Path::new(&dir).join("notifications.log")) {
-                let _ = f.write_all(line.as_bytes());
-            }
-        }
-        return;
-    }
-    let script = applescript(title, body);
-    std::thread::spawn(move || {
-        let _ = std::process::Command::new("/usr/bin/osascript").arg("-e").arg(script).output();
-    });
-}

@@ -49,12 +49,12 @@ tokio = { version = "1.53.1", features = ["time", "sync"] }
 # MongoDB Studio: optional dependency, part of the default (official) build (D2); the in-app switch stays off.
 intely-mongo = { version = "0.0.0", path = "../crates/mongo", optional = true, features = ["mongo"] }
 
-# WKWebView snapshots for the e2e harness (e2e_shot.rs); the versions are the ones tauri/wry already resolve.
+# WKWebView snapshots for the e2e harness (e2e_shot.rs) and the in-process AppleScript of the run notifications (modules/notify.rs); the versions are the ones tauri/wry already resolve.
 [target.'cfg(target_os = "macos")'.dependencies]
 block2 = "0.6"
 objc2 = "0.6"
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSImage", "NSImageRep", "NSBitmapImageRep"] }
-objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSData", "NSDictionary", "NSValue", "NSError"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSData", "NSDictionary", "NSValue", "NSError", "NSString", "NSAppleScript", "NSAppleEventDescriptor"] }
 objc2-web-kit = { version = "0.3", default-features = false, features = ["std", "block2", "objc2-app-kit", "WKSnapshotConfiguration", "WKWebView"] }
 
 [features]

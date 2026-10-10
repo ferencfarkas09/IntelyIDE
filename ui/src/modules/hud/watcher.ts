@@ -45,7 +45,7 @@ async function applyTray(): Promise<void> {
     stopTrayBridge();
   }
   try {
-    await ipc.tray.configure({ enabled: t.enabled, notify: { permission: t.permission, question: t.question, finished: t.finished, error: t.error, throttleMs: t.throttleSeconds * 1000 } });
+    await ipc.tray.configure({ enabled: t.enabled });
   } catch {
     // no tray on this platform: the switch stays, nothing breaks
   }

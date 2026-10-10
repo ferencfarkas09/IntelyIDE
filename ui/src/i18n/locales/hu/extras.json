@@ -815,5 +815,18 @@
   "remote.cloud.rotate.cancelTitle": "A kulcscsere visszavonása",
   "remote.cloud.rotate.cancelBody": "Az előkészített kulcs törlődik, a jelenlegi kulcs marad az aktív. Ha egy telepítés már felvitte az új kulcsot a relére, ez nem lehetséges: ilyenkor fejezd be a cserét.",
   "remote.cloud.rotate.cancelConfirm": "Visszavonás",
-  "remote.cloud.plan.loading": "A parancs előkészítése…"
+  "remote.cloud.plan.loading": "A parancs előkészítése…",
+  "notify.section.name": "Értesítések",
+  "notify.group.banners": "Bannerek",
+  "notify.group.dock": "Dock ikon",
+  "notify.master": "Értesítés a futásokról",
+  "notify.masterDesc": "Banner jelenik meg, ha egy futásnak szüksége van rád, befejeződik vagy hibával leáll. A banner csak akkor jelenik meg, ha az IDE ablaka a háttérben van; rákattintva a futás előtérbe kerül.",
+  "notify.sound": "Hang lejátszása",
+  "notify.soundDesc": "Az alapértelmezett értesítési hang minden banner mellett.",
+  "notify.badge": "A figyelmedet igénylő futások száma a Dock ikonon",
+  "notify.badgeDesc": "Az olyan engedélykéréseket, kérdéseket és tervjóváhagyásokat számolja, amelyek válaszra várnak.",
+  "notify.body.permission": "Az agent a jóváhagyásodra vár.",
+  "notify.body.question": "Az agentnek kérdése van hozzád.",
+  "notify.body.finished": "A futás kész, eredménye van a számodra.",
+  "notify.body.error": "A futás hibával leállt."
 }

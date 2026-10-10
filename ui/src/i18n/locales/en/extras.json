@@ -815,5 +815,18 @@
   "remote.cloud.rotate.cancelTitle": "Roll back the key rotation",
   "remote.cloud.rotate.cancelBody": "The prepared key is deleted and the current key stays active. Once a deploy has put the new key on the relay this is no longer possible: finish the rotation instead.",
   "remote.cloud.rotate.cancelConfirm": "Roll back",
-  "remote.cloud.plan.loading": "Preparing the command…"
+  "remote.cloud.plan.loading": "Preparing the command…",
+  "notify.section.name": "Notifications",
+  "notify.group.banners": "Banners",
+  "notify.group.dock": "Dock icon",
+  "notify.master": "Notify me about runs",
+  "notify.masterDesc": "A banner when a run needs you, finishes or fails. Banners appear only while the IDE window is in the background; a click on one brings the run forward.",
+  "notify.sound": "Play a sound",
+  "notify.soundDesc": "The default notification sound with each banner.",
+  "notify.badge": "Show the number of runs that need you on the Dock icon",
+  "notify.badgeDesc": "Counts permission requests, questions and plan approvals that wait for an answer.",
+  "notify.body.permission": "The agent is waiting for your approval.",
+  "notify.body.question": "The agent has a question for you.",
+  "notify.body.finished": "The run is done and has a result for you.",
+  "notify.body.error": "The run stopped with an error."
 }
