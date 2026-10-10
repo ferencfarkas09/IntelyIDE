@@ -2833,6 +2833,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "intely-servers"
+version = "0.0.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "intely-settings"
 version = "0.0.0"
 dependencies = [

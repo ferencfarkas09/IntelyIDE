@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/core", "crates/agent_core", "crates/agent_gate", "crates/agent_host", "crates/files", "crates/term", "crates/graph", "crates/roles", "crates/settings", "crates/happy", "crates/attachments", "crates/l10n","crates/mongo", "crates/runner", "crates/preview-proxy", "crates/remote", "crates/checks", "crates/gitx", "crates/hud", "crates/contract", "crates/runindex", "crates/relay_bundle", "crates/relay_deploy", "crates/pathpick", "crates/updater", "crates/sentry", "crates/mcp", "src-tauri"]
+members = ["crates/core", "crates/agent_core", "crates/agent_gate", "crates/agent_host", "crates/files", "crates/term", "crates/graph", "crates/roles", "crates/settings", "crates/happy", "crates/attachments", "crates/l10n","crates/mongo", "crates/runner", "crates/preview-proxy", "crates/remote", "crates/checks", "crates/gitx", "crates/hud", "crates/contract", "crates/runindex", "crates/relay_bundle", "crates/relay_deploy", "crates/pathpick", "crates/servers", "crates/updater", "crates/sentry", "crates/mcp", "src-tauri"]
 resolver = "2"
 
 [workspace.package]
