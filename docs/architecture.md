@@ -80,6 +80,7 @@ All crates live in `crates/<name>`; the Cargo package names carry an `intely-` p
 | `agent_core` | Provider-neutral types and logic: normalized events, the event log and bus, the permission broker (`policy/`), the agent hub trait and the sidecar wire messages. |
 | `agent_gate` | The process gate (leases, memory limits, cancel), Rewind snapshots and the allow-list Git shim given to each run. |
 | `agent_host` | The host that ties it together: starts the sidecar, runs the NDJSON loop, routes policy decisions, writes the event log and prepares each run. |
+| `servers` | Runs on your own servers: validation of a server entry, quoting, the system `ssh` binary (no ssh library), the probe and setup of a server (Node.js, the IDE's agent files, the Agent SDK, Claude Code), repositories there, and the git guard upload. No async runtime. |
 | `roles` | Roles and run history: what a role may do, and the data behind the runs views. |
 | `runindex` | A read-only consumer of the run logs: session search, the night queue and the morning brief. |
 
@@ -103,7 +104,7 @@ The sidecar itself is not a crate; it is the Node package in `sidecar/`.
 | `contract` | API contract drift detection and the API explorer logic. |
 | `l10n` | The localisation checker and release assistant. |
 | `attachments` | The attachment store: dropped, pasted and picked files are copied into the state directory. |
-| `hud` | The resource HUD and menu-bar logic. |
+| `hud` | The resource HUD, the menu-bar logic and the notification gate (which banners may show, how often). |
 | `updater` | Verified in-app updates, planned for a later version. Built so far: the signed feed and signature check, the hardened download and the guarded unpack and stage; the atomic swap, rollback, check scheduler and Settings page are not wired in yet. |
 
 ## Protocol package
@@ -154,6 +155,10 @@ On the Rust side each feature has its own file in `src-tauri/src/modules/`. Mong
 6. The sink forwards events to the webview. If Remote is on, the gateway subscribes to the same hub, so a phone and the desktop use one code path. Your answer to a permission request resolves it exactly once.
 7. On cancel or completion the gate releases the lease and the host cleans up the run. Rewind can later restore the snapshot.
 
+### Runs on a server
+
+A run placed on a server (Settings > Servers) goes through the same steps with these differences. The host keeps one sidecar per server, started with `ssh <server> ... node index.js`, and speaks the same NDJSON protocol over the ssh pipe; the Claude CLI and every tool call run on the server, in its copy of the repositories. The permission broker stays in the IDE: a decision that needs a file of the server asks the sidecar there through `fs/query` (`crates/agent_core/src/policy/fsrpc.rs`, `sidecar/src/fsquery.ts`), and one that cannot get an answer is denied. The git guard is made for the server's git and uploaded per run. A run takes no slot of this Mac's gate; its limit is the server's `maxAgents`, a finished run gives up its place to a new one, and an idle session is closed after ten minutes. See [remote-servers.md](remote-servers.md) and the section "Runs on a server" in [safety.md](safety.md).
+
 ## State storage
 
 | Location | Content |
@@ -163,6 +168,7 @@ On the Rust side each feature has its own file in `src-tauri/src/modules/`. Mong
 | macOS Keychain | Provider tokens, integration tokens and per-connection database credentials. |
 | `.git` of your repositories | Rewind snapshot refs under `refs/intely/snapshots/`. |
 | Webview local storage | Interface preferences such as the language. |
+| `~/.intely/` on each server | The IDE's agent files, Node.js and Claude Code (if installed from Settings > Servers) and the git guard of each run there. |
 
 The complete, code-cited list is in [privacy.md](privacy.md).
 

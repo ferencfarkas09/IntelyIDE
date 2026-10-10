@@ -1,6 +1,6 @@
 # Privacy
 
-This page states what IntelyIDE stores on your Mac, what can leave it and when, and which of these statements a script re-checks. Applies to version 1.1.1.
+This page states what IntelyIDE stores on your Mac, what can leave it and when, and which of these statements a script re-checks. Applies to version 1.2.0.
 
 IntelyIDE has no telemetry: it sends no usage data, identifiers or crash reports to anyone, and there is no account. It does make a few network requests, only when you use the matching feature: your own `claude` installation talks to its vendor, `git` talks to your remotes, and the optional modules you switch on (MongoDB Studio, Remote, Happy) talk to the servers you configure.
 
@@ -34,13 +34,15 @@ The state folder in 1.1.1 is `~/Library/Application Support/IntelySwitchIDE/` (t
 
 | Where | What | Written when |
 |---|---|---|
-| `settings.json` in the state folder (`crates/settings/src/store.rs`, mode 0600) | Your settings: language, module switches, provider choices, update preferences, non-secret connection details. Secret values are not written here | When you change a setting |
+| `settings.json` in the state folder (`crates/settings/src/store.rs`, mode 0600) | Your settings: language, module switches, provider choices, update preferences, notification choices, the servers you added (name, ssh target, port, repository folder, limit) and non-secret connection details. Secret values are not written here; no ssh password or key is stored | When you change a setting |
 | `workspaces.json`, `workspaces/`, `backups/`, `trust.json`, `live-floor.json` in the state folder (`crates/core/src/registry.rs`, files mode 0600) | The workspace registry: names, colours and the folder paths of your repositories, which folders you trusted, which branches you marked as live | During use |
 | `supervisor.json`, `usage-ledger.json`, `role-backups/` (`crates/roles/src/supervisor.rs`, `crates/roles/src/ledger.rs`, `crates/roles/src/store.rs`) | Agent supervisor extras, a usage ledger of agent runs and backups of role files you edited | When you use agent roles |
 | `enforcement.json`, `gate.json` (`crates/agent_host/src/host.rs`) | The record of the safety proof run and the registry of agent processes that may still be running | During agent runs |
 | `worktrees.json`, `worktrees/` (`crates/checks/src/worktrees.rs`) | The list and the folders of the worktrees the Checks module creates | When you use that module |
 | `runs/<agentId>.jsonl` (`crates/agent_core/src/events/log.rs`, mode 0600) | The full event stream of an agent run: your prompts, tool results and the contents of files the agent read. **Plain text, not redacted** | During every agent run |
 | `shims/<agentId>/refusals.log` (`crates/agent_gate/src/shim.rs`, mode 0600, folder 0700) | One line per Git command the guard refused: time, folder and the command line as typed, which can contain a credential if one was typed into it | When an agent runs a refused Git command |
+| `/tmp/intely-ssh-<user>/` (`crates/servers/src/ssh.rs`, folder mode 0700, owner and links checked) | The sockets with which `ssh` shares one connection to a server; they are removed a minute after the last use. If no private folder can be had, connections are not shared | While you use Servers |
+| `~/.intely/` and `~/.local/share/IntelyIDE/` **on a server** (`crates/servers/src/setup.rs`, `crates/agent_host/src/remote.rs`) | The sidecar and the Agent SDK that Settings > Servers > Set up uploads and installs, Node.js and Claude Code if you chose those steps, and the git guard of each run (`shims/<agentId>/`, with the refusals it logged). Claude Code keeps its own session files in `~/.claude` there. `rm -rf ~/.intely ~/.local/share/IntelyIDE` removes what the IDE put on a server | When you set up a server and start runs on it |
 | `attachments/` (`src-tauri/src/modules/attachments.rs`) | Copies of files and images you attached to a prompt; drafts older than seven days are swept at startup | When you attach a file |
 | `devices.json`, `remote-audit.jsonl` (`crates/remote/src/devices.rs`, `crates/remote/src/audit.rs`, mode 0600) | With the Remote module on: the paired phones and an audit trail of remote actions | When you use Remote |
 | macOS Keychain, two services, `com.intelyhome.intelyide` for general secrets and `com.intelyhome.intelyide.mongo` for MongoDB (`crates/settings/src/secrets.rs`, `crates/mongo/src/profile.rs`) | Provider tokens, integration tokens and per-connection MongoDB credentials, one item per key. If the Keychain refuses (for example a development build without the entitlement), secrets are kept in memory for the session only. Secrets stored by earlier versions under the old service names (`hu.happygastro.intelyswitchide` and `.mongo`) are read once and copied to the new names; the old items are left in place, and you may delete them in Keychain Access by searching `intelyswitchide`. | When you enter them |
@@ -54,6 +56,8 @@ Notes on the table:
 - **Run logs are kept until you delete them.** `crates/agent_core/src/events/log.rs` contains a function that deletes run files older than 30 days, but the application does not call it in this version (it is only exercised by tests). Do not rely on automatic deletion.
 - **`refusals.log` is not redacted.** Read both logs before you paste anything from them into a bug report.
 - Rows for files that exist only while a feature is in use (for example the Remote files) can be absent on your machine.
+- **Notifications.** A banner has a fixed sentence and the run's title, which is the first line of your prompt (60 characters at most). It never carries a command, a file name or a part of an answer. macOS shows the banner in its Notification Center, which may keep it in its own history and show it on a locked screen, depending on your System Settings > Notifications. Switch the banners off in Settings > Notifications if prompts can be sensitive. Nothing is sent anywhere (`crates/hud/src/notify.rs`, `src-tauri/src/modules/notify.rs`).
+- **Runs on a server.** The prompt, the agent's tool calls and the files the agent reads go to the server through your `ssh`. The run's event log (above) stays on your Mac. What Claude Code on the server sends to its vendor is its business, as on your Mac.
 
 ## What can reach the network, and only on your action
 
@@ -67,6 +71,7 @@ Notes on the table:
 | The Remote relay and phone view | Your own Cloudflare account. `wrangler` runs on your machine with your login; web push uses the push service of your phone's browser | `crates/relay_deploy/src/wrangler.rs`, `crates/remote/src/` |
 | The Happy integration | The base URL you enter | `crates/happy/src/hub.rs` |
 | The Sentry integration (off until you add a token) | The Sentry address you enter, `https://sentry.io` by default, with your own token (kept in the Keychain; it goes only to the address it was entered for, so saving another address removes it): reading issues, and, on your click, assigning an issue to you or marking it resolved | `crates/sentry/src/client.rs` |
+| Runs on servers (Settings > Servers, off until you add one) | The servers you configure, through your own `ssh` (your keys; no password is stored or typed). The IDE sends the prompt, the agent's tool calls and the file questions of the permission broker to the sidecar there, and uploads its agent files and a git guard to `~/.intely` on the server. On the server, and only when you choose those setup steps: nodejs.org (Node.js), `registry.npmjs.org` (the Agent SDK installer, Claude Code) | `crates/servers/src/`, `crates/agent_host/src/remote.rs` |
 | The preview proxy | Loopback addresses only (127.0.0.1) | `crates/preview-proxy/src/` |
 | The confirm-first Claude Agent SDK installer in the packaged app | `registry.npmjs.org`, nothing else | `sidecar/src/sdk-install.ts` |
 

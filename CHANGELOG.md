@@ -4,6 +4,21 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 
 ## [Unreleased]
 
+### Added
+
+- Runs on your own servers (Settings > Servers, and "Where to run" in New run). Add a server by its `ssh` target, let the IDE set it up (Node.js 24 if missing, the agent files, the Agent SDK, optionally Claude Code), and start runs there: 3 on the build server and 2 on this Mac from one dialog, with a limit of agents per server. The agent's shell, file edits and the Claude CLI run on the server through your own `ssh` (keys and `known_hosts` as in a terminal, no password typed or stored, forwarding switched off). The permission broker stays in the IDE and judges the server's files through a read-only `fs/query` of the sidecar there; a look that cannot be answered denies the call. The git guard is made for the server's git and uploaded per run. A finished run gives up its place when the server is full, and its session is closed after ten minutes. See docs/remote-servers.md.
+- Notifications (Settings > Notifications): a banner when a run needs a permission, asks a question, finishes or fails, a count of waiting runs on the Dock icon, a switch for each kind, a gap between two banners of one kind and run, at most twelve a minute over all runs, and an optional sound. A request that a saved rule answers within a second does not notify. The banner has a fixed sentence and the run's title, never a command or a file. Banners no longer depend on the menu-bar item. See docs/notifications.md.
+
+### Fixed
+
+- The Agent SDK installer made group-writable folders under a `umask` of 002 (the default of many Linux accounts) and then refused its own tree; the folders get an explicit mode and the installer sets its own `umask`.
+
+### Known limitations
+
+- Runs on a server do not support MCP servers, attachments, Rewind, providers other than Claude, the History view of server sessions or the Changes tree of the server's copy (review and commit on the server). A request of such a run is approved at the desktop, not from the phone. They were tried against a Linux container through a real `ssh` and against a scripted stand-in.
+- Claude Code, when you let the setup install it on a server, comes from the npm registry in its current version without a hash check; Node.js and the Agent SDK are pinned and verified.
+- Notification banners were checked in tests and logs; how macOS shows them on a given setup is not verified. A click on a banner brings the IDE forward and opens the run when the window gets focus within 90 seconds.
+
 ## [1.1.1] - 2026-10-10
 
 ### Fixed

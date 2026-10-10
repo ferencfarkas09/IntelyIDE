@@ -1,6 +1,6 @@
 # Documentation index
 
-This page lists every public document of IntelyIDE with a one-line description and the audience it is written for. Applies to version 1.1.1.
+This page lists every public document of IntelyIDE with a one-line description and the audience it is written for. Applies to version 1.2.0.
 
 Audiences: **users** run the app, **contributors** change the code, **maintainers** publish releases.
 
@@ -15,6 +15,8 @@ Audiences: **users** run the app, **contributors** change the code, **maintainer
 | [Mongo Studio guide](mongo-studio-guide.md) | Using the MongoDB tools | users |
 | [Preview and inspect](preview-inspect.md) | The embedded preview and element inspector | users |
 | [Attachments](attachments.md) | Dropping and pasting files into a prompt, and the secret guard | users |
+| [Runs on servers](remote-servers.md) | Running agents on your own servers over ssh: set up, repositories, where to run, limits | users |
+| [Notifications](notifications.md) | Banners and the Dock count when a run needs you | users |
 | [Remote with Cloudflare](remote-cloudflare.md) | Setting up the relay with your own Cloudflare account | users |
 | [Remote gateway](remote-gateway.md) | How the remote gateway works | users, contributors |
 | [Architecture](architecture.md) | Crates by role, the sidecar, the UI, data flow, state storage and testing | contributors |

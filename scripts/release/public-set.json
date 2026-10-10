@@ -11,7 +11,7 @@
     "scripts/**", "fixtures/**", "tests/**", "site/**",
     "docs/README.md", "docs/getting-started.md", "docs/architecture.md", "docs/safety.md", "docs/privacy.md",
     "docs/licensing.md", "docs/building.md", "docs/releasing.md", "docs/release-checklist.md", "docs/install-macos.md", "docs/faq.md", "docs/i18n.md",
-    "docs/design-system.md", "docs/attachments.md", "docs/remote-cloudflare.md", "docs/remote-gateway.md",
+    "docs/design-system.md", "docs/attachments.md", "docs/remote-cloudflare.md", "docs/remote-gateway.md", "docs/remote-servers.md", "docs/notifications.md",
     "docs/mongo-studio-guide.md", "docs/preview-inspect.md", "docs/l10n-release.md",
     "docs/packaging.md", "docs/release-ci-checklist.md"
   ],

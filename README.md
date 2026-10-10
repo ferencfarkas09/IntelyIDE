@@ -50,6 +50,8 @@ Agents are part of the same window, within limits:
 - **Approval drawer and history.** Permission requests, refusals and finished runs in one place.
 - **Notes to a working agent.** Add something for the lead or a running subagent without stopping the run; the agent reads it with its next tool call, and the transcript shows whether it arrived.
 - **Usage.** How much of your Claude plan's 5-hour session and 7-day week is left, and the tokens and API-equivalent cost of the runs this IDE started: by day, hour and model, with a year grid of busy days.
+- **Agents on your own servers.** Run agents over `ssh` on a server you own, for example 3 on a build server and 2 on this Mac from one New run. The IDE sets the server up (Node.js, the agent files, the Agent SDK), the permission rules stay in the IDE and judge the server's files, and the git guard travels with each run. See [docs/remote-servers.md](docs/remote-servers.md).
+- **Notifications.** A banner and a Dock count when a run needs a permission, asks a question, finishes or fails, with a switch for each and a limit on how often. See [docs/notifications.md](docs/notifications.md).
 - **Built-in tools.** A small editor, a project tree, a terminal, and a preview with an element inspector.
 - **53 languages.** English and Hungarian are written by hand. The other 51 are machine-translated and wait for native review; some newer screens (for example MongoDB Studio, workspaces and MCP settings) are not translated yet and show English there. See [docs/i18n.md](docs/i18n.md).
 
@@ -99,7 +101,7 @@ In plain words:
 5. **Undo.** A Rewind snapshot (`refs/intely/snapshots/<run>`) is taken before each run. Ignored files (for example `.env`, build output), anything outside the repositories and protected files are not covered. A per-run opt-out exists and is off by default.
 6. **Your own pushes.** Live branches need the exact branch name typed. Force pushes use a lease with `--force-if-includes`.
 7. **Secrets.** Tokens you enter go to the macOS Keychain; if it refuses access, IntelyIDE falls back to memory and tells you. The run log keeps prompts, tool output and the contents of files the agent read, in plain text on your disk.
-8. **Honest limits.** The hard stops are best-effort and unproven against a determined adversarial prompt. Unattended write mode on real repositories is not recommended. The agent runs with your account's file permissions.
+8. **Honest limits.** The hard stops are best-effort and unproven against a determined adversarial prompt. Unattended write mode on real repositories is not recommended. The agent runs with your account's file permissions. A run on a server is judged by the same rules in the IDE; what the server's own accounts can do is outside them (see [docs/remote-servers.md](docs/remote-servers.md)).
 9. **Where your data goes.** IntelyIDE does not proxy agent traffic. Your own `claude` installation talks to Anthropic under your account.
 
 <picture><source media="(prefers-color-scheme: dark)" srcset="assets/diagrams/safety-flow-dark.svg"><img alt="Flow of an agent action through the best-effort layers: policy hard stops, host allow-list, git shim and jail, before it can reach the working tree." src="assets/diagrams/safety-flow-light.svg" width="900"></picture>
@@ -123,6 +125,8 @@ This is version 1.1.1. It has been used mostly by its author, on an Intel Mac.
 - The release is an Intel (x64) build. Apple Silicon Macs run it under Rosetta 2, which is slower. A native Apple Silicon build is not available yet.
 - The app is ad-hoc signed and not notarized, so macOS asks you to confirm the first launch (see Install).
 - The app tells you when a newer release exists (a notice with a link to the release page, checked once a day; see Settings > Updates). It does not download or install updates itself: you replace the app with the new disk image.
+- Runs on servers were tried against a Linux container through a real `ssh` and against a scripted stand-in, not against many real servers. MCP servers, attachments, Rewind, other providers, the History view of server sessions and the Changes tree of the server's copy are not available for them yet.
+- Notification banners were checked in tests and logs; how macOS shows them on your setup (Focus modes, the installed app's permission prompt) is not verified here.
 - The Claude Agent SDK is not shipped with the app. You install it once yourself, with the installer that is inside the app (see [docs/getting-started.md](docs/getting-started.md)).
 
 ## Install
@@ -186,7 +190,7 @@ You need the Xcode Command Line Tools, Rust 1.96 or newer, Node.js 24 and pnpm 1
 
 ## Privacy
 
-IntelyIDE has no telemetry: no usage data, no analytics, no crash reports and no account. It makes network requests only where you turned something on: `git` talks to your remotes, your own `claude` installation talks to its vendor, and the optional modules you enable (Remote, MongoDB Studio, Happy) talk to the servers you configure. Once a day, after a one-time notice, it asks GitHub whether a newer release exists (one request that carries no data about you; switch it off in Settings > Updates). The run log and the refusals log are plain text on your disk and can contain file contents and command lines. What is stored where, and what is not verified: [docs/privacy.md](docs/privacy.md).
+IntelyIDE has no telemetry: no usage data, no analytics, no crash reports and no account. It makes network requests only where you turned something on: `git` talks to your remotes, your own `claude` installation talks to its vendor, the servers you add under Settings > Servers are reached through your own `ssh`, and the optional modules you enable (Remote, MongoDB Studio, Happy) talk to the servers you configure. Once a day, after a one-time notice, it asks GitHub whether a newer release exists (one request that carries no data about you; switch it off in Settings > Updates). The run log and the refusals log are plain text on your disk and can contain file contents and command lines. What is stored where, and what is not verified: [docs/privacy.md](docs/privacy.md).
 
 ## FAQ
 
@@ -210,6 +214,8 @@ More questions and troubleshooting: [docs/faq.md](docs/faq.md).
 | [FAQ and troubleshooting](docs/faq.md) | Common questions, logs, resetting state |
 | [Safety model](docs/safety.md) | The layers, their limits and how they are tested |
 | [Privacy](docs/privacy.md) | What is stored and what leaves your machine |
+| [Runs on servers](docs/remote-servers.md) | Running agents on your own servers over ssh |
+| [Notifications](docs/notifications.md) | Banners and the Dock count |
 | [Architecture](docs/architecture.md) | Crates, sidecar, UI and data flow |
 | [Building](docs/building.md) | Building from source and running tests |
 | [All documents](docs/README.md) | The full index |
