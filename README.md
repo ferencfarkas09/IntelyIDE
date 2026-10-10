@@ -16,7 +16,7 @@ A desktop Git client for working across several repositories at once, with codin
 [![Platform: macOS](https://img.shields.io/badge/platform-macOS-lightgrey)](#requirements)
 
 > [!NOTE]
-> IntelyIDE 1.1.0 is a stable release. The installed app starts in normal (writable) mode: like any Git client it can commit, push and save files in the repositories you open, and agent runs can edit files there. The protections described under "Safety model" are layered and best-effort, not a guarantee, and the in-app enforcement chip reads "Weak" until you run the proof suite on your machine. Use it on repositories you can restore, and do not leave agents running unattended. When started from source with `pnpm dev:app` it is read-only instead (it refuses commits, pushes, saves, agent runs and network access).
+> IntelyIDE 1.1.1 is a stable release. The installed app starts in normal (writable) mode: like any Git client it can commit, push and save files in the repositories you open, and agent runs can edit files there. The protections described under "Safety model" are layered and best-effort, not a guarantee, and the in-app enforcement chip reads "Weak" until you run the proof suite on your machine. Use it on repositories you can restore, and do not leave agents running unattended. When started from source with `pnpm dev:app` it is read-only instead (it refuses commits, pushes, saves, agent runs and network access).
 
 <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/changes-tree-dark.png"><img alt="IntelyIDE Changes view: four repositories in one tree, each file tagged with its repository and branch, with one commit message box for the checked files." src="docs/screenshots/changes-tree-light.png" width="900"></picture>
 
@@ -112,7 +112,7 @@ The full layer table, the enforcement suite and its results are in [docs/safety.
 
 ## Status and known limitations
 
-This is version 1.1.0. It has been used mostly by its author, on an Intel Mac.
+This is version 1.1.1. It has been used mostly by its author, on an Intel Mac.
 
 - Write mode is not judged suitable for unattended daily use on repositories you cannot restore.
 - The agent protections are best-effort. See the safety model above.
@@ -130,7 +130,7 @@ This is version 1.1.0. It has been used mostly by its author, on an Intel Mac.
 <!--dmg:available-->
 ### macOS installer (DMG)
 
-1. Download `IntelyIDE_1.1.0_x64.dmg` from the Releases page of this repository. It is built for Intel Macs and also runs on Apple Silicon under Rosetta 2, more slowly. Apple may remove Rosetta in a future macOS. If you are unsure which Mac you have: Apple menu > About This Mac.
+1. Download `IntelyIDE_1.1.1_x64.dmg` from the Releases page of this repository. It is built for Intel Macs and also runs on Apple Silicon under Rosetta 2, more slowly. Apple may remove Rosetta in a future macOS. If you are unsure which Mac you have: Apple menu > About This Mac.
 2. Check the download. `shasum -a 256 --ignore-missing -c SHA256SUMS` in the download folder detects a corrupted download only; the checksums come from the same page as the file, so they cannot prove where it came from.
 3. Open the DMG and drag IntelyIDE to Applications, then open it from there.
 4. First launch. <!--dmg:v:adhoc,developer-id-->This build is not notarized, so macOS refuses the first launch: on macOS 15 and later open System Settings > Privacy & Security, scroll to the message about IntelyIDE, choose Open Anyway and confirm; on macOS 13 and 14 right-click the app and choose Open. Do this only for a file you downloaded from this repository's Releases page.<!--/dmg:v--><!--dmg:v:notarized--><!--The app is notarized and opens normally.--><!--/dmg:v-->
@@ -179,7 +179,7 @@ You need the Xcode Command Line Tools, Rust 1.96 or newer, Node.js 24 and pnpm 1
 
 ## Configuration
 
-- Settings and the workspace registry live in one state folder under `~/Library/Application Support/`. Version 1.1.0 still uses the folder name `IntelySwitchIDE`; a rename to `IntelyIDE` with a migration is planned. The Agent SDK you install lives in its own folder, `~/Library/Application Support/IntelyIDE/sdk`. See [docs/privacy.md](docs/privacy.md) for every file.
+- Settings and the workspace registry live in one state folder under `~/Library/Application Support/`. Version 1.1.1 still uses the folder name `IntelySwitchIDE`; a rename to `IntelyIDE` with a migration is planned. The Agent SDK you install lives in its own folder, `~/Library/Application Support/IntelyIDE/sdk`. See [docs/privacy.md](docs/privacy.md) for every file.
 - Optional modules (Remote, MongoDB Studio, Happy) are off until you switch them on in Settings.
 - Environment variables that change safety behaviour: `INTELY_READONLY` (refuse writes) and `INTELY_WRITABLE` (allow writes when started with `pnpm dev:app`).
 - To uninstall: move the app to the Trash, delete the state folder (this removes run logs and the refusals log), delete the Keychain items of the app in Keychain Access, and remove Rewind refs from your repositories with `git for-each-ref refs/intely/` and `git update-ref -d <ref>`.

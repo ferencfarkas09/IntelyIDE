@@ -16,7 +16,7 @@ body:
     attributes:
       label: IntelyIDE version or commit
       description: Shown in the About window, or the output of `git rev-parse --short HEAD` if you built from source.
-      placeholder: 1.1.0
+      placeholder: 1.1.1
     validations:
       required: true
   - type: dropdown
