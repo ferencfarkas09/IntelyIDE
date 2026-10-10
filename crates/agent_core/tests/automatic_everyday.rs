@@ -769,3 +769,100 @@ fn an_option_that_follows_links_is_not_judged_by_the_folder_the_walk_starts_in()
     );
     allowed(&w, &["grep -rn pat src", "rg -n pat src", "find . -name '*.js' -maxdepth 2", "ls -la src", "ls -R src"]);
 }
+
+// Round 6 of the review.
+
+#[test]
+fn a_command_substitution_inside_a_parameter_expansion_is_walked() {
+    let w = world();
+    // the body of `${...}` runs its `$(...)` and backticks: the hard stops see the commands in it, like those of any substitution
+    for cmd in [
+        "echo ${x:-$(git push)}",
+        "echo \"${x:-$(git push)}\"",
+        "echo ${x:-`git push`}",
+        "echo ${:-$(git push)}",
+        "echo ${x[$(git push)]}",
+        "echo ${x/$(git commit -m x)/}",
+        "x=${$(git push)}",
+        "echo ${${y:-$(git push)}}",
+        "echo ${x:-$(cat .env)}",
+        "echo ${$(<.env)}",
+        "echo ${(f)\"$(cat .env)\"}",
+    ] {
+        let (d, by, rule, reason) = judge(&w, cmd);
+        assert_eq!((d, by), (Decision::Deny, DecidedBy::HardStop), "{cmd}: {rule}: {reason}");
+    }
+    // a harmless one is a substitution like the others (not judged), `${(e)x}` runs the text a variable holds
+    refused(&w, "exec.auto.unjudgeable", &["echo ${x:-$(git rev-parse HEAD)}", "x='$(git push)'; echo ${(e)x}", "echo ${(e)x}"]);
+    allowed(&w, &["echo ${HOME:-/tmp}", "echo \"${x:-y}\"", "echo ${#x}"]);
+}
+
+#[test]
+fn zsh_modules_and_tables_of_functions_are_not_judged() {
+    let w = world();
+    for cmd in [
+        "zmodload zsh/mapfile; echo $mapfile[.env]",
+        "zmodload zsh/zpty; zpty a git push",
+        "autoload -U zargs; zargs -- a -- git push",
+        "fpath=(.); autoload foo; foo",
+        "autoload -Uz ./foo; foo",
+        "zmodload zsh/net/tcp; ztcp example.com 80",
+        "functions[f]='git push'; f",
+        "functions[f]=ls; f",
+        "aliases[g]='git push'; g",
+        "galiases[g]=ls; g",
+    ] {
+        let (d, _, rule, reason) = judge(&w, cmd);
+        assert_ne!(d, Decision::Allow, "{cmd}: {rule}: {reason}");
+    }
+}
+
+#[test]
+fn an_abbreviated_option_of_a_git_subcommand_that_names_a_program_is_a_hard_stop() {
+    let w = world();
+    for cmd in [
+        "git clone --up='git push' . copy",
+        "git ls-remote --up='git push' .",
+        "git ls-remote --exe='git push' .",
+        "git archive --e='git push' --remote=. HEAD",
+        "git archive --exec='git push' --remote=. HEAD",
+        "git clone -c core.fsmonitor='git push' . copy",
+        "git clone -qc core.hooksPath=/tmp/h . copy",
+        "git clone -ccore.sshCommand=x . copy",
+        "git clone --config core.pager=x . copy",
+        "git clone --conf=core.editor=x . copy",
+        "git instaweb --httpd='git push'",
+        "git daemon --access-hook=x",
+        "git web--browse --browser=x http://example.com",
+        "git help --man-viewer=x git",
+    ] {
+        let (d, by, rule, reason) = judge(&w, cmd);
+        assert_eq!((d, by), (Decision::Deny, DecidedBy::HardStop), "{cmd}: {rule}: {reason}");
+    }
+    // a pattern or a branch that merely spells the letter, and an option of another meaning
+    allowed(&w, &["git grep -eOops needle -- src", "git grep -n -e Oops -- src", "git log --exclude=x -n 3", "git ls-files --exclude-standard", "git diff --exit-code"]);
+}
+
+#[test]
+fn the_links_other_tools_make_or_follow_are_not_seen_through() {
+    let w = world();
+    refused(
+        &w,
+        "exec.auto.unjudgeable",
+        &["rsync -aL src copy", "rsync -ak src copy", "rsync -a --copy-links src copy", "rsync -a --copy-unsafe-links src copy", "tar -chf x.tar src", "tar chf x.tar src", "tar -cvhf x.tar src"],
+    );
+    for cmd in [
+        "python3 -c 'import os; os.symlink(\".\", \"me\")'; cat me/../outside.txt",
+        "node -e 'require(\"fs\").symlinkSync(\".\", \"me\")'; cat me/../outside.txt",
+        "perl -e 'symlink(\".\", \"me\")'; cat me/../outside.txt",
+        "tar xf a.tar; cat me/../outside.txt",
+        "tar -xzf a.tgz; cat me/../outside.txt",
+        "unzip a.zip; cat me/../outside.txt",
+        "ditto a b; cat me/../outside.txt",
+    ] {
+        let (d, _, rule, reason) = judge(&w, cmd);
+        assert_ne!(d, Decision::Allow, "{cmd}: {rule}: {reason}");
+    }
+    // a pattern in a bundle, a search without recursion and a plain copy are fine
+    allowed(&w, &["grep -S pat package.json", "cp -L package.json copy.json", "rg -n -g '*.js' pat src", "tar -czf x.tgz src", "tar czf x.tgz src; cat src/../package.json", "rsync -a src copy", "tree -L 2", "du -sh src"]);
+}

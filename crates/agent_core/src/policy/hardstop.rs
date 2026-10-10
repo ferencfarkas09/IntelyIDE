@@ -146,6 +146,12 @@ const GIT_HARD_VERBS: &[&str] = &[
     "svn",
     "cvsexportcommit",
     "http-push",
+    // servers and a browser: they run programs the words do not show (`git instaweb --httpd=<cmd>`, `git daemon --access-hook=<cmd>`)
+    "instaweb",
+    "daemon",
+    "web--browse",
+    "http-backend",
+    "imap-send",
 ];
 
 /// `-c` / `git config` keys that change identity, run commands or redirect remotes.
@@ -418,6 +424,11 @@ impl<'a> Walker<'a> {
             self.issue("command name is not known statically");
             return;
         }
+        // the zsh tables that define functions and aliases by assignment: `functions[f]='git push'; f`
+        if let Some(body) = zsh_table_assignment(&first.text) {
+            self.issue("an assignment to a zsh table of functions or aliases");
+            self.script(body, depth + 1);
+        }
         if first.text.contains('/') {
             self.probe(&first.text);
         }
@@ -532,6 +543,12 @@ impl<'a> Walker<'a> {
             "cd" | "pushd" => self.cd(words),
             "mkdir" => self.note_made_dirs(words),
             "setopt" | "unsetopt" | "shopt" => self.glob_untrusted = true,
+            // zsh modules and autoloaded functions read, run and connect in ways the words do not show: `zmodload zsh/mapfile` makes
+            // `$mapfile[file]` read a file, `zsh/zpty` and `zargs` run a command, `ztcp` opens a connection, `autoload` loads a function
+            // from a file of the agent's own
+            "zmodload" | "autoload" | "zpty" | "zargs" | "ztcp" | "zsocket" | "zftp" | "zcompile" | "sysopen" | "sysread" | "syswrite" => {
+                self.issue("a zsh module or autoloaded function (what it reads, runs or connects to is not in the words)");
+            }
             // zsh: `emulate zsh -c 'git push'` evaluates the string (like `eval`) in an emulated shell
             "emulate" => {
                 self.glob_untrusted = true;
@@ -910,23 +927,47 @@ impl<'a> Walker<'a> {
             if t == "--" {
                 break;
             }
-            if long_opt(t, "upload-pack", 3) || long_opt(t, "receive-pack", 3) || long_opt(t, "exec", 3) || long_opt(t, "ssh-command", 3) {
+            // (git takes any unambiguous abbreviation of a long option, down to two letters: `git clone --up=<cmd>` is `--upload-pack`; only
+            // `git archive` has no other option that starts like `--exec`)
+            let exec_min = if sub == "archive" { 1 } else { 2 };
+            if long_opt(t, "upload-pack", 2) || long_opt(t, "receive-pack", 2) || long_opt(t, "exec", exec_min) || long_opt(t, "ssh-command", 2) || long_opt(t, "man-viewer", 3) {
                 self.stop("git.exec-option", "git option that runs another program");
                 return;
             }
             // the option of one subcommand that names a program: `git grep -O<pager>` (also inside a bundle, `-nOpager`) runs the pager
-            // through a shell, `git difftool -x <command>` / `--extcmd=<command>` runs the command
+            // through a shell, `git difftool -x <command>` / `--extcmd=<command>` runs the command, `git clone -u <command>` is
+            // `--upload-pack`. A letter that takes a value ends its bundle: in `-eOops` the pattern is `Oops`, in `-bu` the branch is `u`.
             let bundle = t.strip_prefix('-').filter(|l| !l.starts_with('-'));
             let names_program = match sub {
-                "grep" => bundle.is_some_and(|l| l.contains('O')) || long_opt(t, "open-files-in-pager", 2),
-                "difftool" => bundle.is_some_and(|l| l.contains('x')) || long_opt(t, "extcmd", 3),
-                // (`-u` is the short form of `--upload-pack`)
-                "clone" => bundle.is_some_and(|l| l.contains('u')),
+                "grep" => bundle.is_some_and(|l| bundle_names(l, 'O', "efABCm")) || long_opt(t, "open-files-in-pager", 2),
+                "difftool" => bundle.is_some_and(|l| bundle_names(l, 'x', "tO")) || long_opt(t, "extcmd", 3),
+                "clone" => bundle.is_some_and(|l| bundle_names(l, 'u', "bocj")),
                 _ => false,
             };
             if names_program {
                 self.stop("git.exec-option", "git option that runs another program");
                 return;
+            }
+            // `git clone -c core.fsmonitor=<cmd>` writes the setting into the new repository, where git runs it: the keys are judged like those
+            // of `git -c`
+            if sub == "clone" {
+                let next = args.get(i + 1).map(|w| w.text.as_str());
+                let key_value = match t {
+                    "-c" => next,
+                    _ if long_opt(t, "config", 3) => t.split_once('=').map(|(_, v)| v).or(next),
+                    _ => match bundle {
+                        // (`-qc key=value`: the value is the next word; `-ckey=value`: it is attached)
+                        Some(l) if l.ends_with('c') => next,
+                        Some(l) => l.strip_prefix('c').filter(|v| !v.is_empty()),
+                        None => None,
+                    },
+                };
+                if let Some(kv) = key_value {
+                    self.config_key(kv.split('=').next().unwrap_or(""), "git clone -c");
+                    if self.a.hard_stop.is_some() {
+                        return;
+                    }
+                }
             }
             let output = if t == "-o" || t == "--output" {
                 i += 1;
@@ -1327,20 +1368,52 @@ pub(super) fn long_opt(arg: &str, full: &str, min: usize) -> bool {
     name.len() >= min && full.starts_with(name)
 }
 
+/// `functions[f]=body` and the other zsh tables of functions and aliases: the text that is defined by the assignment.
+fn zsh_table_assignment(text: &str) -> Option<&str> {
+    let (table, rest) = text.split_once('[')?;
+    if !matches!(table, "functions" | "aliases" | "galiases" | "saliases" | "dis_functions" | "dis_aliases" | "dis_galiases" | "dis_saliases") {
+        return None;
+    }
+    Some(rest.split_once("]=").map_or("", |(_, body)| body))
+}
+
+/// Does a bundle of short options (the text after the `-`) name `letter`? A letter that takes a value ends the scan of its bundle: the
+/// rest is that value (`-eOops` of git grep is the pattern `Oops`, `-gL` of rg is the glob `L`).
+fn bundle_names(bundle: &str, letter: char, valued: &str) -> bool {
+    for c in bundle.chars() {
+        if c == letter {
+            return true;
+        }
+        if valued.contains(c) {
+            return false;
+        }
+    }
+    false
+}
+
 /// Options that make a tree walk go through symbolic links. A link inside a run's folder can lead out of it, and a walk is judged only by
-/// the folder it starts in: `grep -rS pat .` (the BSD grep of macOS), `rg -L`, `find -L .`, `du -L`, `tree -l`, `ls -LR`, `cp -RL`.
+/// the folder it starts in: `grep -rS pat .` (the BSD grep of macOS), `rg -L`, `find -L .`, `du -L`, `tree -l`, `ls -LR`, `cp -RL`,
+/// `rsync -L`, `tar -h`.
 pub(super) fn follows_links(base: &str, args: &[Word]) -> bool {
     let options = || args.iter().take_while(|w| w.text != "--").filter(|w| !w.dynamic);
-    let short = |letters: &str| options().any(|w| w.text.starts_with('-') && !w.text.starts_with("--") && w.text[1..].chars().any(|c| letters.contains(c)));
+    // (the letters of the short options of a bundle, up to the first letter that takes a value)
+    let short = |letters: &str, valued: &str| options().any(|w| w.text.strip_prefix('-').filter(|b| !b.starts_with('-')).is_some_and(|b| letters.chars().any(|l| bundle_names(b, l, valued))));
     let long = |name: &str| options().any(|w| long_opt(&w.text, name, 3));
     match base {
-        "grep" | "egrep" | "fgrep" => short("S") || long("dereference-recursive"),
-        "rg" => short("L") || long("follow"),
+        // (`-S` follows links in the BSD grep of macOS, but only in a recursive search)
+        "grep" | "egrep" | "fgrep" => {
+            let recursive = short("rR", "efmABCDd") || long("recursive") || options().any(|w| w.text == "recurse" || w.text == "--directories=recurse");
+            (short("S", "efmABCDd") && recursive) || long("dereference-recursive")
+        }
+        "rg" => short("L", "gtTefmABCjMdEr") || long("follow"),
         "find" => options().any(|w| matches!(w.text.as_str(), "-L" | "-follow")),
-        "du" => short("L"),
-        "tree" => short("l"),
-        "ls" => short("L") && short("R"),
-        "cp" => short("L"),
+        "du" => short("L", "dBI"),
+        "tree" => short("l", "LPIHoT"),
+        "ls" => short("L", "D") && short("R", "D"),
+        "cp" => short("L", "") && short("rRa", ""),
+        "rsync" => short("Lk", "eTfMB") || options().any(|w| w.text.starts_with("--copy-")),
+        // (`tar chf x.tar dir`: the old style has no dash)
+        "tar" | "bsdtar" | "gtar" => short("hL", "fCTXIb") || args.first().is_some_and(|w| !w.dynamic && !w.text.starts_with('-') && w.text.chars().all(|c| c.is_ascii_alphabetic()) && w.text.contains(['h', 'L'])) || long("dereference"),
         _ => false,
     }
 }

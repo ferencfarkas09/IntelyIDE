@@ -168,16 +168,23 @@ fn feeds_xargs(cmds: &[Command], i: usize) -> bool {
 }
 
 /// A symbolic link may come into being where nothing was: `ln` (also behind `env`, `command`, `xargs` or `find -exec`), `install -l`,
-/// `cp -s`. Any word of the command can be the program, so a wrapper does not hide it.
+/// `cp -s`, the tools that unpack archives and trees (`tar x`, `unzip`, `ditto`, `cpio`, `pax`), and code that says `symlink` (`python3 -c
+/// 'os.symlink(...)'`, `node -e`, `perl -e`). Any word of the command can be the program, so a wrapper does not hide it. What a script or a
+/// build tool does (`bash x.sh`, `make`, `npm install`) is not seen.
 fn makes_symlink(cmd: &Command) -> bool {
     let flag = |letter: char| cmd.words.iter().any(|w| !w.dynamic && w.text.starts_with('-') && !w.text.starts_with("--") && w.text.contains(letter));
     let long = |name: &str| cmd.words.iter().any(|w| !w.dynamic && w.text.len() >= 4 && w.text.starts_with("--") && name.starts_with(w.text[2..].split('=').next().unwrap_or("")));
-    cmd.words.iter().filter(|w| !w.dynamic).any(|w| match super::base_name(&w.text).as_str() {
-        "ln" | "gln" => flag('s') || long("symbolic"),
-        "install" | "ginstall" => flag('l') || long("link"),
-        "cp" | "gcp" => flag('s') || long("symbolic-link"),
-        _ => false,
-    })
+    // (`tar xf a.tar` has no dash)
+    let old_style = |letter: char| cmd.words.iter().skip(1).take(1).any(|w| !w.dynamic && !w.text.starts_with('-') && w.text.chars().all(|c| c.is_ascii_alphabetic()) && w.text.contains(letter));
+    cmd.words.iter().any(|w| w.text.to_ascii_lowercase().contains("symlink"))
+        || cmd.words.iter().filter(|w| !w.dynamic).any(|w| match super::base_name(&w.text).as_str() {
+            "ln" | "gln" => flag('s') || long("symbolic"),
+            "install" | "ginstall" => flag('l') || long("link"),
+            "cp" | "gcp" => flag('s') || long("symbolic-link"),
+            "unzip" | "ditto" | "cpio" | "pax" => true,
+            "tar" | "bsdtar" | "gtar" => flag('x') || long("extract") || long("get") || old_style('x'),
+            _ => false,
+        })
 }
 
 /// `break`, `continue`, `return`, `exit`: the commands after it may not run.

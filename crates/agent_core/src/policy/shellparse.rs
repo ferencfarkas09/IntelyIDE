@@ -132,6 +132,8 @@ pub enum Issue {
     /// A lone `{` or `}` among the arguments of a command (`if ls { git push }`, `{ ls } always { git push }`, `function f { ... }`): zsh
     /// reads a brace group there, which runs words the command's own words do not show.
     Brace,
+    /// zsh `${(e)x}`: the value of x is run through parameter and command substitution, so text held in a variable is executed.
+    Evaluated,
 }
 
 impl fmt::Display for Issue {
@@ -143,6 +145,7 @@ impl fmt::Display for Issue {
             Issue::TooDeep => f.write_str("nesting too deep"),
             Issue::Parenthesis => f.write_str("a parenthesis inside a word (zsh reads it as part of a glob)"),
             Issue::Brace => f.write_str("a brace group after a command (zsh reads `if cond { ... }` and `{ ... } always { ... }` that way)"),
+            Issue::Evaluated => f.write_str("a ${(e)...} expansion (zsh runs the text a variable holds)"),
         }
     }
 }
@@ -474,8 +477,47 @@ impl Lexer {
             Some('{') => {
                 let start = self.i;
                 self.i += 2;
-                while self.i < self.c.len() && self.c[self.i] != '}' {
-                    self.i += 1;
+                // zsh `${(e)x}` runs the shell text held in x (command substitution included)
+                if self.peek(0) == Some('(') && self.c[self.i + 1..].iter().take_while(|c| **c != ')').any(|c| *c == 'e') {
+                    self.script.issues.push(Issue::Evaluated);
+                }
+                let mut depth = 1u32;
+                while self.i < self.c.len() {
+                    match (self.c[self.i], self.peek(1)) {
+                        ('\\', _) => self.i += 2,
+                        ('}', _) => {
+                            depth -= 1;
+                            if depth == 0 {
+                                break;
+                            }
+                            self.i += 1;
+                        }
+                        ('$', Some('{')) => {
+                            depth += 1;
+                            self.i += 2;
+                        }
+                        // a command substitution in the body (`${x:-$(cmd)}`, `${x[$(cmd)]}`, `${(f)"$(cmd)"}`) runs: its commands are
+                        // walked like those of any other substitution
+                        ('$', Some('(')) => {
+                            self.i += 2;
+                            if self.peek(0) == Some('(') {
+                                self.script.opaque = true;
+                            }
+                            let (body, terminated) = self.paren_body();
+                            if !terminated {
+                                self.script.issues.push(Issue::Unterminated("command substitution"));
+                            }
+                            self.nested(&body, Issue::Substitution);
+                        }
+                        ('`', _) => {
+                            let (body, terminated) = self.backtick_body();
+                            if !terminated {
+                                self.script.issues.push(Issue::Unterminated("backtick substitution"));
+                            }
+                            self.nested(&body, Issue::Substitution);
+                        }
+                        _ => self.i += 1,
+                    }
                 }
                 let closed = self.i < self.c.len();
                 let end = (self.i + 1).min(self.c.len());
@@ -590,6 +632,16 @@ impl Lexer {
     }
 
     fn backtick(&mut self) {
+        let (body, terminated) = self.backtick_body();
+        if !terminated {
+            self.script.issues.push(Issue::Unterminated("backtick substitution"));
+        }
+        self.nested(&body, Issue::Substitution);
+        self.buf().expansion("$()", None, false);
+    }
+
+    /// Reads a backtick body (the index is on the opening backtick); returns it and whether the closing one was found.
+    fn backtick_body(&mut self) -> (String, bool) {
         self.i += 1;
         let mut body = String::new();
         let mut terminated = false;
@@ -610,11 +662,7 @@ impl Lexer {
                 other => body.push(other),
             }
         }
-        if !terminated {
-            self.script.issues.push(Issue::Unterminated("backtick substitution"));
-        }
-        self.nested(&body, Issue::Substitution);
-        self.buf().expansion("$()", None, false);
+        (body, terminated)
     }
 
     /// Reads up to the matching `)` (index is just after the opening paren); returns the body.
@@ -929,6 +977,26 @@ mod tests {
         assert!(!w[6].glob, "quoted star is not a glob for the shell");
         assert!(!w[7].dynamic);
         assert!(s.issues.is_empty());
+    }
+
+    #[test]
+    fn a_substitution_inside_a_parameter_expansion_is_parsed_and_flagged() {
+        let nested = |src: &str| parse(src).commands.iter().filter(|c| c.nested).map(|c| c.words.first().map(|w| w.text.clone()).unwrap_or_default()).collect::<Vec<_>>();
+        let s = parse("echo ${x:-$(git push)}");
+        assert_eq!(s.issues, vec![Issue::Substitution]);
+        assert_eq!(nested("echo ${x:-$(git push)}"), ["git"]);
+        assert_eq!(nested("echo \"${x:-`id`}\" ${y[$(ls)]}"), ["id", "ls"]);
+        // a nested expansion, a `}` inside the substitution and an escaped brace do not end the body early
+        assert_eq!(nested("echo ${a:-${b:-$(id)}} tail"), ["id"]);
+        assert_eq!(nested("echo ${a:-$(echo })} tail"), ["echo"]);
+        let s = parse("echo ${a:-x\\}y} tail");
+        assert!(s.issues.is_empty() && s.commands[0].words.len() == 3, "{:?}", s);
+        // `${(e)x}` runs the text x holds
+        assert_eq!(parse("echo ${(e)x}").issues, vec![Issue::Evaluated]);
+        assert_eq!(parse("echo ${(ef)x}").issues, vec![Issue::Evaluated]);
+        assert!(parse("echo ${(f)x} ${(@k)y}").issues.is_empty());
+        // plain expansions stay as they were
+        assert!(parse("echo ${x:-y} ${#z} \"${w}\"").issues.is_empty());
     }
 
     #[test]

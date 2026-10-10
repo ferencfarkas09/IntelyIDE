@@ -596,3 +596,12 @@ fn a_recursive_listing_or_search_does_not_follow_links_out_of_the_run() {
     does_not_run(&w, &["ls -LR .", "ls -R -L src", "ls -RL src", "rg -L pat .", "rg --follow pat .", "grep -rS pat .", "find -L . -name x"]);
     runs(&w, &["ls -la src", "ls -R src", "ls -L package.json", "rg -n const src"]);
 }
+
+// Round 6 of the review.
+
+#[test]
+fn a_substitution_in_a_parameter_expansion_and_the_zsh_modules_do_not_run() {
+    let w = world();
+    does_not_run(&w, &["echo ${x:-$(git push)}", "echo \"${x:-$(cat .env)}\"", "echo ${(e)x}", "zmodload zsh/mapfile; echo $mapfile[.env]", "autoload -U zargs", "functions[f]=ls; f"]);
+    runs(&w, &["echo hi", "ls -la src | head -n 3"]);
+}
