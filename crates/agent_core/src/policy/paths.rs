@@ -252,12 +252,21 @@ fn abs_or_lexical(p: &Path) -> PathBuf {
     if p.is_absolute() { p.to_path_buf() } else { normalize_lexical(p) }
 }
 
+/// What a word names before it is joined to a directory. `~` and `~/x` are the home folder. Any other word that starts with `~`
+/// (`~root`, `~+`, `~-`, `~1`) is expanded by the shell to a folder this analyser does not know (another user's home, the working
+/// directory, the previous one, an entry of the directory stack): it is put under the root of the file system, outside every run
+/// folder, so it is judged as outside and never read as a folder of the working directory.
+pub fn tilde_expanded(raw: &str, home: Option<&Path>) -> PathBuf {
+    let Some(rest) = raw.strip_prefix('~') else { return PathBuf::from(raw) };
+    match (rest.strip_prefix('/').or(rest.is_empty().then_some("")), home) {
+        (Some(rest), Some(h)) => h.join(rest),
+        _ => Path::new("/").join(raw),
+    }
+}
+
 /// `~`, relative-to-`base`, `.`/`..`, symlinks.
 pub fn resolve(base: &Path, raw: &str, home: Option<&Path>) -> PathBuf {
-    let expanded = match (raw.strip_prefix("~/").or(if raw == "~" { Some("") } else { None }), home) {
-        (Some(rest), Some(h)) => h.join(rest),
-        _ => PathBuf::from(raw),
-    };
+    let expanded = tilde_expanded(raw, home);
     let abs = if expanded.is_absolute() { expanded } else { base.join(expanded) };
     if abs.is_absolute() {
         canonical_lossy(&abs)

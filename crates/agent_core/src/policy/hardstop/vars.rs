@@ -167,10 +167,17 @@ fn feeds_xargs(cmds: &[Command], i: usize) -> bool {
             .is_some_and(|n| n.after == Sep::Pipe && n.words.first().is_some_and(|w| !w.dynamic && matches!(super::base_name(&w.text).as_str(), "xargs" | "parallel")))
 }
 
-/// `ln -s` (or `--symbolic`): a symbolic link comes into being where nothing was.
+/// A symbolic link may come into being where nothing was: `ln` (also behind `env`, `command`, `xargs` or `find -exec`), `install -l`,
+/// `cp -s`. Any word of the command can be the program, so a wrapper does not hide it.
 fn makes_symlink(cmd: &Command) -> bool {
-    cmd.words.first().is_some_and(|w| !w.dynamic && super::base_name(&w.text) == "ln")
-        && cmd.words[1..].iter().any(|w| w.text == "--symbolic" || (w.text.starts_with('-') && !w.text.starts_with("--") && w.text.contains('s')))
+    let flag = |letter: char| cmd.words.iter().any(|w| !w.dynamic && w.text.starts_with('-') && !w.text.starts_with("--") && w.text.contains(letter));
+    let long = |name: &str| cmd.words.iter().any(|w| !w.dynamic && w.text.len() >= 4 && w.text.starts_with("--") && name.starts_with(w.text[2..].split('=').next().unwrap_or("")));
+    cmd.words.iter().filter(|w| !w.dynamic).any(|w| match super::base_name(&w.text).as_str() {
+        "ln" | "gln" => flag('s') || long("symbolic"),
+        "install" | "ginstall" => flag('l') || long("link"),
+        "cp" | "gcp" => flag('s') || long("symbolic-link"),
+        _ => false,
+    })
 }
 
 /// `break`, `continue`, `return`, `exit`: the commands after it may not run.

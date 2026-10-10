@@ -9,7 +9,7 @@
 //! `probes`): resolved from the directory the command ran in after a `cd`, a search pattern is not one, a glob is the files it matches.
 //! A `VAR=value` prefix is never low-risk. Anything else stays an Ask.
 
-use super::hardstop::{long_opt, Analysis, HARMLESS_DEVICES};
+use super::hardstop::{follows_links, long_opt, Analysis, HARMLESS_DEVICES};
 use super::paths::Jail;
 use super::shellparse::Word;
 
@@ -666,7 +666,8 @@ fn read_path_ok(p: &str, jail: &Jail) -> bool {
 fn dangerous_option(t: &str) -> bool {
     if t.starts_with("--") {
         let name = t[2..].split('=').next().unwrap_or("");
-        return DANGEROUS_LONG.iter().any(|d| d == &name || ((name.len() >= 3 || (name.len() == 2 && d.starts_with("pre"))) && d.starts_with(name)));
+        // (git takes any unambiguous abbreviation, down to two letters: `--op` is `--open-files-in-pager` of `git grep`)
+        return DANGEROUS_LONG.iter().any(|d| d == &name || (name.len() >= 2 && d.starts_with(name)));
     }
     // short options that name an output file or a program: `-o`, `-O`, also inside a bundle (`-nOpager` runs `pager`); `-5` and `-n5` are numbers
     if !t.starts_with('-') || t.len() < 2 {
@@ -680,6 +681,10 @@ fn dangerous_option(t: &str) -> bool {
 }
 
 fn args_ok(cmd: &str, args: &[Word]) -> bool {
+    // a walk through symbolic links can leave the run's folders (`ls -LR`, `grep -rS`, `rg -L`)
+    if follows_links(cmd, args) {
+        return false;
+    }
     let mut after_dd = false;
     args.iter().all(|a| {
         let t = a.text.as_str();

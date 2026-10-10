@@ -677,3 +677,95 @@ fn the_analysis_lists_where_each_operand_points() {
         assert!(probes.contains(&format!("{b}/{want}").as_str()), "{want}: {probes:?}");
     }
 }
+
+// Round 5 of the review.
+
+#[test]
+fn a_program_named_by_an_option_of_a_git_subcommand_is_a_hard_stop() {
+    let w = world();
+    for cmd in [
+        "git grep -O'git commit -m x;' pat",
+        "git grep -O'git push;' pat",
+        "git grep -nOtouch pat",
+        "git grep --open-files-in-pager='git push;' pat",
+        "git grep --op='git push;' pat",
+        "git difftool -x 'git push' HEAD~1",
+        "git difftool --extcmd='git push' HEAD~1",
+        "git difftool -yx 'git commit -m x'",
+        "git -C {admin} grep -O'git push' pat",
+        // `-u` is the short form of `--upload-pack`, and `--exec-path=<dir>` makes `git name` run `<dir>/git-name`
+        "git clone -u 'git push' . copy",
+        "git clone -qu 'git commit -m x' . copy",
+        "git --exec-path={scratch} evil",
+    ] {
+        let (d, by, rule, reason) = judge(&w, cmd);
+        assert_eq!((d, by), (Decision::Deny, DecidedBy::HardStop), "{cmd}: {rule}: {reason}");
+    }
+    allowed(&w, &["git grep -n needle -- src", "git grep -nI needle -- src"]);
+}
+
+#[test]
+fn the_tilde_forms_that_are_not_the_home_folder_are_not_folders_of_the_run() {
+    let w = world();
+    // `~root` is another user's home, `~+` the working directory (so `~+/..` leaves it), `~-` the previous one, `~1` a stack entry
+    for cmd in [
+        "cat ~root/.zshrc",
+        "cat ~root/../etc/passwd",
+        "ls ~root/..",
+        "echo x > ~root/zz",
+        "rm ~root/zz",
+        "cp package.json ~root/",
+        "cd ~root; cat .zshrc",
+        "cat ~+/../outside.txt",
+        "cat ~+/sub/../../outside.txt",
+        "cat ~-/x",
+        "cat ~0/x",
+        "cat ~1/x",
+        "x=~root/.ssh; cat $x/id_rsa",
+    ] {
+        let (d, _, rule, reason) = judge(&w, cmd);
+        assert_ne!(d, Decision::Allow, "{cmd}: {rule}: {reason}");
+    }
+    allowed(&w, &["cat ./~tmp/x 2>/dev/null; ls src"]);
+}
+
+#[test]
+fn zsh_runs_the_command_string_of_emulate_and_a_lone_dash_precommand() {
+    let w = world();
+    for cmd in ["emulate zsh -c 'git push'", "emulate -c 'git commit -m x'", "emulate -R zsh -c 'git push origin main'", "emulate -LR zsh -c 'git add -A'", "- git push", "- git commit -m x", "cd {admin} && - git push"] {
+        let (d, by, rule, reason) = judge(&w, cmd);
+        assert_eq!((d, by), (Decision::Deny, DecidedBy::HardStop), "{cmd}: {rule}: {reason}");
+    }
+    // a command string that is not judged is refused, not run
+    refused(&w, "exec.auto.unjudgeable", &["emulate zsh -c 'ls'"]);
+}
+
+#[test]
+fn a_link_made_behind_a_wrapper_is_not_seen_through_by_a_dotdot_after_it() {
+    let w = world();
+    refused(
+        &w,
+        "exec.auto.unjudgeable",
+        &[
+            "env ln -s . me; cat me/../outside.txt",
+            "command ln -s . me; cat me/../outside.txt",
+            "find . -maxdepth 0 -exec ln -s . me \\; ; cat me/../outside.txt",
+            "echo . | xargs ln -s me; cat me/../outside.txt",
+            "install -l s package.json me; cat me/../outside.txt",
+            "cp -s package.json me; cat me/../outside.txt",
+        ],
+    );
+    // the word `ln` as a search term, and a copy that makes no link, are not link makers
+    allowed(&w, &["grep -n ln package.json; cat src/../package.json", "cp package.json copy.json && cat src/../copy.json"]);
+}
+
+#[test]
+fn an_option_that_follows_links_is_not_judged_by_the_folder_the_walk_starts_in() {
+    let w = world();
+    refused(
+        &w,
+        "exec.auto.unjudgeable",
+        &["grep -rS pat .", "grep -SR pat src", "egrep -rS pat .", "rg -L pat .", "rg --follow pat .", "find -L . -name x", "du -L .", "tree -l", "ls -LR .", "ls -R -L src", "cp -RL src copy"],
+    );
+    allowed(&w, &["grep -rn pat src", "rg -n pat src", "find . -name '*.js' -maxdepth 2", "ls -la src", "ls -R src"]);
+}

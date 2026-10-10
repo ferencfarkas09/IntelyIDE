@@ -335,10 +335,7 @@ impl<'a> Walker<'a> {
 
     /// `~` expanded, joined to the working directory and normalised, without touching the filesystem.
     fn lexical_path(&self, raw: &str) -> std::path::PathBuf {
-        let expanded = match (raw.strip_prefix("~/").or(if raw == "~" { Some("") } else { None }), self.jail.home.as_deref()) {
-            (Some(rest), Some(h)) => h.join(rest),
-            _ => std::path::PathBuf::from(raw),
-        };
+        let expanded = paths::tilde_expanded(raw, self.jail.home.as_deref());
         paths::normalize_lexical(&if expanded.is_absolute() { expanded } else { self.cwd.join(expanded) })
     }
 
@@ -355,6 +352,9 @@ impl<'a> Walker<'a> {
         let printer = PRINTERS.contains(&base);
         let code_runner = is_code_runner(base);
         let rest = words.get(1..).unwrap_or(&[]);
+        if super::follows_links(base, rest) {
+            self.issue("an option that follows symbolic links, which can lead out of the run's folders");
+        }
         let patterns = pattern_operands(base, rest);
         // `git check-ignore .env` prints a name, it does not read the file.
         let names_only = base == "git" && git_names_only(rest);

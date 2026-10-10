@@ -531,7 +531,20 @@ impl<'a> Walker<'a> {
             }
             "cd" | "pushd" => self.cd(words),
             "mkdir" => self.note_made_dirs(words),
-            "setopt" | "unsetopt" | "shopt" | "emulate" => self.glob_untrusted = true,
+            "setopt" | "unsetopt" | "shopt" => self.glob_untrusted = true,
+            // zsh: `emulate zsh -c 'git push'` evaluates the string (like `eval`) in an emulated shell
+            "emulate" => {
+                self.glob_untrusted = true;
+                let mut it = words[1..].iter();
+                while let Some(w) = it.next() {
+                    if w.text.starts_with('-') && !w.text.starts_with("--") && w.text[1..].contains('c') {
+                        self.issue("emulate -c runs a command string");
+                        if let Some(code) = it.next() {
+                            self.script(&code.text.clone(), depth + 1);
+                        }
+                    }
+                }
+            }
             "set" if words[1..].iter().any(|w| w.dynamic || (matches!(w.text.as_bytes().first(), Some(b'-' | b'+')) && w.text.len() > 1 && w.text != "--")) => self.glob_untrusted = true,
             "popd" => {
                 self.cwd_known = false;
@@ -626,8 +639,9 @@ impl<'a> Walker<'a> {
                 (rest(i), false)
             }
             "builtin" => (rest(1), false),
-            // zsh precommand modifiers: `noglob git push`, `nocorrect git commit`, `repeat 2 git commit`
-            "noglob" | "nocorrect" => (rest(1), false),
+            // zsh precommand modifiers: `noglob git push`, `nocorrect git commit`, `repeat 2 git commit`, and the lone `-` that runs the
+            // command as a login shell would (`- git push`)
+            "noglob" | "nocorrect" | "-" => (rest(1), false),
             "repeat" => (rest(2), false),
             "exec" => {
                 if words[1..].iter().take_while(|w| w.text.starts_with('-') && w.text != "--").any(|w| !w.text.starts_with("--") && w.text[1..].contains('c')) {
@@ -778,6 +792,11 @@ impl<'a> Walker<'a> {
                     self.config_key(t["--config-env=".len()..].split('=').next().unwrap_or(""), "git --config-env");
                     i += 1;
                 }
+                // where git looks for its `git-<name>` programs: a folder of the agent's own makes `git <name>` run its script
+                _ if t.contains('=') && long_opt(t, "exec-path", 3) => {
+                    self.stop("git.exec-option", "git --exec-path=<dir> makes git run programs from that folder");
+                    return;
+                }
                 _ if t.starts_with('-') => i += 1,
                 _ => {
                     sub_at = Some(i);
@@ -797,7 +816,7 @@ impl<'a> Walker<'a> {
             return;
         }
         let args = &words[at + 1..];
-        self.git_options(args);
+        self.git_options(&sub, args);
         if !protected_args::GIT_PATH_SAFE.contains(&sub.as_str()) {
             self.protected_args("git", args);
         }
@@ -884,7 +903,7 @@ impl<'a> Walker<'a> {
     }
 
     /// Options that run a program or write a file wherever they appear.
-    fn git_options(&mut self, args: &[Word]) {
+    fn git_options(&mut self, sub: &str, args: &[Word]) {
         let mut i = 0;
         while i < args.len() {
             let t = args[i].text.as_str();
@@ -892,6 +911,20 @@ impl<'a> Walker<'a> {
                 break;
             }
             if long_opt(t, "upload-pack", 3) || long_opt(t, "receive-pack", 3) || long_opt(t, "exec", 3) || long_opt(t, "ssh-command", 3) {
+                self.stop("git.exec-option", "git option that runs another program");
+                return;
+            }
+            // the option of one subcommand that names a program: `git grep -O<pager>` (also inside a bundle, `-nOpager`) runs the pager
+            // through a shell, `git difftool -x <command>` / `--extcmd=<command>` runs the command
+            let bundle = t.strip_prefix('-').filter(|l| !l.starts_with('-'));
+            let names_program = match sub {
+                "grep" => bundle.is_some_and(|l| l.contains('O')) || long_opt(t, "open-files-in-pager", 2),
+                "difftool" => bundle.is_some_and(|l| l.contains('x')) || long_opt(t, "extcmd", 3),
+                // (`-u` is the short form of `--upload-pack`)
+                "clone" => bundle.is_some_and(|l| l.contains('u')),
+                _ => false,
+            };
+            if names_program {
                 self.stop("git.exec-option", "git option that runs another program");
                 return;
             }
@@ -1292,6 +1325,24 @@ pub(super) fn long_opt(arg: &str, full: &str, min: usize) -> bool {
     let Some(name) = arg.strip_prefix("--") else { return false };
     let name = name.split('=').next().unwrap_or("");
     name.len() >= min && full.starts_with(name)
+}
+
+/// Options that make a tree walk go through symbolic links. A link inside a run's folder can lead out of it, and a walk is judged only by
+/// the folder it starts in: `grep -rS pat .` (the BSD grep of macOS), `rg -L`, `find -L .`, `du -L`, `tree -l`, `ls -LR`, `cp -RL`.
+pub(super) fn follows_links(base: &str, args: &[Word]) -> bool {
+    let options = || args.iter().take_while(|w| w.text != "--").filter(|w| !w.dynamic);
+    let short = |letters: &str| options().any(|w| w.text.starts_with('-') && !w.text.starts_with("--") && w.text[1..].chars().any(|c| letters.contains(c)));
+    let long = |name: &str| options().any(|w| long_opt(&w.text, name, 3));
+    match base {
+        "grep" | "egrep" | "fgrep" => short("S") || long("dereference-recursive"),
+        "rg" => short("L") || long("follow"),
+        "find" => options().any(|w| matches!(w.text.as_str(), "-L" | "-follow")),
+        "du" => short("L"),
+        "tree" => short("l"),
+        "ls" => short("L") && short("R"),
+        "cp" => short("L"),
+        _ => false,
+    }
 }
 
 /// The script word of `npx -c` / `npm exec --call`, searched among the leading options.

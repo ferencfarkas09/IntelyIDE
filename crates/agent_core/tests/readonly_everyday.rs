@@ -576,3 +576,23 @@ fn a_test_of_a_path_outside_the_run_is_not_a_read() {
     does_not_run(&w, &["[ -f /etc/passwd ]", "test -e /Users", "[ -d ../ ] && ls", "test -f ../outside.txt && cat package.json"]);
     runs(&w, &["[ -f package.json ] && cat package.json | head -n 1", "test -d src && ls src", "[ \"a\" = \"a\" ] && ls"]);
 }
+
+// Round 5 of the review.
+
+#[test]
+fn an_abbreviated_long_option_cannot_carry_the_program_of_git_grep() {
+    let w = world();
+    // git takes any unambiguous abbreviation of a long option, down to two letters: `--op` is `--open-files-in-pager`, which runs its value
+    does_not_run(
+        &w,
+        &["git grep --op=touch pat", "git grep --open=touch pat", "git grep --open-files-in-pager=touch pat", "git grep -n --op='touch zz;' pat", "git log --ou=out.patch", "git diff --ex=x", "git log --te=x"],
+    );
+    runs(&w, &["git grep -n --heading needle -- src", "git log --no-color --stat -n 3", "git log --oneline -n 3"]);
+}
+
+#[test]
+fn a_recursive_listing_or_search_does_not_follow_links_out_of_the_run() {
+    let w = world();
+    does_not_run(&w, &["ls -LR .", "ls -R -L src", "ls -RL src", "rg -L pat .", "rg --follow pat .", "grep -rS pat .", "find -L . -name x"]);
+    runs(&w, &["ls -la src", "ls -R src", "ls -L package.json", "rg -n const src"]);
+}
