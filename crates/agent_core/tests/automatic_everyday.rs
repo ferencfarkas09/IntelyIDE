@@ -40,7 +40,7 @@ fn world() -> World {
         "mobile/app/helpers",
         "mobile/app/screens",
         "scratch",
-        "home",
+        "userdir",
     ] {
         std::fs::create_dir_all(root.join(d)).unwrap();
     }
@@ -64,7 +64,7 @@ fn world() -> World {
     // a shell script with a function, an array and a pattern test: ordinary shell, not a glob qualifier
     w("scratch/fn.sh", "#!/bin/bash\nset -e\nlog() { echo \"$1\"; }\nfiles=(a b c)\nfor f in \"${files[@]}\"; do log \"$f\"; done\nif [[ $x == (a|b) ]]; then echo ok; fi\n");
     w("backend/scripts/fn.sh", "#!/bin/bash\nlog() { echo \"$1\"; }\nfiles=(a b)\nfor f in \"${files[@]}\"; do log \"$f\"; done\n");
-    w("home/tool.py", "print(1)\n");
+    w("userdir/tool.py", "print(1)\n");
     World { _dir: dir, root, backend, admin, mobile, scratch }
 }
 
@@ -72,7 +72,7 @@ fn auto(w: &World) -> PolicyContext {
     let mut c = ctx_at(&w.backend);
     c.add_dirs = vec![w.admin.clone(), w.mobile.clone()];
     c.scratch_dirs = vec![w.scratch.clone()];
-    c.home = Some(w.root.join("home"));
+    c.home = Some(w.root.join("userdir"));
     c
 }
 
@@ -310,7 +310,7 @@ fn a_helper_script_kept_in_the_scratch_folder_runs_after_its_text_is_scanned() {
     assert_eq!((d, by), (Decision::Deny, DecidedBy::HardStop), "{rule}: {reason}");
     refused(&w, "exec.auto.script-risk", &["cd {admin} && python3 {scratch}/spawn.py"]);
     // a script anywhere else, or one that does not exist yet, is still not read
-    refused(&w, "exec.auto.unjudgeable", &["cd {admin} && python3 {root}/home/tool.py"]);
+    refused(&w, "exec.auto.unjudgeable", &["cd {admin} && python3 {root}/userdir/tool.py"]);
 }
 
 /// A hard stop in every mode: the string runs `git commit`, whatever the variables hide.
