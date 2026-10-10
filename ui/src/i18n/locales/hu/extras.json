@@ -121,7 +121,7 @@
   "hud.trayDesc": "Egy ikon a futó agentek és a figyelmedet igénylő futások számával, az időzítővel és gyorsműveletekkel. Nem kötelező; kikapcsolva az ikon eltűnik.",
   "hud.notifyLabel": "Értesítés: {kind}",
   "hud.notifyAria": "Értesítés erről: {kind}",
-  "hud.throttle": "Legfeljebb egy értesítés fajtánként ennyi időnként",
+  "hud.throttle": "Legfeljebb egy értesítés fajtánként és futásonként ennyi időnként",
   "hud.throttleDesc": "Értesítés nem jelenik meg, amíg az IDE ablaka előtérben van.",
   "hud.throttleAria": "Értesítések korlátozása",
   "hygiene.name": "Branch-rendezés",

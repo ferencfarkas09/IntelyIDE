@@ -121,7 +121,7 @@
   "hud.trayDesc": "An icon with the number of running agents and of runs that need you, the timer, and quick actions. Optional; off removes the icon.",
   "hud.notifyLabel": "Notify: {kind}",
   "hud.notifyAria": "Notify about {kind}",
-  "hud.throttle": "At most one notification per kind every",
+  "hud.throttle": "At most one notification per kind and run every",
   "hud.throttleDesc": "Notifications are never shown while the IDE window is in front.",
   "hud.throttleAria": "Notification throttle",
   "hygiene.name": "Branch hygiene",
