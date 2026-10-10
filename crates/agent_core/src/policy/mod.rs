@@ -3,6 +3,7 @@
 pub mod autoallow;
 pub mod decide;
 pub mod enforcement;
+pub mod fsview;
 pub mod glob;
 pub mod hardstop;
 pub mod intent;

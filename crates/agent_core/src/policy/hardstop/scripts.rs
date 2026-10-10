@@ -8,6 +8,7 @@
 use std::path::{Path, PathBuf};
 
 use super::protected_args::code_tokens;
+use crate::policy::fsview;
 use super::{mentions_git_write, paths, Walker, Word, SHELLS};
 
 const MAX_SCRIPT_BYTES: u64 = 256 * 1024;
@@ -69,7 +70,7 @@ impl<'a> Walker<'a> {
                 // `./build.sh`, `scripts/release`: a file inside the working directory run by its path
                 if first.text.contains('/') && !first.dynamic {
                     let p = paths::resolve(&self.cwd, &first.text, self.jail.home.as_deref());
-                    if self.jail.contains(&p) && p.is_file() {
+                    if self.jail.contains(&p) && fsview::is_file(&p) {
                         self.script_file(first, depth, false);
                     }
                 }
@@ -113,8 +114,8 @@ impl<'a> Walker<'a> {
             return;
         }
         let p = paths::resolve(&self.cwd, &word.text, self.jail.home.as_deref());
-        let Ok(meta) = std::fs::metadata(&p) else { return };
-        if !meta.is_file() {
+        let Some(meta) = fsview::metadata(&p) else { return };
+        if !meta.is_file {
             return;
         }
         // a script the run keeps in its scratch folder (`/tmp/fix.py`) is read like one in a repository: the agent may write both
@@ -125,11 +126,11 @@ impl<'a> Walker<'a> {
             }
             return;
         }
-        if meta.len() > MAX_SCRIPT_BYTES {
+        if meta.len > MAX_SCRIPT_BYTES {
             self.issue("script is too large to scan");
             return;
         }
-        let Ok(text) = std::fs::read_to_string(&p) else {
+        let Some(text) = fsview::read_to_string_max(&p, MAX_SCRIPT_BYTES as usize) else {
             self.issue("script is not readable text");
             return;
         };
@@ -147,7 +148,7 @@ impl<'a> Walker<'a> {
         let mut dir: &Path = &self.cwd;
         loop {
             if self.jail.contains(dir) {
-                if let Some(v) = std::fs::read_to_string(dir.join("package.json")).ok().and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok()) {
+                if let Some(v) = fsview::read_to_string(&dir.join("package.json")).and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok()) {
                     return Some((dir.to_path_buf(), v));
                 }
             }
@@ -232,7 +233,7 @@ impl<'a> Walker<'a> {
         let names = file.map(|f| vec![f]).unwrap_or_else(|| ["GNUmakefile", "makefile", "Makefile"].iter().map(|s| s.to_string()).collect());
         let Some((path, text)) = names.iter().find_map(|n| {
             let p = paths::resolve(&self.cwd, n, self.jail.home.as_deref());
-            (self.jail.contains(&p) && p.is_file()).then(|| std::fs::read_to_string(&p).ok().map(|t| (p, t))).flatten()
+            (self.jail.contains(&p) && fsview::is_file(&p)).then(|| fsview::read_to_string(&p).map(|t| (p, t))).flatten()
         }) else {
             return;
         };

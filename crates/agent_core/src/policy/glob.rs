@@ -7,6 +7,8 @@
 
 use std::path::{Component, Path, PathBuf};
 
+use super::fsview;
+
 /// More matches than this are not judged one by one.
 pub const MAX_MATCHES: usize = 5000;
 /// Most directory entries that one expansion reads.
@@ -57,16 +59,16 @@ fn walk(dir: &Path, rest: &[String], out: &mut Vec<PathBuf>, visited: &mut usize
         if !walk(dir, tail, out, visited) {
             return false;
         }
-        let Ok(entries) = std::fs::read_dir(dir) else { return true };
-        for e in entries.flatten() {
+        let Some(entries) = fsview::read_dir(dir) else { return true };
+        for e in entries {
             *visited += 1;
             if *visited > MAX_VISITED {
                 return false;
             }
-            if e.file_name().to_string_lossy().starts_with('.') || !e.file_type().is_ok_and(|t| t.is_dir()) {
+            if e.name.starts_with('.') || !e.is_dir {
                 continue;
             }
-            if !walk(&e.path(), rest, out, visited) {
+            if !walk(&dir.join(&e.name), rest, out, visited) {
                 return false;
             }
         }
@@ -75,29 +77,29 @@ fn walk(dir: &Path, rest: &[String], out: &mut Vec<PathBuf>, visited: &mut usize
     if !has_meta(comp) {
         let next = dir.join(comp);
         if tail.is_empty() {
-            if next.symlink_metadata().is_ok() {
+            if fsview::symlink_metadata(&next).is_some() {
                 out.push(next);
             }
             return out.len() <= MAX_MATCHES;
         }
         return walk(&next, tail, out, visited);
     }
-    let Ok(entries) = std::fs::read_dir(dir) else { return true };
-    for e in entries.flatten() {
+    let Some(entries) = fsview::read_dir(dir) else { return true };
+    for e in entries {
         *visited += 1;
         if *visited > MAX_VISITED {
             return false;
         }
-        let name = e.file_name().to_string_lossy().into_owned();
-        if !matches(comp, &name) {
+        if !matches(comp, &e.name) {
             continue;
         }
+        let path = dir.join(&e.name);
         if tail.is_empty() {
-            out.push(e.path());
+            out.push(path);
             if out.len() > MAX_MATCHES {
                 return false;
             }
-        } else if e.path().is_dir() && !walk(&e.path(), tail, out, visited) {
+        } else if fsview::is_dir(&path) && !walk(&path, tail, out, visited) {
             return false;
         }
     }

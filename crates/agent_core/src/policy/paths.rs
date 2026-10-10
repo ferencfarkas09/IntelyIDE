@@ -7,6 +7,8 @@
 use std::ffi::OsString;
 use std::path::{Component, Path, PathBuf};
 
+use super::fsview;
+
 const PROTECTED_DIRS: &[&str] = &[".git", ".husky", ".claude"];
 const LOCKFILES: &[&str] = &[
     "package-lock.json",
@@ -211,8 +213,8 @@ fn follow_links(path: &Path) -> PathBuf {
             }
             Some(Component::Normal(name)) => {
                 let cand = out.join(name);
-                match std::fs::read_link(&cand) {
-                    Ok(target) if links < MAX_LINKS => {
+                match fsview::read_link(&cand) {
+                    Some(target) if links < MAX_LINKS => {
                         links += 1;
                         if target.is_absolute() {
                             out = PathBuf::new();
@@ -228,13 +230,19 @@ fn follow_links(path: &Path) -> PathBuf {
 }
 
 /// Resolves symlinks (dangling ones too, see [`follow_links`]), then canonicalizes the longest existing ancestor
-/// (case, `/tmp` -> `/private/tmp`) and re-appends the rest.
+/// (case, `/tmp` -> `/private/tmp`) and re-appends the rest. A remote file system view may answer the whole thing in one go
+/// ([`fsview::FsView::canonical_lossy`]); otherwise it is built from the view's `read_link` and `canonicalize`.
 pub fn canonical_lossy(path: &Path) -> PathBuf {
+    if path.is_absolute() {
+        if let Some(done) = fsview::canonical_lossy_shortcut(path) {
+            return done;
+        }
+    }
     let path = if path.is_absolute() { follow_links(path) } else { path.to_path_buf() };
     let mut tail: Vec<OsString> = Vec::new();
     let mut cur = path.clone();
     loop {
-        if let Ok(mut real) = std::fs::canonicalize(&cur) {
+        if let Some(mut real) = fsview::canonicalize(&cur) {
             real.extend(tail.iter().rev());
             return real;
         }

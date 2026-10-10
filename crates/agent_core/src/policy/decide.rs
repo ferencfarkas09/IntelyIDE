@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::autoallow::{automatic_refusal, is_low_risk_read, is_private_host, net_auto_check, url_host};
+use super::fsview::{self, FsView};
 use super::hardstop::{analyze, analyze_argv, raw_text_stop, Analysis};
 use super::intent::{mcp_candidate, Actor, PolicyRequest, ToolClass, ToolIntent, MCP_RESOURCE_TOOLS};
 use super::paths::{canonical_lossy, Jail};
@@ -76,7 +77,8 @@ pub enum SavedAllow {
 }
 
 /// What the broker knows about one agent: its role and where it may work. Held by Rust, never sent over the wire.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// (`Debug` and `PartialEq` are written by hand below because of `fs`; the destructuring there names every field, so a new one fails to compile until it is listed.)
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PolicyContext {
     pub mode: PermissionMode,
@@ -133,7 +135,53 @@ pub struct PolicyContext {
     /// `fs.protected` in every mode, Bypass included (MCP spec 5.4 step 4c).
     #[serde(default)]
     pub mcp_code_paths: Vec<PathBuf>,
+    /// The file system the run's files live on: `None` = this machine. For a run on a remote server it answers from the server (see
+    /// `policy::fsview`); `decide` judges every path, glob and script against it. Not part of the wire form.
+    #[serde(skip)]
+    pub fs: Option<Arc<dyn FsView>>,
 }
+
+impl std::fmt::Debug for PolicyContext {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let Self { mode, cwd, add_dirs, home, role_deny, subagents, mcp_servers, saved, state_dir, strict_jail, scratch_dirs, delegates, delegation_cap, delegation_used, saved_by_role, plan_dir, mcp_tools, mcp_code_paths, fs } = self;
+        f.debug_struct("PolicyContext")
+            .field("mode", mode)
+            .field("cwd", cwd)
+            .field("add_dirs", add_dirs)
+            .field("home", home)
+            .field("role_deny", role_deny)
+            .field("subagents", subagents)
+            .field("mcp_servers", mcp_servers)
+            .field("saved", saved)
+            .field("state_dir", state_dir)
+            .field("strict_jail", strict_jail)
+            .field("scratch_dirs", scratch_dirs)
+            .field("delegates", delegates)
+            .field("delegation_cap", delegation_cap)
+            .field("delegation_used", delegation_used)
+            .field("saved_by_role", saved_by_role)
+            .field("plan_dir", plan_dir)
+            .field("mcp_tools", mcp_tools)
+            .field("mcp_code_paths", mcp_code_paths)
+            .field("fs", &fs.as_ref().map(|_| "FsView"))
+            .finish()
+    }
+}
+
+impl PartialEq for PolicyContext {
+    fn eq(&self, other: &Self) -> bool {
+        let Self { mode, cwd, add_dirs, home, role_deny, subagents, mcp_servers, saved, state_dir, strict_jail, scratch_dirs, delegates, delegation_cap, delegation_used, saved_by_role, plan_dir, mcp_tools, mcp_code_paths, fs } = self;
+        let Self { mode: o_mode, cwd: o_cwd, add_dirs: o_add_dirs, home: o_home, role_deny: o_role_deny, subagents: o_subagents, mcp_servers: o_mcp_servers, saved: o_saved, state_dir: o_state_dir, strict_jail: o_strict_jail, scratch_dirs: o_scratch_dirs, delegates: o_delegates, delegation_cap: o_delegation_cap, delegation_used: o_delegation_used, saved_by_role: o_saved_by_role, plan_dir: o_plan_dir, mcp_tools: o_mcp_tools, mcp_code_paths: o_mcp_code_paths, fs: o_fs } = other;
+        let same_fs = match (fs, o_fs) {
+            (None, None) => true,
+            (Some(a), Some(b)) => Arc::ptr_eq(a, b),
+            _ => false,
+        };
+        same_fs && mode == o_mode && cwd == o_cwd && add_dirs == o_add_dirs && home == o_home && role_deny == o_role_deny && subagents == o_subagents && mcp_servers == o_mcp_servers && saved == o_saved && state_dir == o_state_dir && strict_jail == o_strict_jail && scratch_dirs == o_scratch_dirs && delegates == o_delegates && delegation_cap == o_delegation_cap && delegation_used == o_delegation_used && saved_by_role == o_saved_by_role && plan_dir == o_plan_dir && mcp_tools == o_mcp_tools && mcp_code_paths == o_mcp_code_paths
+    }
+}
+
+impl Eq for PolicyContext {}
 
 pub const DEFAULT_DELEGATION_CAP: u32 = 12;
 
@@ -202,7 +250,13 @@ impl<'de> Deserialize<'de> for DelegationCounter {
 
 impl PolicyContext {
     pub fn new(mode: PermissionMode, cwd: impl Into<PathBuf>) -> Self {
-        Self { mode, cwd: cwd.into(), add_dirs: Vec::new(), home: None, role_deny: Vec::new(), subagents: Vec::new(), mcp_servers: Vec::new(), saved: Vec::new(), state_dir: None, strict_jail: false, scratch_dirs: Vec::new(), delegates: None, delegation_cap: DEFAULT_DELEGATION_CAP, delegation_used: DelegationCounter::default(), saved_by_role: BTreeMap::new(), plan_dir: None, mcp_tools: BTreeMap::new(), mcp_code_paths: Vec::new() }
+        Self { mode, cwd: cwd.into(), add_dirs: Vec::new(), home: None, role_deny: Vec::new(), subagents: Vec::new(), mcp_servers: Vec::new(), saved: Vec::new(), state_dir: None, strict_jail: false, scratch_dirs: Vec::new(), delegates: None, delegation_cap: DEFAULT_DELEGATION_CAP, delegation_used: DelegationCounter::default(), saved_by_role: BTreeMap::new(), plan_dir: None, mcp_tools: BTreeMap::new(), mcp_code_paths: Vec::new(), fs: None }
+    }
+
+    /// Judges the run's paths against `fs` (a remote server's files) instead of this machine's.
+    pub fn with_fs(mut self, fs: Arc<dyn FsView>) -> Self {
+        self.fs = Some(fs);
+        self
     }
 }
 
@@ -235,6 +289,7 @@ pub fn fail_closed(reason: impl Into<String>) -> PolicyDecision {
 pub fn decide_wire(ctx: Option<&PolicyContext>, body: &Value) -> PolicyDecision {
     let Some(ctx) = ctx else { return fail_closed("no policy context for this agent") };
     match serde_json::from_value::<PolicyRequest>(body.clone()) {
+        // (`decide` enters the file system scope itself, on whichever thread this runs)
         Ok(req) => decide(ctx, &req),
         Err(e) => fail_closed(format!("malformed policy request: {e}")),
     }
@@ -370,8 +425,11 @@ pub fn decide(ctx: &PolicyContext, req: &PolicyRequest) -> PolicyDecision {
 
 /// [`decide`] with `STRICT_BACKGROUND` spelled out (tests exercise both settings).
 pub fn decide_with(ctx: &PolicyContext, req: &PolicyRequest, strict_background: bool) -> PolicyDecision {
-    let (d, eff_mode) = judge(ctx, &req.intent, strict_background);
-    settle_unattended(ctx, eff_mode, d)
+    // every look at a file (symlinks, globs, scripts) goes to the run's own file system, on the thread that does the judging
+    fsview::with_fs(ctx.fs.clone(), || {
+        let (d, eff_mode) = judge(ctx, &req.intent, strict_background);
+        settle_unattended(ctx, eff_mode, d)
+    })
 }
 
 /// The verdict of the class rules and the mode the call was judged in.

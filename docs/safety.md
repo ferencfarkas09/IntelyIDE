@@ -273,6 +273,10 @@ An MCP server is code the user chose to run (or a remote service the user chose 
 - **Remote and agents never manage MCP.** The `mcp_*` commands exist only for the desktop webview; the generic `settings_set` refuses the `mcp` namespace and `secrets_set`/`secrets_remove` refuse the `mcp.` key prefix; a phone cannot approve an MCP call; a delegate never gets MCP tools.
 - The Test spawns the server in a fresh private directory with the scrubbed login environment (never `INTELY_*`, `ANTHROPIC_*` or an SSH agent), kills its whole process group afterwards, and is refused in the read-only jail; under the test jail only loopback servers are reachable.
 
+## Which files the permission broker looks at
+
+The broker judges a command against real files: where a symlink lands, what a glob like `.e*` expands to, what a script contains, which folder exists. Every such look goes through `FsView` (`crates/agent_core/src/policy/fsview.rs`) and never straight to `std::fs`. A run on this machine uses `LocalFs`, which is plain `std::fs`, so nothing changes for it. A run on a remote server gives `PolicyContext::fs` a view that answers from the server's files, so the same rules apply to the server's tree: a link inside the repository that points to `.git`, a script with `git push` in it, and a `.env` matched by a glob are stopped there as they are here. A view that cannot answer says "not there", the same as a missing file. One decision asks a remote view at most once per path. The check that compares a file with the git installed on this machine is skipped for a remote run (it would compare with the wrong machine). Tests: `crates/agent_core/tests/fsview.rs` (an in-memory tree, and a view that goes through the `fs/query` JSON ops and must give the same decisions as the local one).
+
 ## Verification
 
 This document makes claims about code, so each can be checked with a command. None of the commands below proves a layer is complete; they show that the tests the layers point at still pass on your checkout.

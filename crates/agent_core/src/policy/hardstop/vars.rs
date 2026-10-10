@@ -18,6 +18,7 @@
 //! - A value is kept only up to `MAX_VALUE_LEN` bytes, and only `MAX_VARS` variables are followed.
 
 use super::{Walker, Word};
+use crate::policy::fsview;
 use crate::policy::shellparse::{is_name, Command, Part, RedirKind, Sep};
 use std::borrow::Cow;
 use std::path::PathBuf;
@@ -399,7 +400,7 @@ impl<'a> Walker<'a> {
 
     /// `cd dir` (or `pushd`) that the walker followed into a directory that exists.
     fn entered_dir(&self, cmd: &Command) -> bool {
-        cmd.words.first().is_some_and(|w| !w.dynamic && matches!(w.text.as_str(), "cd" | "pushd")) && self.cwd_known && self.cwd.is_dir()
+        cmd.words.first().is_some_and(|w| !w.dynamic && matches!(w.text.as_str(), "cd" | "pushd")) && self.cwd_known && fsview::is_dir(&self.cwd)
     }
 
     /// `cd` or `pushd` with a known target (the walker moved into it).
@@ -418,7 +419,7 @@ impl<'a> Walker<'a> {
             return;
         }
         let certain = chain_always_runs(cmds, i, ok) && !self.cd_unreliable;
-        let missing = !self.cwd.is_dir() && !self.made_dirs.contains(&self.cwd);
+        let missing = !fsview::is_dir(&self.cwd) && !self.made_dirs.contains(&self.cwd);
         if !certain || missing {
             self.cwd_pending.push(before);
         }

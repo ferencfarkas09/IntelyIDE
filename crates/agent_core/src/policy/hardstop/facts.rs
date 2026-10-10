@@ -7,6 +7,7 @@ use std::path::Path;
 
 use super::protected_args::{candidates, code_like, code_tokens};
 use super::{base_name, paths, Ctx, NetOperand, Walker, Word, PM_PUBLISH};
+use crate::policy::fsview;
 use crate::policy::glob;
 
 /// Programs that print the environment of other processes or read another process's memory, where MCP servers and tools keep their
@@ -198,7 +199,7 @@ fn spaced_path(t: &str) -> bool {
 /// A token of program text names something that exists, or sits in a directory that does (a URL route such as `/api/users`
 /// does not): only those count as a path the program could open.
 fn plausible(p: &Path) -> bool {
-    p.exists() || p.parent().is_some_and(|d| d != Path::new("/") && d.exists())
+    fsview::exists(p) || p.parent().is_some_and(|d| d != Path::new("/") && fsview::exists(d))
 }
 
 impl<'a> Walker<'a> {
@@ -322,7 +323,7 @@ impl<'a> Walker<'a> {
                 let relative = !text.starts_with('/') && !text.starts_with('~');
                 // a token that is only slashes and dots (`/.` out of a regex literal such as `/(^|[/.\s])x/i`) resolves to the root, which no
                 // program text names as a file
-                if program_text && (!plausible(&p) || self.jail.contains(&p) || (relative && !p.exists()) || p == Path::new("/")) {
+                if program_text && (!plausible(&p) || self.jail.contains(&p) || (relative && !fsview::exists(&p)) || p == Path::new("/")) {
                     return;
                 }
                 text = p.display().to_string();

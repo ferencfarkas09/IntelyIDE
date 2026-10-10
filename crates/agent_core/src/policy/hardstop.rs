@@ -8,6 +8,7 @@
 
 use std::path::{Path, PathBuf};
 
+use super::fsview;
 use super::paths::{self, Jail};
 use super::shellparse::{self, Command, RedirKind, Word, MAX_DEPTH};
 
@@ -1198,11 +1199,15 @@ impl<'a> Walker<'a> {
         if p.file_name().is_some_and(|n| n.to_string_lossy().eq_ignore_ascii_case("git")) && is_executable_file(&p) {
             return true;
         }
-        let Ok(meta) = std::fs::metadata(&p) else { return false };
-        if !meta.is_file() || meta.len() < 4096 {
+        // the copy test compares bytes with the git installed on THIS machine: it means nothing for the files of a remote server
+        if !fsview::is_local() {
             return false;
         }
-        GIT_BINARIES.iter().any(|g| std::fs::metadata(g).is_ok_and(|m| m.len() == meta.len()) && matches!((std::fs::read(g), std::fs::read(&p)), (Ok(a), Ok(b)) if a == b))
+        let Some(meta) = fsview::metadata(&p) else { return false };
+        if !meta.is_file || meta.len < 4096 {
+            return false;
+        }
+        GIT_BINARIES.iter().any(|g| std::fs::metadata(g).is_ok_and(|m| m.len() == meta.len) && matches!((std::fs::read(g), std::fs::read(&p)), (Ok(a), Ok(b)) if a == b))
     }
 
     /// Expands `[alias]` entries of the repository and user git config, so `git ci` is judged as the command it runs.
@@ -1230,8 +1235,8 @@ impl<'a> Walker<'a> {
             let made = paths::resolve(&self.cwd, &w.text, self.jail.home.as_deref());
             let mut chain = vec![made.clone()];
             if parents {
-                chain.extend(made.ancestors().skip(1).filter(|a| !a.exists()).map(Path::to_path_buf));
-            } else if !made.parent().is_some_and(|p| p.is_dir() || self.made_dirs.iter().any(|d| d == p)) {
+                chain.extend(made.ancestors().skip(1).filter(|a| !fsview::exists(a)).map(Path::to_path_buf));
+            } else if !made.parent().is_some_and(|p| fsview::is_dir(p) || self.made_dirs.iter().any(|d| d == p)) {
                 continue;
             }
             self.made_dirs.extend(chain);
@@ -1438,8 +1443,7 @@ fn call_string(words: &[Word], from: usize) -> Option<Word> {
 }
 
 pub(super) fn is_executable_file(p: &Path) -> bool {
-    use std::os::unix::fs::PermissionsExt;
-    std::fs::metadata(p).is_ok_and(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
+    fsview::metadata(p).is_some_and(|m| m.is_file && m.executable)
 }
 
 /// Values given to the options `short` (`-e cmd`, `-ecmd`) and `long` (`--name cmd`, `--name=cmd`).
@@ -1486,14 +1490,14 @@ fn sed_runs_commands(code: &str) -> bool {
 /// `[alias]` value `name` from the repository config (walking up to the `.git` directory) or the user's git config.
 fn alias_lookup(cwd: &Path, home: Option<&Path>, name: &str) -> Option<String> {
     let mut files: Vec<PathBuf> = Vec::new();
-    if let Some(root) = cwd.ancestors().find(|d| d.join(".git").is_dir()) {
+    if let Some(root) = cwd.ancestors().find(|d| fsview::is_dir(&d.join(".git"))) {
         files.push(root.join(".git/config"));
     }
     if let Some(h) = home {
         files.push(h.join(".gitconfig"));
         files.push(h.join(".config/git/config"));
     }
-    files.iter().find_map(|f| alias_in_config(&std::fs::read_to_string(f).ok()?, name))
+    files.iter().find_map(|f| alias_in_config(&fsview::read_to_string(f)?, name))
 }
 
 fn alias_in_config(text: &str, name: &str) -> Option<String> {
@@ -2116,7 +2120,7 @@ mod wrangler {
                     self.issue("package directory outside the working directories");
                     continue;
                 }
-                let Some(pkg) = std::fs::read_to_string(dir.join("package.json")).ok().and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok()) else { continue };
+                let Some(pkg) = fsview::read_to_string(&dir.join("package.json")).and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok()) else { continue };
                 for key in [format!("pre{name}"), name.clone(), format!("post{name}")] {
                     let Some(text) = pkg["scripts"][key.as_str()].as_str() else { continue };
                     let label_key = format!("{}#{key}", dir.display());
@@ -2145,18 +2149,18 @@ mod wrangler {
             for _ in 0..4 {
                 let mut next = Vec::new();
                 for dir in &level {
-                    if dir.join("package.json").is_file() {
+                    if fsview::is_file(&dir.join("package.json")) {
                         found.push(dir.clone());
                     }
-                    let Ok(rd) = std::fs::read_dir(dir) else { continue };
-                    for e in rd.flatten() {
+                    let Some(rd) = fsview::read_dir(dir) else { continue };
+                    for e in rd {
                         seen += 1;
-                        let name = e.file_name().to_string_lossy().to_string();
-                        if seen > 3000 || found.len() >= 80 || name.starts_with('.') || SKIP_DIRS.contains(&name.as_str()) {
+                        let name = e.name.as_str();
+                        if seen > 3000 || found.len() >= 80 || name.starts_with('.') || SKIP_DIRS.contains(&name) {
                             continue;
                         }
-                        if e.file_type().is_ok_and(|t| t.is_dir()) {
-                            next.push(e.path());
+                        if e.is_dir {
+                            next.push(dir.join(name));
                         }
                     }
                 }
@@ -2232,10 +2236,10 @@ mod wrangler {
                         continue;
                     }
                     let pat: Vec<char> = comp.to_ascii_lowercase().chars().collect();
-                    let Ok(rd) = std::fs::read_dir(dir) else { continue };
-                    for e in rd.flatten() {
+                    let Some(rd) = fsview::read_dir(dir) else { continue };
+                    for e in rd {
                         seen += 1;
-                        let name = e.file_name().to_string_lossy().to_ascii_lowercase();
+                        let name = e.name.to_ascii_lowercase();
                         if seen > 5000 || next.len() >= 256 {
                             break;
                         }
@@ -2243,7 +2247,7 @@ mod wrangler {
                             continue;
                         }
                         if fnmatch(&pat, &name.chars().collect::<Vec<_>>()) {
-                            next.push(e.path());
+                            next.push(dir.join(&e.name));
                         }
                     }
                 }
@@ -2283,7 +2287,7 @@ mod wrangler {
                 if !self.jail.contains(&p) {
                     continue;
                 }
-                if std::fs::metadata(&p).is_ok_and(|m| m.is_file() && m.len() <= 256 * 1024) && std::fs::read_to_string(&p).is_ok_and(|t| mentions_cf_api(&t)) {
+                if fsview::metadata(&p).is_some_and(|m| m.is_file && m.len <= 256 * 1024) && fsview::read_to_string_max(&p, 256 * 1024).is_some_and(|t| mentions_cf_api(&t)) {
                     self.cf_stop("wrangler.api", &format!("{base} reads the Cloudflare API address from {f}"));
                     return;
                 }
@@ -2318,10 +2322,10 @@ mod wrangler {
                 return;
             }
             let p = paths::resolve(&self.cwd, &word.text, self.jail.home.as_deref());
-            if !self.jail.contains(&p) || !std::fs::metadata(&p).is_ok_and(|m| m.is_file() && m.len() <= 256 * 1024) {
+            if !self.jail.contains(&p) || !fsview::metadata(&p).is_some_and(|m| m.is_file && m.len <= 256 * 1024) {
                 return;
             }
-            let Ok(text) = std::fs::read_to_string(&p) else { return };
+            let Some(text) = fsview::read_to_string_max(&p, 256 * 1024) else { return };
             let ext = p.extension().map(|e| e.to_string_lossy().to_ascii_lowercase()).unwrap_or_default();
             let head = text.lines().next().unwrap_or("");
             let non_shell = matches!(ext.as_str(), "js" | "mjs" | "cjs" | "ts" | "mts" | "py" | "rb" | "pl" | "php" | "lua")
