@@ -231,6 +231,23 @@ impl<'a> Walker<'a> {
         }
     }
 
+    /// The words of a printer whose output goes to `xargs`: they are the names the next program opens, so each is judged like an operand
+    /// (`echo ~/.ssh/id_rsa | xargs cat`). `xargs` splits its input at white space.
+    pub(super) fn feed_operands(&mut self, words: &[Word]) {
+        for w in words.iter().filter(|w| !w.dynamic && !w.text.is_empty() && !w.text.starts_with('-')) {
+            let pieces = std::iter::once(w.text.as_str()).chain(w.text.split_whitespace());
+            for t in pieces {
+                for c in candidates(t) {
+                    self.probe(c);
+                    self.note_candidate(c, true, false, true);
+                }
+                if self.a.hard_stop.is_some() {
+                    return;
+                }
+            }
+        }
+    }
+
     /// An unquoted glob stands for the files it matches: each one is judged like a plain operand (so `cat .e*` is `cat .env`). A pattern
     /// that matches nothing is passed to the program as written and judged as written by the caller. One that matches more than is
     /// listed has the matches found so far judged and then makes the command unjudgeable.
@@ -362,6 +379,13 @@ impl<'a> Walker<'a> {
                 }
             }
             if patterns.contains(&idx) {
+                // a name pattern of `find` (`-name .env`) is no path to open, but it asks for a secret by name
+                if base == "find" {
+                    self.note_candidate(t, false, false, true);
+                    if self.a.hard_stop.is_some() {
+                        return;
+                    }
+                }
                 continue;
             }
             if !after_dd && t == "--" {

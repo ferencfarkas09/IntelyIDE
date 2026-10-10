@@ -597,6 +597,30 @@ fn zsh_forms_of_a_glob_or_a_command_name_are_not_judged_as_plain_words() {
 }
 
 #[test]
+fn a_secret_asked_for_by_name_is_still_a_hard_stop() {
+    let w = world();
+    // the name pattern of find is no path to open, but `.env` and a key file asked for by name stay refused (as before)
+    for cmd in ["find . -name .env", "find . -name \".env*\"", "find . -name .env | xargs cat", "find . -name id_rsa", "find . -iname id_rsa -o -name x", "grep -rn x --include=.env ."] {
+        let (d, by, rule, reason) = judge(&w, cmd);
+        assert_eq!((d, by), (Decision::Deny, DecidedBy::HardStop), "{cmd}: {rule}: {reason}");
+    }
+    // ordinary name patterns, with `-o` as the OR operator, are fine
+    allowed(&w, &["find . -name \"*.js\" -o -name \"*.ts\"", "find . -path ./node_modules -prune -o -type f -name \"*.js\" -print", "find src -not -path './.git/*' -name \"*.json\""]);
+}
+
+#[test]
+fn names_printed_into_xargs_are_judged_like_operands() {
+    let w = world();
+    std::fs::write(w.backend.join(".env"), "SECRET=1\n").unwrap();
+    for cmd in ["echo .env | xargs cat", "echo ~/.ssh/id_rsa | xargs cat", "printf '%s\\n' .env | xargs cat", "echo a .env | xargs -n1 cat", "echo 'a .env' | xargs cat"] {
+        let (d, by, rule, reason) = judge(&w, cmd);
+        assert_eq!((d, by), (Decision::Deny, DecidedBy::HardStop), "{cmd}: {rule}: {reason}");
+    }
+    refused(&w, "exec.auto.outside-jail", &["echo ../outside.txt | xargs cat", "echo /etc/hosts | xargs cat", "printf '%s\\n' src/Router.js ../outside.txt | xargs head"]);
+    allowed(&w, &["echo src/api/models/customer.model.js | xargs cat", "echo a b c | xargs -n1 echo", "cd {admin} && echo src/Router.js | xargs wc -l"]);
+}
+
+#[test]
 fn a_glob_is_judged_by_the_files_it_matches() {
     let w = world();
     std::fs::write(w.backend.join(".env"), "SECRET=1\n").unwrap();

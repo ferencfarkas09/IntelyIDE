@@ -156,6 +156,17 @@ fn runs_aside(cmds: &[Command], i: usize) -> bool {
     false
 }
 
+/// An `echo` or `printf` whose output goes straight into `xargs` or `parallel`: its words are the names they will open.
+fn feeds_xargs(cmds: &[Command], i: usize) -> bool {
+    let printer = cmds[i].words.first().is_some_and(|w| !w.dynamic && matches!(w.text.as_str(), "echo" | "printf"));
+    printer
+        && cmds
+            .iter()
+            .skip(i + 1)
+            .find(|c| !c.nested)
+            .is_some_and(|n| n.after == Sep::Pipe && n.words.first().is_some_and(|w| !w.dynamic && matches!(super::base_name(&w.text).as_str(), "xargs" | "parallel")))
+}
+
 /// `break`, `continue`, `return`, `exit`: the commands after it may not run.
 fn is_flow_control(cmd: &Command) -> bool {
     cmd.words.first().is_some_and(|w| !w.dynamic && matches!(w.text.as_str(), "break" | "continue" | "return" | "exit"))
@@ -320,6 +331,9 @@ impl<'a> Walker<'a> {
                 }
             }
             let before_cmd = (self.cwd.clone(), self.cwd_known);
+            if !cmd.nested && feeds_xargs(cmds, i) {
+                self.feed_operands(&cmd.words[1..]);
+            }
             let expanded = self.run(cmd, depth);
             ok[i] = always_ok(cmd) || self.entered_dir(&expanded);
             if !cmd.nested && self.moves_the_shell(&expanded) {
