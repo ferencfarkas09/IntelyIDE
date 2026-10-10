@@ -1,7 +1,7 @@
 //! Replays the shell commands of recorded runs through the policy, to compare a change of the analyser with what it did before.
 //!
 //! `REPLAY=<json>` names a file `{"cwd": "<run cwd>", "dirs": ["<other run folders>"], "cmds": [{"seq": 1, "cmd": "..."}]}`, and `MODE` is
-//! `automatic` (default), `edit`, `readonly` (plan mode and read-only roles) or `bypass`. Prints one line per command (`seq verdict by rule`) and a total; nothing is run. The test is
+//! `automatic` (default), `edit`, `readonly` (plan mode and read-only roles) or `bypass`. Prints one line per command (`seq verdict by rule`, and what the analyser could not judge) and a total; nothing is run. The test is
 //! ignored: it reads the maintainer's own run logs.
 
 mod common;
@@ -25,6 +25,7 @@ fn replay_a_recorded_run() {
     c.add_dirs = file["dirs"].as_array().into_iter().flatten().filter_map(|d| d.as_str()).map(PathBuf::from).collect();
     c.home = std::env::var_os("HOME").map(PathBuf::from);
     c.scratch_dirs = intely_agent_core::policy::paths::default_scratch_dirs();
+    let jail = intely_agent_core::policy::paths::Jail::new(std::path::Path::new(file["cwd"].as_str().unwrap()), &c.add_dirs, c.home.as_deref());
     let (mut ok, mut no) = (0, 0);
     for item in file["cmds"].as_array().unwrap() {
         let cmd = item["cmd"].as_str().unwrap_or_default();
@@ -33,7 +34,9 @@ fn replay_a_recorded_run() {
         if allowed { ok += 1 } else { no += 1 }
         println!("VERDICT {:>6} {} {:?} {}", item["seq"], if allowed { "allow" } else { "refuse" }, d.by, d.rule.as_deref().unwrap_or(""));
         if !allowed {
-            println!("REASON  {:>6} {}", item["seq"], &d.reason[..d.reason.len().min(180)]);
+            // what the analyser could not judge (the policy's own reason text is not printed: it may quote what the command named)
+            let issues = intely_agent_core::policy::hardstop::analyze(cmd, &jail).issues.join("; ");
+            println!("REASON  {:>6} {}", item["seq"], &issues[..issues.len().min(180)]);
         }
     }
     println!("TOTAL allowed {ok} refused {no}");
