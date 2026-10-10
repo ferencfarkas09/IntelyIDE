@@ -4,6 +4,7 @@ import type { AgentRow } from "../../store/agents";
 import { foreignReason, isForeign } from "../../store/agentScope";
 import { repoConfig } from "../../store/workspace";
 import { providerName } from "../../modules/providers/catalog";
+import { LocationChip } from "../../modules/servers/LocationChip";
 import { ProviderMark } from "../../modules/providers/ProviderMark";
 import { Badge, FileSearch, IconButton, RepoBadge, Rewind, ShieldCheck, Square, StatusDot, Tooltip } from "../../ui-kit";
 import { t, type MessageKey } from "../../i18n";
@@ -53,6 +54,7 @@ export function RunHeader(props: { agent: AgentRow; stopping: boolean; onInterru
           <ProviderMark id={a().provider} size={18} />
           <span class="run-header__name">{a().role === "auto" ? t("runs.role.auto") : a().role}</span>
         </span>
+        <Show when={a().location}>{(id) => <LocationChip id={id()} />}</Show>
         <Show when={(a().delegates?.length ?? 0) > 0}>
           <span class="run-header__lead" title={t("runs.leadTip")}>{t("runs.leadChip", { model: modelLabel(a().model), count: a().delegates!.length })}</span>
         </Show>

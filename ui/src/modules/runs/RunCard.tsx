@@ -7,6 +7,7 @@ import type { AgentView } from "../../store/agent-reducer";
 import type { AgentRow } from "../../store/agents";
 import { foreignReason, isForeign } from "../../store/agentScope";
 import { repoConfig } from "../../store/workspace";
+import { LocationChip } from "../servers/LocationChip";
 import { Badge, RepoBadge, ShieldCheck, StatusDot } from "../../ui-kit";
 import { roleColor } from "./roleColors";
 import { activityLine } from "./sessionsLogic";
@@ -39,6 +40,7 @@ export function RunCard(props: { row: AgentRow; view: AgentView | undefined; sel
           <span class="run-card__swatch" style={{ background: roleColor(r().role) ?? "var(--text-4)" }} aria-hidden="true" />
           {r().role === "auto" ? t("runs.role.auto") : r().role}
         </span>
+        <Show when={r().location}>{(id) => <LocationChip id={id()} />}</Show>
         <Show when={(r().delegates?.length ?? 0) > 0}>
           <Badge size="sm" class="run-card__lead" title={t("runs.leadTip")}>{t("runs.leadChip", { model: modelLabel(r().model), count: r().delegates!.length })}</Badge>
         </Show>

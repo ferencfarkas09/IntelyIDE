@@ -1,0 +1,49 @@
+/* Settings > Servers. Tokens only; state is carried by text and icons as well as colour. */
+.srv-list { display: flex; flex-direction: column; gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
+.srv-card { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-3) var(--space-4); border-radius: var(--radius-3); background: var(--surface-1); box-shadow: inset 0 0 0 1px var(--border-subtle); min-width: 0; }
+.srv-card[data-disabled] .srv-card__name { color: var(--text-3); }
+.srv-card__head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.srv-card__icon { color: var(--text-3); flex: none; }
+.srv-card__name { margin: 0; color: var(--text-1); font-size: var(--text-base); font-weight: var(--weight-semibold); }
+.srv-card__dest { color: var(--text-3); font-family: var(--font-mono); font-size: var(--text-xs); overflow-wrap: anywhere; }
+.srv-card__grow { flex: 1 1 auto; }
+.srv-card__meta { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); margin: 0; color: var(--text-3); font-size: var(--text-sm); }
+.srv-card__error { margin: 0; color: var(--danger); font-size: var(--text-sm); overflow-wrap: anywhere; }
+.srv-card__hint { display: block; margin-top: 2px; color: var(--text-3); }
+.srv-checks { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); margin: 0; padding: 0; list-style: none; }
+.srv-check { display: inline-flex; align-items: center; gap: 6px; color: var(--text-2); font-size: var(--text-sm); }
+.srv-check[data-state="ok"] svg { color: var(--ok); }
+.srv-check[data-state="missing"] svg { color: var(--warn); }
+.srv-check[data-state="unknown"] svg { color: var(--text-4); }
+.srv-check__ver { color: var(--text-3); font-family: var(--font-mono); font-size: var(--text-xs); }
+.srv-notice { margin: 0; padding: var(--space-2) var(--space-3); border-radius: var(--radius-2); background: var(--warn-subtle, var(--surface-2)); color: var(--text-1); font-size: var(--text-sm); }
+.srv-notice code, .srv-card code { font-family: var(--font-mono); font-size: var(--text-xs); overflow-wrap: anywhere; }
+.srv-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.srv-actions__sep { flex: 1 1 auto; }
+.srv-panel { display: flex; flex-direction: column; gap: var(--space-3); padding-top: var(--space-3); box-shadow: inset 0 1px 0 var(--border-subtle); }
+.srv-panel__title { margin: 0; color: var(--text-1); font-size: var(--text-sm); font-weight: var(--weight-semibold); }
+.srv-panel__opts { display: flex; flex-direction: column; gap: var(--space-2); margin: 0; padding: 0; border: 0; }
+.srv-panel__opts legend { padding: 0; margin-bottom: var(--space-1); color: var(--text-2); font-size: var(--text-sm); }
+.srv-steps { display: flex; flex-direction: column; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+.srv-step { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 0 var(--space-2); align-items: start; }
+.srv-step__icon { display: inline-flex; align-items: center; height: 20px; color: var(--text-3); }
+.srv-step[data-state="done"] .srv-step__icon { color: var(--ok); }
+.srv-step[data-state="failed"] .srv-step__icon { color: var(--danger); }
+.srv-step[data-state="started"] .srv-step__icon { color: var(--accent); }
+.srv-step__name { color: var(--text-1); font-size: var(--text-sm); }
+.srv-step[data-state="skipped"] .srv-step__name { color: var(--text-3); }
+.srv-step__lines { grid-column: 2; margin: 2px 0 0; padding: 0; list-style: none; color: var(--text-3); font-size: var(--text-xs); overflow-wrap: anywhere; }
+.srv-result { margin: 0; padding: var(--space-2) var(--space-3); border-radius: var(--radius-2); font-size: var(--text-sm); overflow-wrap: anywhere; }
+.srv-result[data-tone="ok"] { background: var(--ok-subtle, var(--surface-2)); color: var(--text-1); }
+.srv-result[data-tone="danger"] { background: var(--danger-subtle, var(--surface-2)); color: var(--text-1); box-shadow: inset 3px 0 0 var(--danger); font-weight: var(--weight-medium); }
+.srv-repos { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.srv-repo { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); padding: var(--space-1) 0; }
+.srv-repo + .srv-repo { box-shadow: inset 0 1px 0 var(--border-subtle); }
+.srv-repo__name { color: var(--text-1); font-size: var(--text-sm); }
+.srv-repo__path { color: var(--text-3); font-family: var(--font-mono); font-size: var(--text-xs); overflow-wrap: anywhere; }
+.srv-err { color: var(--danger); }
+.srv-form__note { margin: 0; color: var(--text-3); font-size: var(--text-sm); }
+.srv-form__error { margin: var(--space-2) 0 0; color: var(--danger); font-size: var(--text-sm); }
+.srv-empty { margin: 0; padding: var(--space-4); color: var(--text-3); font-size: var(--text-sm); text-align: center; border-radius: var(--radius-3); box-shadow: inset 0 0 0 1px var(--border-subtle); }
+.srv-chip { flex: none; }
+.srv-body { display: flex; flex-direction: column; gap: var(--space-3); }

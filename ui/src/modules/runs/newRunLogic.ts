@@ -2,6 +2,7 @@ import type { Tier } from "@intely/protocol";
 import { t, type MessageKey } from "../../i18n";
 import type { ProviderEnforcement, ProviderInfo } from "../../ipc/providers";
 import { modeErrorText } from "../../components/chat/modes";
+import type { ServerView } from "../../ipc/servers";
 import type { AgentStartRequest, AutoInfo, DelegateInfo, PermissionMode, RoleInfo } from "../../store/agent-types";
 import { MODE_ORDER, strictness } from "../../store/permissionModes";
 import { roleGate, roleKind, tierFor } from "../providers/enforcement";
@@ -100,9 +101,9 @@ export function providerChoices(
 export const chosenProvider = (picked: string | undefined, role: Pick<RoleInfo, "provider"> | undefined, choices: readonly ProviderChoice[]): string | undefined =>
   picked && choices.some((c) => c.id === picked && c.ok) ? picked : role?.provider;
 
-/** The request for `agent_start`: `provider` is sent only when it differs from the role's, so a plain run is byte-identical to before. */
-export function startRequest(draft: NewRunDraft, role: Pick<RoleInfo, "provider"> | undefined, provider: string | undefined): StartRunRequest {
-  const chosen = { ...(draft.permission ? { mode: draft.permission } : {}), ...(draft.mcpServers ? { mcpServers: draft.mcpServers } : {}) };
+/** The request for `agent_start`: `provider` is sent only when it differs from the role's, so a plain run is byte-identical to before. `location` (a server id) is sent only for a run on a server. */
+export function startRequest(draft: NewRunDraft, role: Pick<RoleInfo, "provider"> | undefined, provider: string | undefined, location?: string): StartRunRequest {
+  const chosen = { ...(draft.permission ? { mode: draft.permission } : {}), ...(draft.mcpServers ? { mcpServers: draft.mcpServers } : {}), ...(location ? { location } : {}) };
   // Auto on Claude names no provider: the host knows the lead is a Claude agent.
   if (draft.mode === "auto") return { role: AUTO_ROLE, repoIds: draft.repoIds, prompt: draft.prompt, ...chosen };
   return { role: draft.role!, repoIds: draft.repoIds, prompt: draft.prompt, ...chosen, ...(provider && provider !== role?.provider ? { provider } : {}) };
@@ -160,3 +161,70 @@ export const autoReasonText = (reason: string | null | undefined): string => (re
 
 /** Delegates worth a line on the card: the roles Auto starts with, cheapest model first is not our call (the lead chooses). */
 export const hasDelegates = (info: Pick<AutoInfo, "delegates"> | undefined): boolean => (info?.delegates.length ?? 0) > 0;
+
+// ---- where to run (this Mac and the servers of Settings > Servers) ----
+
+/** The key of "This Mac" in the counts; a server's key is its id. */
+export const THIS_MAC = "";
+/** Most runs one New run starts on this Mac. */
+export const MAC_MAX = 6;
+
+export type WhyNot = "unchecked" | "unreachable" | "needsSetup" | "full";
+
+export interface PlaceRow {
+  /** `THIS_MAC` or the server id; also the `location` of the request (empty = omitted). */
+  key: string;
+  name: string;
+  /** The most runs the stepper allows: this Mac's 6, or the free slots of a ready server. */
+  max: number;
+  /** Total slots of a server (for "2 of 6 free"). */
+  capacity?: number;
+  /** Set when the row is listed but cannot take runs. */
+  why?: WhyNot;
+}
+
+export type PlaceCounts = Readonly<Record<string, number>>;
+
+/** One row for this Mac and one per enabled server; a server that is not ready, or is full, is listed with the reason. */
+export function placementRows(servers: readonly Pick<ServerView, "cfg" | "status" | "running">[], macName: string): PlaceRow[] {
+  const rows: PlaceRow[] = [{ key: THIS_MAC, name: macName, max: MAC_MAX }];
+  for (const s of servers) {
+    if (!s.cfg.enabled) continue;
+    const free = Math.max(0, s.cfg.maxAgents - s.running);
+    const why: WhyNot | undefined = !s.status ? "unchecked" : !s.status.reachable ? "unreachable" : !s.status.ready ? "needsSetup" : free === 0 ? "full" : undefined;
+    rows.push({ key: s.cfg.id, name: s.cfg.name, max: why && why !== "full" ? 0 : free, capacity: s.cfg.maxAgents, ...(why ? { why } : {}) });
+  }
+  return rows;
+}
+
+/** The counts with every row held to 0..max (a server can fill up or go away while the dialog is open). */
+export function clampCounts(counts: PlaceCounts, rows: readonly PlaceRow[]): Record<string, number> {
+  return Object.fromEntries(rows.map((r) => [r.key, Math.max(0, Math.min(r.max, counts[r.key] ?? 0))]));
+}
+
+export const totalRuns = (counts: PlaceCounts, rows: readonly PlaceRow[]): number => rows.reduce((n, r) => n + Math.min(r.max, Math.max(0, counts[r.key] ?? 0)), 0);
+
+/** "3 runs: 1 on This Mac, 2 on Build server" */
+export function placementSummary(counts: PlaceCounts, rows: readonly PlaceRow[]): string {
+  const parts = rows.filter((r) => (counts[r.key] ?? 0) > 0).map((r) => t("runs.where.part", { count: Math.min(r.max, counts[r.key]), name: r.name }));
+  const total = totalRuns(counts, rows);
+  return total === 0 ? t("runs.where.noRuns") : t("runs.where.summary", { count: total, where: parts.join(", ") });
+}
+
+export interface RunJob {
+  /** Absent for this Mac. */
+  location?: string;
+  name: string;
+  /** 1-based number over all the runs of this start, and how many there are. */
+  index: number;
+  of: number;
+}
+
+/** The runs to start, in the order of the rows: this Mac first, then each server. */
+export function planRuns(counts: PlaceCounts, rows: readonly PlaceRow[]): RunJob[] {
+  const picked = rows.flatMap((r) => Array.from({ length: Math.min(r.max, Math.max(0, counts[r.key] ?? 0)) }, () => r));
+  return picked.map((r, i) => ({ ...(r.key === THIS_MAC ? {} : { location: r.key }), name: r.name, index: i + 1, of: picked.length }));
+}
+
+/** `[Agent 2 of 3, running on Build server]` and a blank line before the prompt. */
+export const numberedPrompt = (prompt: string, job: Pick<RunJob, "index" | "of" | "name">): string => `[Agent ${job.index} of ${job.of}, running on ${job.name}]\n\n${prompt}`;

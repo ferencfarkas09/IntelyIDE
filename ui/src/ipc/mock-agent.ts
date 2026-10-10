@@ -545,6 +545,7 @@ export function createMockAgents(scenarioName: string, scale: number): AgentApi 
       enforcement: foreign ? "weak" : mockTier(provider, mode === "readOnly"),
       startedAt: Date.now(),
       switchableModes: supportsAllModes(provider) ? [...ALL_MODES] : [],
+      ...(req.location ? { location: req.location } : {}),
     };
     const agent: MockAgent = { summary, log: [], seq: 0, turn: 0, retries: 0, script, running: false, cancelled: false, openTools: new Set(), pending: new Map(), cumulative: { input: 0, output: 0 }, saved: new Set(), notes: [], openAgents: new Set() };
     agents.set(id, agent);

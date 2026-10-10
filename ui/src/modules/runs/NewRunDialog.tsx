@@ -9,10 +9,10 @@ import { ModeCards } from "../../components/chat/ModeCards";
 import { openDockTab } from "../../platform/dock";
 import { openSettings } from "../../platform/settings";
 import type { RoleGroup } from "../../ipc/roles";
-import type { AutoInfo, PermissionMode } from "../../store/agent-types";
+import type { AgentSummary, AutoInfo, PermissionMode } from "../../store/agent-types";
 import { appMode } from "../../platform/mode";
 import { newRunPrefill, takeNewRunPrefill } from "../../platform/newRun";
-import { agentRoles, startRun } from "../../store/agents";
+import { agentRoles, selectAgent, startRun } from "../../store/agents";
 import { repos } from "../../store/workspace";
 import { activeId } from "../../store/workspaces";
 import { Badge, Button, Checkbox, Dialog, Icon, Kbd, ListChecks, RepoBadge, TextArea, toast } from "../../ui-kit";
@@ -22,10 +22,12 @@ import { providerName } from "../providers/catalog";
 import { roleGate, roleKind, TIER_LABEL, TIER_TONE, tierFor } from "../providers/enforcement";
 import { AutoCard, type UntrustedRole } from "./AutoCard";
 import { PERMISSION_TITLES } from "../roles/rolesLogic";
+import { loadServers, servers } from "../servers/store";
 import { McpRunPicker, mcpStartIds } from "./mcpSeam";
-import { autoReasonText, chosenProvider, clampMode, defaultRepos, initialMode, neutralRole, providerBlocker, providerChoices, startBlocker, startErrorText, startRequest, toggleRepo, type RunMode } from "./newRunLogic";
+import { autoReasonText, chosenProvider, clampCounts, clampMode, defaultRepos, initialMode, neutralRole, numberedPrompt, placementRows, placementSummary, planRuns, providerBlocker, providerChoices, startBlocker, startErrorText, startRequest, THIS_MAC, toggleRepo, totalRuns, type RunMode } from "./newRunLogic";
 import { roleColor } from "./roleColors";
 import { newRunOpen, setCentreView, setNewRunOpen } from "./state";
+import { WhereToRun } from "./WhereToRun";
 import { AttachButton, AttachmentChips } from "../attachments/Chips";
 import { createComposerAttachments } from "../attachments/composer";
 import { promptWithAttachments, takePendingForNewRun } from "../attachments/newRunPrompt";
@@ -69,6 +71,13 @@ export function NewRunDialog() {
   const [bypassOk, setBypassOk] = createSignal(false);
   const [confirmingBypass, setConfirmingBypass] = createSignal(false);
   const [mcpValue, setMcpValue] = createSignal<string[]>([]);
+  // Where the runs go: how many on this Mac and on each server. Shown only when a server is enabled; with none the dialog starts one run here, as ever.
+  const [counts, setCounts] = createSignal<Record<string, number>>({ [THIS_MAC]: 1 });
+  const [numbering, setNumbering] = createSignal<boolean | undefined>(undefined);
+  const rows = createMemo(() => placementRows(servers(), t("runs.where.thisMac")));
+  const whereShown = () => servers().some((s) => s.cfg.enabled);
+  const placed = createMemo(() => clampCounts(counts(), rows()));
+  const total = () => totalRuns(placed(), rows());
   const modesLegend = createUniqueId();
   let modesSeq = 0;
 
@@ -104,7 +113,7 @@ export function NewRunDialog() {
   });
   const usable = () => supported().filter((m) => !unavailable()[m]);
   const blocker = () =>
-    startBlocker(draft(), agentRoles()) ?? (claudeAuto() && autoLoading() ? t("runs.auto.loading") : undefined) ?? providerBlocker(provider() ?? current()?.provider, choices()) ?? unavailable()[permission()] ?? att.store.blocker();
+    startBlocker(draft(), agentRoles()) ?? (claudeAuto() && autoLoading() ? t("runs.auto.loading") : undefined) ?? providerBlocker(provider() ?? current()?.provider, choices()) ?? unavailable()[permission()] ?? (whereShown() && total() === 0 ? t("runs.where.pick") : undefined) ?? att.store.blocker();
   const untrusted = createMemo((): UntrustedRole[] =>
     claudeAuto()
       ? groups().flatMap((g) => {
@@ -203,6 +212,9 @@ export function NewRunDialog() {
       setBypassOk(false);
       setConfirmingBypass(false);
       setMcpValue([]);
+      setCounts({ [THIS_MAC]: 1 });
+      setNumbering(undefined);
+      void loadServers();
       loadGroups();
       void ipc.settings.get("roles").then((v) => setNoticeDone(v.derivationNoticeDone === true), () => {});
       // The mode used last is this dialog's default (Bypass never is); a read failure leaves the initial default.
@@ -257,7 +269,30 @@ export function NewRunDialog() {
     try {
       const wanted = provider();
       const flags = { ...(skipNet() ? { runWithoutSafetyNet: true } : {}), ...(permission() === "bypass" && bypassOk() ? { confirmBypass: true } : {}) };
-      const run = await startRun(startRequest({ ...draft(), prompt: await promptWithAttachments(prompt().trim(), att.store) }, current(), wanted), Object.keys(flags).length ? flags : undefined);
+      const base = await promptWithAttachments(prompt().trim(), att.store);
+      const jobs = whereShown() ? planRuns(placed(), rows()) : [{ name: "", index: 1, of: 1 }];
+      const numbered = jobs.length > 1 && (numbering() ?? true);
+      // One after the other, never in parallel: each start takes the writer lease and the slots the next one looks at.
+      const started: AgentSummary[] = [];
+      const failures: { name: string; error: unknown }[] = [];
+      for (const job of jobs) {
+        try {
+          const request = startRequest({ ...draft(), prompt: numbered ? numberedPrompt(base, job) : base }, current(), wanted, "location" in job ? job.location : undefined);
+          started.push(await startRun(request, Object.keys(flags).length ? flags : undefined));
+        } catch (e) {
+          failures.push({ name: job.name, error: e });
+        }
+      }
+      const failureLines = failures.map((f) => t("runs.where.failedLine", { name: f.name, message: startErrorText(f.error) }));
+      if (started.length === 0) {
+        // Nothing started: the dialog stays, with the reason (a single run shows the host's text as before).
+        setNoNet((failures[0].error as { code?: string } | null)?.code === "noSafetyNet");
+        setError(jobs.length === 1 ? startErrorText(failures[0].error) : failureLines.join(" "));
+        return;
+      }
+      const run = started[0];
+      if (started.length > 1) void selectAgent(run.agentId);
+      if (failures.length > 0) toast.error(t("runs.where.someFailed", { count: failures.length }), failureLines.join("\n"));
       void ipc.settings.set("runs", { lastMode: permission() }).catch(() => {});
       if (wanted && run.provider !== wanted) toast.warn(t("runs.new.otherProvider", { actual: run.provider, wanted }), t("runs.new.otherProviderDesc"));
       setPrompt("");
@@ -434,6 +469,18 @@ export function NewRunDialog() {
               </For>
             </div>
           </fieldset>
+          <Show when={whereShown()}>
+            <WhereToRun
+              rows={rows()}
+              counts={placed()}
+              summary={placementSummary(placed(), rows())}
+              numbering={numbering() ?? total() > 1}
+              disabled={busy()}
+              onCount={(key, n) => setCounts({ ...placed(), [key]: n })}
+              onNumbering={setNumbering}
+              onSettings={() => (setNewRunOpen(false), openSettings("servers"))}
+            />
+          </Show>
           <Show when={McpRunPicker}>
             <div class="newrun__field newrun__mcp">
               <Dynamic component={McpRunPicker} value={mcpValue()} onChange={setMcpValue} provider={modeProvider()} mode={permission()} workspaceId={activeId()} disabled={busy()} />
