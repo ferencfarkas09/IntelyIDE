@@ -18,7 +18,15 @@ Several best-effort layers are meant to stop it: a `git` shim first on the agent
 
 ### Does it use the network?
 
-Git operations you start use your normal Git remotes. Agents talk to the provider you configure. The app has no telemetry. A notification for new versions is planned; no update check is implemented in this version. What each feature sends is listed in [privacy.md](privacy.md).
+Git operations you start use your normal Git remotes. Agents talk to the provider you configure. Runs on a server you added go through your own `ssh`. The app has no telemetry. A notification for new versions is planned; no update check is implemented in this version. What each feature sends is listed in [privacy.md](privacy.md).
+
+### Can agents run on my own server?
+
+Yes, over `ssh`. Add the server in Settings > Servers, let the IDE set it up, and choose it under "Where to run" when you start a run; one dialog can start, for example, three agents there and two on your Mac. The permission rules keep running in the IDE and judge the server's files. MCP servers, attachments, Rewind and the Changes tree of the server's copy are not available for such runs yet. See [remote-servers.md](remote-servers.md).
+
+### I get no notification banners
+
+Banners appear only while the IDE window is in the background, at most once per kind and run within the gap set in Settings > Notifications, and macOS decides whether to show them: allow the app in System Settings > Notifications and check your Focus mode. A development build is not an app bundle, so macOS shows its banners as the Script Editor. See [notifications.md](notifications.md).
 
 ### Is it affiliated with Anthropic?
 
