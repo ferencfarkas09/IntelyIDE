@@ -18,7 +18,7 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 ### Changed
 
 - The transcript says why a call was refused: one line under the refusal (the full reason on hover), "Declined by the run's rules" or "Denied by the role" instead of always the role, and a localized sentence for the Claude CLI's own prompt. A read-only role is told which commands run, and a call whose agent the Claude CLI did not name is told to run again.
-- A few shapes that were allowed by accident are refused now: a `cd` to a folder that does not exist followed by `;` or `||`, a parenthesis stuck to a word (a zsh glob qualifier, `f(){`, `a=(1 2)`), `=git`, and a glob that matches more than 5000 files.
+- A few shapes that were allowed by accident are refused now: a path after a `cd` to a folder that does not exist (or after a `cd` that may not have run) that leaves the run's folders from the place the shell may really be in, a parenthesis stuck to a word that zsh reads as part of a glob (`*(D)`, `.e(n)v`), a `cd` in a pipe or in the background, and a glob that matches more than 5000 files. zsh's `=git` is read as git, so the git hard stops apply to it.
 
 ### Known limitations
 
