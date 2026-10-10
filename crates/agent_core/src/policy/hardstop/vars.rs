@@ -262,7 +262,7 @@ fn assigned_in(body: &[Command], var: Option<&str>) -> Vec<String> {
 }
 
 fn literal(text: &str) -> Word {
-    Word { text: text.to_string(), dynamic: false, glob: text.contains(['*', '?', '[']), quoted: true, parts: None }
+    Word { text: text.to_string(), dynamic: false, glob: text.contains(['*', '?', '[']), quoted: true, eq: false, parts: None }
 }
 
 /// The unquoted value of an expansion, split at white space the way the shell does (`IFS` is untouched): the finished words go to

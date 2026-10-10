@@ -22,6 +22,10 @@ pub struct Word {
     pub glob: bool,
     /// A quote or an escape is part of the word: `""` is an (empty) word, an empty `$x` alone is no word at all.
     pub quoted: bool,
+    /// The word began with an unquoted `=` that zsh replaces with the path of the program of that name (`=git`, `=\git`); `text` is the
+    /// name without the `=`. As the program of a command it is that program; anywhere else it is a path the words do not show, so the
+    /// word is dynamic.
+    pub eq: bool,
     /// A dynamic word that holds only literal text and plain `$name` / `${name}` expansions: its pieces in order, so a caller that
     /// knows the variables can read the word the way the shell will (what is quoted is not split). `None` for every other word, and
     /// for a dynamic one with any other expansion (`$(...)`, `${x:-y}`, `$1`, braces).
@@ -712,15 +716,15 @@ impl Lexer {
 
     fn end_word(&mut self) {
         let Some(mut b) = self.cur.take() else { return };
-        // zsh expands an unquoted `=git` (and `=\git`) to the path of the program: it runs git, so the word is read as `git`
-        if b.eq_start && b.text.len() > 1 && b.text[1..].chars().next().is_some_and(|c| c.is_alphanumeric() || matches!(c, '_' | '/' | '.' | '-')) {
+        // zsh expands an unquoted `=git` (and `=\git`) to the path of the program: as a program it runs git, anywhere else it is a path
+        let eq = b.eq_start && !b.dynamic && b.text.len() > 1 && b.text[1..].chars().next().is_some_and(|c| c.is_alphanumeric() || matches!(c, '_' | '/' | '.' | '-'));
+        if eq {
             b.text.remove(0);
-            for e in &mut b.exps {
-                e.start -= 1;
-            }
+            b.dynamic = true;
+            b.impure = true;
         }
         let parts = b.parts();
-        let word = Word { text: b.text, dynamic: b.dynamic, glob: b.glob, quoted: b.quoted, parts };
+        let word = Word { text: b.text, dynamic: b.dynamic, glob: b.glob, quoted: b.quoted, eq, parts };
         match self.pending.take() {
             Some(kind) => {
                 let mut body = None;
@@ -771,6 +775,11 @@ impl Lexer {
                 }
                 _ => break,
             }
+        }
+        // `=git commit`: the program is git (zsh looks it up in PATH); an `=name` anywhere else stays dynamic
+        if let Some(first) = words.first_mut().filter(|w| w.eq) {
+            first.dynamic = false;
+            first.eq = false;
         }
         let piped = std::mem::take(&mut self.piped);
         if words.is_empty() && assigns.is_empty() && redirects.is_empty() {
@@ -1021,6 +1030,22 @@ mod tests {
         let c = &parse("F=$b cmd").commands[0];
         assert_eq!(c.assigns[0].1.parts, Some(vec![var("b", false)]));
         assert_eq!(c.assigns[0].1.text, "$b");
+    }
+
+    #[test]
+    fn an_unquoted_equals_sign_in_front_of_a_name_is_a_program_only_as_the_program() {
+        // zsh: `=git` is the path of git
+        let c = &parse("=git commit =ls > =out").commands[0];
+        assert_eq!((c.words[0].text.as_str(), c.words[0].dynamic), ("git", false), "{:?}", c.words);
+        assert_eq!((c.words[2].text.as_str(), c.words[2].dynamic), ("ls", true), "{:?}", c.words);
+        assert!(c.redirects[0].target.dynamic);
+        let c = &parse("=\\git push").commands[0];
+        assert_eq!((c.words[0].text.as_str(), c.words[0].dynamic), ("git", false));
+        // a quoted sign, `==`, `=~` and a lone `=` are plain
+        for src in ["echo '='git", "echo \"=git\"", "echo ==", "[ a == b ]", "[[ a =~ b ]]", "echo ="] {
+            let c = &parse(src).commands[0];
+            assert!(c.words.iter().all(|w| !w.eq), "{src}: {:?}", c.words);
+        }
     }
 
     #[test]

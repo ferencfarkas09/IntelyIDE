@@ -582,8 +582,10 @@ fn a_program_expansion_of_zsh_is_read_as_the_program_it_names() {
         assert_eq!((d, by), (Decision::Deny, DecidedBy::HardStop), "{cmd}: {rule}: {reason}");
     }
     allowed(&w, &["=ls", "cd {admin} && =git status"]);
+    // anywhere but in the place of the program `=ls` is the path of that program, which the words do not show
+    refused(&w, "exec.auto.unjudgeable", &["rm =ls", "cp src/Router.js =ls", "echo x > =ls", "tee =ls", "cat src/Router.js >> =ls", "cat =ls", "cat src/Router.js =git"]);
     // a quoted equals sign is a plain character
-    allowed(&w, &["echo '=git'", "echo \"=ls\""]);
+    allowed(&w, &["echo '=git'", "echo \"=ls\"", "echo =ls"]);
 }
 
 #[test]
