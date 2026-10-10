@@ -38,6 +38,7 @@ intely-gitx = { version = "0.0.0", path = "../crates/gitx" }
 intely-pathpick = { version = "0.0.0", path = "../crates/pathpick" }
 intely-runindex = { version = "0.0.0", path = "../crates/runindex" }
 intely-hud = { version = "0.0.0", path = "../crates/hud" }
+intely-servers = { version = "0.0.0", path = "../crates/servers" }
 intely-mcp = { version = "0.0.0", path = "../crates/mcp" }
 intely-relay-bundle = { version = "0.0.0", path = "../crates/relay_bundle" }
 intely-relay-deploy = { version = "0.0.0", path = "../crates/relay_deploy" }

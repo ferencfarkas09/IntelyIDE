@@ -53,8 +53,9 @@ impl SettingsState {
 /// `settings_set`, `secrets_set` and `secrets_remove` would otherwise let the webview skip `mcp_save`'s validation, the secret rules and the
 /// confirmation dialog, and write the Keychain proof of a server. `settings_get`, `secrets_has` and the status commands stay open.
 /// Every future generic write path (a reset, an import of settings or secrets) checks these lists too. `sentry` is on them so the
-/// webview cannot point the saved Sentry token at another address (`sentry_set_config` forgets the token when the address changes).
-pub(crate) const RESERVED_NS: [&str; 2] = ["mcp", "sentry"];
+/// webview cannot point the saved Sentry token at another address (`sentry_set_config` forgets the token when the address changes), and
+/// `servers` so that a server is saved only through `servers_save` (validated destination and folders, a unique id).
+pub(crate) const RESERVED_NS: [&str; 3] = ["mcp", "sentry", "servers"];
 pub(crate) const RESERVED_SECRET_PREFIXES: [&str; 2] = ["mcp.", "sentry."];
 
 pub(crate) fn check_writable_ns(ns: &str) -> Res<()> {

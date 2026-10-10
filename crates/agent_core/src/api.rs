@@ -84,6 +84,10 @@ wire_types! {
         /// MCP servers of this run and how many of their tools run without a prompt in Automatic and Bypass (empty = no MCP).
         #[serde(default)]
         pub mcp: Vec<McpExposure>,
+        /// The id of the server the run executes on; absent = this Mac.
+        #[serde(default)]
+        #[cfg_attr(feature = "specta", specta(optional))]
+        pub location: Option<String>,
     }
 
     /// Why an Auto run would wait before it starts (shown before Start): `repoWriter` = another run is writing to the

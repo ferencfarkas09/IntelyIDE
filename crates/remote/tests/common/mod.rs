@@ -61,6 +61,7 @@ pub fn summary(agent: &str) -> AgentSummary {
         delegates: Vec::new(),
         switchable_modes: Vec::new(),
         mcp: Vec::new(),
+        location: None,
     }
 }
 

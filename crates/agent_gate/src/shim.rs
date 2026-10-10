@@ -90,7 +90,23 @@ fn invalid(msg: String) -> io::Error {
 
 /// POSIX single-quoting.
 fn sq(path: &Path) -> String {
-    format!("'{}'", path.to_string_lossy().replace('\'', "'\\''"))
+    sq_str(&path.to_string_lossy())
+}
+
+fn sq_str(text: &str) -> String {
+    format!("'{}'", text.replace('\'', "'\\''"))
+}
+
+/// The shim script for a git that lives on another machine (a server). The caller writes it as an executable file called `git` into a
+/// directory of its own, uploads that directory and puts it first on the `PATH` of the agent there. `real_git` and `refusal_log` are
+/// paths on that machine; neither may contain a line break.
+pub fn render_remote(real_git: &str, refusal_log: &str, allow_add: bool) -> io::Result<String> {
+    for p in [real_git, refusal_log] {
+        if !p.starts_with('/') || p.contains(['\n', '\r', '\0']) {
+            return Err(invalid(format!("not an absolute path on one line: {p:?}")));
+        }
+    }
+    Ok(TEMPLATE.replace("@REAL_GIT@", &sq_str(real_git)).replace("@REFUSAL_LOG@", &sq_str(refusal_log)).replace("@ALLOW_ADD@", if allow_add { "1" } else { "0" }))
 }
 
 fn render(real_git: &Path, log: &Path, allow_add: bool) -> String {

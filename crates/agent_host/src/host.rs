@@ -23,6 +23,8 @@ use intely_agent_core::events::types::{AgentEvent, BatchEvent, DecidedBy, Effect
 use intely_agent_core::mcp::{McpPolicy, McpSelection, McpServerRules};
 use intely_agent_core::policy::decide::{decide_with, decide_wire, fail_closed, session_allow_for, Decision, DelegateRule, PolicyContext, PolicyDecision, SavedAllow, STRICT_BACKGROUND};
 use intely_agent_core::policy::enforcement::{EnforcementBook, EnforcementChip, Tier};
+use intely_agent_core::policy::fsrpc::RpcFs;
+use intely_agent_core::policy::fsview::FsView;
 use intely_agent_core::policy::intent::{PolicyRequest, ToolIntent};
 use intely_agent_core::providers::{supported_modes, switchable_modes, AuthMode, PermissionMode, ProviderCaps};
 use intely_agent_core::sidecar::{AcpLaunch, AuthHandoff, McpStatusReply, McpToggle, ResumeRef, SessionEnv, SessionStart, POLICY_REPLY_TIMEOUT_MS};
@@ -36,7 +38,8 @@ use serde_json::{json, Value};
 
 use crate::config::{find_on_path, scrub_env, HostConfig, PolicyFault, ProviderLaunch};
 use crate::roles::{self, RoleDef};
-use crate::run::{context_for, meta_path, plan_dir, Live, Meta, RepoRef, Run, RunState, SnapshotRef};
+use crate::remote::{self, RemoteFs, SidecarFs, FS_QUERY_TIMEOUT, REMOTE_POLICY_TIMEOUT_MS};
+use crate::run::{context_for, context_for_remote, meta_path, plan_dir, Live, Meta, RemoteDirs, RepoRef, Run, RunState, SnapshotRef};
 use crate::sidecar::{Handler, Incoming, Sidecar};
 
 /// Where committed events go. Called only after the durable append, in `seq` order per agent.
@@ -83,6 +86,8 @@ fn strip_nulls(v: &mut Value) {
 #[derive(Default)]
 struct State {
     sidecar: Option<Arc<Sidecar>>,
+    /// One sidecar per server (by the server's id), each reached through `ssh`; started with the first run there.
+    remote: HashMap<String, Arc<Sidecar>>,
     /// The `--providers` list the running sidecar was started with.
     sidecar_providers: Vec<String>,
     /// Capabilities a session of this provider reported (`session.info`), newest wins: negotiated truth beats the static table.
@@ -92,6 +97,13 @@ struct State {
     agents: HashMap<String, Run>,
     history_loaded: bool,
     shutting_down: bool,
+}
+
+impl State {
+    /// The sidecar of one generation, here or on a server.
+    fn sidecar_gen(&self, generation: u64) -> Option<Arc<Sidecar>> {
+        self.sidecar.iter().chain(self.remote.values()).find(|s| s.generation == generation).cloned()
+    }
 }
 
 struct Inner {
@@ -231,6 +243,8 @@ pub struct StartOptions {
     pub quiet: bool,
     /// The user confirmed the Bypass dialog for this start. Only `start_now_with` from the New run dialog sets it; the queue never does.
     pub bypass_confirmed: bool,
+    /// Run on this server (its id in Settings > Servers) instead of on this Mac; `None` or empty = this Mac.
+    pub location: Option<String>,
 }
 
 /// Options of a live mode switch (`AgentHost::set_mode`).
@@ -385,6 +399,8 @@ impl AgentHost {
             mcp: Vec::new(),
             role_hash: None,
             role_permission: None,
+            location: None,
+            remote: None,
         };
         let ctx = context_for(&meta, std::env::var_os("HOME").map(PathBuf::from), role.disallowed_tools.clone(), &inner.cfg.data_dir);
         lock(&inner.state).agents.insert(agent_id.clone(), Run::new(meta, RunState::default(), ctx, true));
@@ -418,7 +434,7 @@ impl AgentHost {
                 report.negotiated = run.state.caps.is_some();
                 report.effective = run.state.effective.clone();
             }
-            let sc = st.agents.get(&agent_id).and_then(|r| r.live.as_ref().map(|l| l.generation)).and_then(|g| st.sidecar.clone().filter(|s| s.generation == g));
+            let sc = st.agents.get(&agent_id).and_then(|r| r.live.as_ref().map(|l| l.generation)).and_then(|g| st.sidecar_gen(g));
             if let Some(run) = st.agents.get_mut(&agent_id) {
                 run.muted = true;
             }
@@ -520,6 +536,16 @@ impl AgentHost {
             // INTELY_READONLY: no MCP server starts (MCP spec 5.2 point 5; the supplier checks too)
             Jail::global().check_op("start MCP servers", &scope[0].path)?;
         }
+        // a run on a server: Claude (or the scripted mock) only, no MCP servers (they would start on this Mac, not there)
+        let location = opts.location.clone().filter(|l| !l.is_empty());
+        if location.is_some() {
+            if !matches!(role.provider.as_str(), "claude" | "mock") {
+                return Err(err("remoteProvider", "only Claude runs can execute on a server"));
+            }
+            if !mcp.is_empty() {
+                return Err(err("remoteMcp", "MCP servers are not available for runs on a server yet; start the run without them"));
+            }
+        }
         let resolved = run_role.resolved(&inner.cfg);
         let meta = Meta {
             agent_id: inner.new_agent_id(),
@@ -535,6 +561,8 @@ impl AgentHost {
             mcp,
             role_hash: role.file.as_ref().map(|f| f.content_hash.clone()),
             role_permission: Some(role.permission),
+            location,
+            remote: None,
         };
         self.launch(run_role, meta, &resolved.disallowed_tools, Some(&prompt), opts)
     }
@@ -564,6 +592,8 @@ impl AgentHost {
             mcp: Vec::new(),
             role_hash: role.file.as_ref().map(|f| f.content_hash.clone()),
             role_permission: Some(role.permission),
+            location: None,
+            remote: None,
         };
         self.launch(role, meta, &resolved.disallowed_tools, None, StartOptions::default())
     }
@@ -571,10 +601,18 @@ impl AgentHost {
     fn launch(&self, role: &RoleDef, mut meta: Meta, role_deny: &[String], prompt: Option<&str>, opts: StartOptions) -> Result<AgentSummary, EngineError> {
         let inner = &self.inner;
         let agent_id = meta.agent_id.clone();
+        // A run on a server: where its folders are there is settled (and checked) before anything is taken on this Mac.
+        if let Some(loc) = meta.location.clone() {
+            meta.remote = Some(inner.prepare_remote(&loc, &meta)?);
+        }
         // Mandatory (docs/safety.md, layer 8): a run that can edit the user's repos starts only with a Rewind snapshot of
         // every repo. A repo that cannot be snapshotted (merge in progress, no commits, no git) refuses the run unless the
         // user ticked "run without safety net" for this run; then the run starts and Rewind has nothing for that repo.
+        // (A run on a server works in the server's own copy: Rewind snapshots of the local repo would restore the wrong tree.)
         for repo in &meta.repos.clone() {
+            if meta.remote.is_some() {
+                break;
+            }
             match inner.rewind.snapshot(&repo.path, &agent_id) {
                 Ok(info) => meta.snapshots.push(SnapshotRef { repo_id: repo.id.clone(), path: repo.path.clone(), ref_name: info.ref_name, skipped: info.skipped.len() }),
                 Err(e) if opts.run_without_safety_net => eprintln!("agent host: no Rewind snapshot for {} (run without safety net): {e}", repo.id),
@@ -586,11 +624,13 @@ impl AgentHost {
                 }
             }
         }
-        let ctx = context_for(&meta, std::env::var_os("HOME").map(PathBuf::from), role_deny.to_vec(), &inner.cfg.data_dir);
+        let (ctx, remote_fs) = inner.context_for_run(&meta, role_deny.to_vec());
         let resume = meta.native_id.clone();
         {
             let mut st = lock(&inner.state);
-            st.agents.insert(agent_id.clone(), Run::new(meta.clone(), RunState::default(), ctx, opts.quiet));
+            let mut run = Run::new(meta.clone(), RunState::default(), ctx, opts.quiet);
+            run.remote_fs = remote_fs;
+            st.agents.insert(agent_id.clone(), run);
         }
         inner.persist_meta(&meta);
         if let Err(e) = inner.open_session(role, &agent_id, resume).and_then(|()| prompt.map_or(Ok(()), |p| inner.prompt(&agent_id, p, Vec::new()))) {
@@ -1131,13 +1171,24 @@ impl AgentHost {
     /// Stops the sidecar and with it every agent process. Blocks for a few seconds at most.
     pub fn shutdown(&self) {
         let inner = &self.inner;
-        let sc = {
+        let (sc, remote): (Option<Arc<Sidecar>>, Vec<Arc<Sidecar>>) = {
             let mut st = lock(&inner.state);
             st.shutting_down = true;
-            st.sidecar.clone()
+            (st.sidecar.clone(), st.remote.values().cloned().collect())
         };
+        // the sidecars on servers stop in parallel (each ends with its ssh pipe); this Mac's one first
+        let stoppers: Vec<_> = remote
+            .into_iter()
+            .map(|sc| {
+                let me = self.inner.clone();
+                std::thread::spawn(move || me.stop_sidecar(&sc))
+            })
+            .collect();
         if let Some(sc) = sc {
             inner.stop_sidecar(&sc);
+        }
+        for t in stoppers {
+            let _ = t.join();
         }
         inner.gate.join_kills();
         *lock(&inner.reaper) = None;
@@ -1305,7 +1356,7 @@ impl Inner {
             let mut st = lock(&self.state);
             self.load_history(&mut st);
             let run = st.agents.get(agent_id).ok_or_else(|| unknown_agent(agent_id))?;
-            let live = st.sidecar.as_ref().is_some_and(|sc| sc.alive() && run.live.as_ref().is_some_and(|l| l.generation == sc.generation));
+            let live = run.live.as_ref().and_then(|l| st.sidecar_gen(l.generation)).is_some_and(|sc| sc.alive());
             (run.meta.role.clone(), run.state.native_id.clone().or_else(|| run.meta.native_id.clone()), live, run.state.turn_open, run.meta.repos.clone(), run.meta.provider.clone(), run.meta.clone())
         };
         if turn_open || live {
@@ -1543,10 +1594,114 @@ impl Inner {
         st.agents.get(agent_id).map(|r| r.summary(self.tier_of(r)))
     }
 
+    /// Settles where a run on the server `loc` works, before it starts: the server is ready, has a free slot, and every repo of the run
+    /// is already there (the agent works in the server's own copy; nothing is copied or cloned behind the person's back).
+    fn prepare_remote(&self, loc: &str, meta: &Meta) -> Result<RemoteDirs, EngineError> {
+        let registry = self.cfg.servers.clone().ok_or_else(|| err("serversUnavailable", "servers are not available in this build"))?;
+        let (scfg, _status, paths) = registry.ready(loc).map_err(|e| err("serverNotReady", e.message()))?;
+        let live_here = lock(&self.state).agents.values().filter(|r| r.meta.location.as_deref() == Some(loc) && r.live.is_some()).count();
+        if live_here >= scfg.max_agents as usize {
+            return Err(err("serverBusy", format!("{} already runs {live_here} agents (the limit in Settings > Servers)", scfg.name)));
+        }
+        let mut dirs = Vec::new();
+        let mut names = Vec::new();
+        for repo in &meta.repos {
+            let dir = remote::remote_dir(&scfg, &paths.home, &repo.path).ok_or_else(|| err("remoteRepoName", format!("{} cannot be mapped to a folder on the server", repo.path.display())))?;
+            names.push(repo.path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default());
+            dirs.push(dir);
+        }
+        match intely_servers::repo_states(registry.ssh(), &scfg, &names) {
+            Ok(states) => {
+                let missing: Vec<&str> = states.iter().filter(|s| !s.exists || !s.is_git).map(|s| s.name.as_str()).collect();
+                if !missing.is_empty() {
+                    return Err(err("repoMissingOnServer", format!("{} is not on {} under {}: clone it first (Settings > Servers > Repositories)", missing.join(", "), scfg.name, scfg.root)));
+                }
+            }
+            Err(e) => return Err(err("serverNotReady", format!("{} did not answer: {e}", scfg.name))),
+        }
+        Ok(RemoteDirs { home: paths.home, dirs })
+    }
+
+    /// The policy context of a run, and for a run on a server the look at that server's files it is judged with.
+    fn context_for_run(&self, meta: &Meta, role_deny: Vec<String>) -> (PolicyContext, Option<Arc<RemoteFs>>) {
+        match (&meta.remote, &meta.location) {
+            (Some(dirs), Some(loc)) => {
+                let mut ctx = context_for_remote(meta, dirs, role_deny);
+                let fs = self.remote_fs(loc);
+                ctx.fs = Some(fs.clone() as Arc<dyn FsView>);
+                (ctx, Some(fs))
+            }
+            _ => (context_for(meta, std::env::var_os("HOME").map(PathBuf::from), role_deny, &self.cfg.data_dir), None),
+        }
+    }
+
+    /// The policy's look at the files of server `loc`: `fs/query` down the sidecar that runs there.
+    fn remote_fs(&self, loc: &str) -> Arc<RemoteFs> {
+        let (weak, loc) = (self.me.clone(), loc.to_string());
+        Arc::new(RpcFs::new(SidecarFs::new(move |body| {
+            let inner = weak.upgrade()?;
+            let sc = lock(&inner.state).remote.get(&loc).filter(|s| s.alive()).cloned()?;
+            sc.request("fs/query", body, FS_QUERY_TIMEOUT).ok()
+        })))
+    }
+
+    /// The sidecar on server `loc`, started with the first run there (`ssh ... node index.js`; its stdin is the protocol pipe).
+    fn ensure_remote_sidecar(&self, loc: &str) -> Result<(Arc<Sidecar>, remote::RemoteEnv), EngineError> {
+        let registry = self.cfg.servers.clone().ok_or_else(|| err("serversUnavailable", "servers are not available in this build"))?;
+        let (scfg, _status, paths) = registry.ready(loc).map_err(|e| err("serverNotReady", e.message()))?;
+        let spawned = {
+            let mut st = lock(&self.state);
+            if st.shutting_down {
+                return Err(err("shuttingDown", "the IDE is closing"));
+            }
+            match st.remote.get(loc).filter(|s| s.alive()) {
+                Some(sc) => sc.clone(),
+                None => {
+                    let providers: Vec<String> = self.cfg.sidecar_providers().into_iter().filter(|p| matches!(p.as_str(), "claude" | "mock")).collect();
+                    let command = intely_servers::sidecar_command(&paths, &providers, REMOTE_POLICY_TIMEOUT_MS);
+                    let cmd = registry.ssh().command(&scfg, &command);
+                    st.generation += 1;
+                    let handler: Weak<dyn Handler> = self.me.clone();
+                    let sc = Sidecar::spawn(cmd, st.generation, handler).map_err(|e| err("sidecarSpawn", format!("cannot reach {}: {e}", scfg.name)))?;
+                    self.gate.register_owner(&sc.owner, None);
+                    st.remote.insert(loc.to_string(), sc.clone());
+                    sc
+                }
+            }
+        };
+        if spawned.wait_hello(Duration::from_secs(45)).is_none() {
+            spawned.signal(libc::SIGKILL);
+            let tail = spawned.stderr_tail();
+            return Err(err("sidecarStart", format!("the agent sidecar on {} did not start{}", scfg.name, if tail.is_empty() { String::new() } else { format!(": {tail}") })));
+        }
+        Ok((spawned, remote::RemoteEnv { cfg: scfg, paths, registry }))
+    }
+
+    /// Puts the git guard of a run on the server: the script of `agent_gate::shim` rendered for the git there, uploaded to
+    /// `<home>/.intely/shims/<agentId>`. Returns that folder.
+    fn upload_remote_shim(&self, env: &remote::RemoteEnv, agent_id: &str) -> Result<String, EngineError> {
+        let remote_dir = format!("{}/.intely/shims/{agent_id}", env.paths.home.trim_end_matches('/'));
+        let script = shim::render_remote(&env.paths.git, &format!("{remote_dir}/refusals.log"), true).map_err(|e| err("shim", format!("cannot prepare the git guard: {e}")))?;
+        let local = self.cfg.data_dir.join("shims").join(format!("{agent_id}.remote"));
+        let _ = std::fs::remove_dir_all(&local);
+        let result = (|| {
+            std::fs::create_dir_all(&local)?;
+            let git = local.join("git");
+            std::fs::write(&git, script)?;
+            {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(&git, std::fs::Permissions::from_mode(0o755))?;
+            }
+            intely_servers::upload_shim(env.registry.ssh(), &env.cfg, &env.paths.home, agent_id, &local).map_err(std::io::Error::other)
+        })();
+        let _ = std::fs::remove_dir_all(&local);
+        result.map_err(|e| err("shim", format!("cannot put the git guard on {}: {e}", env.cfg.name)))
+    }
+
     fn live_sidecar(&self, st: &State, agent_id: &str) -> Result<Arc<Sidecar>, EngineError> {
         let run = st.agents.get(agent_id).ok_or_else(|| unknown_agent(agent_id))?;
-        match (&st.sidecar, &run.live) {
-            (Some(sc), Some(live)) if sc.alive() && sc.generation == live.generation => Ok(sc.clone()),
+        match run.live.as_ref().and_then(|l| st.sidecar_gen(l.generation)) {
+            Some(sc) if sc.alive() => Ok(sc),
             _ => Err(err("notRunning", "the agent session is not running; send a message to resume it")),
         }
     }
@@ -1630,7 +1785,15 @@ impl Inner {
 
     /// `session/start` for a new run (`resume` = None) or the resumption of an existing one.
     fn open_session(&self, role: &RoleDef, agent_id: &str, resume: Option<String>) -> Result<(), EngineError> {
-        let sc = self.ensure_sidecar(Some(role.provider.as_str()))?;
+        // a run on a server talks to the sidecar there; everything else of the start below is shared
+        let remote_target = lock(&self.state).agents.get(agent_id).and_then(|r| r.meta.location.clone().zip(r.meta.remote.clone()));
+        let (sc, remote_env) = match &remote_target {
+            Some((loc, _)) => {
+                let (sc, env) = self.ensure_remote_sidecar(loc)?;
+                (sc, Some(env))
+            }
+            None => (self.ensure_sidecar(Some(role.provider.as_str()))?, None),
+        };
         let env_vars = scrub_env(&(self.cfg.env)());
         let resuming = resume.is_some();
         let (meta, next_seq, writer, quiet, run_dirs) = {
@@ -1643,8 +1806,10 @@ impl Inner {
         };
         // the run's mode is the only authority on what the role may do (a role passed in carries it; a debug build checks the callers agree)
         debug_assert_eq!(role.permission, meta.permission, "open_session needs a role whose permission is the run's mode");
-        for repo in &meta.repos {
-            Jail::global().check_op("agent run", &repo.path)?;
+        if remote_env.is_none() {
+            for repo in &meta.repos {
+                Jail::global().check_op("agent run", &repo.path)?;
+            }
         }
         self.check_provider_gate(role)?;
         let acp = if !matches!(role.provider.as_str(), "claude" | "mock") {
@@ -1653,7 +1818,9 @@ impl Inner {
         } else {
             None
         };
-        let claude_bin = if role.provider == "claude" {
+        let claude_bin = if let Some(env) = remote_env.as_ref().filter(|_| role.provider == "claude") {
+            Some(env.paths.claude.clone())
+        } else if role.provider == "claude" && remote_env.is_none() {
             let all: HashMap<String, String> = env_vars.clone().into_iter().collect();
             let bin = self.cfg.claude_bin.clone().or_else(|| find_on_path("claude", &all)).ok_or_else(|| err("claudeNotFound", "the claude CLI was not found on the login PATH"))?;
             Some(bin.to_string_lossy().into_owned())
@@ -1662,13 +1829,25 @@ impl Inner {
         };
         // Codex runs `<codexBin> app-server`: the confirmed program (the host never lets the sidecar look for it).
         let codex_bin = if role.provider == "codex" { Some(self.launch_of("codex").ok_or_else(|| not_enabled("codex"))?.command) } else { None };
-        let shim_dir = self.cfg.data_dir.join("shims").join(agent_id);
-        let shim = shim::generate(&shim_dir, &self.cfg.git).map_err(|e| err("shim", format!("cannot prepare the git guard: {e}")))?;
-        let mut repos = meta.repos.iter();
-        let cwd = repos.next().map(|r| r.path.to_string_lossy().into_owned()).unwrap_or_default();
-        let mut add_dirs: Vec<String> = repos.map(|r| r.path.to_string_lossy().into_owned()).collect();
-        // The attachment store, as a READ-ONLY context directory (the policy hard-stops every write under the state dir).
-        add_dirs.push(self.cfg.data_dir.join("attachments").to_string_lossy().into_owned());
+        let shim_dir_value = match &remote_env {
+            Some(env) => self.upload_remote_shim(env, agent_id)?,
+            None => {
+                let shim_dir = self.cfg.data_dir.join("shims").join(agent_id);
+                shim::generate(&shim_dir, &self.cfg.git).map_err(|e| err("shim", format!("cannot prepare the git guard: {e}")))?.dir.to_string_lossy().into_owned()
+            }
+        };
+        let (cwd, add_dirs) = match &remote_target {
+            // the folders of the server (the attachment store of this Mac does not exist there)
+            Some((_, r)) => (r.dirs.first().cloned().unwrap_or_default(), r.dirs.iter().skip(1).cloned().collect::<Vec<String>>()),
+            None => {
+                let mut repos = meta.repos.iter();
+                let cwd = repos.next().map(|r| r.path.to_string_lossy().into_owned()).unwrap_or_default();
+                let mut add_dirs: Vec<String> = repos.map(|r| r.path.to_string_lossy().into_owned()).collect();
+                // The attachment store, as a READ-ONLY context directory (the policy hard-stops every write under the state dir).
+                add_dirs.push(self.cfg.data_dir.join("attachments").to_string_lossy().into_owned());
+                (cwd, add_dirs)
+            }
+        };
         let mut resolved = role.resolved(&self.cfg);
         resolved.permission = meta.permission;
         // A team lead: resolve the delegates from the current files, give the broker the matching rules, and take Agent/Task away
@@ -1706,7 +1885,7 @@ impl Inner {
         }
         let delegates = plan.as_ref().filter(|p| p.is_active()).map(|p| p.set.specs());
         // Where the CLI keeps its plan notes (Claude only): a private directory of this run under the state dir, removed with a failed launch.
-        let plan_path = (role.provider == "claude" && !quiet).then(|| plan_dir(&self.cfg.data_dir, agent_id));
+        let plan_path = (role.provider == "claude" && !quiet && remote_env.is_none()).then(|| plan_dir(&self.cfg.data_dir, agent_id));
         if let Some(dir) = &plan_path {
             intely_agent_core::events::log::create_private_dir_all(dir).map_err(|e| err("planDir", format!("cannot prepare the plan directory: {e}")))?;
         }
@@ -1744,7 +1923,8 @@ impl Inner {
             add_dirs,
             resume: resume.map(|native_id| ResumeRef { native_id }),
             session_id: if meta.native_id.is_none() && next_seq == 1 { Some(uuid::Uuid::new_v4().to_string()) } else { None },
-            env: SessionEnv { claude_bin, codex_bin, shim_dir: Some(shim.dir.to_string_lossy().into_owned()), vars: Some(env_vars) },
+            // (on a server the sidecar uses its own environment: nothing of this Mac's login shell is sent there)
+            env: SessionEnv { claude_bin, codex_bin, shim_dir: Some(shim_dir_value), vars: remote_env.is_none().then_some(env_vars) },
             mcp: mcp_wire,
             auth: AuthHandoff { mode: AuthMode::Subscription, key: None },
             writer: Some(writer),
@@ -1802,6 +1982,9 @@ impl Inner {
     fn prompt(&self, agent_id: &str, text: &str, files: Vec<serde_json::Value>) -> Result<(), EngineError> {
         let sc = {
             let st = lock(&self.state);
+            if !files.is_empty() && st.agents.get(agent_id).is_some_and(|r| r.meta.location.is_some()) {
+                return Err(err("remoteAttachments", "attachments are not available for runs on a server yet"));
+            }
             self.live_sidecar(&st, agent_id)?
         };
         let reply = sc.request("session/prompt", if files.is_empty() { json!({"agentId": agent_id, "text": text}) } else { json!({"agentId": agent_id, "text": text, "attachments": files}) }, Duration::from_secs(15)).map_err(|e| err("sidecarUnavailable", e.to_string()))?;
@@ -1980,15 +2163,27 @@ impl Inner {
             }
             None => {}
         }
-        let ctx = body["agentId"].as_str().and_then(|a| lock(&self.state).agents.get(a).map(|r| r.ctx.clone()));
+        let (ctx, remote_fs) = match body["agentId"].as_str().and_then(|a| lock(&self.state).agents.get(a).map(|r| (r.ctx.clone(), r.remote_fs.clone()))) {
+            Some((ctx, fs)) => (Some(ctx), fs),
+            None => (None, None),
+        };
         let sc = sc.clone();
+        // a run on a server looks at its files through the network: the sidecar there was told the longer wait too (`--policy-timeout`)
+        let wait_ms = (if remote_fs.is_some() { u64::from(REMOTE_POLICY_TIMEOUT_MS) } else { u64::from(POLICY_REPLY_TIMEOUT_MS) }) - 200;
         std::thread::spawn(move || {
             let (tx, rx) = mpsc::channel();
+            let fs = remote_fs.clone();
             std::thread::spawn(move || {
-                let _ = tx.send(decide_wire(ctx.as_ref(), &body));
+                if let Some(fs) = &fs {
+                    fs.transport().take_failed();
+                }
+                let decision = decide_wire(ctx.as_ref(), &body);
+                // a decision that could not look at the server's files is not trusted
+                let decision = if fs.as_ref().is_some_and(|f| f.transport().take_failed()) { fail_closed("the files of the server did not answer in time") } else { decision };
+                let _ = tx.send(decision);
             });
-            // the sidecar gives up after 2 s and denies on its own; answering first keeps the audit trail honest
-            let decision = rx.recv_timeout(Duration::from_millis(u64::from(POLICY_REPLY_TIMEOUT_MS) - 200)).unwrap_or_else(|_| fail_closed("the policy decision took too long"));
+            // the sidecar gives up after its own timeout and denies on its own; answering first keeps the audit trail honest
+            let decision = rx.recv_timeout(Duration::from_millis(wait_ms)).unwrap_or_else(|_| fail_closed("the policy decision took too long"));
             sc.reply(id, serde_json::to_value(decision).unwrap_or(Value::Null));
         });
     }
@@ -2000,6 +2195,12 @@ impl Inner {
         };
         if !lock(&self.state).agents.contains_key(&agent_id) {
             sc.reply(id, json!({"error": "noSlot", "detail": "unknown agent"}));
+            return;
+        }
+        // A run on a server takes no slot of this Mac's gate (its processes, memory and write lease are the server's business; its limit is
+        // the server's `maxAgents`, checked when the run started): an acknowledgement the sidecar there can renew.
+        if lock(&self.state).agents.get(&agent_id).is_some_and(|r| r.meta.location.is_some()) {
+            sc.reply(id, json!({"leaseId": format!("remote:{agent_id}"), "ttlMs": 15_000}));
             return;
         }
         let mut b = body;
@@ -2100,8 +2301,10 @@ impl Inner {
             // The run keeps the mode it recorded, so a listed Bypass run still shows Bypass; a resume re-derives what it may continue in
             // from the role as it resolves then (`resume_mode_for`), and nothing a stopped run holds is ever consulted for a decision.
             let role_deny = self.role_named(&meta.role, &meta.repos).map(|r| r.disallowed_tools).unwrap_or_default();
-            let ctx = context_for(&meta, std::env::var_os("HOME").map(PathBuf::from), role_deny, &self.cfg.data_dir);
-            st.agents.insert(id.clone(), Run::new(meta, state, ctx, false));
+            let (ctx, remote_fs) = self.context_for_run(&meta, role_deny);
+            let mut run = Run::new(meta, state, ctx, false);
+            run.remote_fs = remote_fs;
+            st.agents.insert(id.clone(), run);
             // a turn that was still open when the previous IDE instance went away ended with it
             let closure = st.agents.get(&id).map(|r| r.closure(Some("the IDE closed while this run was working"), StopReason::Error, DecidedBy::FailClosed)).unwrap_or_default();
             self.synthesize(st, &id, closure);
@@ -2120,6 +2323,11 @@ impl Handler for Inner {
             "slot/acquire" => self.on_acquire(sc, msg.id, msg.body),
             "slot/renew" => {
                 let asked: Vec<i64> = msg.body["pgids"].as_array().map(|a| a.iter().filter_map(Value::as_i64).collect()).unwrap_or_default();
+                if msg.body["leaseId"].as_str().is_some_and(|l| l.starts_with("remote:")) {
+                    // the process groups are the server's: none of them is ours to track
+                    sc.reply(msg.id, json!({"ok": true, "ttlMs": 15_000, "rejectedPgids": asked}));
+                    return;
+                }
                 // Only groups that really belong to this sidecar's process tree may be tracked (and later killed).
                 let below: std::collections::HashSet<i32> = intely_agent_gate::gate::rss::descendants(sc.pid as i32).into_iter().collect();
                 let ours = |g: i32| below.contains(&g) || intely_agent_gate::gate::procinfo::live_group_pids(g).iter().any(|p| below.contains(p));
@@ -2139,7 +2347,7 @@ impl Handler for Inner {
                 }
             }
             "slot/release" => {
-                if let Some(lease) = msg.body["leaseId"].as_str() {
+                if let Some(lease) = msg.body["leaseId"].as_str().filter(|l| !l.starts_with("remote:")) {
                     self.gate.release(lease);
                     let mut st = lock(&self.state);
                     for run in st.agents.values_mut() {
@@ -2170,6 +2378,7 @@ impl Handler for Inner {
             if st.sidecar.as_ref().is_some_and(|s| s.generation == sc.generation) {
                 st.sidecar = None;
             }
+            st.remote.retain(|_, s| s.generation != sc.generation);
             st.shutting_down
         };
         // kills the CLI groups the sidecar registered; the gate's callback ignores this reason

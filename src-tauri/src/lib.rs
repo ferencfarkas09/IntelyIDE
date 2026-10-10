@@ -430,6 +430,15 @@ pub fn run() {
             modules::notify::notify_configure,
             modules::notify::notify_badge,
             modules::notify::notify_show,
+            // ==== servers (Settings > Servers) ====
+            modules::servers::servers_list,
+            modules::servers::servers_save,
+            modules::servers::servers_remove,
+            modules::servers::servers_probe,
+            modules::servers::servers_setup,
+            modules::servers::servers_repos,
+            modules::servers::servers_clone,
+            modules::servers::servers_ssh_command,
             modules::viewers::viewers_stat,
             modules::viewers::viewers_read_range,
             modules::viewers::viewers_open_external,
@@ -549,6 +558,8 @@ pub fn run() {
             modules::settings::setup(app)?;
             // MCP state: after settings (it sits on the settings and secret stores), before the agent host asks for its suppliers
             modules::mcp::setup(app)?;
+            // the servers a run may execute on: before the agent host asks for the registry
+            modules::servers::setup_state(app)?;
             modules::happy::setup(app)?;
             modules::sentry::setup(app)?;
             // ==== beta M1 mongo state (cargo feature mongo-studio; opens nothing) ====

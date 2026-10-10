@@ -25,6 +25,7 @@ pub mod relay_cloud;
 pub mod remote;
 pub mod roles;
 pub mod runner;
+pub mod servers;
 pub mod sentry;
 pub mod settings;
 pub mod switchhook;

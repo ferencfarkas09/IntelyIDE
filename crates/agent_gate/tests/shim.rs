@@ -450,3 +450,39 @@ fn the_read_only_variant_refuses_git_add_too_and_still_reads() {
     assert_eq!(run("git commit --allow-empty -m x").status.code(), Some(REFUSED_EXIT));
     assert_eq!(fx.repo.git(&["rev-parse", "HEAD"]), fx.head);
 }
+
+// A shim for a git on another machine: the script is rendered for the paths there and runs under whatever `sh` that machine has.
+#[test]
+fn a_remote_shim_is_the_same_script_with_the_remote_paths() {
+    let dir = tempfile::tempdir().unwrap();
+    let dir = std::fs::canonicalize(dir.path()).unwrap();
+    // a stand-in for the server's git: prints what it was called with, so an allowed call is visible
+    let real = dir.join("realgit");
+    std::fs::write(&real, "#!/bin/sh\necho \"REAL:$*\"\n").unwrap();
+    std::fs::set_permissions(&real, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let log = dir.join("refusals.log");
+    let script = shim::render_remote(real.to_str().unwrap(), log.to_str().unwrap(), true).unwrap();
+    assert!(script.contains(&format!("REAL_GIT='{}'", real.display())) && script.contains("ALLOW_ADD=1"), "{script}");
+    let bin = dir.join("bin");
+    std::fs::create_dir_all(&bin).unwrap();
+    let git = bin.join("git");
+    std::fs::write(&git, script).unwrap();
+    std::fs::set_permissions(&git, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let run = |cmd: &str| Command::new("/bin/sh").arg("-c").arg(cmd).env("PATH", format!("{}:/usr/bin:/bin", bin.display())).current_dir(&dir).output().unwrap();
+    let ok = run("git status --short");
+    assert!(ok.status.success() && String::from_utf8_lossy(&ok.stdout).contains("REAL:--no-pager status --short"), "{ok:?}");
+    for cmd in ["git commit -m x", "git push origin main", "git add -A", "git -c core.pager=x log", "git grep -O'sh -c x' pat"] {
+        let out = run(cmd);
+        assert_eq!(out.status.code(), Some(REFUSED_EXIT as i32), "{cmd}: {out:?}");
+    }
+    assert!(std::fs::read_to_string(&log).unwrap().contains("git commit -m x"), "the refusal is logged where the script was told to log it");
+    // a read-only shim also refuses git add of a real file
+    let ro = shim::render_remote(real.to_str().unwrap(), log.to_str().unwrap(), false).unwrap();
+    assert!(ro.contains("ALLOW_ADD=0"));
+    // paths must be absolute and on one line
+    assert!(shim::render_remote("git", "/x", true).is_err());
+    assert!(shim::render_remote("/usr/bin/git\n--version", "/x", true).is_err());
+    assert!(shim::render_remote("/usr/bin/git", "/tmp/a\0b", true).is_err());
+    // quoting survives an apostrophe in a path
+    assert!(shim::render_remote("/home/o'neil/git", "/home/o'neil/refusals.log", true).unwrap().contains("REAL_GIT='/home/o'\\''neil/git'"));
+}

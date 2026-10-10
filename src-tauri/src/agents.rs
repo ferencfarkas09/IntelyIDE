@@ -115,6 +115,8 @@ impl AgentSlot {
             cfg.mcp_rules = Some(mcp.rules_supplier());
             cfg.mcp_scrub = Some(mcp.scrub_supplier());
         }
+        // the servers a run may execute on (Settings > Servers): the registry also answers the settings page
+        cfg.servers = app.try_state::<crate::modules::servers::ServersState>().map(|s| s.registry());
         let git = cfg.git.clone();
         // track E: file roles and the run supervisor sit on this one host (one sidecar, one gate)
         let (observer, roles) = crate::modules::roles::prepare(&mut cfg, Arc::new(TauriHostSink { app: app.clone() }));
@@ -348,6 +350,9 @@ pub struct AgentStartWire {
     req: AgentStartRequest,
     #[serde(default)]
     provider: Option<String>,
+    /// The server the run executes on (its id in Settings > Servers); absent = this Mac.
+    #[serde(default)]
+    location: Option<String>,
 }
 
 #[tauri::command]
@@ -362,7 +367,7 @@ pub async fn agent_start(
     switchhook::gate_check(&app)?;
     let repos = repos(&engine).await?;
     let sup = roles.supervisor().clone();
-    let opts = intely_agent_host::StartOptions { run_without_safety_net: run_without_safety_net.unwrap_or(false), provider: req.provider, bypass_confirmed: confirm_bypass.unwrap_or(false), ..Default::default() };
+    let opts = intely_agent_host::StartOptions { run_without_safety_net: run_without_safety_net.unwrap_or(false), provider: req.provider, bypass_confirmed: confirm_bypass.unwrap_or(false), location: req.location, ..Default::default() };
     let req = req.req;
     blocking(move || sup.start_now_with(req, &repos, opts)).await
 }

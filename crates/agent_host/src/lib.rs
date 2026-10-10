@@ -4,6 +4,7 @@
 
 pub mod config;
 pub mod host;
+pub mod remote;
 pub mod roles;
 pub mod run;
 pub mod sidecar;
@@ -11,4 +12,5 @@ pub mod sidecar;
 pub use config::{scrub_env, AcpMock, AgentDefaults, DefaultsSupplier, UserMemorySupplier, EnvSupplier, HostConfig, LaunchSupplier, PolicyFault, ProviderLaunch, RoleResolver, VersionSupplier};
 pub use host::{repo_files, AgentHost, AnswerExtra, HostSink, SetModeOpts, StartOptions, NO_SAFETY_NET};
 pub use host::{ProbeReport, PROBE_ROLE};
-pub use run::RepoRef;
+pub use remote::{NotReady, ServerRegistry, ServersSupplier};
+pub use run::{RemoteDirs, RepoRef};

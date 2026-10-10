@@ -13,6 +13,7 @@ name = "intely_agent_host"
 intely-agent-core = { path = "../agent_core" }
 intely-agent-gate = { path = "../agent_gate" }
 intely-core = { path = "../core" }
+intely-servers = { path = "../servers" }
 libc = "0.2.190"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"

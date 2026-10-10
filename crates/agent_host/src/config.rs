@@ -155,6 +155,9 @@ pub struct HostConfig {
     /// Kill switch `INTELY_NO_UNATTENDED=1`: `agent_modes` omits `automatic` and `bypass`, `start`/`set_mode` return `modeDisabled`,
     /// a resume of an unattended run continues in Ask. No UI.
     pub no_unattended: bool,
+    /// The servers a run may execute on (Settings > Servers); `None` = none exist (tests, a build without them): a start that names a
+    /// server then fails with `serversUnavailable`.
+    pub servers: Option<Arc<crate::remote::ServerRegistry>>,
 }
 
 impl HostConfig {
@@ -185,6 +188,7 @@ impl HostConfig {
             mcp_rules: None,
             mcp_scrub: None,
             no_unattended: false,
+            servers: None,
         }
     }
 

@@ -59,6 +59,23 @@ pub struct Meta {
     /// The role's own permission at the start, before the request's mode overrode it. Feeds the resume narrowing.
     #[serde(default)]
     pub role_permission: Option<PermissionMode>,
+    /// The server the run executes on (its id); `None` = this Mac.
+    #[serde(default)]
+    pub location: Option<String>,
+    /// Where the run's folders are on that server (the repos of `repos`, mapped under the server's root) and its home there; kept so a
+    /// resume or a restart of the IDE judges the same folders without asking the server first.
+    #[serde(default)]
+    pub remote: Option<RemoteDirs>,
+}
+
+/// The folders of a run on a server.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteDirs {
+    /// `$HOME` on the server.
+    pub home: String,
+    /// One absolute folder per repo of the run, in the order of `Meta::repos`.
+    pub dirs: Vec<String>,
 }
 
 pub struct PendingPermission {
@@ -222,11 +239,13 @@ pub struct Run {
     pub rules_epoch: u64,
     /// The rules epoch each pending request was folded under.
     pub card_epoch: BTreeMap<String, u64>,
+    /// The policy's look at the files of the server this run executes on (`None` for a run on this Mac); runtime only.
+    pub remote_fs: Option<Arc<crate::remote::RemoteFs>>,
 }
 
 impl Run {
     pub fn new(meta: Meta, state: RunState, ctx: PolicyContext, quiet: bool) -> Self {
-        Self { meta, state, ctx, live: None, cancel: None, muted: false, quiet, mode_busy: false, mcp_ids: BTreeMap::new(), mcp_secret: BTreeSet::new(), rules_epoch: 0, card_epoch: BTreeMap::new() }
+        Self { meta, state, ctx, live: None, cancel: None, muted: false, quiet, mode_busy: false, mcp_ids: BTreeMap::new(), mcp_secret: BTreeSet::new(), rules_epoch: 0, card_epoch: BTreeMap::new(), remote_fs: None }
     }
 
     /// Forgets everything that belongs to one session and only to it: the in-memory session allows (D10, never persisted) and the MCP
@@ -286,6 +305,7 @@ impl Run {
             delegates: self.state.delegates.clone(),
             switchable_modes: intely_agent_core::providers::switchable_modes(&self.meta.provider).to_vec(),
             mcp: self.mcp_exposure(),
+            location: self.meta.location.clone(),
         }
     }
 
@@ -322,6 +342,22 @@ pub const PLANS_DIR: &str = "plans";
 /// Where the plan notes of one run live (permission-modes spec 5.8).
 pub fn plan_dir(state_dir: &Path, agent_id: &str) -> PathBuf {
     state_dir.join(PLANS_DIR).join(agent_id)
+}
+
+/// The policy context of a run on a server: its folders are the server's, so are the home and the IDE's folder there (writes under it
+/// are hard stops like those under the state directory on this Mac), and the scratch folders are those of Linux. The caller sets
+/// `fs` (the look at the server's files).
+pub fn context_for_remote(meta: &Meta, remote: &RemoteDirs, role_deny: Vec<String>) -> PolicyContext {
+    let mut dirs = remote.dirs.iter().map(PathBuf::from);
+    let mut ctx = PolicyContext::new(meta.permission, dirs.next().unwrap_or_default());
+    ctx.add_dirs = dirs.collect();
+    ctx.home = Some(PathBuf::from(&remote.home));
+    ctx.role_deny = role_deny;
+    ctx.state_dir = Some(PathBuf::from(format!("{}/.intely", remote.home.trim_end_matches('/'))));
+    ctx.strict_jail = meta.permission != PermissionMode::Bypass;
+    ctx.scratch_dirs = vec![PathBuf::from("/tmp"), PathBuf::from("/var/tmp")];
+    ctx.subagents = vec!["*".into()];
+    ctx
 }
 
 /// The policy context of a run: its mode and where it may work.
