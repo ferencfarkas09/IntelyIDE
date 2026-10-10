@@ -205,12 +205,12 @@ mod tests {
     #[test]
     fn a_repo_lives_under_the_root_of_the_server() {
         let repo = PathBuf::from("/Users/me/Projects/orders-api");
-        assert_eq!(remote_dir(&cfg("~/work"), "/home/dev", &repo).as_deref(), Some("/home/dev/work/orders-api"));
-        assert_eq!(remote_dir(&cfg("~"), "/home/dev/", &repo).as_deref(), Some("/home/dev/orders-api"));
-        assert_eq!(remote_dir(&cfg("/srv/repos/"), "/home/dev", &repo).as_deref(), Some("/srv/repos/orders-api"));
+        assert_eq!(remote_dir(&cfg("~/work"), "/home/me", &repo).as_deref(), Some("/home/me/work/orders-api"));
+        assert_eq!(remote_dir(&cfg("~"), "/home/me/", &repo).as_deref(), Some("/home/me/orders-api"));
+        assert_eq!(remote_dir(&cfg("/srv/repos/"), "/home/me", &repo).as_deref(), Some("/srv/repos/orders-api"));
         // a folder name the host would not put on a server's disk
         for bad in ["/x/-rf", "/x/a b", "/x/a;b", "/x/..", "/", "/x/ä", "/x/.ssh", "/x/.aws", "/x/.hidden"] {
-            assert_eq!(remote_dir(&cfg("~/work"), "/home/dev", Path::new(bad)), None, "{bad}");
+            assert_eq!(remote_dir(&cfg("~/work"), "/home/me", Path::new(bad)), None, "{bad}");
         }
     }
 

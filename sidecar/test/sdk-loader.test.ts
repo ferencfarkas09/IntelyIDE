@@ -43,8 +43,8 @@ async function staged(name?: string) {
   return s;
 }
 
-/** A verified install at `<home>/Library/Application Support/<stateName>/sdk` (fake tree, deterministic modes) and its manifest. */
-async function stageHome(home: string, stateName = STATE_DIR_NAME, platform: NodeJS.Platform = 'darwin'): Promise<{ state: string; dir: string; manifest: string }> {
+/** A verified install at `<state dir of the platform>/sdk` (macOS: `<home>/Library/Application Support/<stateName>/sdk`; fake tree, deterministic modes) and its manifest. The platform is the one the loader uses when a test does not name one. */
+async function stageHome(home: string, stateName = STATE_DIR_NAME, platform: NodeJS.Platform = process.platform): Promise<{ state: string; dir: string; manifest: string }> {
   const state = path.join(path.dirname(stateDirOf(home, platform)), stateName);
   const dir = path.join(state, 'sdk');
   mkdirSync(state, { recursive: true });
@@ -234,7 +234,7 @@ describe('no environment switch', () => {
     expect(e).toBeInstanceOf(SdkMissingError);
   });
 
-  it('the default location is <home>/Library/Application Support/IntelyIDE/sdk and nothing else', async () => {
+  it('the default location is the state directory of the platform (macOS: <home>/Library/Application Support/IntelyIDE/sdk) and nothing else', async () => {
     expect(STATE_DIR_NAME).toBe('IntelyIDE');
     const home = path.join(tmp, 'home');
     const { manifest } = await stageHome(home);

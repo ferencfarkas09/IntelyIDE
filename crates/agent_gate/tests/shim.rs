@@ -485,5 +485,5 @@ fn a_remote_shim_is_the_same_script_with_the_remote_paths() {
     assert!(shim::render_remote("/usr/bin/git\n--version", "/x", true).is_err());
     assert!(shim::render_remote("/usr/bin/git", "/tmp/a\0b", true).is_err());
     // quoting survives an apostrophe in a path
-    assert!(shim::render_remote("/home/o'neil/git", "/home/o'neil/refusals.log", true).unwrap().contains("REAL_GIT='/home/o'\\''neil/git'"));
+    assert!(shim::render_remote("/home/me/o'neil/git", "/home/me/o'neil/refusals.log", true).unwrap().contains("REAL_GIT='/home/me/o'\\''neil/git'"));
 }

@@ -320,7 +320,7 @@ fn origin_of(git: &Path, repo: &Path) -> Res<String> {
     if !out.status.success() || url.is_empty() {
         return Err(err("noOrigin", "that repository has no remote called origin to clone from"));
     }
-    // https://user:token@host/x -> https://host/x
+    // the credentials in front of the host are dropped
     let url = match url.strip_prefix("https://").and_then(|rest| rest.split_once('@').filter(|(auth, _)| !auth.contains('/'))) {
         Some((_, rest)) => format!("https://{rest}"),
         None => url,

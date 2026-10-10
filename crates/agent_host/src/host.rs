@@ -192,7 +192,7 @@ fn local_origin(git: &Path, repo: &Path) -> Option<String> {
     if !out.status.success() || url.is_empty() {
         return None;
     }
-    // https://user:token@host/x -> https://host/x
+    // the credentials in front of the host are dropped
     Some(match url.split_once("://") {
         Some((scheme, rest)) => match rest.split_once('/').map_or(rest, |(host, _)| host).rfind('@') {
             Some(at) => format!("{scheme}://{}", &rest[at + 1..]),

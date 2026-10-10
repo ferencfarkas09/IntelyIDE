@@ -129,9 +129,9 @@ mod tests {
     fn ready_status() -> ServerStatus {
         ServerStatus {
             reachable: true,
-            home: Some("/home/dev".into()),
-            node: NodeStatus { version: Some("v24.13.0".into()), path: Some("/home/dev/.intely/node/bin/node".into()), ok: true },
-            claude: ClaudeStatus { path: Some("/home/dev/.local/bin/claude".into()), version: None, logged_in: Some(true) },
+            home: Some("/home/me".into()),
+            node: NodeStatus { version: Some("v24.13.0".into()), path: Some("/home/me/.intely/node/bin/node".into()), ok: true },
+            claude: ClaudeStatus { path: Some("/home/me/.local/bin/claude".into()), version: None, logged_in: Some(true) },
             git: GitStatus { path: Some("/usr/bin/git".into()), version: None },
             bundle: BundleStatus { version: Some("1.1.1".into()), ok: true },
             sdk: SdkStatus { ok: true, version: None, detail: None },
@@ -143,9 +143,9 @@ mod tests {
     #[test]
     fn remote_paths_of_a_ready_server() {
         let p = remote_paths(&ready_status(), &test_cfg(), "1.1.1").unwrap();
-        assert_eq!(p.sidecar_js, "/home/dev/.intely/1.1.1/resources/sidecar/index.js");
-        assert_eq!(p.shims_dir, "/home/dev/.intely/shims");
-        assert_eq!((p.node.as_str(), p.git.as_str()), ("/home/dev/.intely/node/bin/node", "/usr/bin/git"));
+        assert_eq!(p.sidecar_js, "/home/me/.intely/1.1.1/resources/sidecar/index.js");
+        assert_eq!(p.shims_dir, "/home/me/.intely/shims");
+        assert_eq!((p.node.as_str(), p.git.as_str()), ("/home/me/.intely/node/bin/node", "/usr/bin/git"));
     }
 
     #[test]
@@ -157,7 +157,7 @@ mod tests {
         assert!(remote_paths(&ready_status(), &ServerCfg { enabled: false, ..cfg.clone() }, "1.1.1").is_none());
         assert!(remote_paths(&ready_status(), &cfg, "../x").is_none());
         let mut st = ready_status();
-        st.home = Some("/home/dev\n/etc".into());
+        st.home = Some("/home/me\n/etc".into());
         assert!(remote_paths(&st, &cfg, "1.1.1").is_none());
         let mut st = ready_status();
         st.node.path = Some("relative/node".into());

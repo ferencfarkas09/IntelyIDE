@@ -696,7 +696,7 @@ describe('state directory, lock, replacement and repair', () => {
 
   it('refuses a state directory that is a symlink, group-writable or not owned, and a relative home', async () => {
     const f = fixture();
-    mkdirSync(path.join(home(), 'Library', 'Application Support'), { recursive: true });
+    mkdirSync(path.dirname(stateDir()), { recursive: true }); // (the parent of the state directory: Library/Application Support on macOS, .local/share on Linux)
     const target = path.join(tmp, 'elsewhere'); mkdirSync(target, { mode: 0o700 });
     symlinkSync(target, stateDir());
     expect((await fails(installSdk(options(f)))).code).toBe('state_unsafe');
@@ -770,7 +770,7 @@ describe('runCli', () => {
     expect(t.out).toHaveLength(1);
     const plan = JSON.parse(t.out[0]!);
     expect(plan).toMatchObject({ result: 'plan', version: '0.3.287', hosts: ['registry.npmjs.org'] });
-    expect(plan.finalDir).toBe('~/Library/Application Support/IntelyIDE/sdk');
+    expect(plan.finalDir).toBe(process.platform === 'linux' ? '~/.local/share/IntelyIDE/sdk' : '~/Library/Application Support/IntelyIDE/sdk');
     expect(t.out[0]).not.toContain(tmp);
     expect(t.out[0]).not.toContain('s3cretpw');
     expect(readdirSync(home())).toEqual([]);

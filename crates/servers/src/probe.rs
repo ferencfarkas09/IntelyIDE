@@ -378,13 +378,13 @@ mod tests {
     use super::*;
     use crate::testkit::*;
 
-    const GOOD: &str = "os=Linux\narch=x86_64\nhome=/home/dev\nuser=dev\nnode=/usr/bin/node\nnode_version=v24.13.0\nclaude=/home/dev/.local/bin/claude\nclaude_version=2.1.0 (Claude Code)\ngit=/usr/bin/git\ngit_version=git version 2.43.0\nhave_tar=yes\nhave_curl=yes\nhave_wget=no\nhave_sha256=yes\nfree_kb=1234567\nclaude_login=yes\nbundle=1.1.0\nbundle=1.1.1\nsidecar_probe={\"sidecar\":\"1.1.1\",\"sdk\":{\"ok\":true,\"version\":\"0.3.287\"}}\n";
+    const GOOD: &str = "os=Linux\narch=x86_64\nhome=/home/me\nuser=dev\nnode=/usr/bin/node\nnode_version=v24.13.0\nclaude=/home/me/.local/bin/claude\nclaude_version=2.1.0 (Claude Code)\ngit=/usr/bin/git\ngit_version=git version 2.43.0\nhave_tar=yes\nhave_curl=yes\nhave_wget=no\nhave_sha256=yes\nfree_kb=1234567\nclaude_login=yes\nbundle=1.1.0\nbundle=1.1.1\nsidecar_probe={\"sidecar\":\"1.1.1\",\"sdk\":{\"ok\":true,\"version\":\"0.3.287\"}}\n";
 
     #[test]
     fn parses_a_full_probe() {
         let f = parse_probe(GOOD);
         assert_eq!(f.os.as_deref(), Some("Linux"));
-        assert_eq!(f.home.as_deref(), Some("/home/dev"));
+        assert_eq!(f.home.as_deref(), Some("/home/me"));
         assert_eq!(f.node_version.as_deref(), Some("v24.13.0"));
         assert_eq!(f.claude_version.as_deref(), Some("2.1.0 (Claude Code)"));
         assert!(f.have_tar && f.have_curl && !f.have_wget && f.have_sha256);

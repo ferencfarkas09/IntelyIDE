@@ -21,8 +21,8 @@ const READY: ServerStatus = {
   reachable: true,
   os: "linux",
   arch: "x64",
-  home: "/home/dev",
-  node: { version: "v24.13.0", path: "/home/dev/.intely/node/bin/node", ok: true },
+  home: "/home/me",
+  node: { version: "v24.13.0", path: "/home/me/.intely/node/bin/node", ok: true },
   claude: { path: "/usr/local/bin/claude", version: "2.1.4", loggedIn: true },
   git: { path: "/usr/bin/git", version: "2.43.0" },
   bundle: { version: "1.1.1", ok: true },
@@ -35,7 +35,7 @@ const BARE: ServerStatus = {
   reachable: true,
   os: "linux",
   arch: "x64",
-  home: "/home/gpu",
+  home: "/home/x",
   node: { version: "v18.19.1", path: "/usr/bin/node", ok: false },
   claude: { loggedIn: null },
   git: { path: "/usr/bin/git", version: "2.34.1" },
@@ -175,7 +175,7 @@ export function createMockServers(opts: MockServersOptions = {}): MockServersHan
         if (step === "node") done(step, "info", "Downloading node-v24.13.0-linux-x64.tar.xz");
         done(step, "done", step === "probe" ? `${before.os}/${before.arch}, ${before.home}` : "Done");
       }
-      publish(id, { ...READY, os: before.os, arch: before.arch, home: before.home, git: before.git, claude: before.claude.path ? before.claude : { path: "/home/dev/.local/bin/claude", version: "2.1.4", loggedIn: null }, ready: true });
+      publish(id, { ...READY, os: before.os, arch: before.arch, home: before.home, git: before.git, claude: before.claude.path ? before.claude : { path: "/home/me/.local/bin/claude", version: "2.1.4", loggedIn: null }, ready: true });
     },
     async repos(id, repoIds) {
       const s = find(id);

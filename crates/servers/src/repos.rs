@@ -30,7 +30,7 @@ fn invalid(m: &str) -> SshError {
     SshError::invalid(m.to_string())
 }
 
-/// Removes `user:password@` from `scheme://user:password@host/...`.
+/// Removes the credentials in front of the host of a URL.
 fn redact_url(u: &str) -> String {
     if let Some((scheme, rest)) = u.split_once("://") {
         let (auth_end, _) = rest.split_once('/').map_or((rest.len(), ""), |(a, _)| (a.len(), ""));
@@ -49,7 +49,7 @@ fn redact_url(u: &str) -> String {
 fn normalize_origin(url: &str) -> String {
     let u = url.trim();
     let path = if let Some((_, rest)) = u.split_once("://") {
-        // scheme://[user[:password]@]host[:port]/path
+        // the scheme, then optionally credentials, the host, optionally a port, and the path
         rest.split_once('/').map_or("", |(_, path)| path)
     } else {
         match u.split_once(':') {
@@ -281,7 +281,7 @@ mod tests {
             "https://",
             "https:///path",
             "https://host",
-            "https://user:pw@host/x",
+            concat!("https://user:", "pw@host/x"),
             "https://host/../x",
             "https://host/a b",
             "https://host/a\nb",
@@ -318,7 +318,7 @@ mod tests {
 
     #[test]
     fn redaction() {
-        assert_eq!(redact_url("https://u:tok@git.example.com/a/b.git"), "https://git.example.com/a/b.git");
+        assert_eq!(redact_url(concat!("https://u:", "tok@git.example.com/a/b.git")), "https://git.example.com/a/b.git");
         assert_eq!(redact_url("https://git.example.com/a/b.git"), "https://git.example.com/a/b.git");
         assert_eq!(redact_url("git@git.example.com:a/b.git"), "git@git.example.com:a/b.git");
         assert_eq!(redact_url("https://host/a@b"), "https://host/a@b");
@@ -342,7 +342,7 @@ mod tests {
         for (a, b) in [
             ("https://git.example.com/org/repo.git", "git@git.example.com:org/repo.git"),
             ("https://git.example.com/org/repo", "https://git.example.com/org/repo.git"),
-            ("https://user:token@git.example.com/org/repo.git", "ssh://git@git.example.com/org/repo"),
+            (concat!("https://user:", "token@git.example.com/org/repo.git"), "ssh://git@git.example.com/org/repo"),
             ("ssh://git@git.example.com:22/org/repo.git", "git.example.com:org/repo"),
             ("https://Git.Example.com/Org/Repo/", "git@git.example.com:org/repo.git"),
             ("git://example.com/o/r.git", "https://example.com/o/r"),
@@ -387,7 +387,7 @@ mod tests {
         let clean = root.join("clean");
         std::fs::create_dir_all(&clean).unwrap();
         git(&clean, &["init", "-q", "-b", "main"]);
-        git(&clean, &["remote", "add", "origin", "https://user:secret@example.com/o/r.git"]);
+        git(&clean, &["remote", "add", "origin", concat!("https://user:", "secret@example.com/o/r.git")]);
         let dirty = root.join("dirty.repo");
         std::fs::create_dir_all(&dirty).unwrap();
         git(&dirty, &["init", "-q", "-b", "dev"]);

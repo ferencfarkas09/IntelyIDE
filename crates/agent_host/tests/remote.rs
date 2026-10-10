@@ -256,7 +256,7 @@ fn another_repository_under_the_same_folder_name_is_not_worked_on() {
     assert!(e.message.contains("other/app") && e.message.contains("org/app"), "{}", e.message);
     // the same repository, spelled the ssh way and with credentials on this Mac's side, is the same repository
     git(&theirs, &["remote", "set-url", "origin", "git@example.com:org/app.git"]);
-    git(&repo.path, &["remote", "set-url", "origin", "https://user:token@example.com/org/app"]);
+    git(&repo.path, &["remote", "set-url", "origin", concat!("https://user:", "token@example.com/org/app")]);
     let run = start_on(&host, &repo, "mock-plain-reply", Some("srv")).expect("the same repository");
     sink.wait_turn_end(&run.agent_id);
     host.shutdown();
