@@ -17,14 +17,14 @@ pub mod ssh;
 #[cfg(test)]
 mod testkit;
 
-pub use cfg::{slug_from_name, CfgError, ServerCfg};
+pub use cfg::{slug_from_name, valid_repo_dir_name, CfgError, ServerCfg};
 pub use probe::{
     parse_probe, probe, probe_script, status_from_facts, ProbeFacts, ServerStatus, StatusError,
 };
 pub use quote::{sh_quote, sh_quote_path_for_remote};
-pub use repos::{clone_repo, repo_states, validate_git_url, RepoState};
+pub use repos::{clone_repo, repo_states, same_origin, validate_git_url, RepoState};
 pub use setup::{
     node_pin_for, setup, NodePin, SetupError, SetupEvent, SetupOptions, SetupStep, StepState,
 };
 pub use shim::{remote_paths, remove_shim, sidecar_command, upload_shim, RemotePaths};
-pub use ssh::{classify, ExecOut, Ssh, SshError, SshErrorKind};
+pub use ssh::{classify, default_control_dirs, private_control_dir, ExecOut, Ssh, SshError, SshErrorKind};

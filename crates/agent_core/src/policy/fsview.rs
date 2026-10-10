@@ -12,10 +12,13 @@
 //! another thread must enter it on that thread.
 //!
 //! A view answers `None` for anything it cannot tell (missing, no access, a failed RPC). The policy reads `None` as "not there", exactly
-//! like an error of `std::fs`, so a broken link to a remote server never makes the judgement more lenient than a missing file does.
+//! like an error of `std::fs`. That is not enough for a view over a network: "the server did not answer" is not "the file is not there",
+//! and a decision made on the second would be more lenient than the facts. So a view reports such a look with [`mark_failed`], and
+//! [`failed`] tells the decision, at its end, that it saw only part of the tree; `decide` then denies. The mark belongs to the scope, that
+//! is to the one decision on the one thread, so decisions that run side by side cannot clear each other's marks.
 //! `LocalFs` is the default and costs one thread-local read per look.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -111,16 +114,20 @@ impl FsView for LocalFs {
 thread_local! {
     /// The view of the running decision; `None` = [`LocalFs`].
     static CURRENT: RefCell<Option<Arc<dyn FsView>>> = const { RefCell::new(None) };
+    /// `None` outside every scope. Inside one: did a look of this decision fail (see [`mark_failed`])?
+    static FAILED: Cell<Option<bool>> = const { Cell::new(None) };
 }
 
-/// Puts the previous view back, also when the closure panics.
-struct Restore(Option<Arc<dyn FsView>>);
+/// Puts the previous view and the previous failure mark back, also when the closure panics.
+struct Restore(Option<Arc<dyn FsView>>, Option<bool>);
 
 impl Drop for Restore {
     fn drop(&mut self) {
         let prev = self.0.take();
+        let failed = self.1;
         // (the thread is going away when the slot is gone: nothing to restore then)
         let _ = CURRENT.try_with(|c| *c.borrow_mut() = prev);
+        let _ = FAILED.try_with(|f| f.set(failed));
     }
 }
 
@@ -189,8 +196,25 @@ pub fn with_fs<R>(fs: Option<Arc<dyn FsView>>, f: impl FnOnce() -> R) -> R {
         }
     });
     let prev = CURRENT.with(|c| std::mem::replace(&mut *c.borrow_mut(), fs));
-    let _restore = Restore(prev);
+    let prev_failed = FAILED.with(|f| f.replace(Some(false)));
+    let _restore = Restore(prev, prev_failed);
     f()
+}
+
+/// A view calls this for a look it could not answer, as opposed to a file that is not there: no reply from the server, a reply that makes
+/// no sense, a listing that was cut off, a file too big to read. The decision in progress then knows it did not see everything. Ignored
+/// outside a scope.
+pub fn mark_failed() {
+    let _ = FAILED.try_with(|f| {
+        if f.get().is_some() {
+            f.set(Some(true));
+        }
+    });
+}
+
+/// Did a look of the decision in progress (this thread, the innermost [`with_fs`]) fail? Always `false` for [`LocalFs`].
+pub fn failed() -> bool {
+    FAILED.try_with(|f| f.get() == Some(true)).unwrap_or(false)
 }
 
 /// Calls `f` with the view in force. The view is cloned out of the slot first, so a view may itself use [`with_fs`].
@@ -317,6 +341,49 @@ mod tests {
         // a new scope asks again
         with_fs(Some(view), || assert!(exists(Path::new("/srv/x"))));
         assert_eq!(a.0.load(Ordering::SeqCst), 3);
+    }
+
+    #[test]
+    fn a_failed_look_belongs_to_its_scope() {
+        // outside a scope there is nothing to mark
+        mark_failed();
+        assert!(!failed());
+        let view: Arc<dyn FsView> = Arc::new(Counting(AtomicUsize::new(0)));
+        with_fs(Some(view.clone()), || {
+            assert!(!failed());
+            mark_failed();
+            assert!(failed());
+            // an inner scope starts clean and does not hand its mark to the outer one
+            with_fs(Some(view.clone()), || {
+                assert!(!failed());
+                mark_failed();
+                assert!(failed());
+            });
+            assert!(failed(), "the outer mark is back");
+        });
+        assert!(!failed(), "nothing leaks out of the scope");
+        // the next decision starts clean
+        with_fs(Some(view), || assert!(!failed()));
+    }
+
+    #[test]
+    fn a_mark_of_one_thread_is_not_seen_by_another() {
+        let view: Arc<dyn FsView> = Arc::new(Counting(AtomicUsize::new(0)));
+        let (tx, rx) = std::sync::mpsc::channel::<()>();
+        let (done_tx, done_rx) = std::sync::mpsc::channel::<()>();
+        let v2 = view.clone();
+        let other = std::thread::spawn(move || {
+            with_fs(Some(v2), || {
+                mark_failed();
+                tx.send(()).unwrap();
+                done_rx.recv().unwrap();
+                assert!(failed());
+            });
+        });
+        rx.recv().unwrap();
+        with_fs(Some(view), || assert!(!failed(), "a decision on this thread starts clean while the other still holds its mark"));
+        done_tx.send(()).unwrap();
+        other.join().unwrap();
     }
 
     #[test]

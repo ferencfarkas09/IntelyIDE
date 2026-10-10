@@ -150,6 +150,12 @@ pub fn valid_name(n: &str) -> bool {
         && n.chars().all(|c| c.is_ascii_alphanumeric() || "._-".contains(c))
 }
 
+/// A folder name the host puts under a server's repository root: [`valid_name`], and not hidden. A local folder called `.ssh` or
+/// `.aws` must not become `<root>/.ssh`, which with the root `~` is the real one.
+pub fn valid_repo_dir_name(n: &str) -> bool {
+    valid_name(n) && !n.starts_with('.')
+}
+
 /// Turns a display name into an id candidate: lowercase, dashes, never empty, max 32.
 /// The caller makes it unique.
 pub fn slug_from_name(name: &str) -> String {
@@ -350,6 +356,10 @@ mod tests {
         assert!(valid_name("my-repo_1.git"));
         for n in ["", ".", "..", "-x", "a/b", "a b", "a\n", "a$b", &"a".repeat(101)] {
             assert!(!valid_name(n), "{n:?}");
+        }
+        assert!(valid_repo_dir_name("my-repo_1.git") && valid_repo_dir_name("a.b"));
+        for n in [".ssh", ".aws", ".gnupg", ".hidden", "..x", ".", ".."] {
+            assert!(!valid_repo_dir_name(n), "{n:?}");
         }
     }
 }

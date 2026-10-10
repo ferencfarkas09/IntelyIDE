@@ -96,6 +96,8 @@ pub struct PendingQuestion {
 #[derive(Default)]
 pub struct RunState {
     pub last_seq: u64,
+    /// Time of the last event folded in (ms since the epoch): how long a finished run has been idle.
+    pub last_ts: u64,
     pub title: String,
     pub model: Option<String>,
     pub effective: Option<AgentEffective>,
@@ -117,6 +119,7 @@ pub struct RunState {
 impl RunState {
     pub fn apply(&mut self, e: &AgentEvent) {
         self.last_seq = e.seq;
+        self.last_ts = e.ts;
         if e.turn_id.is_some() && !matches!(e.kind, EventKind::TurnEnd { .. }) {
             self.turn_open = true;
             self.turn_id = e.turn_id.clone();
@@ -265,6 +268,12 @@ impl Run {
         self.live = None;
         self.ctx.saved.clear();
         self.ctx.saved_by_role.clear();
+    }
+
+    /// The session is open and nothing is going on in it: the run is finished (or failed) and nobody is asked anything. Such a session may
+    /// give up its place for a new run, and is closed after a while.
+    pub fn is_idle(&self) -> bool {
+        self.live.is_some() && self.cancel.is_none() && !self.mode_busy && matches!(self.state.status(), RunStatus::Done | RunStatus::Error)
     }
 
     /// The run holds (or needs) the repository writer lease: a writer mode, or a session allow for edits inside the run directories.

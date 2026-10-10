@@ -26,7 +26,8 @@ pub const TAIL_MAX: usize = 2048;
 pub struct Ssh {
     /// The ssh executable (`ssh`, or `$INTELY_SSH_BIN`).
     pub bin: PathBuf,
-    /// Directory of the control sockets. The caller creates it with mode 0700.
+    /// Directory of the control sockets, made by [`private_control_dir`] (a folder of this user that nobody else can enter). Empty =
+    /// no sharing of connections: every call opens its own.
     ///
     /// Unix socket paths are limited to about 100 bytes and `%C` is 40 chars plus a temporary suffix of 17, so keep
     /// this path short (for example `/tmp/intely-ssh-501`); see [`Ssh::control_path_fits`].
@@ -50,27 +51,43 @@ impl Ssh {
 
     /// True when `<control_dir>/%C` stays under the unix socket path limit (104 on macOS, 108 on Linux).
     pub fn control_path_fits(&self) -> bool {
-        self.control_dir.as_os_str().len() + 1 + 40 + 17 < 104
+        self.control_dir.as_os_str().is_empty() || self.control_dir.as_os_str().len() + 1 + 40 + 17 < 104
     }
 
     /// Options, optional port, `--` and the destination. The remote command is appended by the caller as ONE argument.
     pub fn base_args(&self, cfg: &ServerCfg) -> Vec<OsString> {
-        let mut a: Vec<OsString> = vec!["-T".into()];
+        // `-a` and `-x`, and the options after them, switch off what a `Host *` line of the user's `~/.ssh/config` may have switched on: the agent
+        // that is forwarded to a server would let the agent running there sign in as the user to other machines, and a forwarded port or
+        // a local command is not what this connection is for. The first value of an option wins, and the command line is read first.
+        let mut a: Vec<OsString> = vec!["-T".into(), "-a".into(), "-x".into()];
         for o in [
             "BatchMode=yes",
             "ConnectTimeout=10",
             "ServerAliveInterval=15",
             "ServerAliveCountMax=3",
-            "ControlMaster=auto",
-            "ControlPersist=60",
+            "ForwardAgent=no",
+            "ForwardX11=no",
+            "ClearAllForwardings=yes",
+            "PermitLocalCommand=no",
         ] {
             a.push("-o".into());
             a.push(o.into());
         }
-        let mut cp = OsString::from("ControlPath=");
-        cp.push(self.control_dir.join("%C"));
-        a.push("-o".into());
-        a.push(cp);
+        if self.control_dir.as_os_str().is_empty() {
+            for o in ["ControlMaster=no", "ControlPath=none"] {
+                a.push("-o".into());
+                a.push(o.into());
+            }
+        } else {
+            for o in ["ControlMaster=auto", "ControlPersist=60"] {
+                a.push("-o".into());
+                a.push(o.into());
+            }
+            let mut cp = OsString::from("ControlPath=");
+            cp.push(self.control_dir.join("%C"));
+            a.push("-o".into());
+            a.push(cp);
+        }
         if let Some(p) = cfg.port {
             a.push("-p".into());
             a.push(p.to_string().into());
@@ -468,6 +485,70 @@ fn run(mut cmd: Command, input: Input<'_>, timeout: Duration, also_kill: Option<
     Ok(Raw { code, stdout, stderr, truncated: cut_out || cut_err, timed_out })
 }
 
+/// Why `meta` is not a private folder of the user `uid`; `None` when it is (a real folder, not a link, owned by that user).
+fn why_not_private(meta: &std::fs::Metadata, uid: u32) -> Option<&'static str> {
+    use std::os::unix::fs::MetadataExt;
+    let t = meta.file_type();
+    if t.is_symlink() {
+        Some("it is a symbolic link")
+    } else if !t.is_dir() {
+        Some("it is not a folder")
+    } else if meta.uid() != uid {
+        Some("it belongs to another user")
+    } else {
+        None
+    }
+}
+
+/// Makes `dir` a folder of this user that nobody else can enter, or says why it cannot be one.
+fn claim_dir(dir: &Path, uid: u32) -> std::io::Result<()> {
+    use std::io::{Error, ErrorKind};
+    use std::os::unix::fs::{DirBuilderExt, MetadataExt, PermissionsExt};
+    match std::fs::DirBuilder::new().mode(0o700).create(dir) {
+        Ok(()) => {}
+        Err(e) if e.kind() == ErrorKind::AlreadyExists => {}
+        Err(e) => return Err(e),
+    }
+    // (`symlink_metadata`: a link planted at this name is looked at, not followed)
+    let meta = std::fs::symlink_metadata(dir)?;
+    if let Some(why) = why_not_private(&meta, uid) {
+        return Err(Error::new(ErrorKind::PermissionDenied, why));
+    }
+    if meta.mode() & 0o077 != 0 {
+        std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700))?;
+    }
+    let meta = std::fs::symlink_metadata(dir)?;
+    match why_not_private(&meta, uid) {
+        Some(why) => Err(Error::new(ErrorKind::PermissionDenied, why)),
+        None if meta.mode() & 0o077 != 0 => Err(Error::new(ErrorKind::PermissionDenied, "others can enter it")),
+        None => Ok(()),
+    }
+}
+
+/// The first of `candidates` that is, or can be made, a private folder of this user for the control sockets of `ssh`. The sockets sit in
+/// a shared place (`/tmp`, because a socket path must be short) and their names are predictable (`%C` is a hash of the host, port and
+/// user), so a folder that another user created first, or a link planted at its name, would let that user into every connection. Such a
+/// candidate is skipped; `None` means no sharing of connections (`Ssh::control_dir` empty).
+pub fn private_control_dir(candidates: &[PathBuf]) -> Option<PathBuf> {
+    // SAFETY: `geteuid` has no preconditions and cannot fail.
+    let uid = unsafe { libc::geteuid() };
+    candidates.iter().find(|dir| claim_dir(dir, uid).is_ok()).cloned()
+}
+
+/// Where the control sockets go by default: short (`/tmp/intely-ssh-<user>`, the socket path limit is about 100 bytes), once by name and
+/// once by number in case the name was taken by somebody else.
+pub fn default_control_dirs() -> Vec<PathBuf> {
+    let user: String = std::env::var("USER").unwrap_or_default().chars().filter(|c| c.is_ascii_alphanumeric()).take(16).collect();
+    // SAFETY: `geteuid` has no preconditions and cannot fail.
+    let uid = unsafe { libc::geteuid() };
+    let mut v = Vec::new();
+    if !user.is_empty() {
+        v.push(PathBuf::from(format!("/tmp/intely-ssh-{user}")));
+    }
+    v.push(PathBuf::from(format!("/tmp/intely-ssh-{uid}")));
+    v
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -486,11 +567,17 @@ mod tests {
         let ssh = Ssh { bin: "ssh".into(), control_dir: "/tmp/cd".into() };
         let a = strs(ssh.base_args(&cfg(None)));
         assert_eq!(a[0], "-T");
+        // no forwarding of any kind, whatever the user's ssh config says
+        assert!(a[..4].contains(&"-a".to_string()) && a[..4].contains(&"-x".to_string()), "{a:?}");
         for o in [
             "BatchMode=yes",
             "ConnectTimeout=10",
             "ServerAliveInterval=15",
             "ServerAliveCountMax=3",
+            "ForwardAgent=no",
+            "ForwardX11=no",
+            "ClearAllForwardings=yes",
+            "PermitLocalCommand=no",
             "ControlMaster=auto",
             "ControlPersist=60",
             "ControlPath=/tmp/cd/%C",
@@ -501,6 +588,76 @@ mod tests {
         assert!(!a.contains(&"-p".to_string()));
         assert_eq!(a[a.len() - 2], "--");
         assert_eq!(a[a.len() - 1], "big.example.com");
+    }
+
+    #[test]
+    fn without_a_control_folder_connections_are_not_shared() {
+        let ssh = Ssh { bin: "ssh".into(), control_dir: PathBuf::new() };
+        let a = strs(ssh.base_args(&cfg(None)));
+        assert!(a.contains(&"ControlMaster=no".to_string()) && a.contains(&"ControlPath=none".to_string()), "{a:?}");
+        assert!(!a.iter().any(|x| x.starts_with("ControlMaster=auto") || x.starts_with("ControlPersist")), "{a:?}");
+        assert!(ssh.control_path_fits());
+    }
+
+    fn mode_of(p: &Path) -> u32 {
+        use std::os::unix::fs::MetadataExt;
+        std::fs::symlink_metadata(p).unwrap().mode() & 0o777
+    }
+
+    #[test]
+    fn a_missing_control_folder_is_made_private() {
+        let t = tempfile::tempdir().unwrap();
+        let d = t.path().join("cd");
+        assert_eq!(private_control_dir(&[d.clone()]), Some(d.clone()));
+        assert_eq!(mode_of(&d), 0o700);
+        // asking again finds it as it is
+        assert_eq!(private_control_dir(&[d.clone()]), Some(d));
+    }
+
+    #[test]
+    fn an_open_control_folder_of_ours_is_closed() {
+        use std::os::unix::fs::PermissionsExt;
+        let t = tempfile::tempdir().unwrap();
+        let d = t.path().join("cd");
+        std::fs::create_dir(&d).unwrap();
+        std::fs::set_permissions(&d, std::fs::Permissions::from_mode(0o755)).unwrap();
+        assert_eq!(private_control_dir(&[d.clone()]), Some(d.clone()));
+        assert_eq!(mode_of(&d), 0o700);
+    }
+
+    #[test]
+    fn a_link_or_a_file_at_the_name_is_not_used() {
+        let t = tempfile::tempdir().unwrap();
+        let real = t.path().join("real");
+        std::fs::create_dir(&real).unwrap();
+        let link = t.path().join("link");
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+        let file = t.path().join("file");
+        std::fs::write(&file, "x").unwrap();
+        let ours = t.path().join("ours");
+        // the first two are skipped, the third is made
+        assert_eq!(private_control_dir(&[link, file, ours.clone()]), Some(ours));
+        // and with nothing else to take there is no folder at all
+        assert_eq!(private_control_dir(&[t.path().join("link"), t.path().join("file")]), None);
+        assert_eq!(private_control_dir(&[]), None);
+    }
+
+    #[test]
+    fn a_folder_of_another_user_is_not_private() {
+        let t = tempfile::tempdir().unwrap();
+        let meta = std::fs::symlink_metadata(t.path()).unwrap();
+        use std::os::unix::fs::MetadataExt;
+        assert_eq!(why_not_private(&meta, meta.uid()), None);
+        assert_eq!(why_not_private(&meta, meta.uid().wrapping_add(1)), Some("it belongs to another user"));
+    }
+
+    #[test]
+    fn the_default_folders_are_short_enough_for_a_socket() {
+        let dirs = default_control_dirs();
+        assert!(!dirs.is_empty());
+        for d in dirs {
+            assert!(Ssh { bin: "ssh".into(), control_dir: d.clone() }.control_path_fits(), "{}", d.display());
+        }
     }
 
     #[test]

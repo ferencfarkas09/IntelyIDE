@@ -397,21 +397,24 @@ pub fn session_allow_for(ctx: &PolicyContext, intent: &ToolIntent) -> Option<(Sa
     if !matches!(intent.class, ToolClass::Exec | ToolClass::Write | ToolClass::Net | ToolClass::Mcp) || !matches!(ctx.mode, PermissionMode::Ask | PermissionMode::Edit) {
         return None;
     }
-    let (d, eff_mode) = judge(ctx, intent, STRICT_BACKGROUND);
-    if d.decision != Decision::Ask || !matches!(eff_mode, PermissionMode::Ask | PermissionMode::Edit) {
-        return None;
-    }
-    let offer = d.session_allow?;
-    let saved = match offer.kind {
-        SessionAllowKind::Exec => SavedAllow::ExecPrefix { argv: offer.scope.split(' ').map(str::to_string).collect() },
-        SessionAllowKind::Net => SavedAllow::NetHost { host: offer.scope.clone() },
-        SessionAllowKind::Mcp => {
-            let (server, tool) = offer.scope.split_once('.')?;
-            SavedAllow::McpTool { server: server.to_string(), tool: tool.to_string() }
+    // the same files as the decision looked at (a run on a server: the server's), and nothing is offered on a half-seen tree
+    fsview::with_fs(ctx.fs.clone(), || {
+        let (d, eff_mode) = judge(ctx, intent, STRICT_BACKGROUND);
+        if d.decision != Decision::Ask || !matches!(eff_mode, PermissionMode::Ask | PermissionMode::Edit) || fsview::failed() {
+            return None;
         }
-        SessionAllowKind::Write => SavedAllow::WriteInside,
-    };
-    Some((saved, offer))
+        let offer = d.session_allow?;
+        let saved = match offer.kind {
+            SessionAllowKind::Exec => SavedAllow::ExecPrefix { argv: offer.scope.split(' ').map(str::to_string).collect() },
+            SessionAllowKind::Net => SavedAllow::NetHost { host: offer.scope.clone() },
+            SessionAllowKind::Mcp => {
+                let (server, tool) = offer.scope.split_once('.')?;
+                SavedAllow::McpTool { server: server.to_string(), tool: tool.to_string() }
+            }
+            SessionAllowKind::Write => SavedAllow::WriteInside,
+        };
+        Some((saved, offer))
+    })
 }
 
 /// `Bash(npm test:*)` -> `Bash`.
@@ -428,7 +431,13 @@ pub fn decide_with(ctx: &PolicyContext, req: &PolicyRequest, strict_background: 
     // every look at a file (symlinks, globs, scripts) goes to the run's own file system, on the thread that does the judging
     fsview::with_fs(ctx.fs.clone(), || {
         let (d, eff_mode) = judge(ctx, &req.intent, strict_background);
-        settle_unattended(ctx, eff_mode, d)
+        let d = settle_unattended(ctx, eff_mode, d);
+        // A look that could not be answered (the server did not reply, a listing was cut off) is not "the file is not there": a hard stop
+        // may have been hidden by it. What the rules said about a tree seen in part is not trusted; a denial stands as it is.
+        if d.decision != Decision::Deny && fsview::failed() {
+            return fail_closed("the files of the run could not be read completely, so this call was not judged");
+        }
+        d
     })
 }
 

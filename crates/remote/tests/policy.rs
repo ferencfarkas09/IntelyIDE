@@ -197,6 +197,45 @@ fn no_mcp_intent_is_phone_approvable_in_any_mode_or_run_state() {
 }
 
 #[test]
+fn a_request_of_a_run_on_a_server_is_approved_at_the_desktop() {
+    use intely_agent_core::policy::fsview::{FsEntry, FsMeta, FsView};
+    use std::path::{Path, PathBuf};
+    use std::sync::Arc;
+
+    /// A server whose files this Mac cannot see: it knows nothing, and it is not this machine.
+    struct Elsewhere;
+    impl FsView for Elsewhere {
+        fn metadata(&self, _: &Path) -> Option<FsMeta> {
+            None
+        }
+        fn symlink_metadata(&self, _: &Path) -> Option<FsMeta> {
+            None
+        }
+        fn read_link(&self, _: &Path) -> Option<PathBuf> {
+            None
+        }
+        fn canonicalize(&self, _: &Path) -> Option<PathBuf> {
+            None
+        }
+        fn read_dir(&self, _: &Path) -> Option<Vec<FsEntry>> {
+            None
+        }
+        fn read_to_string(&self, _: &Path, _: usize) -> Option<String> {
+            None
+        }
+    }
+    let mut f = fx(PermissionMode::Ask);
+    // on this Mac a plain read of the workspace is approvable from the phone
+    assert_eq!(el(&f, ToolIntent::exec("ls")), Low);
+    f.ctx.fs = Some(Arc::new(Elsewhere));
+    for i in [ToolIntent::exec("ls"), ToolIntent::exec("git status"), ToolIntent::exec("npm test")] {
+        let (e, why) = eligibility(&f.ctx, &i, &LowList::default());
+        assert_eq!(e, DesktopOnly);
+        assert!(why.contains("server"), "{why}");
+    }
+}
+
+#[test]
 fn a_read_only_role_has_nothing_to_approve_remotely() {
     let f = fx(PermissionMode::ReadOnly);
     assert_eq!(el(&f, ToolIntent::exec("npm install")), DesktopOnly);

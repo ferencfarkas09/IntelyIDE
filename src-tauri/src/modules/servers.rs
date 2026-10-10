@@ -65,19 +65,10 @@ fn write_list(store: &SettingsStore, list: &[ServerCfg]) -> Res<()> {
     store.set(NS, patch).map(|_| ()).map_err(|e| err("settings", e.to_string()))
 }
 
-/// Short, because a unix socket path is limited to about a hundred bytes and the `ControlPath` of ssh adds a 40-character hash.
+/// The folder of the shared `ssh` connections: a private one of this user (short, because a unix socket path is limited to about a hundred
+/// bytes), or none, and then every call of `ssh` opens its own connection.
 fn control_dir() -> PathBuf {
-    // (libc is not a dependency of this crate; the user name in the path keeps two accounts of one Mac apart)
-    let user = std::env::var("USER").unwrap_or_else(|_| "u".into());
-    let user: String = user.chars().filter(|c| c.is_ascii_alphanumeric()).take(16).collect();
-    PathBuf::from(format!("/tmp/intely-ssh-{user}"))
-}
-
-fn ensure_control_dir(dir: &Path) {
-    use std::os::unix::fs::PermissionsExt;
-    if std::fs::create_dir_all(dir).is_ok() {
-        let _ = std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700));
-    }
+    intely_servers::private_control_dir(&intely_servers::default_control_dirs()).unwrap_or_default()
 }
 
 /// Called once from `setup`, after the settings and before the agent host asks for the registry.
@@ -88,7 +79,6 @@ pub fn setup_state(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         None => Arc::new(Vec::new),
     };
     let dir = control_dir();
-    ensure_control_dir(&dir);
     let registry = Arc::new(ServerRegistry::new(supplier, Ssh::from_env(dir), env!("CARGO_PKG_VERSION")));
     app.manage(ServersState { store, registry, setups: Mutex::new(HashSet::new()), list_lock: Mutex::new(()) });
     Ok(())
@@ -145,8 +135,17 @@ fn yes() -> bool {
 }
 
 #[tauri::command]
-pub async fn servers_save(state: State<'_, ServersState>, cfg: SaveRequest) -> Res<ServerCfg> {
+pub async fn servers_save(state: State<'_, ServersState>, agents: State<'_, AgentSlot>, cfg: SaveRequest) -> Res<ServerCfg> {
     let store = state_store(&state)?.clone();
+    // Another destination, port or folder is another place: the connection to the old one is closed first, and runs that are still open
+    // there keep it, so the change waits until they are stopped. (Before the list lock: closing a connection can take seconds.)
+    if let Some(id) = cfg.id.as_deref().filter(|i| !i.is_empty()) {
+        let moved = read_list(&store).into_iter().find(|s| s.id == id).is_some_and(|old| old.destination != cfg.destination.trim() || old.port != cfg.port || old.root != cfg.root.trim());
+        if moved {
+            let (host, id) = (agents.host().clone(), id.to_string());
+            blocking(move || host.release_server(&id)).await?;
+        }
+    }
     let _guard = lock(&state.list_lock);
     let mut list = read_list(&store);
     let existing = cfg.id.as_deref().filter(|i| !i.is_empty()).map(str::to_string);
@@ -173,8 +172,9 @@ pub async fn servers_save(state: State<'_, ServersState>, cfg: SaveRequest) -> R
     let entry = ServerCfg { id: id.clone(), name: cfg.name.trim().to_string(), destination: cfg.destination.trim().to_string(), port: cfg.port, root: cfg.root.trim().to_string(), max_agents: cfg.max_agents, enabled: cfg.enabled };
     entry.validate().map_err(|e| err("invalidServer", e.to_string()))?;
     if let Some(slot) = list.iter_mut().find(|s| s.id == id) {
-        // another destination is another machine: what was learned about the old one does not apply
-        if slot.destination != entry.destination || slot.port != entry.port {
+        // another destination (or folder) is another place: what was learned about the old one does not apply, and the connection to it is
+        // closed; runs that are still open there keep it, so the change waits until they are stopped
+        if slot.destination != entry.destination || slot.port != entry.port || slot.root != entry.root {
             state.registry.forget(&id);
         }
         *slot = entry.clone();
@@ -188,10 +188,10 @@ pub async fn servers_save(state: State<'_, ServersState>, cfg: SaveRequest) -> R
 #[tauri::command]
 pub async fn servers_remove(state: State<'_, ServersState>, agents: State<'_, AgentSlot>, id: String) -> Res<()> {
     let store = state_store(&state)?.clone();
+    // (a run that works or waits for you holds the server; finished runs give up their sessions, and the connection is closed with the entry)
+    let (host, rid) = (agents.host().clone(), id.clone());
+    blocking(move || host.release_server(&rid)).await?;
     let _guard = lock(&state.list_lock);
-    if running_on(&agents, &id) > 0 {
-        return Err(err("serverBusy", "runs on this server are still working; stop them first"));
-    }
     let mut list = read_list(&store);
     list.retain(|s| s.id != id);
     write_list(&store, &list)?;
@@ -227,14 +227,15 @@ pub struct SetupRequest {
 
 /// The files the server needs, laid out as in the app bundle (`sidecar/{index.js,sdk-install.js,package.json}`, `sdk-pin/`): the
 /// bundle's own `Resources` folder, or for a development build a copy staged from the checkout.
-fn stage_resources(data_dir: &Path) -> std::io::Result<(PathBuf, bool)> {
+fn stage_resources(data_dir: &Path, server_id: &str) -> std::io::Result<(PathBuf, bool)> {
     if let Some(res) = std::env::current_exe().ok().and_then(|exe| exe.parent().map(|d| d.join("../Resources"))) {
         if res.join("sidecar/index.js").is_file() && res.join("sdk-pin/tree.sha256").is_file() {
             return Ok((res, false));
         }
     }
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
-    let stage = data_dir.join("servers-stage").join(std::process::id().to_string());
+    // (one folder per server: two setups at once must not clear each other's files)
+    let stage = data_dir.join("servers-stage").join(format!("{}-{server_id}", std::process::id()));
     let _ = std::fs::remove_dir_all(&stage);
     std::fs::create_dir_all(stage.join("sidecar"))?;
     std::fs::create_dir_all(stage.join("sdk-pin"))?;
@@ -261,7 +262,7 @@ pub async fn servers_setup(app: AppHandle, state: State<'_, ServersState>, agent
         let emit = |e: SetupEvent| {
             let _ = app2.emit("servers:setup", serde_json::json!({ "id": id2, "step": e.step, "state": e.state, "message": e.message }));
         };
-        let staged = stage_resources(&data_dir).map_err(|e| err("stage", format!("cannot prepare the files to upload: {e}")));
+        let staged = stage_resources(&data_dir, &id2).map_err(|e| err("stage", format!("cannot prepare the files to upload: {e}")));
         let (dir, temp) = match staged {
             Ok(v) => v,
             Err(e) => {
@@ -355,6 +356,16 @@ mod tests {
         let dir = control_dir();
         // ssh appends `/` and a 40-character hash
         assert!(dir.to_string_lossy().len() + 41 < 104, "{}", dir.display());
+    }
+
+    #[test]
+    fn the_control_folder_is_private_to_us_or_there_is_none() {
+        use std::os::unix::fs::MetadataExt;
+        let dir = control_dir();
+        if !dir.as_os_str().is_empty() {
+            let m = std::fs::symlink_metadata(&dir).unwrap();
+            assert!(m.is_dir() && m.mode() & 0o077 == 0, "{}", dir.display());
+        }
     }
 
     #[test]

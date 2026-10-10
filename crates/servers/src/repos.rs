@@ -1,6 +1,6 @@
 //! Repositories on the server under `<root>/<name>`: state check and clone.
 
-use crate::cfg::{valid_name, ServerCfg};
+use crate::cfg::{valid_repo_dir_name, ServerCfg};
 use crate::quote::{sh_quote, sh_quote_path_for_remote};
 use crate::ssh::{tail, Ssh, SshError};
 use serde::{Deserialize, Serialize};
@@ -39,6 +39,41 @@ fn redact_url(u: &str) -> String {
         }
     }
     u.to_string()
+}
+
+/// `host/owner/repo` of a git URL, to tell whether two spellings name the same repository: the scheme, the user name, the port and a
+/// trailing `.git` or `/` do not count, `host:owner/repo` is `host/owner/repo`, and case does not matter.
+fn normalize_origin(url: &str) -> String {
+    let u = url.trim();
+    let (has_scheme, rest) = match u.split_once("://") {
+        Some((_, rest)) => (true, rest),
+        None => (false, u),
+    };
+    // user[:password]@ in front of the host
+    let host_end = rest.find('/').unwrap_or(rest.len());
+    let rest = match rest[..host_end].rfind('@') {
+        Some(at) => &rest[at + 1..],
+        None => rest,
+    };
+    let mut out = rest.to_string();
+    // scp style (`host:owner/repo`) has a colon in the first segment and no scheme; a URL has `host:port/...`
+    if let Some(colon) = out.split('/').next().and_then(|first| first.find(':')) {
+        let after = &out[colon + 1..];
+        let port = after.split('/').next().unwrap_or("");
+        if has_scheme && !port.is_empty() && port.bytes().all(|b| b.is_ascii_digit()) {
+            out = format!("{}{}", &out[..colon], &out[colon + 1 + port.len()..]);
+        } else {
+            out = format!("{}/{}", &out[..colon], after.trim_start_matches('/'));
+        }
+    }
+    let out = out.trim_end_matches('/');
+    out.strip_suffix(".git").unwrap_or(out).trim_end_matches('/').to_ascii_lowercase()
+}
+
+/// Do these two `origin` URLs name the same repository?
+pub fn same_origin(a: &str, b: &str) -> bool {
+    let (a, b) = (normalize_origin(a), normalize_origin(b));
+    !a.is_empty() && a == b
 }
 
 fn states_script(root: &str, names: &[String]) -> String {
@@ -104,7 +139,7 @@ fn parse_states(root: &str, names: &[String], text: &str) -> Vec<RepoState> {
 /// with `-` and not be `.` or `..`.
 pub fn repo_states(ssh: &Ssh, cfg: &ServerCfg, names: &[String]) -> Result<Vec<RepoState>, SshError> {
     cfg.validate().map_err(|e| SshError::invalid(e.to_string()))?;
-    if names.iter().any(|n| !valid_name(n)) {
+    if names.iter().any(|n| !valid_repo_dir_name(n)) {
         return Err(invalid("repository name"));
     }
     if names.is_empty() {
@@ -120,7 +155,7 @@ pub fn repo_states(ssh: &Ssh, cfg: &ServerCfg, names: &[String]) -> Result<Vec<R
 /// Clones `url` into `<root>/<name>` on the server, with the server's own git credentials.
 pub fn clone_repo(ssh: &Ssh, cfg: &ServerCfg, name: &str, url: &str) -> Result<(), SshError> {
     cfg.validate().map_err(|e| SshError::invalid(e.to_string()))?;
-    if !valid_name(name) {
+    if !valid_repo_dir_name(name) {
         return Err(invalid("repository name"));
     }
     validate_git_url(url).map_err(|m| invalid(&format!("git url: {m}")))?;
@@ -218,12 +253,12 @@ mod tests {
     #[test]
     fn url_whitelist() {
         for u in [
-            "https://github.com/owner/repo.git",
+            "https://git.example.com/owner/repo.git",
             "https://gitlab.example.com:8443/group/sub/repo",
-            "ssh://git@github.com/owner/repo.git",
+            "ssh://git@git.example.com/owner/repo.git",
             "ssh://git@host:2222/srv/repo",
             "ssh://host/repo",
-            "git@github.com:owner/repo.git",
+            "git@git.example.com:owner/repo.git",
             "dev@10.0.0.5:/srv/git/repo.git",
             "deploy.bot@git.example.org:team/x",
         ] {
@@ -291,9 +326,9 @@ mod tests {
 
     #[test]
     fn redaction() {
-        assert_eq!(redact_url("https://u:tok@github.com/a/b.git"), "https://github.com/a/b.git");
-        assert_eq!(redact_url("https://github.com/a/b.git"), "https://github.com/a/b.git");
-        assert_eq!(redact_url("git@github.com:a/b.git"), "git@github.com:a/b.git");
+        assert_eq!(redact_url("https://u:tok@git.example.com/a/b.git"), "https://git.example.com/a/b.git");
+        assert_eq!(redact_url("https://git.example.com/a/b.git"), "https://git.example.com/a/b.git");
+        assert_eq!(redact_url("git@git.example.com:a/b.git"), "git@git.example.com:a/b.git");
         assert_eq!(redact_url("https://host/a@b"), "https://host/a@b");
         assert_eq!(redact_url("ssh://git@host/x"), "ssh://host/x");
     }
@@ -308,6 +343,38 @@ mod tests {
     fn git(dir: &std::path::Path, args: &[&str]) {
         let st = Command::new("git").arg("-C").arg(dir).args(args).status().unwrap();
         assert!(st.success(), "{args:?}");
+    }
+
+    #[test]
+    fn two_spellings_of_one_origin_are_one_repository() {
+        for (a, b) in [
+            ("https://git.example.com/org/repo.git", "git@git.example.com:org/repo.git"),
+            ("https://git.example.com/org/repo", "https://git.example.com/org/repo.git"),
+            ("https://user:token@git.example.com/org/repo.git", "ssh://git@git.example.com/org/repo"),
+            ("ssh://git@git.example.com:22/org/repo.git", "git.example.com:org/repo"),
+            ("https://Git.Example.com/Org/Repo/", "git@git.example.com:org/repo.git"),
+            ("git://example.com/o/r.git", "https://example.com/o/r"),
+        ] {
+            assert!(same_origin(a, b), "{a} vs {b}");
+            assert!(same_origin(b, a), "{b} vs {a}");
+        }
+        for (a, b) in [
+            ("https://git.example.com/org/repo.git", "https://git.example.com/org/other.git"),
+            ("https://git.example.com/org/repo.git", "https://git.example.com/fork/repo.git"),
+            ("https://git.example.com/org/repo.git", "https://other.example.com/org/repo.git"),
+            ("git@git.example.com:org/repo.git", "git@git.example.com:org/repo-two.git"),
+            ("", ""),
+        ] {
+            assert!(!same_origin(a, b), "{a} vs {b}");
+        }
+    }
+
+    #[test]
+    fn a_hidden_folder_is_not_a_repository_name() {
+        let ssh = Ssh::from_bin(Some("/nonexistent/ssh".into()), std::path::PathBuf::new());
+        let cfg = ServerCfg { id: "s".into(), name: "S".into(), destination: "dev@host".into(), port: None, root: "~".into(), max_agents: 1, enabled: true };
+        assert!(repo_states(&ssh, &cfg, &[".ssh".to_string()]).is_err());
+        assert!(clone_repo(&ssh, &cfg, ".aws", "https://example.com/o/r.git").is_err());
     }
 
     #[test]
@@ -373,14 +440,14 @@ mod tests {
             "git",
             "printf '%s\\n' \"$@\" > \"$HOME/git-args\"\nfor last; do :; done\nmkdir -p \"$last/.git\"",
         );
-        clone_repo(&f.ssh, &f.cfg, "my-repo", "https://github.com/o/it's.git").unwrap_err();
+        clone_repo(&f.ssh, &f.cfg, "my-repo", "https://git.example.com/o/it's.git").unwrap_err();
         // the apostrophe is not in the whitelist
         assert!(!f.home.join("git-args").exists());
-        clone_repo(&f.ssh, &f.cfg, "my-repo", "https://github.com/o/r.git").unwrap();
+        clone_repo(&f.ssh, &f.cfg, "my-repo", "https://git.example.com/o/r.git").unwrap();
         let args: Vec<String> = std::fs::read_to_string(f.home.join("git-args")).unwrap().lines().map(String::from).collect();
         assert_eq!(args[..5], ["clone", "-c", "protocol.ext.allow=never", "-c", "protocol.file.allow=never"]);
         assert_eq!(args[5], "--");
-        assert_eq!(args[6], "https://github.com/o/r.git");
+        assert_eq!(args[6], "https://git.example.com/o/r.git");
         assert_eq!(args[7], f.home.join("work/my-repo").to_str().unwrap());
         assert!(f.home.join("work/my-repo/.git").is_dir());
     }

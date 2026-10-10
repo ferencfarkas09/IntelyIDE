@@ -7,7 +7,6 @@
 
 use std::collections::HashMap;
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
@@ -151,9 +150,10 @@ pub struct RemoteEnv {
     pub registry: Arc<ServerRegistry>,
 }
 
-/// A name the host puts on the server's disk: letters, digits, `.`, `_`, `-`; not empty, not `.` or `..`, no leading dash.
+/// A name the host puts on the server's disk: letters, digits, `.`, `_`, `-`; not empty, no leading dot (a hidden folder such as `.ssh`
+/// would be the server's own) and no leading dash.
 pub fn valid_dir_name(name: &str) -> bool {
-    !name.is_empty() && name.len() <= 100 && name != "." && name != ".." && !name.starts_with('-') && name.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'))
+    intely_servers::valid_repo_dir_name(name)
 }
 
 /// Where a local repository lives on a server: `<root>/<its folder name>`, with `~` of the root taken as the server's home.
@@ -170,32 +170,22 @@ pub fn remote_dir(cfg: &ServerCfg, home: &str, repo: &Path) -> Option<String> {
     Some(format!("{root}/{name}"))
 }
 
-/// Sends `fs/query` down the sidecar of the server and remembers when it could not (no sidecar, a timeout, an error reply, a short
-/// answer): the decision that used it is then denied instead of trusted.
+/// Sends `fs/query` down the sidecar of the server. A request that gets no usable answer (no sidecar, a timeout, an error reply, a
+/// result list of the wrong length) is `None`; the view on top ([`RpcFs`]) tells the decision that used it, and the decision is denied.
 pub struct SidecarFs {
     call: Box<dyn Fn(Value) -> Option<Value> + Send + Sync>,
-    failed: AtomicBool,
 }
 
 impl SidecarFs {
     pub fn new(call: impl Fn(Value) -> Option<Value> + Send + Sync + 'static) -> Self {
-        Self { call: Box::new(call), failed: AtomicBool::new(false) }
-    }
-
-    /// Whether a look failed since the last call; clears the mark.
-    pub fn take_failed(&self) -> bool {
-        self.failed.swap(false, Ordering::SeqCst)
+        Self { call: Box::new(call) }
     }
 }
 
 impl FsTransport for SidecarFs {
     fn query(&self, ops: Vec<Value>) -> Option<Vec<Value>> {
         let n = ops.len();
-        let results = (self.call)(json!({"ops": ops})).and_then(|r| r.get("results").and_then(Value::as_array).cloned()).filter(|r| r.len() == n);
-        if results.is_none() {
-            self.failed.store(true, Ordering::SeqCst);
-        }
-        results
+        (self.call)(json!({"ops": ops})).and_then(|r| r.get("results").and_then(Value::as_array).cloned()).filter(|r| r.len() == n)
     }
 }
 
@@ -219,7 +209,7 @@ mod tests {
         assert_eq!(remote_dir(&cfg("~"), "/home/dev/", &repo).as_deref(), Some("/home/dev/orders-api"));
         assert_eq!(remote_dir(&cfg("/srv/repos/"), "/home/dev", &repo).as_deref(), Some("/srv/repos/orders-api"));
         // a folder name the host would not put on a server's disk
-        for bad in ["/x/-rf", "/x/a b", "/x/a;b", "/x/..", "/", "/x/ä"] {
+        for bad in ["/x/-rf", "/x/a b", "/x/a;b", "/x/..", "/", "/x/ä", "/x/.ssh", "/x/.aws", "/x/.hidden"] {
             assert_eq!(remote_dir(&cfg("~/work"), "/home/dev", Path::new(bad)), None, "{bad}");
         }
     }
@@ -240,15 +230,13 @@ mod tests {
     }
 
     #[test]
-    fn a_failed_look_is_remembered_once() {
+    fn a_look_without_a_usable_answer_is_none() {
         let fs = SidecarFs::new(|body| (body["ops"].as_array().map(Vec::len) == Some(1)).then(|| json!({"results": [{"ok": true}]})));
         assert!(fs.query(vec![json!({"op": "stat", "path": "/a"})]).is_some());
-        assert!(!fs.take_failed());
-        // a reply with fewer results than ops is a failed look; so is no reply
+        // a reply with fewer results than ops is no answer; neither is no reply, nor an error reply
         assert!(fs.query(vec![json!({}), json!({})]).is_none());
-        assert!(fs.take_failed() && !fs.take_failed());
-        let dead = SidecarFs::new(|_| None);
-        assert!(dead.query(vec![json!({})]).is_none() && dead.take_failed());
+        assert!(SidecarFs::new(|_| None).query(vec![json!({})]).is_none());
+        assert!(SidecarFs::new(|_| Some(json!({"error": "bad_request"}))).query(vec![json!({})]).is_none());
     }
 
     #[test]

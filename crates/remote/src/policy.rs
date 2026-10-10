@@ -259,6 +259,11 @@ pub fn eligibility(ctx: &PolicyContext, intent: &ToolIntent, list: &LowList) -> 
         // whatever the broker says (an unattended mode allows it): the phone never approves an MCP call, it would see only `server: tool`
         return (Eligibility::DesktopOnly, "MCP tools are approved on the Mac");
     }
+    if ctx.fs.as_ref().is_some_and(|fs| !fs.is_local()) {
+        // The rest of this function looks at paths on THIS Mac (the jail, the analysis of a command). A run on a server has its files
+        // there, so the answer would come from the wrong disk: such a request is approved at the desktop.
+        return (Eligibility::DesktopOnly, "a run on a server is approved on the Mac");
+    }
     let req = PolicyRequest { agent_id: String::new(), tool_id: String::new(), provider: String::new(), intent: intent.clone() };
     let d = decide(ctx, &req);
     match d.decision {

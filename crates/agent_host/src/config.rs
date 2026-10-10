@@ -132,6 +132,9 @@ pub struct HostConfig {
     pub role_resolver: Option<RoleResolver>,
     /// How long `session/start` may take (the Claude CLI needs a few seconds to initialise).
     pub start_timeout: Duration,
+    /// How long a finished run on a server keeps its session (and its `claude` process there) for follow-up messages before it is
+    /// closed; it resumes with the next message. The same ten minutes as a run on this Mac.
+    pub remote_idle: Duration,
     /// Scripted fake ACP agent for one provider (`INTELY_E2E` runs only); `None` in production.
     pub acp_mock: Option<AcpMock>,
     /// Confirmed experimental providers; `None` = none exist (tests, mock-only runs). Nothing but Claude starts without an entry.
@@ -178,6 +181,7 @@ impl HostConfig {
             policy_fault: None,
             role_resolver: None,
             start_timeout: Duration::from_secs(60),
+            remote_idle: intely_agent_gate::gate::reaper::DEFAULT_IDLE,
             acp_mock: None,
             launch: None,
             cli_version: None,

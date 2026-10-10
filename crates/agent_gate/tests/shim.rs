@@ -475,7 +475,8 @@ fn a_remote_shim_is_the_same_script_with_the_remote_paths() {
         let out = run(cmd);
         assert_eq!(out.status.code(), Some(REFUSED_EXIT as i32), "{cmd}: {out:?}");
     }
-    assert!(std::fs::read_to_string(&log).unwrap().contains("git commit -m x"), "the refusal is logged where the script was told to log it");
+    let logged = std::fs::read_to_string(&log).unwrap_or_default();
+    assert!(logged.contains("\tcommit -m x") && logged.contains(&dir.display().to_string()), "the refusal is logged where the script was told to log it: {logged:?}");
     // a read-only shim also refuses git add of a real file
     let ro = shim::render_remote(real.to_str().unwrap(), log.to_str().unwrap(), false).unwrap();
     assert!(ro.contains("ALLOW_ADD=0"));
