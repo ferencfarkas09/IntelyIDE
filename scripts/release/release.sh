@@ -253,7 +253,9 @@ verify_dmg() {
     xcrun stapler validate -q "$OUT/$DMG" || { echo "the disk image carries no notarization ticket" >&2; rc=1; }
     spctl --assess --type open --context context:primary-signature "$OUT/$DMG" 2>&1 || rc=1
     spctl --assess --type execute "$mnt/IntelyIDE.app" 2>&1 || rc=1
-    codesign -d --verbose=2 "$mnt/IntelyIDE.app" 2>&1 | grep -q 'flags=.*runtime' || { echo "the app lacks the hardened runtime" >&2; rc=1; }
+    # read the whole output first: under pipefail, grep -q closing the pipe early fails the pipeline
+    sig="$(codesign -d --verbose=2 "$mnt/IntelyIDE.app" 2>&1 || true)"
+    [[ "$sig" == *"flags="*"runtime"* ]] || { echo "the app lacks the hardened runtime" >&2; rc=1; }
   fi
   $PACK check-app --app "$mnt/IntelyIDE.app" --version "$VERSION" || rc=1
   [ -L "$mnt/Applications" ] || { echo "no Applications link in the image" >&2; rc=1; }
