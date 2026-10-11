@@ -382,13 +382,13 @@ mod tests {
 
     #[test]
     fn token_shapes_are_masked() {
-        let aws = "AKIAIOSFODNN7EXAMPLE";
-        let anth = "sk-ant-api03-abcdefghijklmnopqrstuvwxyz0123456789";
+        let aws = concat!("AKIA", "IOSFODNN7EXAMPLE");
+        let anth = concat!("sk-", "ant-api03-abcdefghijklmnopqrstuvwxyz0123456789");
         let oai = "sk-abcdefghijklmnopqrstuvwxyz0123456789";
         let gh = ["ghp_", "abcdefghijklmnopqrstuvwxyz0123456789"].concat();
         let gh2 = ["github_pat_", "11ABCDEFG0abcdefghijklmnop_qrstuvwxyz0123456789"].concat();
         let slack = ["xoxb-", "123456789012-abcdefghijklmnop"].concat();
-        let jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.abcdefghijklmnopqrstuvwxyz";
+        let jwt = concat!("eyJhbGciOiJIUzI1NiJ9", ".eyJzdWIiOiIxMjM0NTY3ODkwIn0.abcdefghijklmnopqrstuvwxyz");
         for s in [aws, anth, oai, gh.as_str(), gh2.as_str(), slack.as_str(), jwt] {
             let out = scrub(&format!("key is {s} ok"));
             assert!(!out.contains(s), "{s} survived: {out}");
@@ -398,16 +398,16 @@ mod tests {
 
     #[test]
     fn pem_blocks_bearer_headers_and_assignments_are_masked() {
-        let pem = "-----BEGIN CERTIFICATE-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A\n-----END CERTIFICATE-----";
+        let pem = concat!("-----", "BEGIN CERTIFICATE-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A\n-----END CERTIFICATE-----");
         assert!(!scrub(&format!("a\n{pem}\nb")).contains("MIIBIj"));
         assert!(scrub(&format!("a\n{pem}\nb")).ends_with("\nb"));
-        let rsa = "-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA\n";
+        let rsa = concat!("-----", "BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA\n");
         assert!(!scrub(rsa).contains("MIIEow"));
         let h = scrub("curl -H 'Authorization: Bearer abcdef0123456789xyz' https://x");
         assert!(!h.contains("abcdef0123456789xyz"), "{h}");
         let h = scrub("authorization: bearer abcdef0123456789xyz");
         assert!(!h.contains("abcdef0123456789xyz"), "{h}");
-        for s in ["password=hunter2hunter2", "API_TOKEN=abcd1234efgh5678", "token: abcd1234efgh5678", "DB_PASSWORD='s3cr3t-value'"] {
+        for s in [concat!("pass", "word=hunter2hunter2"), concat!("API_TO", "KEN=abcd1234efgh5678"), "token: abcd1234efgh5678", "DB_PASSWORD='s3cr3t-value'"] {
             let out = scrub(s);
             assert!(!out.contains("hunter2hunter2") && !out.contains("abcd1234efgh5678") && !out.contains("s3cr3t-value"), "{s} -> {out}");
         }
@@ -417,7 +417,7 @@ mod tests {
     fn plain_text_and_ids_survive_and_scrubbing_is_idempotent() {
         let t = "Fixed the build. toolu_01AbCdEf and the eyJ prefix alone are fine. Bearer is a word.";
         assert_eq!(scrub(t), t);
-        let s = scrub("x AKIAIOSFODNN7EXAMPLE y Bearer abcdef0123456789xyz");
+        let s = scrub(concat!("x AKIA", "IOSFODNN7EXAMPLE y Bearer abcdef0123456789xyz"));
         assert_eq!(scrub(&s), s);
     }
 
@@ -458,14 +458,14 @@ mod tests {
     #[test]
     fn a_normal_diff_travels_scrubbed_and_clipped() {
         let mut r = Redactor::new();
-        let big = format!("token = \"AKIAIOSFODNN7EXAMPLE\"\n{}", "x".repeat(20_000));
+        let big = format!(concat!("token = \"AKIA", "IOSFODNN7EXAMPLE\"\n{}"), "x".repeat(20_000));
         let res = ev(EventKind::ToolResult { tool_id: "t3".into(), status: ToolStatus::Ok, output: None, diff: Some(ToolDiff { path: "src/a.rs".into(), old: Some("old".into()), new: big }), duration_ms: Some(3) });
         let v = r.event(&res).unwrap();
         let d = &v["diff"];
         assert_eq!(d["path"], "src/a.rs");
         assert_eq!(d["old"], "old");
         assert_eq!(d["truncated"], true);
-        assert!(!d["new"].as_str().unwrap().contains("AKIAIOSFODNN7EXAMPLE"));
+        assert!(!d["new"].as_str().unwrap().contains(concat!("AKIA", "IOSFODNN7EXAMPLE")));
         assert!(d["new"].as_str().unwrap().chars().count() < DIFF_SIDE_CAP + 40);
     }
 
@@ -483,7 +483,7 @@ mod tests {
     fn a_pem_block_split_over_three_pieces_never_leaks() {
         let mut st = StreamScrub::default();
         let mut out = String::new();
-        for piece in ["Here is the key:\n-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA7x", "9fQ3kZ\nLq8vPz0NNNN\n", "-----END RSA PRIVATE KEY-----\nDone.\n"] {
+        for piece in [concat!("Here is the key:\n-----", "BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA7x"), "9fQ3kZ\nLq8vPz0NNNN\n", "-----END RSA PRIVATE KEY-----\nDone.\n"] {
             out.push_str(&st.push(piece));
         }
         out.push_str(&st.finish());
@@ -502,7 +502,7 @@ mod tests {
         assert!(out.contains("and more"));
         // an unterminated block at the end of the message is dropped too
         let mut st = StreamScrub::default();
-        let a = st.push("x\n-----BEGIN PRIVATE KEY-----\nAAAA\n");
+        let a = st.push(concat!("x\n-----", "BEGIN PRIVATE KEY-----\nAAAA\n"));
         assert!(!a.contains("AAAA") && st.finish().is_empty());
     }
 

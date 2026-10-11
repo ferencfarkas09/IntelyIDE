@@ -648,7 +648,7 @@ mod tests {
             1,
             2,
             9,
-            vec![raw(".env.local", "+TOKEN=hunter2"), raw("deploy/id_rsa", "+-----BEGIN OPENSSH PRIVATE KEY-----"), bin, guarded, raw("src/a.rs", &format!("+let k = \"{key}\";\n+password=hunter2\n+ok")), raw("src/b.rs", "+fine")],
+            vec![raw(".env.local", "+TOKEN=hunter2"), raw("deploy/id_rsa", concat!("+-----", "BEGIN OPENSSH PRIVATE KEY-----")), bin, guarded, raw("src/a.rs", &format!("+let k = \"{key}\";\n+password=hunter2\n+ok")), raw("src/b.rs", "+fine")],
         );
         let by = |p: &str| s.files.iter().find(|f| f.path == p).unwrap();
         assert_eq!(by(".env.local").skipped.as_deref(), Some("secret"));

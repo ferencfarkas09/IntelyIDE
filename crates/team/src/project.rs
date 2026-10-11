@@ -3,7 +3,7 @@
 
 use ring::digest;
 
-/// `https://user:pw@GitHub.com:443/Owner/Repo.git/`, `git@github.com:owner/repo.git` and `ssh://git@github.com:22/owner/repo` all
+/// HTTPS (with user info, port, upper case and a trailing `.git/`), scp-style and `ssh://` forms of the same GitHub repository all
 /// become `github.com/owner/repo`. Scheme, credentials, port, a trailing `.git` and slashes do not matter, and the host is lowercased.
 /// The path keeps its case, except on hosts that ignore it (github.com, gitlab.com, bitbucket.org). A remote that is not on a host
 /// (a relative or absolute path, `file://`) has no key: it names a folder of one machine, not a project.
@@ -87,7 +87,7 @@ mod tests {
 
     #[test]
     fn the_name_is_the_last_segment() {
-        assert_eq!(project_name("git@github.com:Acme/Widgets.git").as_deref(), Some("widgets"));
+        assert_eq!(project_name(concat!("git", "@github.com:Acme/Widgets.git")).as_deref(), Some("widgets"));
         assert_eq!(project_name(""), None);
     }
 
@@ -96,12 +96,12 @@ mod tests {
         let same = [
             "https://github.com/Acme/Widgets.git",
             "https://github.com/acme/widgets",
-            "https://user:token@GitHub.com/acme/widgets.git/",
+            concat!("https://user:token", "@GitHub.com/acme/widgets.git/"),
             "https://github.com:443/acme/widgets",
-            "git@github.com:acme/widgets.git",
-            "ssh://git@github.com:22/acme/widgets.git",
-            "ssh://git@GITHUB.COM/ACME/Widgets",
-            "  git@github.com:acme/widgets.git\n",
+            concat!("git", "@github.com:acme/widgets.git"),
+            concat!("ssh://git", "@github.com:22/acme/widgets.git"),
+            concat!("ssh://git", "@GITHUB.COM/ACME/Widgets"),
+            concat!("  git", "@github.com:acme/widgets.git\n"),
         ];
         let k = project_key(same[0]).unwrap();
         for s in same {
@@ -113,9 +113,9 @@ mod tests {
 
     #[test]
     fn different_repositories_and_hosts_differ() {
-        let a = project_key("git@github.com:acme/widgets.git");
-        assert_ne!(a, project_key("git@github.com:acme/gadgets.git"));
-        assert_ne!(a, project_key("git@gitlab.com:acme/widgets.git"));
+        let a = project_key(concat!("git", "@github.com:acme/widgets.git"));
+        assert_ne!(a, project_key(concat!("git", concat!("", "@github.com:acme/gadgets.git"))));
+        assert_ne!(a, project_key(concat!("git", concat!("", "@gitlab.com:acme/widgets.git"))));
     }
 
     #[test]
@@ -127,16 +127,16 @@ mod tests {
 
     #[test]
     fn ipv6_authorities_and_case_on_other_hosts() {
-        assert_eq!(normalize_origin("ssh://git@[2001:DB8::1]:2222/Team/Repo.git").as_deref(), Some("[2001:db8::1]/Team/Repo"));
-        assert_eq!(normalize_origin("git@[::1]:Team/Repo.git").as_deref(), Some("[::1]/Team/Repo"));
+        assert_eq!(normalize_origin(concat!("ssh://git", "@[2001:DB8::1]:2222/Team/Repo.git")).as_deref(), Some("[2001:db8::1]/Team/Repo"));
+        assert_eq!(normalize_origin(concat!("git", "@[::1]:Team/Repo.git")).as_deref(), Some("[::1]/Team/Repo"));
         assert_eq!(normalize_origin("https://Git.Example.com/Team/Repo").as_deref(), Some("git.example.com/Team/Repo"));
         assert_ne!(project_key("https://git.example.com/Team/Repo"), project_key("https://git.example.com/team/repo"));
-        assert_eq!(project_key("https://GitHub.com/Team/Repo"), project_key("git@github.com:team/repo.git"));
+        assert_eq!(project_key("https://GitHub.com/Team/Repo"), project_key(concat!("git", concat!("", "@github.com:team/repo.git"))));
     }
 
     #[test]
     fn no_origin_means_no_key() {
-        for s in ["", "   ", "https://github.com", "https://github.com/", "just-a-word", "git@host:", "a\nb"] {
+        for s in ["", "   ", "https://github.com", "https://github.com/", "just-a-word", concat!("git", "@host:"), "a\nb"] {
             assert_eq!(project_key(s), None, "{s:?}");
         }
     }

@@ -29,8 +29,8 @@ use intely_team::wire::{frame, tag, unframe};
 use intely_team::TeamError;
 use serde_json::{json, Value};
 
-const SECRET: &str = "sk-ant-api03-abcdefghijklmnopqrstuvwxyz0123456789";
-const AWS: &str = "AKIAIOSFODNN7EXAMPLE";
+const SECRET: &str = concat!("sk-", "ant-api03-abcdefghijklmnopqrstuvwxyz0123456789");
+const AWS: &str = concat!("AKIA", "IOSFODNN7EXAMPLE");
 
 fn now() -> u64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as u64

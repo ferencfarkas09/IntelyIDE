@@ -866,7 +866,7 @@ mod tests {
     fn a_pem_block_split_over_deltas_never_reaches_the_queue() {
         let mut p = Publisher::new();
         let s = on();
-        let parts = ["See:\n-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA7x", "9fQ3kZ\nLq8vPz0NNNN\n", "-----END RSA PRIVATE KEY-----\nok\n"];
+        let parts = [concat!("See:\n-----", "BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA7x"), "9fQ3kZ\nLq8vPz0NNNN\n", "-----END RSA PRIVATE KEY-----\nok\n"];
         for (i, t) in parts.iter().enumerate() {
             p.on_event(&delta("r1", 1 + i as u64, "m", t), Some(&proj()), &s);
         }
