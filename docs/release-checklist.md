@@ -1,6 +1,6 @@
 # Release checklist
 
-This is the maintainer's short checklist for publishing an IntelyIDE release as it is done today: a local ad-hoc build for Intel Macs, a styled disk image and a GitHub release created by hand. Applies to version 1.3.0.
+This is the maintainer's short checklist for publishing an IntelyIDE release as it is done today: a local build for Intel Macs, signed with a Developer ID and notarized, a styled disk image and a GitHub release created by hand. Applies to version 1.3.0.
 
 Contributors do not need this page. The long form of each step is in [releasing.md](releasing.md) (versioning, gates, repository settings) and [packaging.md](packaging.md) (the build and the disk image). Nothing here is done by a script that signs, tags, pushes or publishes for you: those steps are yours.
 
@@ -24,7 +24,7 @@ Contributors do not need this page. The long form of each step is in [releasing.
 ## Publish
 
 - [ ] Create the annotated tag `v1.2.0` yourself, on the commit that passed, and push it yourself.
-- [ ] Create the GitHub release by hand, marked as the latest release, with the text from the changelog, the statement that the build is ad-hoc signed and not notarized, and the known limitations.
+- [ ] Create the GitHub release by hand, marked as the latest release, with the text from the changelog, the statement that the build is signed with a Developer ID and notarized, and the known limitations.
 - [ ] Attach the disk image and `SHA256SUMS`. Download them again through a browser and repeat the checksum check.
 - [ ] Switch the README installer block with `node scripts/release/readme-toggle.mjs --dmg adhoc`, run `pnpm release:check-readme`, and commit the result as an ordinary change.
 - [ ] Tell nobody the release is out before the two download checks above are done.

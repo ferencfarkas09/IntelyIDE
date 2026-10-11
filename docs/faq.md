@@ -56,7 +56,7 @@ macOS 13.5 or later. There are two DMGs. The `aarch64` DMG is for Apple silicon 
 
 ### macOS shows a warning when I open the app
 
-The 1.2.0 DMG is signed ad hoc unless the release notes say it is notarized. After verifying the download as described in [install-macos.md](install-macos.md), macOS 15 and later: open System Settings > Privacy & Security and choose Open Anyway. macOS 13 and 14: right-click the app and choose Open. Do not weaken Gatekeeper for this.
+The 1.3.0 DMG and app are signed with a Developer ID and notarized by Apple, so macOS opens them normally. Builds older than 1.3.0 are signed ad hoc and not notarized; for those, after verifying the download as described in [install-macos.md](install-macos.md), macOS 15 and later: open System Settings > Privacy & Security and choose Open Anyway. macOS 13 and 14: right-click the app and choose Open. Do not weaken Gatekeeper for this.
 
 ### What does the orange "Read-only" badge mean?
 

@@ -132,6 +132,15 @@ describe("checksums, notes and site data", () => {
     assert.equal(r.assets[0].url, "https://github.com/ferencfarkas09/IntelyIDE/releases/download/v1.0.1/IntelyIDE_1.0.1_x64.dmg");
     assert.equal(r.sha256sumsUrl, "https://github.com/ferencfarkas09/IntelyIDE/releases/download/v1.0.1/SHA256SUMS");
     assert.equal(r.appleSiliconPlanned, false);
+    assert.equal(r.signed, false);
+  });
+
+  it("drops the Open Anyway steps for a notarized build and marks the site record signed", () => {
+    const notes = renderNotes({ version: "1.0.1", dmg, sbom, body: "", notarized: true });
+    assert.match(notes, /notarized by Apple/);
+    assert.doesNotMatch(notes, /Open Anyway/);
+    assert.match(renderNotes({ version: "1.0.1", dmg, sbom, body: "" }), /Open Anyway/);
+    assert.equal(siteRelease({ version: "1.0.1", date: "2026-10-08", dmg, notarized: true }).signed, true);
   });
 });
 

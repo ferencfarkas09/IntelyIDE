@@ -38,14 +38,24 @@ Some features still need files of the source tree and therefore work only in a b
 
 ## First launch
 
-The 1.2.0 build is signed ad hoc and is not notarized by Apple, so macOS refuses to open it the first time and says it cannot verify the app. This is expected for this build. Confirm once, and only for a file you downloaded from this repository's Releases page:
+From 1.3.0 on the app is signed with a Developer ID and notarized by Apple, and the notarization ticket is stapled to the app and to the disk image. Open IntelyIDE from Applications as usual; macOS does not ask you to confirm it.
+
+To check an installed copy:
+
+```sh
+spctl --assess --type execute --verbose /Applications/IntelyIDE.app
+```
+
+It should print `accepted` and `source=Notarized Developer ID`.
+
+After you update from 1.1.1 or earlier, macOS may ask once for Keychain access to items that the earlier version saved. Choose Always Allow. After that the signing identity stays the same across releases, so the question does not come back.
+
+Builds older than 1.3.0 are signed ad hoc and are not notarized, so macOS refuses to open them the first time and says it cannot verify the app. For those builds, confirm once, and only for a file you downloaded from this repository's Releases page:
 
 - **macOS 15 and later.** Try to open the app, then open System Settings > Privacy & Security, scroll to the message about IntelyIDE, choose Open Anyway and confirm. Control-click no longer works on these versions.
 - **macOS 13 and 14.** Right-click the app and choose Open, then choose Open in the dialog.
 
-After that the app opens normally. Do not turn off Gatekeeper or change other security settings for this app.
-
-An ad-hoc signed build gets a new identity with every release. After you replace the app with a newer version, macOS may ask again for Keychain and folder access, and secrets that the Keychain refuses to hand over are kept in memory for the session only (the app tells you).
+After that the app opens normally. Do not turn off Gatekeeper or change other security settings for this app. An ad-hoc build gets a new identity with every release, so macOS may ask again for Keychain and folder access after you replace it.
 
 What happens next is described in [getting-started.md](getting-started.md): the Welcome screen, workspaces and a first commit in a scratch repository.
 

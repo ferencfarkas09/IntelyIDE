@@ -58,7 +58,7 @@ A release can be withdrawn but not edited once releases are immutable (see "Repo
 |---|---|
 | `pnpm release:status` | Shows where you are (version, HEAD, CI of HEAD, whether the artifacts are complete). Changes nothing. |
 | `pnpm release:preflight` | The checks only: tools; the version in every file; the changelog section; `main` with a clean tree that equals `origin/main`; a green CI run for HEAD; the tag and the release do not exist; the contact, README, docs, public-tree and telemetry checks. |
-| `pnpm release:build` | Builds the app from the commit, replaces the builder's path in the executable, checks the bundle against its sources (sidecar, SDK installer, SDK pin files), makes the ad-hoc signed disk image, mounts and verifies it, and writes `dist-release/<version>/`: the disk image, `SHA256SUMS`, the SBOM, `RELEASE_NOTES.md`, `build-record.json`. It also writes `site/data/release.json`: commit that file and push it before publishing. Nothing is rebuilt when the folder is complete for the commit (`--rebuild` forces it). |
+| `pnpm release:build` | Builds the app from the commit, replaces the builder's path in the executable, checks the bundle against its sources (sidecar, SDK installer, SDK pin files), makes the disk image signed with a Developer ID and notarized (or ad hoc signed with `--ad-hoc`), mounts and verifies it, and writes `dist-release/<version>/`: the disk image, `SHA256SUMS`, the SBOM, `RELEASE_NOTES.md`, `build-record.json`. It also writes `site/data/release.json`: commit that file and push it before publishing. Nothing is rebuilt when the folder is complete for the commit (`--rebuild` forces it). |
 | `pnpm release:publish` | Asks you to type the tag, creates the annotated tag on the commit the image was built from, pushes it, creates a draft release with the three files, checks the files and their sizes, publishes it as the stable latest release and downloads it anonymously to compare with `SHA256SUMS`. |
 | `pnpm release` | Preflight, build and publish. |
 
@@ -179,4 +179,17 @@ Both files are code-owner protected. A change to either is announced in the rele
 
 ## Signed builds
 
-The releases so far are ad-hoc signed: there is no Developer ID certificate and no notarization, and the release notes say so. macOS asks for a one-time confirmation on first launch (see [install-macos.md](install-macos.md)). Do not describe a build as signed or notarized unless the `release-<arch>.json` record of that build says it was.
+From 1.3.0 on the app and the disk image are signed with a Developer ID Application certificate and notarized by Apple, with the ticket stapled to both. This is the default of `pnpm release:build`. Earlier releases are ad-hoc signed and not notarized; macOS asks for a one-time confirmation on first launch of those (see [install-macos.md](install-macos.md)). Do not describe a build as signed or notarized unless the `release-<arch>.json` record of that build says it was.
+
+One-time setup on the build Mac:
+
+1. A Developer ID Application certificate in the login keychain. Only the Account Holder of the Apple Developer team can create it, from a certificate signing request (CSR) made on the Mac.
+2. A notarization profile, from an App Store Connect API key (`AuthKey_<ID>.p8`):
+
+   ```sh
+   xcrun notarytool store-credentials <profile> --key <AuthKey.p8> --key-id <ID> --issuer <issuer UUID>
+   ```
+
+3. The two environment variables for the build: `INTELY_SIGN_IDENTITY` (the name of the certificate, as `security find-identity -v -p codesigning` lists it) and `INTELY_NOTARY_PROFILE` (the profile name).
+
+Without these, use `pnpm release:build -- --ad-hoc` to make the ad-hoc build of earlier releases.

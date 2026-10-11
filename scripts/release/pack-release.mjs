@@ -3,7 +3,7 @@
 //
 //   node scripts/release/pack-release.mjs check-app   --app <IntelyIDE.app> --version <X.Y.Z> [--home <dir>] [--forbid <text>]...
 //   node scripts/release/pack-release.mjs patch-paths --app <IntelyIDE.app> [--home <dir>]
-//   node scripts/release/pack-release.mjs finalize    --version <X.Y.Z> --dmg <file> --out <dir> --commit <sha> [--date YYYY-MM-DD]
+//   node scripts/release/pack-release.mjs finalize    --version <X.Y.Z> --dmg <file> --out <dir> --commit <sha> [--date YYYY-MM-DD] [--notarized yes]
 //                                                     [--site-data <release.json>] [--repo OWNER/REPO]
 //   node scripts/release/pack-release.mjs verify      --version <X.Y.Z> --out <dir> [--commit <sha>] [--site-data <release.json>]
 //
@@ -153,7 +153,7 @@ export function parseSums(text) {
 const demote = (md) => md.replace(/^(#{2,5}) /gm, (_, h) => `${h}# `);
 
 /** The text of the GitHub release. Facts only: what is attached, how to verify and install, what changed. */
-export function renderNotes({ version, repo = REPO, dmg, sbom, body }) {
+export function renderNotes({ version, repo = REPO, dmg, sbom, body, notarized = false }) {
   const base = `https://github.com/${repo}/blob/main`;
   return `# IntelyIDE ${version}
 
@@ -170,7 +170,7 @@ The stable release of IntelyIDE, a desktop Git client for several repositories a
 ## Install
 
 1. Open \`${dmg.name}\`, drag IntelyIDE to Applications, eject the image and open the app from Applications.
-2. The app is signed ad hoc and is not notarized, so macOS refuses the first launch. On macOS 15 and later open System Settings > Privacy & Security, scroll to the message about IntelyIDE, choose Open Anyway and confirm. On macOS 13 and 14 right-click the app and choose Open. Do this only for a file you downloaded from this repository's Releases page.
+2. ${notarized ? "The app is signed with the maintainer's Developer ID and notarized by Apple, so it opens without a Gatekeeper warning. To check: `spctl --assess --type execute --verbose /Applications/IntelyIDE.app` prints `accepted` and `source=Notarized Developer ID`." : "The app is signed ad hoc and is not notarized, so macOS refuses the first launch. On macOS 15 and later open System Settings > Privacy & Security, scroll to the message about IntelyIDE, choose Open Anyway and confirm. On macOS 13 and 14 right-click the app and choose Open. Do this only for a file you downloaded from this repository's Releases page."}
 3. Agent runs also need Node.js 24 or newer, your own Claude Code login and the Claude Agent SDK, which you install once with the installer inside the app: \`node '/Applications/IntelyIDE.app/Contents/Resources/sidecar/sdk-install.js' --yes\` (run it with \`--plan\` first to see what it would download). The Git features work without any of this. Details: [docs/install-macos.md](${base}/docs/install-macos.md) and [docs/getting-started.md](${base}/docs/getting-started.md).
 
 ## Verify the download
@@ -191,7 +191,7 @@ ${demote(body)}
 }
 
 /** The site's download data (site/data/release.json). */
-export function siteRelease({ version, date, dmg, repo = REPO, previous = {} }) {
+export function siteRelease({ version, date, dmg, repo = REPO, previous = {}, notarized = false }) {
   const tag = `v${version}`;
   return {
     _comment: previous._comment ?? "Single source of truth for every download fact on the site. Written by `pnpm release:build`; do not edit by hand.",
@@ -199,7 +199,7 @@ export function siteRelease({ version, date, dmg, repo = REPO, previous = {} }) 
     status: "stable",
     date,
     minMacOS: previous.minMacOS ?? "13.5",
-    signed: false,
+    signed: notarized,
     appleSiliconPlanned: previous.appleSiliconPlanned ?? true,
     notesUrl: `https://github.com/${repo}/releases/tag/${tag}`,
     sha256sumsUrl: `https://github.com/${repo}/releases/download/${tag}/SHA256SUMS`,
@@ -214,7 +214,7 @@ function runSbom(version, out, root) {
   if (r.status !== 0) throw new Fail(`sbom.mjs failed: ${(r.stderr || r.stdout).trim().split("\n").slice(-3).join(" | ")}`);
 }
 
-export function finalize({ version, dmg: dmgPath, out, commit, date, siteData, repo = REPO, root = ROOT }) {
+export function finalize({ version, dmg: dmgPath, out, commit, date, siteData, repo = REPO, root = ROOT, notarized = false }) {
   const name = `IntelyIDE_${version}_x64.dmg`;
   if (basename(dmgPath) !== name) throw new Fail(`the disk image must be named ${name}`, 2);
   if (!existsSync(dmgPath)) throw new Fail(`no disk image at ${dmgPath}`, 2);
@@ -229,13 +229,13 @@ export function finalize({ version, dmg: dmgPath, out, commit, date, siteData, r
   const changelog = readFileSync(join(root, "CHANGELOG.md"), "utf8");
   const section = changelogSection(changelog, version);
   const when = date ?? section.date ?? new Date().toISOString().slice(0, 10);
-  const notes = renderNotes({ version, repo, dmg, sbom, body: section.body });
+  const notes = renderNotes({ version, repo, dmg, sbom, body: section.body, notarized });
   // the publish-scan rules (and the owner's local needles, when that untracked file exists) over the text; rule ids and lines only
   const hits = scanText(notes, "release-notes.md", loadLocalNeedles(root));
   if (hits.length) throw new Fail(`the release notes trip the publish scan:\n  ${hits.map((h) => `line ${h.line}: ${h.rule}`).join("\n  ")}`);
   writeAtomic(join(out, "RELEASE_NOTES.md"), notes);
 
-  writeAtomic(join(out, "build-record.json"), JSON.stringify({ version, commit, date: when, files: { [dmg.name]: dmg, [sbom.name]: sbom }, signing: "ad hoc, not notarized" }, null, 2) + "\n");
+  writeAtomic(join(out, "build-record.json"), JSON.stringify({ version, commit, date: when, files: { [dmg.name]: dmg, [sbom.name]: sbom }, signing: notarized ? "developer id, notarized" : "ad hoc, not notarized" }, null, 2) + "\n");
 
   if (siteData) {
     let previous = {};
@@ -244,7 +244,7 @@ export function finalize({ version, dmg: dmgPath, out, commit, date, siteData, r
     } catch {
       /* first time */
     }
-    writeAtomic(siteData, JSON.stringify(siteRelease({ version, date: when, dmg, repo, previous }), null, 2) + "\n");
+    writeAtomic(siteData, JSON.stringify(siteRelease({ version, date: when, dmg, repo, previous, notarized }), null, 2) + "\n");
   }
   return { dmg, sbom, date: when };
 }
@@ -319,7 +319,7 @@ export function main(argv, io = { log: console.log, err: console.error }) {
     }
     if (cmd === "finalize") {
       need("version", "dmg", "out", "commit");
-      const r = finalize({ version: o.version, dmg: resolve(o.dmg), out: resolve(o.out), commit: o.commit, date: o.date, siteData: o.siteData ? resolve(o.siteData) : undefined, repo: o.repo ?? REPO });
+      const r = finalize({ version: o.version, dmg: resolve(o.dmg), out: resolve(o.out), commit: o.commit, date: o.date, siteData: o.siteData ? resolve(o.siteData) : undefined, repo: o.repo ?? REPO, notarized: o.notarized === "yes" });
       io.log(`finalize: ${r.dmg.name} ${r.dmg.size} bytes sha256 ${r.dmg.sha256}`);
       return 0;
     }

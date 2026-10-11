@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Hardened-runtime entitlements of the Developer ID build (the identity option of make-dmg.sh). Keep this list short: every key widens
+     what the signed app may do. The folder pickers and the notification banner run AppleScript, so Apple Events stay allowed. -->
+<plist version="1.0">
+<dict>
+	<key>com.apple.security.automation.apple-events</key>
+	<true/>
+</dict>
+</plist>

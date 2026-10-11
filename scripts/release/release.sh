@@ -15,6 +15,11 @@
 #   --smoke        build: start the finished app through the e2e scenarios a and m (opens windows; needs an unlocked screen)
 #   --skip-ci      publish: do not require a green CI run for HEAD (say why in the commit message of your decision)
 #   --version X.Y.Z  default: the version in package.json
+#   --ad-hoc       build: sign ad hoc and skip notarization (macOS then asks users to confirm the first launch)
+#
+# Signing (default): a Developer ID signature with hardened runtime, notarized and stapled. Set once in your shell:
+#   INTELY_SIGN_IDENTITY="Developer ID Application: <Team> (<TEAMID>)"   (security find-identity -v -p codesigning)
+#   INTELY_NOTARY_PROFILE=<name>   (xcrun notarytool store-credentials <name> --key <AuthKey.p8> --key-id <ID> --issuer <UUID>)
 #
 # What it never does: push to main, edit a file other than site/data/release.json, or touch anything outside this repository, dist-release/
 # and .scratch/. The tag is made on the commit the disk image was built from. HEAD may differ from that commit only in files that are not
@@ -31,7 +36,7 @@ NEUTRAL='^(site/|docs/|\.github/|scripts/ci/|scripts/release/(release\.sh$|[a-z-
 
 cmd="${1:-all}"
 [ $# -gt 0 ] && shift
-DRY=0 YES=0 DRAFT_ONLY=0 REBUILD=0 SMOKE=0 SKIP_CI=0 VERSION=""
+DRY=0 YES=0 DRAFT_ONLY=0 REBUILD=0 SMOKE=0 SKIP_CI=0 ADHOC=0 VERSION=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --) ;; # `pnpm release -- --dry-run` hands the separator on
@@ -41,8 +46,9 @@ while [ $# -gt 0 ]; do
     --rebuild) REBUILD=1 ;;
     --smoke) SMOKE=1 ;;
     --skip-ci) SKIP_CI=1 ;;
+    --ad-hoc) ADHOC=1 ;;
     --version) shift; VERSION="${1:-}" ;;
-    -h | --help) sed -n '2,24p' "$0"; exit 0 ;;
+    -h | --help) sed -n '2,30p' "$0"; exit 0 ;;
     *) echo "release: unknown option $1 (see --help)" >&2; exit 2 ;;
   esac
   shift
@@ -54,6 +60,9 @@ OUT="$ROOT/dist-release/$VERSION"
 DMG="IntelyIDE_${VERSION}_x64.dmg"
 SBOM="IntelyIDE_${VERSION}_x64.sbom.cdx.json"
 PACK="node scripts/release/pack-release.mjs"
+SIGN_ID="${INTELY_SIGN_IDENTITY:-}"
+NOTARY="${INTELY_NOTARY_PROFILE:-}"
+if [ "$ADHOC" = 1 ]; then SIGNING="ad hoc, not notarized"; else SIGNING="developer id, notarized"; fi
 
 if [ -t 1 ]; then B=$'\033[1m'; R=$'\033[31m'; G=$'\033[32m'; Y=$'\033[33m'; N=$'\033[0m'; else B=""; R=""; G=""; Y=""; N=""; fi
 step() { printf '\n%s== %s%s\n' "$B" "$*" "$N"; }
@@ -77,6 +86,17 @@ check_tools() {
   local t
   for t in git gh node pnpm python3 shasum hdiutil codesign lipo curl; do command -v "$t" >/dev/null 2>&1 || die "missing tool: $t"; done
   ok "tools: git gh node pnpm python3 shasum hdiutil codesign lipo curl"
+}
+
+check_signing() {
+  if [ "$ADHOC" = 1 ]; then warn "ad-hoc signature, no notarization (--ad-hoc): users must confirm the first launch"; return 0; fi
+  [ -n "$SIGN_ID" ] || die "INTELY_SIGN_IDENTITY is not set (see --help), or pass --ad-hoc"
+  [ -n "$NOTARY" ] || die "INTELY_NOTARY_PROFILE is not set (see --help), or pass --ad-hoc"
+  case "$SIGN_ID" in "Developer ID Application: "*) ;; *) die "INTELY_SIGN_IDENTITY must be a 'Developer ID Application: ...' certificate (now: $SIGN_ID)" ;; esac
+  security find-identity -v -p codesigning | grep -qF "\"$SIGN_ID\"" || die "no valid signing identity '$SIGN_ID' in the keychain (security find-identity -v -p codesigning)"
+  ok "signing identity: $SIGN_ID"
+  xcrun notarytool history --keychain-profile "$NOTARY" >/dev/null 2>&1 || die "the notary profile '$NOTARY' does not work (xcrun notarytool history --keychain-profile $NOTARY)"
+  ok "notary profile: $NOTARY"
 }
 
 check_sources() {
@@ -139,6 +159,7 @@ artifacts_ok() {
   [ -z "$(git status --porcelain)" ] || return 1
   git merge-base --is-ancestor "$rec" HEAD 2>/dev/null || return 1
   [ -z "$(app_changes_since "$rec")" ] || return 1
+  [ "$(node -p "require('$OUT/build-record.json').signing" 2>/dev/null)" = "$SIGNING" ] || return 1
   $PACK verify --version "$VERSION" --out "$OUT" --site-data "$SITE_DATA" >/dev/null 2>&1
 }
 
@@ -155,6 +176,7 @@ do_preflight() {
   step "preflight for $TAG"
   check_tools
   check_sources
+  [ "${1:-}" = publish ] || check_signing
   if [ "${1:-}" = publish ]; then check_remote; check_ci; fi
 }
 
@@ -183,10 +205,14 @@ do_build() {
   $PACK patch-paths --app "$OUT/work/IntelyIDE.app"
   $PACK check-app --app "$OUT/work/IntelyIDE.app" --version "$VERSION" || die "the bundle failed its checks (above)"
   rm -f "$OUT/$DMG" "$OUT/SHA256SUMS" "$OUT/$SBOM" "$OUT/RELEASE_NOTES.md" "$OUT/build-record.json"
-  bash scripts/release/dmg/make-dmg.sh --app "$OUT/work/IntelyIDE.app" --out "$OUT/$DMG" --ad-hoc-sign
+  if [ "$ADHOC" = 1 ]; then
+    bash scripts/release/dmg/make-dmg.sh --app "$OUT/work/IntelyIDE.app" --out "$OUT/$DMG" --ad-hoc-sign
+  else
+    bash scripts/release/dmg/make-dmg.sh --app "$OUT/work/IntelyIDE.app" --out "$OUT/$DMG" --identity "$SIGN_ID" --notary-profile "$NOTARY"
+  fi
   verify_dmg
   if [ "$SMOKE" = 1 ]; then smoke "$OUT/work/IntelyIDE.app"; fi
-  $PACK finalize --version "$VERSION" --dmg "$OUT/$DMG" --out "$OUT" --commit "$commit" --site-data "$SITE_DATA"
+  $PACK finalize --version "$VERSION" --dmg "$OUT/$DMG" --out "$OUT" --commit "$commit" --site-data "$SITE_DATA" --notarized "$( [ "$ADHOC" = 1 ] && echo no || echo yes )"
   rm -rf "$OUT/work"
   ok "artifacts in $OUT:"
   ls -l "$OUT" | sed 's/^/     /'
@@ -198,14 +224,15 @@ do_build() {
 # the changelog changed after the build: write the notes (and the sums, the SBOM, the record) again from the same disk image
 refinalize_notes() {
   [ -f "$OUT/build-record.json" ] || return 0
-  local rec date
+  local rec date notarized
   rec="$(node -p "require('$OUT/build-record.json').commit")"
   git cat-file -e "$rec^{commit}" 2>/dev/null || return 0
   if [ -z "$(git diff --name-only "$rec" HEAD -- CHANGELOG.md)" ]; then return 0; fi
   date="$(node -p "require('$OUT/build-record.json').date")"
+  notarized="$(node -p "require('$OUT/build-record.json').signing === 'developer id, notarized' ? 'yes' : 'no'")"
   say "CHANGELOG.md changed since the build: writing the release notes again"
   if [ "$DRY" = 1 ]; then warn "dry run: not written"; return 0; fi
-  $PACK finalize --version "$VERSION" --dmg "$OUT/$DMG" --out "$OUT" --commit "$rec" --date "$date" --site-data "$SITE_DATA"
+  $PACK finalize --version "$VERSION" --dmg "$OUT/$DMG" --out "$OUT" --commit "$rec" --date "$date" --site-data "$SITE_DATA" --notarized "$notarized"
   if [ -n "$(git status --porcelain -- "$SITE_DATA")" ]; then die "$SITE_DATA changed: commit and push it, then run again"; fi
 }
 
@@ -217,12 +244,18 @@ verify_dmg() {
   hdiutil attach -nobrowse -readonly -quiet -mountpoint "$mnt" "$OUT/$DMG" || die "cannot mount the disk image"
   local rc=0
   codesign --verify --deep --strict "$mnt/IntelyIDE.app" 2>&1 || rc=1
+  if [ "$ADHOC" = 0 ]; then
+    xcrun stapler validate -q "$OUT/$DMG" || { echo "the disk image carries no notarization ticket" >&2; rc=1; }
+    spctl --assess --type open --context context:primary-signature "$OUT/$DMG" 2>&1 || rc=1
+    spctl --assess --type execute "$mnt/IntelyIDE.app" 2>&1 || rc=1
+    codesign -d --verbose=2 "$mnt/IntelyIDE.app" 2>&1 | grep -q 'flags=.*runtime' || { echo "the app lacks the hardened runtime" >&2; rc=1; }
+  fi
   $PACK check-app --app "$mnt/IntelyIDE.app" --version "$VERSION" || rc=1
   [ -L "$mnt/Applications" ] || { echo "no Applications link in the image" >&2; rc=1; }
   hdiutil detach -quiet "$mnt" || hdiutil detach -quiet -force "$mnt" || true
   rmdir "$mnt" 2>/dev/null || true
   [ "$rc" = 0 ] || die "the disk image failed its checks (above)"
-  ok "the disk image verifies, mounts, is ad-hoc signed and holds the checked bundle"
+  ok "the disk image verifies, mounts, is signed ($SIGNING), Gatekeeper accepts it and it holds the checked bundle"
 }
 
 smoke() {

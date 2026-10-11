@@ -6,7 +6,7 @@ It is written for the maintainer. Users want [install-macos.md](install-macos.md
 
 ## What is built
 
-One disk image for Intel (x64) Macs, named `IntelyIDE_<version>_x64.dmg`, with an ad-hoc signed app inside. There is no Developer ID signature and no notarization, and no native Apple Silicon build; Apple Silicon Macs run the Intel build under Rosetta 2.
+One disk image for Intel (x64) Macs, named `IntelyIDE_<version>_x64.dmg`, with an app inside that is signed with a Developer ID Application certificate, built with the hardened runtime and notarized by Apple (the ticket is stapled to the app and to the image). The default build does this. An ad-hoc signed build, without a Developer ID and without notarization, is still possible with `--ad-hoc` (see section 3). There is no native Apple Silicon build; Apple Silicon Macs run the Intel build under Rosetta 2.
 
 ## Prerequisites
 
@@ -34,10 +34,12 @@ The app still does not contain Node, Claude Code or the Agent SDK: the Mac needs
 ## 3. Build the disk image
 
 ```sh
-scripts/release/dmg/make-dmg.sh --app <path to the .app> --out dist-release/IntelyIDE_1.2.0_x64.dmg --ad-hoc-sign
+scripts/release/dmg/make-dmg.sh --app <path to the .app> --out dist-release/IntelyIDE_<version>_x64.dmg --identity "<Developer ID Application identity>" --notary-profile <notarytool profile>
 ```
 
-The script stages a copy of the app (signed ad hoc when `--ad-hoc-sign` is given), the licence files and a short read-me, draws the background, builds the image with `dmgbuild`, verifies it with `hdiutil`, and writes `<image>.sha256` next to it. It does not use Finder or AppleScript.
+The Developer ID mode is the default of `pnpm release:build`, which reads the identity and the profile from the environment variables `INTELY_SIGN_IDENTITY` and `INTELY_NOTARY_PROFILE`. The profile is created once with `xcrun notarytool store-credentials`. For the ad-hoc mode, pass `--ad-hoc-sign` to `make-dmg.sh` (or `--ad-hoc` to `pnpm release:build`) instead of `--identity` and `--notary-profile`.
+
+The script stages a copy of the app (signed with the `--identity` certificate, or ad hoc when `--ad-hoc-sign` is given), the licence files and a short read-me, draws the background, builds the image with `dmgbuild`, verifies it with `hdiutil`, and writes `<image>.sha256` next to it. With `--identity` it also submits the image for notarization with the `--notary-profile` and staples the ticket to the app and to the image. It does not use Finder or AppleScript.
 
 ## 4. Checksums
 
@@ -51,11 +53,11 @@ The checksum file detects corruption only. It comes from the same page as the do
 
 ## 5. Publish
 
-`pnpm release` does steps 1 to 5 in one command (see [releasing.md](releasing.md)): it builds the app, makes the disk image, writes the checksums and the SBOM, tags the commit and publishes the GitHub release. By hand: create the annotated tag and the GitHub release yourself and attach the disk image and `SHA256SUMS`; see [release-checklist.md](release-checklist.md). Then switch the README installer block with `node scripts/release/readme-toggle.mjs --dmg adhoc`.
+`pnpm release` does steps 1 to 5 in one command (see [releasing.md](releasing.md)): it builds the app, makes the disk image, writes the checksums and the SBOM, tags the commit and publishes the GitHub release. By hand: create the annotated tag and the GitHub release yourself and attach the disk image and `SHA256SUMS`; see [release-checklist.md](release-checklist.md). Then switch the README installer block with `node scripts/release/readme-toggle.mjs --dmg notarized` (or `--dmg adhoc` for an ad-hoc build).
 
 ## What does not exist yet
 
-- A release workflow in CI, a build of the Apple Silicon image, Developer ID signing and notarization, build provenance attestations, an update feed and verified in-app updates. The crate `updater` holds the groundwork for them but its install step is not wired into the app and its update keys are not set. What does exist is a new-version notice (it asks GitHub once a day and links to the release page; see [privacy.md](privacy.md)).
+- A release workflow in CI, a build of the Apple Silicon image, build provenance attestations, an update feed and verified in-app updates. The crate `updater` holds the groundwork for them but its install step is not wired into the app and its update keys are not set. What does exist is a new-version notice (it asks GitHub once a day and links to the release page; see [privacy.md](privacy.md)).
 - A one-command orchestrator for steps 1 to 4 and a Node runtime inside the bundle (the app uses the Node 24 of the Mac).
 - A record file per build that states what was signed. Because of that, the README block is switched by hand.
 

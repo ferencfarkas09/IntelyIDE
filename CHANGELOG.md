@@ -6,6 +6,8 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 
 ## [1.3.0] - 2026-10-11
 
+It contains everything of the 1.2.0 that was prepared but never published, and the changes below.
+
 ### Added
 
 - Team collaboration (Beta): work together with colleagues through your own relay (Settings > Team, and the Team item in the rail). An admin creates a team and invites people with a one-time invite code; both sides compare a six-digit safety code before anything is shared. Everything the relay carries is end-to-end encrypted with a key only the members hold; removing a member (revocation) starts a new key that the removed person never gets.
@@ -13,17 +15,14 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 - Workspace snapshot of a teammate (opt-in per project) so you can see the state of their files.
 - Shared Claude memory (`memory/*.md`, opt-in per project): the notes stay equal on every teammate's computer, and a conflict is never merged for you; both versions are kept as conflict copies. `CLAUDE.md` is a separate opt-in (off by default, only while memory sharing is on); a teammate's change to it is never written automatically but shows as a pending change (View diff, Apply, Ignore) with a notification. Workspace requests are rate-limited per sender and a sender can hold at most 5 pending notes.
 - The relay must be updated to get the Team Durable Object: Settings > Remote > update relay. See docs/team.md.
-
-### Known limitations
-
-- Team collaboration is a Beta: it was tested against a local relay and scripted stand-ins, not yet with many people over time. Only .md files up to 240 KB are shared as memory. See docs/team.md.
-
-## [1.2.0] - 2026-10-10
-
-### Added
-
 - Runs on your own servers (Settings > Servers, and "Where to run" in New run). Add a server by its `ssh` target, let the IDE set it up (Node.js 24 if missing, the agent files, the Agent SDK, optionally Claude Code), and start runs there: 3 on the build server and 2 on this Mac from one dialog, with a limit of agents per server. The agent's shell, file edits and the Claude CLI run on the server through your own `ssh` (keys and `known_hosts` as in a terminal, no password typed or stored, forwarding switched off). The permission broker stays in the IDE and judges the server's files through a read-only `fs/query` of the sidecar there; a look that cannot be answered denies the call. The git guard is made for the server's git and uploaded per run. A finished run gives up its place when the server is full, and its session is closed after ten minutes. See docs/remote-servers.md.
 - Notifications (Settings > Notifications): a banner when a run needs a permission, asks a question, finishes or fails, a count of waiting runs on the Dock icon, a switch for each kind, a gap between two banners of one kind and run, at most twelve a minute over all runs, and an optional sound. A request that a saved rule answers within a second does not notify. The banner has a fixed sentence and the run's title, never a command or a file. Banners no longer depend on the menu-bar item. See docs/notifications.md.
+
+### Changed
+
+- The disk image and the app are signed with the maintainer's Developer ID and notarized by Apple, with the notarization ticket stapled to both. macOS opens the app on the first launch without the "cannot verify" warning and without Open Anyway, also offline.
+- The app runs with the hardened runtime. Its only extra permission is to send Apple Events, which the folder pickers and the notification banners need.
+- Because the app's signature changes from ad hoc to the Developer ID, macOS may ask once, after the update, whether IntelyIDE may use the Keychain items an earlier version saved. Choose Always Allow. From now on the signature stays the same from release to release, so this question and the repeated folder-access questions do not come back after an update.
 
 ### Fixed
 
@@ -32,6 +31,7 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 
 ### Known limitations
 
+- Team collaboration is a Beta: it was tested against a local relay and scripted stand-ins, not yet with many people over time. Only .md files up to 240 KB are shared as memory. See docs/team.md.
 - Runs on a server do not support MCP servers, attachments, Rewind, providers other than Claude, the History view of server sessions or the Changes tree of the server's copy (review and commit on the server). A request of such a run is approved at the desktop, not from the phone. They were tried against a Linux container through a real `ssh` and against a scripted stand-in.
 - Claude Code, when you let the setup install it on a server, comes from the npm registry in its current version without a hash check; Node.js and the Agent SDK are pinned and verified.
 - Notification banners were checked in tests and logs; how macOS shows them on a given setup is not verified. A click on a banner brings the IDE forward and opens the run when the window gets focus within 90 seconds.
@@ -154,8 +154,7 @@ First public release. This is alpha software.
 - Version 0.1.0 still stores its state in the folder `IntelySwitchIDE` and uses Keychain services named after the earlier bundle identifier; a switch to `com.intelyhome.intelyide` with a migration is planned.
 
 [Unreleased]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.3.0...HEAD
-[1.3.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.2.0...v1.3.0
-[1.2.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.1.1...v1.2.0
+[1.3.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.1.1...v1.3.0
 [1.1.1]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/ferencfarkas09/IntelyIDE/compare/v0.1.0...v1.0.1

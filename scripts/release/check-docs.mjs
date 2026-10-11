@@ -492,7 +492,8 @@ export class Run {
     for (const dir of ["crates", "src-tauri", "scripts", "sidecar", "packages", "remote-relay", "remote-web", "ui/src"]) {
       if (!existsSync(join(this.root, dir))) continue;
       for (const rel of walk(this.root, dir, 10)) {
-        if (rel.startsWith("scripts/release/")) continue; // the checkers and their fixtures are not a definition
+        // the checkers and their fixtures are not a definition; the release script and the DMG script are
+        if (rel.startsWith("scripts/release/") && !/^scripts\/release\/(?:release\.sh|dmg\/)/.test(rel)) continue;
         if (!/\.(?:rs|ts|tsx|js|mjs|cjs|sh|json|toml|yml|yaml)$/.test(rel) || /\.d\.ts$/.test(rel)) continue;
         let st;
         try {

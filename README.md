@@ -125,7 +125,7 @@ This is version 1.2.0. It has been used mostly by its author, on an Intel Mac.
 - The contract detector is heuristic.
 - The non-English interface languages other than Hungarian are machine-translated.
 - The release is an Intel (x64) build. Apple Silicon Macs run it under Rosetta 2, which is slower. A native Apple Silicon build is not available yet.
-- The app is ad-hoc signed and not notarized, so macOS asks you to confirm the first launch (see Install).
+- From 1.3.0 on the app is signed with a Developer ID and notarized by Apple. Builds older than 1.3.0 are ad-hoc signed and not notarized, so macOS asks you to confirm the first launch (see Install).
 - The app tells you when a newer release exists (a notice with a link to the release page, checked once a day; see Settings > Updates). It does not download or install updates itself: you replace the app with the new disk image.
 - Runs on servers were tried against a Linux container through a real `ssh` and against a scripted stand-in, not against many real servers. MCP servers, attachments, Rewind, other providers, the History view of server sessions and the Changes tree of the server's copy are not available for them yet.
 - Notification banners were checked in tests and logs; how macOS shows them on your setup (Focus modes, the installed app's permission prompt) is not verified here.
@@ -139,8 +139,8 @@ This is version 1.2.0. It has been used mostly by its author, on an Intel Mac.
 1. Download `IntelyIDE_1.2.0_x64.dmg` from the Releases page of this repository. It is built for Intel Macs and also runs on Apple Silicon under Rosetta 2, more slowly. Apple may remove Rosetta in a future macOS. If you are unsure which Mac you have: Apple menu > About This Mac.
 2. Check the download. `shasum -a 256 --ignore-missing -c SHA256SUMS` in the download folder detects a corrupted download only; the checksums come from the same page as the file, so they cannot prove where it came from.
 3. Open the DMG and drag IntelyIDE to Applications, then open it from there.
-4. First launch. <!--dmg:v:adhoc,developer-id-->This build is not notarized, so macOS refuses the first launch: on macOS 15 and later open System Settings > Privacy & Security, scroll to the message about IntelyIDE, choose Open Anyway and confirm; on macOS 13 and 14 right-click the app and choose Open. Do this only for a file you downloaded from this repository's Releases page.<!--/dmg:v--><!--dmg:v:notarized--><!--The app is notarized and opens normally.--><!--/dmg:v-->
-5. <!--dmg:v:adhoc-->Ad-hoc builds get a new identity with every release, so macOS may ask again for Keychain and folder access after you replace the app.<!--/dmg:v-->
+4. First launch. <!--dmg:v:adhoc,developer-id--><!--This build is not notarized, so macOS refuses the first launch: on macOS 15 and later open System Settings > Privacy & Security, scroll to the message about IntelyIDE, choose Open Anyway and confirm; on macOS 13 and 14 right-click the app and choose Open. Do this only for a file you downloaded from this repository's Releases page.--><!--/dmg:v--><!--dmg:v:notarized-->The app is notarized and opens normally.<!--/dmg:v-->
+5. <!--dmg:v:adhoc--><!--Ad-hoc builds get a new identity with every release, so macOS may ask again for Keychain and folder access after you replace the app.--><!--/dmg:v-->
 6. Some features still need files of the source tree and therefore work only in a build from source: deploying the Remote relay, the Mongo Studio AI helper and the component preview harness. Agent runs work from the disk image once Node.js 24, Claude Code and the Claude Agent SDK are set up (see Requirements). Everything else, including the Git features, the editor, the terminal, the preview and workspaces, works from the disk image. See Build from source.
 
 More detail, including uninstall and where your data lives: [docs/install-macos.md](docs/install-macos.md).
@@ -199,7 +199,7 @@ IntelyIDE has no telemetry: no usage data, no analytics, no crash reports and no
 - **Does it replace my editor?** No. It has a small built-in editor, but it is a Git client first.
 - **Can the agent push?** It is fenced off by layered, best-effort protections, not by a guarantee. See the safety model above.
 - **What does it send over the network?** See Privacy above.
-- **Why does macOS say it cannot verify the app?** The build is ad-hoc signed and not notarized. See Install.
+- **Why does macOS say it cannot verify the app?** Builds before 1.3.0 are ad-hoc signed and not notarized. From 1.3.0 on the app is signed with a Developer ID and notarized, and opens normally. See Install.
 - **Does it run on Apple Silicon?** Yes, under Rosetta 2, more slowly. A native build is not available yet.
 - **Why does it need my own Claude installation?** It drives your local `claude` and does not bundle or proxy it.
 - **Is it affiliated with Anthropic?** No. See License.
