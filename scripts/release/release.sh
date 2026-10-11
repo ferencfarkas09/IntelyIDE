@@ -18,7 +18,7 @@
 #   --ad-hoc       build: sign ad hoc and skip notarization (macOS then asks users to confirm the first launch)
 #
 # Signing (default): a Developer ID signature with hardened runtime, notarized and stapled. Set once in your shell:
-#   INTELY_SIGN_IDENTITY="Developer ID Application: <Team> (<TEAMID>)"   (security find-identity -v -p codesigning)
+#   INTELY_SIGN_IDENTITY="Developer ID Application: <Team> (<TEAMID>)"   (security find-identity -v -p codesigning; its SHA-1 when two share a name)
 #   INTELY_NOTARY_PROFILE=<name>   (xcrun notarytool store-credentials <name> --key <AuthKey.p8> --key-id <ID> --issuer <UUID>)
 #
 # What it never does: push to main, edit a file other than site/data/release.json, or touch anything outside this repository, dist-release/
@@ -92,8 +92,13 @@ check_signing() {
   if [ "$ADHOC" = 1 ]; then warn "ad-hoc signature, no notarization (--ad-hoc): users must confirm the first launch"; return 0; fi
   [ -n "$SIGN_ID" ] || die "INTELY_SIGN_IDENTITY is not set (see --help), or pass --ad-hoc"
   [ -n "$NOTARY" ] || die "INTELY_NOTARY_PROFILE is not set (see --help), or pass --ad-hoc"
-  case "$SIGN_ID" in "Developer ID Application: "*) ;; *) die "INTELY_SIGN_IDENTITY must be a 'Developer ID Application: ...' certificate (now: $SIGN_ID)" ;; esac
-  security find-identity -v -p codesigning | grep -qF "\"$SIGN_ID\"" || die "no valid signing identity '$SIGN_ID' in the keychain (security find-identity -v -p codesigning)"
+  if [[ "$SIGN_ID" =~ ^[0-9A-F]{40}$ ]]; then
+    # the SHA-1 of the certificate, for a keychain with two certificates of the same name
+    security find-identity -v -p codesigning | grep -F " $SIGN_ID \"" | grep -qF '"Developer ID Application: ' || die "no valid 'Developer ID Application' identity with the SHA-1 $SIGN_ID in the keychain (security find-identity -v -p codesigning)"
+  else
+    case "$SIGN_ID" in "Developer ID Application: "*) ;; *) die "INTELY_SIGN_IDENTITY must be a 'Developer ID Application: ...' certificate or its SHA-1 (now: $SIGN_ID)" ;; esac
+    security find-identity -v -p codesigning | grep -qF "\"$SIGN_ID\"" || die "no valid signing identity '$SIGN_ID' in the keychain (security find-identity -v -p codesigning)"
+  fi
   ok "signing identity: $SIGN_ID"
   xcrun notarytool history --keychain-profile "$NOTARY" >/dev/null 2>&1 || die "the notary profile '$NOTARY' does not work (xcrun notarytool history --keychain-profile $NOTARY)"
   ok "notary profile: $NOTARY"
