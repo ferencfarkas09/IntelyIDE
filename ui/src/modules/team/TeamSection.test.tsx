@@ -35,7 +35,7 @@ describe("register()", () => {
     install("off");
     const calls = [vi.spyOn(ipc.team, "status"), vi.spyOn(ipc.team, "onChanged")];
     register();
-    expect(settingsSections().find((s) => s.id === "team")).toMatchObject({ order: 50 });
+    expect(settingsSections().find((s) => s.id === "team")).toMatchObject({ order: 51 });
     for (const c of calls) expect(c).not.toHaveBeenCalled();
   });
 });

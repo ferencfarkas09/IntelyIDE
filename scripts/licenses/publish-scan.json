@@ -599,6 +599,56 @@
       "path": "ui/src/modules/mcp/logic.test.ts",
       "rule": "url-credentials",
       "reason": "placeholder user:pw in the MCP URL validator test"
+    },
+    {
+      "path": "crates/team/src/project.rs",
+      "rule": "email-address",
+      "reason": "git origin URL normalisation tests with fake scp-style users and userinfo"
+    },
+    {
+      "path": "crates/team/src/project.rs",
+      "rule": "url-credentials",
+      "reason": "git origin URL normalisation tests with fake scp-style users and userinfo"
+    },
+    {
+      "path": "crates/team/src/redact.rs",
+      "rule": "anthropic-key",
+      "reason": "canary secret shapes in the team redactor tests"
+    },
+    {
+      "path": "crates/team/src/redact.rs",
+      "rule": "aws-access-key",
+      "reason": "canary secret shapes in the team redactor tests"
+    },
+    {
+      "path": "crates/team/src/redact.rs",
+      "rule": "credential-assignment",
+      "reason": "canary secret shapes in the team redactor tests"
+    },
+    {
+      "path": "crates/team/src/redact.rs",
+      "rule": "jwt",
+      "reason": "canary secret shapes in the team redactor tests"
+    },
+    {
+      "path": "crates/team/src/redact.rs",
+      "rule": "token-assignment",
+      "reason": "canary secret shapes in the team redactor tests"
+    },
+    {
+      "path": "crates/team/tests/live_relay.rs",
+      "rule": "anthropic-key",
+      "reason": "canary secrets the live relay test checks arrive redacted"
+    },
+    {
+      "path": "crates/team/tests/live_relay.rs",
+      "rule": "aws-access-key",
+      "reason": "canary secrets the live relay test checks arrive redacted"
+    },
+    {
+      "path": "crates/team/src/redact.rs",
+      "rule": "pem-block",
+      "reason": "canary key blocks in the team redactor tests"
     }
   ]
 }

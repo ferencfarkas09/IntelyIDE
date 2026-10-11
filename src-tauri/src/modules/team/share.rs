@@ -90,7 +90,7 @@ pub(super) fn read_settings(app: &AppHandle) -> ShareSettings {
 
 /// The project of a repository folder: `None` without an `origin` (such a project cannot be shared).
 pub(super) fn project_at(git: &std::path::Path, dir: &std::path::Path) -> Option<Project> {
-    let out = std::process::Command::new(git).arg("-C").arg(dir).args(["config", "--get", "remote.origin.url"]).output().ok()?;
+    let out = intely_core::exec::hardened_git(git).arg("-C").arg(dir).args(["config", "--get", "remote.origin.url"]).output().ok()?;
     if !out.status.success() {
         return None;
     }
