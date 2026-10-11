@@ -13,15 +13,20 @@
     "html_handling": "auto-trailing-slash",
     "not_found_handling": "single-page-application",
     // Everything the Worker itself answers must reach the script before the asset router.
-    "run_worker_first": ["/r/*", "/api/*"]
+    "run_worker_first": ["/r/*", "/api/*", "/t/*"]
   },
   "durable_objects": {
     "bindings": [
       { "name": "ROOM", "class_name": "Room" },
-      { "name": "JOIN_LIMITER", "class_name": "JoinLimiter" }
+      { "name": "JOIN_LIMITER", "class_name": "JoinLimiter" },
+      { "name": "TEAM", "class_name": "Team" }
     ]
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Room", "JoinLimiter"] }],
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["Room", "JoinLimiter"] },
+    // Team collaboration (docs/team.md): a new class needs its own migration step; v1 stays untouched for relays already deployed.
+    { "tag": "v2", "new_sqlite_classes": ["Team"] }
+  ],
   "vars": {
     // Secrets (never in this file): VAPID_PRIVATE_KEY (raw P-256 scalar d, base64url; see scripts/gen-vapid.mjs), VAPID_PUBLIC_KEY (raw uncompressed P-256 point, base64url), VAPID_SUBJECT (mailto:/https:).
     // Optional echo vars set by the deploy tooling, read by /api/status: RELAY_CODE_HASH, RELAY_STAMP.

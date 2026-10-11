@@ -1,6 +1,6 @@
 # FAQ and troubleshooting
 
-This page answers the questions people ask first and lists the fixes for the problems they hit first. Applies to version 1.2.0. Statements about files and behaviour were checked against the source; where something is not verified, the text says so.
+This page answers the questions people ask first and lists the fixes for the problems they hit first. Applies to version 1.3.0. Statements about files and behaviour were checked against the source; where something is not verified, the text says so.
 
 ## About the project
 
@@ -23,6 +23,18 @@ Git operations you start use your normal Git remotes. Agents talk to the provide
 ### Can agents run on my own server?
 
 Yes, over `ssh`. Add the server in Settings > Servers, let the IDE set it up, and choose it under "Where to run" when you start a run; one dialog can start, for example, three agents there and two on your Mac. The permission rules keep running in the IDE and judge the server's files. MCP servers, attachments, Rewind and the Changes tree of the server's copy are not available for such runs yet. See [remote-servers.md](remote-servers.md).
+
+### What is Team collaboration, and does anyone else see my code?
+
+Team (Settings > Team, Beta) lets colleagues follow each other's runs read-only through a relay you deploy yourself. Nothing is shared until you switch a project on, secrets are masked before sending, and everything the relay carries is end-to-end encrypted. Teammates can never answer a permission card or start a run. See [docs/team.md](team.md).
+
+### Team cannot be created or joined on my relay
+
+The relay needs the `Team` Durable Object that came with version 1.3.0. Update it once in Settings > Remote (update relay), then try again.
+
+### A teammate cannot join with my invite code
+
+An invite works once and for 10 minutes, and three wrong attempts burn it. Make a new one with Invite. Both screens must show the same six digits before you press "Let them in"; if they differ, stop and start again.
 
 ### I get no notification banners
 

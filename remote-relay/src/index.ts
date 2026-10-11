@@ -4,8 +4,9 @@ import { PROTOCOL } from "./config.ts";
 import { pushConfig } from "./push.ts";
 import { Room, type Env } from "./room.ts";
 import { JoinLimiter } from "./limiter.ts";
+import { Team } from "./team.ts";
 
-export { Room, JoinLimiter };
+export { Room, JoinLimiter, Team };
 
 const SEC = { "x-content-type-options": "nosniff", "cache-control": "no-store", "referrer-policy": "no-referrer" };
 
@@ -25,7 +26,7 @@ async function ipAllowed(request: Request, env: Env): Promise<boolean> {
  * Cheapest checks first (no Durable Object is involved): the Room would answer exactly the same way, but only after the limiter
  * Durable Object and the Room Durable Object were both billed. Bodies and status codes mirror room.ts.
  */
-function earlyReject(request: Request, sub: string): Response | null {
+function earlyReject(request: Request, sub: string, team = false): Response | null {
   const notFound = () => new Response("not found", { status: 404, headers: SEC });
   if (sub === "/ws") {
     if (request.method !== "GET" || request.headers.get("upgrade")?.toLowerCase() !== "websocket") return notFound();
@@ -36,6 +37,9 @@ function earlyReject(request: Request, sub: string): Response | null {
   } else if (sub === "/stat") {
     if (request.method !== "GET") return notFound();
     if (!bearer(request)) return Response.json({ error: "auth" }, { status: 401, headers: SEC });
+  } else if (sub === "/join" && team) {
+    if (request.method !== "POST") return notFound();
+    if (!bearer(request)) return Response.json({ error: "invite" }, { status: 401, headers: SEC });
   } else return notFound();
   return null;
 }
@@ -126,7 +130,17 @@ export default {
       target.pathname = sub;
       return env.ROOM.get(env.ROOM.idFromName(m[1])).fetch(new Request(target, request));
     }
-    if (p.startsWith("/r/") || p.startsWith("/api/")) return new Response("not found", { status: 404, headers: SEC });
+    const t = p.match(/^\/t\/([^/]+)(\/.*)$/);
+    if (t && ROOM_RE.test(t[1])) {
+      const sub = t[2];
+      const early = earlyReject(request, sub, true);
+      if (early) return early;
+      if (!(await ipAllowed(request, env))) return new Response("slow down", { status: 429, headers: { ...SEC, "retry-after": "60" } });
+      const target = new URL(request.url);
+      target.pathname = sub;
+      return env.TEAM.get(env.TEAM.idFromName(t[1])).fetch(new Request(target, request));
+    }
+    if (p.startsWith("/r/") || p.startsWith("/t/") || p.startsWith("/api/")) return new Response("not found", { status: 404, headers: SEC });
     return env.ASSETS.fetch(request);
   },
 } satisfies ExportedHandler<StatusEnv>;

@@ -29,6 +29,7 @@ pub mod servers;
 pub mod sentry;
 pub mod settings;
 pub mod switchhook;
+pub mod team;
 pub mod term;
 pub mod tray;
 pub mod updates;

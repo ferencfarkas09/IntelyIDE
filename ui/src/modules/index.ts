@@ -17,6 +17,7 @@ import { register as history } from "./history";
 import { register as hud } from "./hud";
 import { register as notify } from "./notify";
 import { register as servers } from "./servers";
+import { register as team } from "./team";
 import { register as hygiene } from "./hygiene";
 import { register as inspector } from "./inspector";
 import { register as integrations } from "./integrations";
@@ -76,6 +77,7 @@ export const MODULES: readonly FeatureModule[] = [
   { id: "hud", register: hud },
   { id: "notify", register: notify },
   { id: "servers", register: servers },
+  { id: "team", register: team },
   { id: "checks", register: checks },
   { id: "hygiene", register: hygiene },
   { id: "contract", register: contract },

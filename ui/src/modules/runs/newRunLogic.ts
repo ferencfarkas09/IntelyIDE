@@ -61,7 +61,7 @@ export const toggleRepo = (repoIds: readonly string[], id: string): string[] => 
 export const defaultRepos = (role: Pick<RoleInfo, "defaultRepoIds"> | undefined, known: readonly string[]): string[] => (role?.defaultRepoIds ?? []).filter((id) => known.includes(id));
 
 /** `agent_start` plus the provider the user picked for this run; absent means the role's own provider. */
-export type StartRunRequest = AgentStartRequest & { provider?: string };
+export type StartRunRequest = AgentStartRequest & { provider?: string; /** Team: `false` keeps the run out of the shared runs. */ share?: boolean };
 
 export interface ProviderChoice {
   id: string;

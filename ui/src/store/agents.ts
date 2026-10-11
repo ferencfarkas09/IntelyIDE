@@ -133,7 +133,7 @@ export async function selectAgent(agentId: string | null): Promise<void> {
   if (agentId) await loadHistory(agentId);
 }
 
-export async function startRun(req: AgentStartRequest, opts?: { runWithoutSafetyNet?: boolean; confirmBypass?: boolean }): Promise<AgentSummary> {
+export async function startRun(req: AgentStartRequest & { share?: boolean }, opts?: { runWithoutSafetyNet?: boolean; confirmBypass?: boolean }): Promise<AgentSummary> {
   const summary = await client.agentStart(req, opts);
   batch(() => {
     pending.delete(summary.agentId);

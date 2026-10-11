@@ -107,6 +107,7 @@ fn entry_hash(e: &AuditEntry) -> String {
 pub struct AuditLog {
     path: PathBuf,
     secrets: Arc<dyn SecretStore>,
+    head_key: &'static str,
     head: String,
     seq: u64,
 }
@@ -117,7 +118,11 @@ impl AuditLog {
     }
 
     pub fn open(state_dir: &Path, secrets: Arc<dyn SecretStore>) -> Result<Self> {
-        let path = Self::path_in(state_dir);
+        Self::open_at(Self::path_in(state_dir), KEY_AUDIT_HEAD, secrets)
+    }
+
+    /// The same log with its own file and its own head key (the team module keeps a second, independent chain).
+    pub fn open_at(path: PathBuf, head_key: &'static str, secrets: Arc<dyn SecretStore>) -> Result<Self> {
         let text = match fs::read_to_string(&path) {
             Ok(t) => t,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
@@ -133,16 +138,16 @@ impl AuditLog {
             head = e.hash.clone();
             seq = e.seq;
         }
-        let stored = secrets.get(KEY_AUDIT_HEAD)?.map(|s| s.expose().to_string());
+        let stored = secrets.get(head_key)?.map(|s| s.expose().to_string());
         match stored.as_deref() {
             None if seq == 0 => {}
             None => return Err(RemoteError::Tampered("audit head hash is missing from the secret store".into())),
             Some(h) if h == head => {}
             // a crash between the line and the head update: the file is one line ahead; accept and heal
-            Some(h) if seq > 0 && h == prev_head => secrets.set(KEY_AUDIT_HEAD, Secret::new(head.clone()))?,
+            Some(h) if seq > 0 && h == prev_head => secrets.set(head_key, Secret::new(head.clone()))?,
             Some(_) => return Err(RemoteError::Tampered("audit log was truncated or replaced".into())),
         }
-        Ok(Self { path, secrets, head, seq })
+        Ok(Self { path, secrets, head_key, head, seq })
     }
 
     /// The explicit desktop action after a tamper alarm: keep the old file aside and start a new chain. Never automatic.
@@ -177,7 +182,7 @@ impl AuditLog {
             fs::create_dir_all(dir)?;
         }
         OpenOptions::new().create(true).append(true).mode(0o600).open(&self.path)?.write_all(&line)?;
-        self.secrets.set(KEY_AUDIT_HEAD, Secret::new(e.hash.clone()))?;
+        self.secrets.set(self.head_key, Secret::new(e.hash.clone()))?;
         self.head = e.hash.clone();
         self.seq = e.seq;
         Ok(e)

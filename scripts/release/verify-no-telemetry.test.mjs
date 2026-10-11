@@ -309,6 +309,10 @@ describe("(7) Rust sources and the dependency graph", () => {
   ]) {
     it(`fails ${code}`, () => assert.equal(checkRustSources(rs(code)).length, 1));
   }
+  it("the team crate (relay transport, like remote) is an allowed crate", () => {
+    assert.ok(ALLOWED_CRATES.includes("team"));
+    assert.deepEqual(checkRustSources(rs("TcpStream::connect(a)", "crates/team/src/client.rs")), []);
+  });
   it("allows the same code in an allowed crate", () => {
     assert.deepEqual(checkRustSources(rs("TcpStream::connect(a)", "crates/remote/src/x.rs")), []);
   });
@@ -391,6 +395,6 @@ describe("driver and the real tree", () => {
     assert.match(r.stdout, /RESULT verify-no-telemetry OK/);
   });
   it("the allowed crates exist in the real workspace and are all documented here", () => {
-    assert.deepEqual([...ALLOWED_CRATES].sort(), ["happy", "mcp", "mongo", "preview-proxy", "relay_bundle", "relay_deploy", "remote", "sentry", "updater"]);
+    assert.deepEqual([...ALLOWED_CRATES].sort(), ["happy", "mcp", "mongo", "preview-proxy", "relay_bundle", "relay_deploy", "remote", "sentry", "team", "updater"]);
   });
 });

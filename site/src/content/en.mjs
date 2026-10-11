@@ -78,6 +78,7 @@ export default {
       { id: 'mongo', h: 'MongoDB Studio', p: 'Read-only by default, with AI-assisted queries in English or Hungarian.' },
       { id: 'api-contract', h: 'API contract checks', p: 'Spot drift between your backend’s Swagger and its client repositories. Browse the spec read-only.' },
       { id: 'remote', h: 'Remote', p: 'Watch and answer agent runs from your phone, end-to-end encrypted.' },
+      { id: 'team', h: 'Team (Beta)', p: 'Follow colleagues’ runs read-only through your own relay, end-to-end encrypted.' },
     ],
   },
   why: {
@@ -142,6 +143,14 @@ export default {
         p: 'The run panel starts your dev server and shows a live preview next to the code. Click an element in the preview to jump to its source. Component preview is built in too.',
         list: ['Editor, terminal, search and diff in the same window', 'Live dev-server preview', 'Click-to-source and component preview'],
         shots: [['preview', 'The run panel with a live dev-server preview and click-to-source.']],
+      },
+      {
+        id: 'team',
+        h: 'Team: work together',
+        p: 'Create a team on your own relay and invite colleagues with a one-time code. Follow their runs, tool calls and diffs live, send a note into a run (the owner approves it) and keep Claude memory equal across computers. Everything is end-to-end encrypted, shared per project, and teammates can never answer permission cards or start runs.',
+        list: ['Your own relay, no account and no service we run', 'Per-project sharing with secrets masked', 'Removing a member rotates the key'],
+        pill: 'Beta',
+        shots: [['team', 'The Team tab: a teammate\'s run read-only, with a note waiting for your approval.'], ['team-memory', 'Shared Claude memory with a pending CLAUDE.md change and a conflict copy.']],
       },
       {
         id: 'remote',

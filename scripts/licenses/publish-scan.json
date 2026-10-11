@@ -211,6 +211,21 @@
       "reason": "truncated or canary key blocks in guard, redaction and attachment tests"
     },
     {
+      "path": "crates/team/src/collab.rs",
+      "rule": "private-key",
+      "reason": "truncated or canary key blocks in guard, redaction and attachment tests"
+    },
+    {
+      "path": "crates/team/src/redact.rs",
+      "rule": "private-key",
+      "reason": "truncated or canary key blocks in guard, redaction and attachment tests"
+    },
+    {
+      "path": "crates/team/src/share.rs",
+      "rule": "private-key",
+      "reason": "truncated or canary key blocks in guard, redaction and attachment tests"
+    },
+    {
       "path": "**/tests/**",
       "rule": "pem-block",
       "reason": "canary PEM blocks in tests"

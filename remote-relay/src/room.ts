@@ -10,6 +10,7 @@ import { b64uToBytes, bytesToB64u, endpointAllowed, pushConfig, sendPush, validS
 export interface Env extends PushEnv {
   ROOM: DurableObjectNamespace;
   JOIN_LIMITER: DurableObjectNamespace;
+  TEAM: DurableObjectNamespace;
   ASSETS: Fetcher;
   JOIN_RATE_PER_MIN?: string;
 }

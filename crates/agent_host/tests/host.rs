@@ -203,6 +203,30 @@ fn a_run_without_a_rewind_snapshot_is_refused_unless_the_user_opts_out_for_that_
 }
 
 #[test]
+fn the_created_hook_gets_the_run_id_once_and_before_the_run_returns() {
+    use intely_agent_host::{CreatedHook, RepoRef, StartOptions};
+    use std::sync::{Arc, Mutex};
+    let dir = tempfile::tempdir().unwrap();
+    let plain = dir.path().join("plain");
+    std::fs::create_dir_all(&plain).unwrap();
+    let repo = RepoRef { id: "plain".into(), path: plain.canonicalize().unwrap() };
+    let (host, sink) = host_with(config(&dir.path().join("data"), sidecar_js()));
+    let role = intely_agent_host::roles::builtin(&config(&dir.path().join("data"), sidecar_js())).into_iter().find(|r| r.name == "mock-plain-reply").unwrap();
+    let req = AgentStartRequest { role: role.name.clone(), repo_ids: vec![repo.id.clone()], prompt: "go".into(), mode: None, mcp_servers: None };
+    let seen: Arc<Mutex<Vec<String>>> = Arc::default();
+    let s2 = seen.clone();
+    let hook = CreatedHook(Arc::new(move |id: &str| s2.lock().unwrap().push(id.to_string())));
+    let started = host.start_role_with(&role, req, std::slice::from_ref(&repo), StartOptions { run_without_safety_net: true, on_created: Some(hook), ..Default::default() });
+    // told once, whether or not the sidecar could be started afterwards (it runs before the snapshot, the session and any event)
+    assert_eq!(seen.lock().unwrap().len(), 1);
+    if let Ok(run) = started {
+        assert_eq!(seen.lock().unwrap()[0], run.agent_id);
+        sink.wait_turn_end(&run.agent_id);
+    }
+    host.shutdown();
+}
+
+#[test]
 fn the_policy_context_of_a_run_is_path_jailed_to_its_repos_plus_the_read_only_attachment_dir() {
     use intely_agent_core::policy::decide::{decide, Decision};
     use intely_agent_core::policy::intent::{PolicyRequest, ToolIntent};

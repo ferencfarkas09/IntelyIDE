@@ -8,6 +8,7 @@ import { AgentList } from "./AgentList";
 import { ModeBanner, ThrottleBanner } from "./Banners";
 import { effectiveMode } from "./modes";
 import { Composer } from "./Composer";
+import { TeamNoteCards } from "../../modules/team/TeamNotes";
 import { noteFailure } from "./Notes";
 import { RunHeader } from "./RunHeader";
 import { Transcript } from "./Transcript";
@@ -31,6 +32,7 @@ export function RunView(props: { agentId: string }) {
                 </Show>
                 <Transcript agentId={a().agentId} view={v()} />
                 <Show when={v().throttle}>{(th) => <ThrottleBanner throttle={th()} canStop={v().turnActive} onStop={() => void interruptRun(a().agentId).catch(fail("chat.fail.interrupt"))} />}</Show>
+                <TeamNoteCards runId={a().agentId} />
                 <Show when={isForeign(a().repoIds)}>
                   <p class="chat__readonly" role="note">{t("scope.readOnly")}</p>
                 </Show>

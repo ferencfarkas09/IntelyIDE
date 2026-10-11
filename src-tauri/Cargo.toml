@@ -1,6 +1,6 @@
 [package]
 name = "intely-switch-ide"
-version = "1.2.0"
+version = "1.3.0"
 edition = "2021"
 rust-version = "1.77"
 license.workspace = true
@@ -32,6 +32,7 @@ intely-l10n = { version = "0.0.0", path = "../crates/l10n" }
 intely-runner = { version = "0.0.0", path = "../crates/runner" }
 intely-preview-proxy = { version = "0.0.0", path = "../crates/preview-proxy" }
 intely-remote = { version = "0.0.0", path = "../crates/remote" }
+intely-team = { version = "0.0.0", path = "../crates/team" }
 intely-checks = { version = "0.0.0", path = "../crates/checks" }
 intely-contract = { version = "0.0.0", path = "../crates/contract" }
 intely-gitx = { version = "0.0.0", path = "../crates/gitx" }

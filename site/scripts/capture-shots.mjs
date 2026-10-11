@@ -269,6 +269,27 @@ SHOTS["workspaces-welcome"] = async (c) => {
 };
 SHOTS["workspaces-welcome"].meta = { scenario: "showcase-welcome" };
 
+/** Team (Beta): the Team tab with the mock team of three (`team=on`). */
+async function openTeamTab(c) {
+  await c.eval(`[...document.querySelectorAll("button")].find((b) => (b.getAttribute("aria-label") || "").startsWith("Team"))?.click()`);
+  await waitText(c, "Pick a shared run");
+  await dismissToasts(c);
+}
+SHOTS.team = async (c) => {
+  await openTeamTab(c);
+  await clickText(c, "Add a retry to the sync job", ".team-tab__list, body");
+  await waitText(c, "Jordan decides");
+  await dismissToasts(c);
+};
+SHOTS.team.meta = { query: "team=on" };
+SHOTS["team-memory"] = async (c) => {
+  await openTeamTab(c);
+  await clickText(c, "Shared memory", ".team-tab__list, body");
+  await waitText(c, "Keep theirs");
+  await dismissToasts(c);
+};
+SHOTS["team-memory"].meta = { query: "team=on" };
+
 // ---------- runner -----------------------------------------------------------------------------------------------
 mkdirSync(OUT, { recursive: true });
 const todo = names.length ? names : Object.keys(SHOTS);

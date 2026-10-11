@@ -104,6 +104,23 @@ describe("<NewRunDialog> provider picker", () => {
     spy.mockRestore();
   });
 
+  it("sends share:false with the start when the person switched sharing off for this run, and nothing otherwise", async () => {
+    const { createMockTeam } = await import("../../ipc/mock/team");
+    const { resetTeam } = await import("../team/store");
+    resetTeam();
+    (ipc as { team: unknown }).team = createMockTeam({ preset: "on" });
+    const spy = vi.spyOn(ipc, "agentStart");
+    const d = await open();
+    await waitFor(() => expect(d.getByRole("radiogroup", { name: "Provider" })).toBeTruthy());
+    fireEvent.input(d.getByLabelText("Prompt"), { target: { value: "Fix the total" } });
+    fireEvent.click(await d.findByRole("switch", { name: /Share this run/ }));
+    fireEvent.click(d.getByRole("button", { name: "Start run" }));
+    await waitFor(() => expect(spy).toHaveBeenCalled());
+    expect(spy.mock.calls[0][0]).toMatchObject({ share: false });
+    spy.mockRestore();
+    resetTeam();
+  });
+
   it("offers 'run without a safety net' only after the engine refused with noSafetyNet, and sends it for that one retry", async () => {
     const spy = vi.spyOn(ipc, "agentStart").mockRejectedValueOnce({ code: "noSafetyNet", message: "Rewind cannot snapshot admin" });
     const d = await open();

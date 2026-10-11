@@ -16,6 +16,7 @@ import { createMockMcp } from "./mock/mcp";
 import { createMockUpdates } from "./mock/updates";
 import { createMockNotify } from "./mock/notify";
 import { createMockServers } from "./mock/servers";
+import { createMockTeam } from "./mock/team";
 import { createMockTray } from "./mock/tray";
 import { createMockViewers } from "./mock/viewers";
 import { createMockMongoWorld } from "./mock/mongo";
@@ -41,6 +42,7 @@ import { createTauriSecrets, createTauriSettings, type SecretsIpc, type Settings
 import { createTauriTerm, type TermIpc } from "./term";
 import { createTauriNotify, type NotifyIpc } from "./notify";
 import { createTauriServers, type ServersIpc } from "./servers";
+import { createTauriTeam, type TeamIpc } from "./team";
 import { createTauriTray, type TrayIpc } from "./tray";
 import { createTauriUpdates, type UpdatesIpc } from "./updates";
 import { createTauriViewers, type ViewersIpc } from "./viewers";
@@ -69,6 +71,7 @@ export interface IpcNamespaces {
   tray: TrayIpc;
   notify: NotifyIpc;
   servers: ServersIpc;
+  team: TeamIpc;
   updates: UpdatesIpc;
   workspaces: WorkspacesIpc;
   picker: PickerIpc;
@@ -98,6 +101,7 @@ export function createTauriNamespaces(): IpcNamespaces {
     tray: createTauriTray(),
     notify: createTauriNotify(),
     servers: createTauriServers(),
+    team: createTauriTeam(),
     updates: createTauriUpdates(),
     workspaces: createTauriWorkspaces(),
     picker: createTauriPicker(),
@@ -132,6 +136,7 @@ export function createMockNamespaces(host?: MockBranchHost, workspaces?: Workspa
     tray: createMockTray(),
     notify: createMockNotify(),
     servers: createMockServers(),
+    team: createMockTeam(),
     updates: createMockUpdates(),
     workspaces: workspaces ?? createMockWorkspaces(),
     picker: createMockPicker(pickerOptionsFromUrl(globalThis.location?.search ?? "")),

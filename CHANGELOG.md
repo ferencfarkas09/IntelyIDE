@@ -4,6 +4,20 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-11
+
+### Added
+
+- Team collaboration (Beta): work together with colleagues through your own relay (Settings > Team, and the Team item in the rail). An admin creates a team and invites people with a one-time invite code; both sides compare a six-digit safety code before anything is shared. Everything the relay carries is end-to-end encrypted with a key only the members hold; removing a member (revocation) starts a new key that the removed person never gets.
+- Live view of teammates' runs: tool calls, answers and diffs, shared per project and with secrets redacted before they leave the computer. A teammate can send a note into your run; it reaches the agent only after you approve it. Teammates can never answer permission cards or start runs.
+- Workspace snapshot of a teammate (opt-in per project) so you can see the state of their files.
+- Shared Claude memory (`memory/*.md`, opt-in per project): the notes stay equal on every teammate's computer, and a conflict is never merged for you; both versions are kept as conflict copies. `CLAUDE.md` is a separate opt-in (off by default, only while memory sharing is on); a teammate's change to it is never written automatically but shows as a pending change (View diff, Apply, Ignore) with a notification. Workspace requests are rate-limited per sender and a sender can hold at most 5 pending notes.
+- The relay must be updated to get the Team Durable Object: Settings > Remote > update relay. See docs/team.md.
+
+### Known limitations
+
+- Team collaboration is a Beta: it was tested against a local relay and scripted stand-ins, not yet with many people over time. Only .md files up to 240 KB are shared as memory. See docs/team.md.
+
 ## [1.2.0] - 2026-10-10
 
 ### Added
@@ -139,7 +153,8 @@ First public release. This is alpha software.
 - Providers other than Claude, Happy, MongoDB Studio and Remote are proven only against mocks or on a local machine.
 - Version 0.1.0 still stores its state in the folder `IntelySwitchIDE` and uses Keychain services named after the earlier bundle identifier; a switch to `com.intelyhome.intelyide` with a migration is planned.
 
-[Unreleased]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.0.1...v1.1.0

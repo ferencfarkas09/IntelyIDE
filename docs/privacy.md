@@ -1,6 +1,6 @@
 # Privacy
 
-This page states what IntelyIDE stores on your Mac, what can leave it and when, and which of these statements a script re-checks. Applies to version 1.2.0.
+This page states what IntelyIDE stores on your Mac, what can leave it and when, and which of these statements a script re-checks. Applies to version 1.3.0.
 
 IntelyIDE has no telemetry: it sends no usage data, identifiers or crash reports to anyone, and there is no account. It does make a few network requests, only when you use the matching feature: your own `claude` installation talks to its vendor, `git` talks to your remotes, and the optional modules you switch on (MongoDB Studio, Remote, Happy) talk to the servers you configure.
 
@@ -72,10 +72,17 @@ Notes on the table:
 | The Happy integration | The base URL you enter | `crates/happy/src/hub.rs` |
 | The Sentry integration (off until you add a token) | The Sentry address you enter, `https://sentry.io` by default, with your own token (kept in the Keychain; it goes only to the address it was entered for, so saving another address removes it): reading issues, and, on your click, assigning an issue to you or marking it resolved | `crates/sentry/src/client.rs` |
 | Runs on servers (Settings > Servers, off until you add one) | The servers you configure, through your own `ssh` (your keys; no password is stored or typed). The IDE sends the prompt, the agent's tool calls and the file questions of the permission broker to the sidecar there, and uploads its agent files and a git guard to `~/.intely` on the server. On the server, and only when you choose those setup steps: nodejs.org (Node.js), `registry.npmjs.org` (the Agent SDK installer, Claude Code) | `crates/servers/src/`, `crates/agent_host/src/remote.rs` |
+| Team (Settings > Team, off until you create or join a team) | Your own relay (the same Cloudflare Worker as Remote); other members receive end-to-end encrypted, signed messages through it. Run sharing sends redacted events of the projects and runs you switched on; notes and workspace snapshots only on request, see below and [Team](team.md) | `crates/team/src/`, `src-tauri/src/modules/team/` |
 | The preview proxy | Loopback addresses only (127.0.0.1) | `crates/preview-proxy/src/` |
 | The confirm-first Claude Agent SDK installer in the packaged app | `registry.npmjs.org`, nothing else | `sidecar/src/sdk-install.ts` |
 
 Programs that IntelyIDE starts (`claude` and other agent CLIs, `git`, `ssh`, `npm`, `wrangler`) have their own network and telemetry behaviour. IntelyIDE sets `WRANGLER_SEND_METRICS=false` for the `wrangler` it starts (`crates/relay_deploy/src/wrangler.rs`) and does not change `claude`'s analytics settings. Fonts are bundled with the app (`@fontsource-variable/inter` and `@fontsource-variable/jetbrains-mono`, see `ui/package.json`); nothing is loaded from a CDN.
+
+## Team: what leaves your machine
+
+Only when you are in a team **and** switched a project on in Settings > Team, and only for runs you did not switch off. Teammates receive the prompts, answers, tool calls, tool output and file diffs of those runs, live and read-only, encrypted end to end (the relay sees ciphertext and sizes). The agent's thinking, your notes to a running agent, the raw provider payload, the contents and diffs of secret files (`.env*`, `*.pem`, `*.key`, `*.p12`, `id_rsa*`, `id_ed25519*`) and secrets recognised in text (cloud and API keys, tokens, JWTs, PEM blocks, `Bearer` headers, `password=`-style values) are not sent. Masking is best effort. Run messages are never queued on the relay, and what you receive lives in memory only.
+
+Two more things leave only because a teammate asked and only if you allow it: a note you accept is given to your own agent (nothing leaves), and a **workspace snapshot** of a project you switched on in Settings > Team (branch, changed files and their diffs, at most 512 KB, with secret files, gitignored files, binaries and secrets in text left out; one request per 30 seconds per teammate). Both are covered in [Team](team.md).
 
 ## Masking and its limits
 
@@ -83,13 +90,14 @@ IntelyIDE does not redact what an agent reads or writes: the run log keeps it in
 
 - Output of the Remote and Cloudflare deploy (`crates/relay_deploy/src/mask.rs`).
 - Output of the Run panel (`crates/runner/src/mask.rs`).
+- Runs shared with a team, before they leave the machine (`crates/team/src/redact.rs`, on top of `crates/remote/src/redact.rs`).
 - Environment of agent processes: an allow-list passes only named variables on (`crates/agent_host/src/config.rs`, `sidecar/src/env.ts`).
 
 Masking is pattern based and best-effort. The run log and `refusals.log` are not covered by it.
 
 ## Components that may use the network
 
-The Rust crates allowed to depend on a network library are `remote`, `relay_bundle`, `relay_deploy`, `happy`, `sentry`, `mongo`, `mcp`, `preview-proxy` and `updater`. `mcp` makes a request only when you press the connection test of an MCP server, and only to the address you entered for it. In the sidecar, only `sidecar/src/sdk-install.ts` may use the network. `scripts/release/verify-no-telemetry.mjs` fails when any other crate or sidecar file does, or when a package from its deny list (analytics, crash reporting and similar names) appears in a lockfile. A new network-capable crate has to be added to the script, its test and this page together.
+The Rust crates allowed to depend on a network library are `remote`, `team`, `relay_bundle`, `relay_deploy`, `happy`, `sentry`, `mongo`, `mcp`, `preview-proxy` and `updater`. `mcp` makes a request only when you press the connection test of an MCP server, and only to the address you entered for it. In the sidecar, only `sidecar/src/sdk-install.ts` may use the network. `scripts/release/verify-no-telemetry.mjs` fails when any other crate or sidecar file does, or when a package from its deny list (analytics, crash reporting and similar names) appears in a lockfile. A new network-capable crate has to be added to the script, its test and this page together.
 
 ## Read, export and delete your data
 

@@ -36,7 +36,7 @@ const PING_EVERY: Duration = Duration::from_secs(25);
 const CLOSE_WIPED: u16 = 4410;
 /// After this many failed attempts in a row the error is shown on the Mac and retries slow down to minutes.
 pub const SLOW_AFTER_FAILURES: u32 = 5;
-const STEP: Duration = Duration::from_secs(10);
+pub const STEP: Duration = Duration::from_secs(10);
 
 /// What the launch mode allows (`intely_core::jail::Mode`, mirrored here because this crate has no `intely-core` dependency;
 /// the Tauri layer sets it). `ReadOnly` and `E2e` never contact a non-loopback relay.
@@ -105,7 +105,7 @@ impl ParsedRelay {
         format!("{}://{}", if self.secure { "wss" } else { "ws" }, self.authority())
     }
 
-    fn connect_port(&self) -> u16 {
+    pub fn connect_port(&self) -> u16 {
         self.port.unwrap_or(if self.secure { 443 } else { 80 })
     }
 }
@@ -337,7 +337,7 @@ impl RelayWs {
         format!("{}/r/{room}/ws", self.base)
     }
 
-    fn http_base(&self) -> String {
+    pub fn http_base(&self) -> String {
         self.base.replacen("wss://", "https://", 1).replacen("ws://", "http://", 1)
     }
 }
@@ -395,7 +395,7 @@ impl Transport for RelayWs {
 }
 
 /// Where to connect: `None` for the loopback literals (the system decides), the checked public address otherwise.
-async fn pin_address(relay: &RelayWs) -> std::result::Result<Option<SocketAddr>, &'static str> {
+pub async fn pin_address(relay: &RelayWs) -> std::result::Result<Option<SocketAddr>, &'static str> {
     if relay.parsed.local {
         return Ok(None);
     }

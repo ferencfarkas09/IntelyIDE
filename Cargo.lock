@@ -2859,7 +2859,7 @@ dependencies = [
 
 [[package]]
 name = "intely-switch-ide"
-version = "1.2.0"
+version = "1.3.0"
 dependencies = [
  "block2",
  "intely-agent-core",
@@ -2887,6 +2887,7 @@ dependencies = [
  "intely-sentry",
  "intely-servers",
  "intely-settings",
+ "intely-team",
  "intely-term",
  "intely-updater",
  "objc2",
@@ -2900,6 +2901,27 @@ dependencies = [
  "tauri-build",
  "tempfile",
  "tokio",
+]
+
+[[package]]
+name = "intely-team"
+version = "0.0.0"
+dependencies = [
+ "chacha20poly1305",
+ "futures-util",
+ "hex",
+ "intely-agent-core",
+ "intely-remote",
+ "intely-settings",
+ "reqwest",
+ "ring",
+ "serde",
+ "serde_json",
+ "snow",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
+ "tokio-tungstenite",
 ]
 
 [[package]]

@@ -393,6 +393,39 @@ pub fn run() {
             modules::remote::remote_panic,
             modules::remote::remote_apply_local_relay,
             modules::remote::remote_send_build_key,
+            // ==== team commands (Settings > Team) ====
+            modules::team::team_status,
+            modules::team::team_members,
+            modules::team::team_create,
+            modules::team::team_invite,
+            modules::team::team_join,
+            modules::team::team_join_confirm,
+            modules::team::team_join_decide,
+            modules::team::team_revoke,
+            modules::team::team_leave,
+            modules::team::team_forget,
+            modules::team::share::team_runs,
+            modules::team::share::team_run_events,
+            modules::team::share::team_projects,
+            modules::team::share::team_set_share,
+            modules::team::share::team_run_share_state,
+            modules::team::share::team_run_share,
+            modules::team::collab::team_pending_notes,
+            modules::team::collab::team_note_decide,
+            modules::team::collab::team_note_send,
+            modules::team::collab::team_sent_notes,
+            modules::team::collab::team_collab_settings,
+            modules::team::collab::team_set_auto_accept,
+            modules::team::collab::team_set_workspace,
+            modules::team::collab::team_workspace_request,
+            modules::team::collab::team_workspace,
+            modules::team::memsync::team_memory_status,
+            modules::team::memsync::team_memory_sync_now,
+            modules::team::memsync::team_memory_resolve,
+            modules::team::memsync::team_set_memory,
+            modules::team::memsync::team_set_claude_md,
+            modules::team::memsync::team_memory_pending_diff,
+            modules::team::memsync::team_memory_pending_resolve,
             // ==== wave5 relay cloud commands (owner: relay task T6) ====
             modules::relay_cloud::relay_cloud_status,
             modules::relay_cloud::relay_cloud_prepare,
@@ -577,6 +610,8 @@ pub fn run() {
             modules::agentux::setup(app)?;
             // ==== wave3 Rm1 remote state (inert until remote_enable) ====
             modules::remote::setup(app)?;
+            // ==== team state (inert unless this install already is in a team) ====
+            modules::team::setup(app)?;
             // ==== wave5 relay cloud state (owner: relay task T6; inert until a command runs) ====
             modules::relay_cloud::setup(app)?;
             // ==== wave3 X3 state (empty until the UI switches a feature on) ====
@@ -655,6 +690,7 @@ pub fn run() {
             modules::checks::shutdown(handle);
             modules::preview::shutdown(handle);
             modules::remote::shutdown(handle);
+            modules::team::shutdown(handle);
             #[cfg(feature = "mongo-studio")]
             modules::mongo::shutdown(handle);
             if let Some(slot) = handle.try_state::<EngineSlot>() {

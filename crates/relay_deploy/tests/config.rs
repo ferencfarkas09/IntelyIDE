@@ -78,8 +78,11 @@ fn the_real_kit_config_round_trips_with_the_migration_tag_untouched() {
     let v: Value = serde_json::from_str(&fs::read_to_string(&cfg.path).unwrap()).unwrap();
     assert_eq!(v["migrations"][0]["tag"], "v1");
     assert_eq!(v["migrations"][0]["new_sqlite_classes"], serde_json::json!(["Room", "JoinLimiter"]));
-    assert_eq!(v["assets"]["run_worker_first"], serde_json::json!(["/r/*", "/api/*"]));
-    assert_eq!(v["durable_objects"]["bindings"].as_array().unwrap().len(), 2);
+    assert_eq!(v["migrations"][1]["tag"], "v2");
+    assert_eq!(v["migrations"][1]["new_sqlite_classes"], serde_json::json!(["Team"]));
+    assert_eq!(v["assets"]["run_worker_first"], serde_json::json!(["/r/*", "/api/*", "/t/*"]));
+    assert_eq!(v["durable_objects"]["bindings"].as_array().unwrap().len(), 3);
+    assert!(v["durable_objects"]["bindings"].as_array().unwrap().iter().any(|b| b["name"] == "TEAM" && b["class_name"] == "Team"));
     assert_eq!(cfg.text, fs::read_to_string(&cfg.path).unwrap());
     // the kit's own file is never modified
     assert_eq!(fs::read_to_string(kit.relay_dir.join("wrangler.jsonc")).unwrap(), repo_wrangler_jsonc());

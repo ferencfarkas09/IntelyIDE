@@ -77,6 +77,7 @@ export default {
       { id: 'mongo', h: 'MongoDB Studio', p: 'Alapból csak olvasható, MI-támogatott lekérdezésekkel angolul vagy magyarul.' },
       { id: 'api-contract', h: 'API contract ellenőrzés', p: 'Vedd észre az eltérést a backend Swaggere és a kliens repók között. Nézd a specifikációt csak olvasva.' },
       { id: 'remote', h: 'Távoli', p: 'Kövesd és válaszold meg az ügynökfutásokat telefonról, végpontok közt titkosítva.' },
+      { id: 'team', h: 'Csapat (Béta)', p: 'Kövesd a kollégák futásait csak olvashatóan, a saját relén át, végpontok közt titkosítva.' },
     ],
   },
   why: {
@@ -141,6 +142,14 @@ export default {
         p: 'A futtatás panel elindítja a fejlesztői szervert, és élő előnézetet mutat a kód mellett. Kattints az előnézet egy elemére, és a forrásához ugrasz. A komponens-előnézet is beépített.',
         list: ['Szerkesztő, terminál, keresés és diff ugyanabban az ablakban', 'Élő előnézet a fejlesztői szerverről', 'Kattintás a forrásra és komponens-előnézet'],
         shots: [['preview', 'A futtatás panel élő előnézettel és kattintással a forrásra.']],
+      },
+      {
+        id: 'team',
+        h: 'Csapat: dolgozzatok együtt',
+        p: 'Hozz létre csapatot a saját relén, és hívd meg a kollégákat egyszer használható kóddal. Kövesd az élő futásaikat, az eszközhívásaikat és a diffjeiket, küldj jegyzetet egy futásba (a tulajdonos hagyja jóvá), és tartsd azonosan a Claude memóriát a gépeken. Minden végpontok közt titkosított, projektenként osztható, a csapattársak pedig soha nem válaszolhatnak engedélykártyára és nem indíthatnak futást.',
+        list: ['Saját relé, fiók és általunk üzemeltetett szolgáltatás nélkül', 'Projektenkénti megosztás, maszkolt titkokkal', 'Tag eltávolításakor kulcscsere'],
+        pill: 'Béta',
+        shots: [['team', 'A Csapat fül: egy kolléga futása csak olvashatóan, jóváhagyásra váró jegyzettel.'], ['team-memory', 'Közös Claude memória függő CLAUDE.md változással és ütközési másolattal.']],
       },
       {
         id: 'remote',

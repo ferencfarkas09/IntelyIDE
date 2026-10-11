@@ -31,6 +31,8 @@ impl HostSink for TauriHostSink {
     fn events(&self, events: Vec<AgentEvent>) {
         // wave3 Rm1: committed events also go to the Remote hub, but only while Remote is on
         crate::modules::remote::tap(&self.app, &events);
+        // Team T2: shared runs, only while this install is in a team and a project is shared
+        crate::modules::team::share::tap(&self.app, &events);
         if let Err(e) = self.app.emit("agent:events", events) {
             eprintln!("emit agent:events failed: {e}");
         }
@@ -157,6 +159,10 @@ impl AgentSlot {
 
     pub fn data_dir(&self) -> &std::path::Path {
         &self.data_dir
+    }
+
+    pub(crate) fn git(&self) -> &std::path::Path {
+        &self.git
     }
 
     /// The one run surface, for the Remote hub (wave3 Rm1); cheap clone of the shared handle.
@@ -353,6 +359,9 @@ pub struct AgentStartWire {
     /// The server the run executes on (its id in Settings > Servers); absent = this Mac.
     #[serde(default)]
     location: Option<String>,
+    /// Team: `false` keeps this run out of the shared runs from its very first event (the New run panel's switch).
+    #[serde(default)]
+    share: Option<bool>,
 }
 
 #[tauri::command]
@@ -367,7 +376,12 @@ pub async fn agent_start(
     switchhook::gate_check(&app)?;
     let repos = repos(&engine).await?;
     let sup = roles.supervisor().clone();
-    let opts = intely_agent_host::StartOptions { run_without_safety_net: run_without_safety_net.unwrap_or(false), provider: req.provider, bypass_confirmed: confirm_bypass.unwrap_or(false), location: req.location, ..Default::default() };
+    // the opt-out is stored under the run's id before the run can emit anything
+    let on_created = (req.share == Some(false)).then(|| {
+        let app = app.clone();
+        intely_agent_host::CreatedHook(Arc::new(move |id: &str| crate::modules::team::share::opt_out(&app, id)))
+    });
+    let opts = intely_agent_host::StartOptions { run_without_safety_net: run_without_safety_net.unwrap_or(false), provider: req.provider, bypass_confirmed: confirm_bypass.unwrap_or(false), location: req.location, on_created, ..Default::default() };
     let req = req.req;
     blocking(move || sup.start_now_with(req, &repos, opts)).await
 }

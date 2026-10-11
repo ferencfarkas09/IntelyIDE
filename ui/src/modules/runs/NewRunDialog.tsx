@@ -28,6 +28,7 @@ import { autoReasonText, chosenProvider, clampCounts, clampMode, defaultRepos, i
 import { roleColor } from "./roleColors";
 import { newRunOpen, setCentreView, setNewRunOpen } from "./state";
 import { WhereToRun } from "./WhereToRun";
+import { NewRunShare } from "../team/RunShare";
 import { AttachButton, AttachmentChips } from "../attachments/Chips";
 import { createComposerAttachments } from "../attachments/composer";
 import { promptWithAttachments, takePendingForNewRun } from "../attachments/newRunPrompt";
@@ -45,6 +46,8 @@ export function NewRunDialog() {
   // Offered only after the engine refused with `noSafetyNet` (Rewind could not snapshot a repo); one run, then it resets.
   const [noNet, setNoNet] = createSignal(false);
   const [skipNet, setSkipNet] = createSignal(false);
+  // Team: a run is shared with the team when its project is shared, unless the person switches this off for this run.
+  const [shareRun, setShareRun] = createSignal(true);
 
   const [picked, setPicked] = createSignal<string | undefined>(undefined);
   const [providers, setProviders] = createSignal<ProviderInfo[]>([]);
@@ -278,7 +281,8 @@ export function NewRunDialog() {
       for (const job of jobs) {
         try {
           const request = startRequest({ ...draft(), prompt: numbered ? numberedPrompt(base, job) : base }, current(), wanted, "location" in job ? job.location : undefined);
-          started.push(await startRun(request, Object.keys(flags).length ? flags : undefined));
+          // "share" off travels with the start: the host records the opt-out under the new run's id before the run can emit anything
+          started.push(await startRun(shareRun() ? request : { ...request, share: false }, Object.keys(flags).length ? flags : undefined));
         } catch (e) {
           failures.push({ name: job.name, error: e });
         }
@@ -298,6 +302,7 @@ export function NewRunDialog() {
       setPrompt("");
       setNoNet(false);
       setSkipNet(false);
+      setShareRun(true);
       att.store.rotate();
       setNewRunOpen(false);
       setCentreView("run");
@@ -502,6 +507,7 @@ export function NewRunDialog() {
           </label>
           <AttachmentChips items={att.store.items()} provider={att.provider()} onRemove={(id) => void att.store.remove(id)} onConfirm={(id) => void att.store.confirm(id)} />
           <div class="newrun__attach"><AttachButton onFiles={att.pick} /></div>
+          <NewRunShare checked={shareRun()} onChange={setShareRun} />
           <Show when={error()}>{(msg) => <p class="newrun__error" role="alert">{msg()}</p>}</Show>
           <Show when={noNet()}>
             <Checkbox checked={skipNet()} onChange={setSkipNet} label={t("runs.new.noNet")} />

@@ -10,6 +10,8 @@ export const SHOTS = {
   preview: 'Run panel with live dev-server preview and click-to-source',
   remote: 'Remote: phone companion watching an agent run',
   'mongo-studio': 'MongoDB Studio, read-only, with an AI-generated query',
+  team: 'Team (Beta): a teammate\'s shared run, read-only, with a note waiting for approval',
+  'team-memory': 'Team (Beta): shared Claude memory with a pending CLAUDE.md change and a conflict copy',
   providers: 'Settings > Providers: provider cards and the Experimental providers switch',
   'api-contract': 'API contract view: contract-drift findings',
   'api-explorer': 'API contract view: read-only Swagger explorer',

@@ -2,7 +2,7 @@
 
 This document explains how IntelyIDE is put together: which crates and packages exist, how a commit and an agent run travel through them, what is stored on disk and how the test suites are organised.
 
-Applies to version 1.2.0.
+Applies to version 1.3.0.
 
 IntelyIDE is a desktop app built with Tauri. A Rust engine does the Git work, a SolidJS interface shows it, and a lazily started Node process (the sidecar) talks to AI coding agents. The safety rules that constrain every layer are described in [safety.md](safety.md).
 
@@ -54,7 +54,7 @@ Everything that needs no window lives in a Tauri-free crate, so `cargo test` run
 | `ui/` | The SolidJS interface (Vite, TypeScript). |
 | `packages/protocol/` | The shared agent protocol types (see below). |
 | `sidecar/` | The Node process that hosts agent providers. |
-| `remote-relay/` | The Cloudflare Worker and Durable Object used by Remote. |
+| `remote-relay/` | The Cloudflare Worker and its Durable Objects: the Remote room and, for Team collaboration, the `Team` object (`src/team.ts`). |
 | `remote-web/` | The phone web app for Remote. |
 | `scripts/` | Build, end-to-end, licence and release tooling. |
 | `site/` | The static project site. |
@@ -81,6 +81,7 @@ All crates live in `crates/<name>`; the Cargo package names carry an `intely-` p
 | `agent_gate` | The process gate (leases, memory limits, cancel), Rewind snapshots and the allow-list Git shim given to each run. |
 | `agent_host` | The host that ties it together: starts the sidecar, runs the NDJSON loop, routes policy decisions, writes the event log and prepares each run. |
 | `servers` | Runs on your own servers: validation of a server entry, quoting, the system `ssh` binary (no ssh library), the probe and setup of a server (Node.js, the IDE's agent files, the Agent SDK, Claude Code), repositories there, and the git guard upload. No async runtime. |
+| `team` | Team collaboration (Beta): identity and keys, signed roster, invite and rekey, signed and encrypted envelopes, run sharing with redaction, notes and workspace snapshots (`collab.rs`), shared memory sync (`memsync.rs`) and the hash-chained team audit. It builds on the Remote Noise and relay client code and talks to the `Team` Durable Object; the relay only sees ciphertext. See docs/team.md. |
 | `roles` | Roles and run history: what a role may do, and the data behind the runs views. |
 | `runindex` | A read-only consumer of the run logs: session search, the night queue and the morning brief. |
 

@@ -11,6 +11,7 @@ Status: runs and is tested **only locally** (`wrangler dev --local` on 127.0.0.1
 | `src/index.ts` | Worker: routes `/r/<roomId>/{create,ws,stat}`, `/api/status`, `/api/bundle`, `/api/health`; cheap early rejects, then the per-IP join limiter; everything else is a static asset |
 | `src/room.ts` | `Room` DO: hibernating sockets (`acceptWebSocket`, attachments, auto ping/pong), SQLite tables, queue, snapshot, pairing, revoke/wipe, push trigger |
 | `src/limiter.ts` | `JoinLimiter` DO (one per hashed IP, in-memory window) |
+| `src/team.ts` | `Team` DO for team collaboration (`/t/<teamId>/{create,join,ws,stat}`): members with hashed tokens, single-use invites, presence, fanout/direct with a queue, roster and blob storage with compare-and-swap. Payloads are opaque; see `docs/team.md` |
 | `src/push.ts` | VAPID (ES256) + RFC 8291 payload encryption, endpoint allow-list; off unless all VAPID secrets exist |
 | `scripts/` | `bundle-lib.mjs` (format v2 reference implementation), `sign-bundle.mjs`, `verify-bundle.mjs`, `gen-bundle-key.mjs` (Ed25519, key kept off Cloudflare), `gen-vapid.mjs` |
 | `templates/_headers` | CSP and friends to copy into `remote-web/dist` |

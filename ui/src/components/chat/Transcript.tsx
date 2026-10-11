@@ -8,22 +8,24 @@ import { PlanApprovalCard } from "./PlanApprovalCard";
 import { Markdown } from "./Markdown";
 import { ToolCard } from "./Tools";
 import { NoteRow, noteFailure } from "./Notes";
+import { SharedPermission, SharedQuestion } from "./ReadOnlyCards";
 import { MessageAttachments } from "../../modules/attachments/Chips";
 import { t } from "../../i18n";
 
 const STICK_PX = 64;
 
-function RowView(props: { agentId: string; row: TranscriptRow; lastErrorKey: string | undefined; lastTurnKey: string | undefined; canRetry: boolean; retryText: string | undefined }) {
+function RowView(props: { agentId: string; row: TranscriptRow; lastErrorKey: string | undefined; lastTurnKey: string | undefined; canRetry: boolean; retryText: string | undefined; readOnly?: boolean; who?: string }) {
   // A note can be added while the run works and its provider takes notes (the capability of the session beats the static one of the run).
   const canNote = () => {
     const view = agentView(props.agentId);
+    if (props.readOnly) return false;
     return !!view?.turnActive && (view.caps ?? agentRow(props.agentId)?.caps)?.notes === true;
   };
   // The turn ended before the agent made another tool call: the latest such note can still go out as a message of its own (an older one
   // would be stale, and a run that works again has its own notes).
   const canResend = (n: NoteItem) => {
     const view = agentView(props.agentId);
-    if (!view || view.turnActive || n.state !== "dropped" || n.reason !== "turnEnded") return false;
+    if (props.readOnly || !view || view.turnActive || n.state !== "dropped" || n.reason !== "turnEnded") return false;
     const last = [...view.items].reverse().find((i) => i.type === "note" || i.type === "user");
     return last === n || (last?.type === "note" && last.key === n.key);
   };
@@ -41,7 +43,7 @@ function RowView(props: { agentId: string; row: TranscriptRow; lastErrorKey: str
       <Match when={of("user")}>
         {(u) => (
           <div class="msg msg--user">
-            <div class="msg__who">{t("chat.you")}</div>
+            <div class="msg__who">{props.who ?? t("chat.you")}</div>
             <Show when={u().text}>
               <div class="msg__text ui-selectable">{u().text}</div>
             </Show>
@@ -72,6 +74,8 @@ function RowView(props: { agentId: string; row: TranscriptRow; lastErrorKey: str
         )}
       </Match>
       <Match when={of("note")}>{(n) => <NoteRow item={n()} onSendAsMessage={canResend(n()) ? (text) => void sendMessage(props.agentId, text).catch(() => {}) : undefined} />}</Match>
+      <Match when={props.readOnly ? of("permission") : undefined}>{(p) => <SharedPermission item={p()} />}</Match>
+      <Match when={props.readOnly ? of("question") : undefined}>{(q) => <SharedQuestion item={q()} />}</Match>
       <Match when={of("permission")}>
         {(p) => (
           // The card shows a refused answer itself (it goes back to pending with the reason), so the rejection needs no second report here.
@@ -93,8 +97,12 @@ function RowView(props: { agentId: string; row: TranscriptRow; lastErrorKey: str
   );
 }
 
-/** Virtualised transcript. Follows the stream while you are at the bottom; scrolling up pauses that until "Jump to latest". */
-export function Transcript(props: { agentId: string; view: AgentView }) {
+/**
+ * Virtualised transcript. Follows the stream while you are at the bottom; scrolling up pauses that until "Jump to latest".
+ * `readOnly` is a teammate's shared run (Team): no notes, no retry or continue, and permission cards and questions are shown as
+ * information only. `who` names the author of the prompts.
+ */
+export function Transcript(props: { agentId: string; view: AgentView; readOnly?: boolean; who?: string }) {
   // A turn that ended in an error is already said by the error banner right above its marker.
   const rows = createMemo(() => {
     const all = buildRows(props.view.items);
@@ -186,7 +194,7 @@ export function Transcript(props: { agentId: string; view: AgentView }) {
     new ResizeObserver(() => mayPin() && (el.scrollTop = el.scrollHeight)).observe(el.firstElementChild ?? el);
     setScrollEl(el);
   };
-  const needsYou = () => pendingPermissions(props.view).length + pendingQuestions(props.view).length > 0;
+  const needsYou = () => !props.readOnly && pendingPermissions(props.view).length + pendingQuestions(props.view).length > 0;
 
   const lastError = createMemo(() => [...props.view.items].reverse().find((i) => i.type === "error")?.key);
   const retryText = createMemo(() => {
@@ -208,7 +216,7 @@ export function Transcript(props: { agentId: string; view: AgentView }) {
                   <Show when={rows()[index()]}>
                     {(row) => (
                       <div class="transcript__row" data-index={index()} ref={(el) => queueMicrotask(() => virt.measureElement(el))} style={{ transform: `translateY(${startOf(index())}px)` }}>
-                        <RowView agentId={props.agentId} row={row()} lastErrorKey={lastError()} lastTurnKey={lastRowKey()} canRetry={idle()} retryText={retryText()} />
+                        <RowView agentId={props.agentId} row={row()} lastErrorKey={lastError()} lastTurnKey={lastRowKey()} canRetry={idle() && !props.readOnly} retryText={retryText()} readOnly={props.readOnly} who={props.who} />
                       </div>
                     )}
                   </Show>

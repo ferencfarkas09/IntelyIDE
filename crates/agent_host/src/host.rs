@@ -265,9 +265,21 @@ pub struct ProbeReport {
     pub ms: u64,
 }
 
+/// Called with the id of a new run before anything can be emitted for it (Team uses it to opt a run out of sharing from its first event).
+#[derive(Clone)]
+pub struct CreatedHook(pub Arc<dyn Fn(&str) + Send + Sync>);
+
+impl std::fmt::Debug for CreatedHook {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("CreatedHook")
+    }
+}
+
 /// Per-run start options.
 #[derive(Debug, Clone, Default)]
 pub struct StartOptions {
+    /// Told the run's id as soon as it exists, before the snapshot, the session or any event.
+    pub on_created: Option<CreatedHook>,
     /// Start even when a repo cannot be snapshotted (the user ticked "run without safety net" for this run).
     pub run_without_safety_net: bool,
     /// Run the role on this provider instead of its own (the New run picker); `None` or the role's own = unchanged.
@@ -635,6 +647,9 @@ impl AgentHost {
     fn launch(&self, role: &RoleDef, mut meta: Meta, role_deny: &[String], prompt: Option<&str>, opts: StartOptions) -> Result<AgentSummary, EngineError> {
         let inner = &self.inner;
         let agent_id = meta.agent_id.clone();
+        if let Some(h) = &opts.on_created {
+            (h.0)(&agent_id);
+        }
         // A run on a server: where its folders are there is settled (and checked) before anything is taken on this Mac.
         if let Some(loc) = meta.location.clone() {
             meta.remote = Some(inner.prepare_remote(&loc, &meta)?);

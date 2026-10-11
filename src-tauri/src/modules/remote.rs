@@ -438,7 +438,7 @@ fn relying_party(relay: &ParsedRelay) -> (String, String) {
 
 /// The launch mode as the relay client sees it: `relay_cloud::relay_jail_for` (the one definition; `INTELY_CLOUD=1` lifts only the
 /// read-only jail for the relay side, the repos stay jailed and the E2E jail always wins).
-fn relay_jail() -> RelayJail {
+pub(super) fn relay_jail() -> RelayJail {
     use intely_core::jail::Jail;
     super::relay_cloud::relay_jail_for(&Jail::global(), super::relay_cloud::cloud_flag())
 }

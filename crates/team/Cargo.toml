@@ -1,0 +1,30 @@
+[package]
+name = "intely-team"
+version = "0.0.0"
+edition = "2021"
+rust-version = "1.77"
+license.workspace = true
+description = "Tauri-free team collaboration core: identity, invite handshake, team key epochs, signed envelopes, signed roster, relay client (docs/team.md)"
+publish = false
+
+[lib]
+name = "intely_team"
+
+[dependencies]
+chacha20poly1305 = { version = "0.10.1", default-features = false, features = ["alloc"] }
+futures-util = { version = "0.3.34", default-features = false, features = ["sink", "std"] }
+hex = "0.4.3"
+intely-agent-core = { version = "0.0.0", path = "../agent_core" }
+intely-remote = { version = "0.0.0", path = "../remote" }
+intely-settings = { version = "0.0.0", path = "../settings" }
+reqwest = { version = "0.13.3", default-features = false, features = ["native-tls"] }
+ring = "0.17.14"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+snow = "0.10"
+thiserror = "2.0.21"
+tokio = { version = "1.53.1", features = ["rt", "sync", "time", "macros", "net", "io-util"] }
+tokio-tungstenite = { version = "0.30.0", default-features = false, features = ["connect", "native-tls"] }
+
+[dev-dependencies]
+tempfile = "3.27.0"

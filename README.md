@@ -55,6 +55,8 @@ Agents are part of the same window, within limits:
 - **Built-in tools.** A small editor, a project tree, a terminal, and a preview with an element inspector.
 - **53 languages.** English and Hungarian are written by hand. The other 51 are machine-translated and wait for native review; some newer screens (for example MongoDB Studio, workspaces and MCP settings) are not translated yet and show English there. See [docs/i18n.md](docs/i18n.md).
 
+- **Team collaboration (Beta).** Work with colleagues through a relay you deploy yourself: follow their runs read-only, send a note into a run (the owner approves it), look at their workspace changes and share Claude memory. End-to-end encrypted, per project, and teammates can never answer permission cards or start runs. See [docs/team.md](docs/team.md).
+
 <details>
 <summary>More modules (experimental, off by default)</summary>
 
