@@ -4,8 +4,10 @@
 #   pnpm release                     preflight + build + publish (asks you to type the tag before anything becomes public)
 #   pnpm release:status              what is prepared and what is missing, changes nothing
 #   pnpm release:preflight           checks only
-#   pnpm release:build               the disk image, SHA256SUMS, SBOM, release notes, site download data -> dist-release/<version>/
-#   pnpm release:publish             tag + GitHub release (draft first, verified, then published) + download check
+#   pnpm release:build               the universal macOS disk image (built here), then collect; SHA256SUMS, SBOM, notes, site data -> dist-release/<version>/
+#   pnpm release:collect             the Windows and Linux installers: start the "Release build" workflow for the build commit (or find its run),
+#                                    wait, download its artifacts into dist-release/<version>/, check them, write SHA256SUMS, notes and site data again
+#   pnpm release:publish             tag + GitHub release (draft first, verified, then published) + download check of every file
 #
 # Options (`pnpm release --dry-run` and `pnpm release -- --dry-run` both work):
 #   --dry-run      print every command that would change something (tag, push, release, build) and run only the checks
@@ -16,6 +18,10 @@
 #   --skip-ci      publish: do not require a green CI run for HEAD (say why in the commit message of your decision)
 #   --version X.Y.Z  default: the version in package.json
 #   --ad-hoc       build: sign ad hoc and skip notarization (macOS then asks users to confirm the first launch)
+#
+# The macOS app is one universal binary (Intel and Apple Silicon): rustup target add aarch64-apple-darwin x86_64-apple-darwin once.
+# The Windows (NSIS exe, MSI) and Linux (AppImage, deb) installers are built by GitHub Actions (.github/workflows/release-build.yml) from the
+# same commit, which must be pushed to origin/main first. The Windows files are not code-signed.
 #
 # Signing (default): a Developer ID signature with hardened runtime, notarized and stapled. Set once in your shell:
 #   INTELY_SIGN_IDENTITY="Developer ID Application: <Team> (<TEAMID>)"   (security find-identity -v -p codesigning; its SHA-1 when two share a name)
@@ -48,7 +54,7 @@ while [ $# -gt 0 ]; do
     --skip-ci) SKIP_CI=1 ;;
     --ad-hoc) ADHOC=1 ;;
     --version) shift; VERSION="${1:-}" ;;
-    -h | --help) sed -n '2,30p' "$0"; exit 0 ;;
+    -h | --help) sed -n '2,36p' "$0"; exit 0 ;;
     *) echo "release: unknown option $1 (see --help)" >&2; exit 2 ;;
   esac
   shift
@@ -57,8 +63,12 @@ done
 [ -n "$VERSION" ] || VERSION="$(node -p "require('./package.json').version")"
 TAG="v$VERSION"
 OUT="$ROOT/dist-release/$VERSION"
-DMG="IntelyIDE_${VERSION}_x64.dmg"
-SBOM="IntelyIDE_${VERSION}_x64.sbom.cdx.json"
+DMG="IntelyIDE_${VERSION}_universal.dmg"
+SBOM="IntelyIDE_${VERSION}.sbom.cdx.json"
+# built by GitHub Actions; the names are the single source scripts/release/assets.mjs
+CI_FILES=("IntelyIDE_${VERSION}_x64-setup.exe" "IntelyIDE_${VERSION}_x64.msi" "IntelyIDE_${VERSION}_x86_64.AppImage" "intelyide_${VERSION}_amd64.deb")
+ALL_FILES=("$DMG" "${CI_FILES[@]}" "$SBOM" SHA256SUMS)
+WORKFLOW="release-build.yml"
 PACK="node scripts/release/pack-release.mjs"
 SIGN_ID="${INTELY_SIGN_IDENTITY:-}"
 NOTARY="${INTELY_NOTARY_PROFILE:-}"
@@ -86,6 +96,21 @@ check_tools() {
   local t
   for t in git gh node pnpm python3 shasum hdiutil codesign lipo curl; do command -v "$t" >/dev/null 2>&1 || die "missing tool: $t"; done
   ok "tools: git gh node pnpm python3 shasum hdiutil codesign lipo curl"
+}
+
+check_targets() {
+  local t installed
+  command -v rustup >/dev/null 2>&1 || die "missing tool: rustup"
+  installed="$(rustup target list --installed)"
+  for t in x86_64-apple-darwin aarch64-apple-darwin; do
+    printf '%s\n' "$installed" | grep -qx "$t" || die "the Rust target $t is not installed (rustup target add $t): the app is built universal"
+  done
+  ok "rust targets: x86_64-apple-darwin aarch64-apple-darwin (universal build)"
+}
+
+check_gh() {
+  gh auth status >/dev/null 2>&1 || die "gh is not logged in (gh auth login)"
+  ok "gh is logged in"
 }
 
 check_signing() {
@@ -157,6 +182,7 @@ check_build_commit() {
 }
 
 # ---------------------------------------------------------------------------------------------------------------------------------
+# $1 = partial: only the disk image has to be there (the installers of GitHub Actions may still be missing)
 artifacts_ok() {
   [ -f "$OUT/build-record.json" ] || return 1
   local rec
@@ -165,14 +191,17 @@ artifacts_ok() {
   git merge-base --is-ancestor "$rec" HEAD 2>/dev/null || return 1
   [ -z "$(app_changes_since "$rec")" ] || return 1
   [ "$(node -p "require('$OUT/build-record.json').signing" 2>/dev/null)" = "$SIGNING" ] || return 1
-  $PACK verify --version "$VERSION" --out "$OUT" --site-data "$SITE_DATA" >/dev/null 2>&1
+  if [ "${1:-}" = partial ]; then $PACK verify --version "$VERSION" --out "$OUT" --partial yes >/dev/null 2>&1; else $PACK verify --version "$VERSION" --out "$OUT" --site-data "$SITE_DATA" >/dev/null 2>&1; fi
 }
 
 do_status() {
   step "release status for $TAG"
   say "HEAD $(head_sha | cut -c1-10) on $(git rev-parse --abbrev-ref HEAD), $( [ -z "$(git status --porcelain)" ] && echo clean || echo 'NOT clean')"
   if artifacts_ok; then ok "artifacts in dist-release/$VERSION are complete and match the commit"; else warn "no complete artifacts for this commit in dist-release/$VERSION (pnpm release:build)"; fi
-  [ -f "$OUT/$DMG" ] && say "disk image: $(ls -l "$OUT/$DMG" | awk '{print $5}') bytes, sha256 $(shasum -a 256 "$OUT/$DMG" | cut -c1-16)..."
+  local f
+  for f in "$DMG" "${CI_FILES[@]}"; do
+    if [ -f "$OUT/$f" ]; then say "$f: $(wc -c <"$OUT/$f" | tr -d ' ') bytes, sha256 $(shasum -a 256 "$OUT/$f" | cut -c1-16)..."; else say "$f: not there yet"; fi
+  done
   gh run list --repo "$REPO" --workflow CI --commit "$(head_sha)" --limit 1 --json status,conclusion --jq '.[0] | "CI for HEAD: \(.status) \(.conclusion)"' 2>/dev/null | sed 's/^/   /' || true
   if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then say "release $TAG exists"; else say "release $TAG does not exist yet"; fi
 }
@@ -181,13 +210,17 @@ do_preflight() {
   step "preflight for $TAG"
   check_tools
   check_sources
-  [ "${1:-}" = publish ] || check_signing
-  if [ "${1:-}" = publish ]; then check_remote; check_ci; fi
+  case "${1:-}" in
+    publish) check_remote; check_ci ;;
+    collect) check_gh ;;
+    *) check_targets; check_signing; check_gh ;;
+  esac
 }
 
 do_build() {
   step "build $TAG"
   if [ "$REBUILD" = 0 ] && artifacts_ok; then ok "dist-release/$VERSION is up to date for this commit: nothing to build"; return 0; fi
+  if [ "$REBUILD" = 0 ] && artifacts_ok partial; then ok "the disk image in dist-release/$VERSION is up to date for this commit: only the installers are missing"; do_collect; return 0; fi
   [ -z "$(git status --porcelain)" ] || die "the working tree is not clean: the disk image must be built from a commit"
   local commit app
   commit="$(head_sha)"
@@ -197,10 +230,12 @@ do_build() {
   export RUSTFLAGS="--remap-path-prefix=$HOME/.cargo=/cargo --remap-path-prefix=$HOME/.rustup=/rustup --remap-path-prefix=$ROOT=/src"
   mut pnpm install --frozen-lockfile
   mut pnpm --filter @intely/sidecar build
-  mut bash scripts/with-build-lock.sh nice -n 10 pnpm tauri build --bundles app --ci -- --locked --features mongo-studio
-  app="$CARGO_TARGET_DIR/release/bundle/macos/IntelyIDE.app"
+  mut bash scripts/with-build-lock.sh nice -n 10 pnpm tauri build --target universal-apple-darwin --bundles app --ci -- --locked --features mongo-studio
+  app="$CARGO_TARGET_DIR/universal-apple-darwin/release/bundle/macos/IntelyIDE.app"
   if [ "$DRY" = 1 ]; then
     warn "dry run: the remaining build steps (patch, DMG, checksums, SBOM, notes, site data) need the finished app and are not shown"
+    say "afterwards the Windows and Linux installers come from GitHub Actions (needs the commit on origin/main):"
+    mut gh workflow run "$WORKFLOW" --repo "$REPO" --ref main -f "version=$VERSION" -f "commit=$commit"
     return 0
   fi
   [ -d "$app" ] || die "the build left no app at $app"
@@ -217,12 +252,86 @@ do_build() {
   fi
   verify_dmg
   if [ "$SMOKE" = 1 ]; then smoke "$OUT/work/IntelyIDE.app"; fi
-  $PACK finalize --version "$VERSION" --dmg "$OUT/$DMG" --out "$OUT" --commit "$commit" --site-data "$SITE_DATA" --notarized "$( [ "$ADHOC" = 1 ] && echo no || echo yes )"
+  # the first record: the disk image alone (it keeps the build commit while the installers are fetched)
+  $PACK finalize --version "$VERSION" --dmg "$OUT/$DMG" --out "$OUT" --commit "$commit" --notarized "$( [ "$ADHOC" = 1 ] && echo no || echo yes )"
   rm -rf "$OUT/work"
+  ok "the macOS disk image is done: $OUT/$DMG"
+  do_collect
+}
+
+# the build record of the disk image says commit, date and signing; write everything again with the installers of the workflow
+finalize_with_ci() {
+  local rec date notarized
+  rec="$(node -p "require('$OUT/build-record.json').commit")"
+  date="$(node -p "require('$OUT/build-record.json').date")"
+  notarized="$(node -p "require('$OUT/build-record.json').signing === 'developer id, notarized' ? 'yes' : 'no'")"
+  $PACK finalize --version "$VERSION" --dmg "$OUT/$DMG" --out "$OUT" --commit "$rec" --date "$date" --site-data "$SITE_DATA" --notarized "$notarized" --ci yes
+}
+
+# the newest "Release build" run of this version and commit: "<id> <status> <conclusion>" (empty when there is none)
+find_run() {
+  gh run list --repo "$REPO" --workflow "$WORKFLOW" --event workflow_dispatch --limit 40 --json databaseId,displayTitle,status,conclusion,createdAt \
+    --jq "[.[] | select(.displayTitle == \"release-build $VERSION $1\")] | sort_by(.createdAt) | last // empty | \"\\(.databaseId) \\(.status) \\(.conclusion)\"" 2>/dev/null || true
+}
+
+# Windows and Linux installers: GitHub Actions builds them from the commit of the disk image; download, check, and list them with the rest
+do_collect() {
+  step "Windows and Linux installers for $TAG"
+  [ -f "$OUT/build-record.json" ] && [ -f "$OUT/$DMG" ] || die "no disk image for $VERSION in dist-release: run pnpm release:build first"
+  local rec run prev id st concl waited=0 tmp f n src
+  rec="$(node -p "require('$OUT/build-record.json').commit")"
+  if [ "$REBUILD" = 0 ] && $PACK verify --version "$VERSION" --out "$OUT" --commit "$rec" --site-data "$SITE_DATA" >/dev/null 2>&1; then
+    ok "dist-release/$VERSION already holds every installer for ${rec:0:10}"
+    return 0
+  fi
+  git fetch origin main --quiet
+  git merge-base --is-ancestor "$rec" origin/main || die "the build commit ${rec:0:10} is not on origin/main: GitHub Actions builds from GitHub, push it first"
+  run="$(find_run "$rec")"
+  prev="${run%% *}"
+  case "$run" in
+    *" completed success") ok "found a finished run of the workflow for ${rec:0:10}: ${run%% *}" ;;
+    *" in_progress "* | *" queued "* | *" waiting "* | *" pending "* | *" requested "*) say "the workflow is still running for ${rec:0:10}: ${run%% *}" ;;
+    *)
+      [ -z "$run" ] || warn "the last run for ${rec:0:10} did not succeed ($run): starting a new one"
+      mut gh workflow run "$WORKFLOW" --repo "$REPO" --ref main -f "version=$VERSION" -f "commit=$rec"
+      if [ "$DRY" = 1 ]; then warn "dry run: the run is not waited for or downloaded"; return 0; fi
+      while :; do
+        run="$(find_run "$rec")"
+        [ -n "$run" ] && [ "${run%% *}" != "$prev" ] && break
+        waited=$((waited + 5)); [ "$waited" -le 120 ] || die "the new run did not show up (gh run list --workflow $WORKFLOW)"
+        sleep 5
+      done
+      ;;
+  esac
+  [ "$DRY" = 0 ] || { say "dry run: would wait for run ${run%% *} and download its artifacts"; return 0; }
+  id="${run%% *}"
+  say "run https://github.com/$REPO/actions/runs/$id"
+  waited=0
+  while :; do
+    run="$(gh run view "$id" --repo "$REPO" --json status,conclusion --jq '"\(.status) \(.conclusion)"')"
+    st="${run%% *}"; concl="${run##* }"
+    [ "$st" = completed ] && break
+    waited=$((waited + 30)); [ "$waited" -le 7200 ] || die "the workflow run $id did not finish within two hours"
+    say "workflow: $st ($((waited / 60)) min)"
+    sleep 30
+  done
+  [ "$concl" = success ] || die "the workflow run $id finished with: $concl (https://github.com/$REPO/actions/runs/$id)"
+  tmp="$(mktemp -d "${TMPDIR:-/tmp}/intely-ci-artifacts.XXXXXX")"
+  mut gh run download "$id" --repo "$REPO" --dir "$tmp"
+  n=0
+  for f in "${CI_FILES[@]}"; do
+    src="$(find "$tmp" -type f -name "$f" | head -n 1)"
+    [ -n "$src" ] || die "the workflow artifacts hold no $f"
+    cp "$src" "$OUT/$f"
+    n=$((n + 1))
+  done
+  [ "$(find "$tmp" -type f | wc -l | tr -d ' ')" = "$n" ] || { find "$tmp" -type f; die "the workflow artifacts hold files other than the $n expected installers (above)"; }
+  rm -rf "$tmp"
+  finalize_with_ci
   ok "artifacts in $OUT:"
   ls -l "$OUT" | sed 's/^/     /'
   if [ -n "$(git status --porcelain)" ]; then
-    warn "$SITE_DATA now describes this disk image: commit and push it (git add $SITE_DATA && git commit -s -m 'site: download data for $VERSION' && git push) before you publish"
+    warn "$SITE_DATA now describes this release: commit and push it (git add $SITE_DATA && git commit -s -m 'site: download data for $VERSION' && git push) before you publish"
   fi
 }
 
@@ -237,7 +346,7 @@ refinalize_notes() {
   notarized="$(node -p "require('$OUT/build-record.json').signing === 'developer id, notarized' ? 'yes' : 'no'")"
   say "CHANGELOG.md changed since the build: writing the release notes again"
   if [ "$DRY" = 1 ]; then warn "dry run: not written"; return 0; fi
-  $PACK finalize --version "$VERSION" --dmg "$OUT/$DMG" --out "$OUT" --commit "$rec" --date "$date" --site-data "$SITE_DATA" --notarized "$notarized"
+  $PACK finalize --version "$VERSION" --dmg "$OUT/$DMG" --out "$OUT" --commit "$rec" --date "$date" --site-data "$SITE_DATA" --notarized "$notarized" --ci yes
   if [ -n "$(git status --porcelain -- "$SITE_DATA")" ]; then die "$SITE_DATA changed: commit and push it, then run again"; fi
 }
 
@@ -277,7 +386,8 @@ confirm() {
   [ "$DRY" = 1 ] && { say "dry run: nothing is published, so the tag is not asked for"; return 0; }
   [ -t 0 ] || die "not a terminal: pass --yes to publish without typing the tag"
   printf '\n%sThis makes %s public%s: a tag on GitHub, a stable release, the files below.\n' "$B" "$TAG" "$N"
-  ls -l "$OUT/$DMG" "$OUT/SHA256SUMS" "$OUT/$SBOM" | awk '{printf "   %s  %s\n", $5, $NF}'
+  local f
+  for f in "${ALL_FILES[@]}"; do printf '   %s  %s\n' "$(wc -c <"$OUT/$f" | tr -d ' ')" "$f"; done
   printf 'Type %s to continue, anything else stops: ' "$TAG"
   local answer
   read -r answer
@@ -296,7 +406,7 @@ do_publish() {
   mut git tag "${sign[@]}" "$TAG" "$BUILD_COMMIT" -m "IntelyIDE $VERSION"
   mut git push origin "refs/tags/$TAG"
   mut gh release create "$TAG" --repo "$REPO" --verify-tag --draft --title "IntelyIDE $VERSION" --notes-file "$OUT/RELEASE_NOTES.md" \
-    "$OUT/$DMG" "$OUT/SHA256SUMS" "$OUT/$SBOM"
+    "${ALL_FILES[@]/#/$OUT/}"
   if [ "$DRY" = 1 ]; then warn "dry run: the draft is not checked, published or downloaded"; return 0; fi
   check_draft
   if [ "$DRAFT_ONLY" = 1 ]; then
@@ -310,33 +420,35 @@ do_publish() {
   say "Deploy the website (its download data already points at this release): pnpm site:deploy"
 }
 
-# the draft carries exactly the three files, with the sizes of the local ones
+# the draft carries exactly the release files (installers, SBOM, SHA256SUMS), with the sizes of the local ones
 check_draft() {
-  local want got
-  want="$(printf '%s %s\n' "$DMG" "$(wc -c <"$OUT/$DMG" | tr -d ' ')" "SHA256SUMS" "$(wc -c <"$OUT/SHA256SUMS" | tr -d ' ')" "$SBOM" "$(wc -c <"$OUT/$SBOM" | tr -d ' ')" | sort)"
+  local want="" got f
+  for f in "${ALL_FILES[@]}"; do want="$want$f $(wc -c <"$OUT/$f" | tr -d ' ')"$'\n'; done
+  want="$(printf '%s' "$want" | sort)"
   got="$(gh release view "$TAG" --repo "$REPO" --json assets --jq '.assets[] | "\(.name) \(.size)"' | sort)"
   [ "$want" = "$got" ] || { printf 'expected:\n%s\nGitHub has:\n%s\n' "$want" "$got"; die "the draft release does not hold the expected files"; }
-  ok "the draft release holds the three files with the expected sizes"
+  ok "the draft release holds the ${#ALL_FILES[@]} files with the expected sizes"
 }
 
-# anonymous download of what was published, compared with SHA256SUMS
+# anonymous download of what was published, compared with SHA256SUMS and with the local files
 check_public() {
   local dir f
   dir="$(mktemp -d "${TMPDIR:-/tmp}/intely-release-check.XXXXXX")"
-  for f in "$DMG" SHA256SUMS "$SBOM"; do
+  for f in "${ALL_FILES[@]}"; do
     curl -fsSL --retry 3 -o "$dir/$f" "https://github.com/$REPO/releases/download/$TAG/$f" || die "cannot download $f from the public release"
   done
   (cd "$dir" && shasum -a 256 -c SHA256SUMS >/dev/null) || die "the published files do not match SHA256SUMS"
-  cmp -s "$dir/$DMG" "$OUT/$DMG" || die "the published disk image differs from the local one"
+  for f in "${ALL_FILES[@]}"; do cmp -s "$dir/$f" "$OUT/$f" || die "the published $f differs from the local one"; done
   rm -rf "$dir"
-  ok "downloaded anonymously: SHA256SUMS verifies and the disk image is the local one"
+  ok "downloaded anonymously: SHA256SUMS verifies and every file is the local one"
 }
 
 case "$cmd" in
   status) do_status ;;
   preflight) do_preflight publish ;;
   build) do_preflight build; do_build ;;
+  collect) do_preflight collect; do_collect ;;
   publish) do_preflight publish; do_publish ;;
-  all) do_preflight publish; do_build; do_publish ;;
-  *) echo "release: unknown command $cmd (status|preflight|build|publish|all)" >&2; exit 2 ;;
+  all) do_preflight publish; check_targets; do_build; do_publish ;;
+  *) echo "release: unknown command $cmd (status|preflight|build|collect|publish|all)" >&2; exit 2 ;;
 esac

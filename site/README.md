@@ -39,7 +39,13 @@ so the visitor's browser never calls the GitHub API and the download link works 
 | `signed` | `false` shows the Gatekeeper "Open Anyway" note; `true` replaces it with a signed-and-notarized line |
 | `appleSiliconPlanned` | only used when the sole asset is `x64`; selects the "planned" wording |
 | `primaryArch` | optional; which asset is the big button when there are several (a `universal` asset always wins) |
-| `assets[]` | `name`, `url`, `arch` (`x64`, `arm64` or `universal`), `size` (bytes), `sha256` |
+| `assets` | Older shape: an array of `name`, `url`, `arch` (`x64`, `arm64` or `universal`), `size` (bytes), `sha256`. Current shape (written by `pnpm release:build`): an object keyed by platform, `mac` (one file, `arch: "universal"`), `windows` (`nsis`, `msi`) and `linux` (`appimage`, `deb`), each with the same fields. Both are read |
+| `windowsSigned` | informational; the Windows installers are not code-signed yet |
+
+With files for more than one platform the big button opens the release page without JavaScript, and `assets/site.js` points it at the
+visitor's own file (macOS, Windows, or the Linux AppImage; unknown systems keep the release page). A line under it lists the other
+platforms and files, followed by the Windows (SmartScreen) and Linux (`chmod +x`) notes. The analytics event `download_click` carries
+`platform` (`mac`, `windows`, `linux`, or `other` for the release-page link).
 
 Get a checksum with `shasum -a 256 IntelyIDE_0.1.0_x64.dmg`. With both `x64` and `arm64` assets the
 button shows one and links the other; Chromium browsers that reveal the CPU swap them automatically.

@@ -23,17 +23,48 @@ function fmtDate(value, locale) {
     : new Intl.DateTimeFormat(locale.replace('_', '-'), { dateStyle: 'long', timeZone: 'UTC' }).format(d);
 }
 
+const KIND_BY_EXT = { '.dmg': 'dmg', '.exe': 'nsis', '.msi': 'msi', '.appimage': 'appimage', '.deb': 'deb' };
+const PLATFORM_OF = { dmg: 'mac', nsis: 'windows', msi: 'windows', appimage: 'linux', deb: 'linux' };
+
+/**
+ * The files of data/release.json as one flat list. Two shapes are read:
+ * - assets keyed by platform (current): { mac: {...}, windows: { nsis, msi }, linux: { appimage, deb } }
+ * - assets as an array (older data): every entry is classified by its file extension.
+ */
+function flattenAssets(release) {
+  const raw = release.assets ?? [];
+  if (Array.isArray(raw)) {
+    return raw.map((a) => {
+      const kind = KIND_BY_EXT[extname(a.name).toLowerCase()] ?? 'dmg';
+      return { ...a, kind, platform: PLATFORM_OF[kind] };
+    });
+  }
+  const list = [];
+  if (raw.mac) list.push({ ...raw.mac, kind: 'dmg', platform: 'mac' });
+  for (const kind of ['nsis', 'msi']) if (raw.windows?.[kind]) list.push({ ...raw.windows[kind], kind, platform: 'windows' });
+  for (const kind of ['appimage', 'deb']) if (raw.linux?.[kind]) list.push({ ...raw.linux[kind], kind, platform: 'linux' });
+  return list;
+}
+
 /** Turns data/release.json into everything the templates need. */
 export function prepareRelease(release, t) {
-  const assets = (release.assets ?? []).map((a) => ({
+  const assets = flattenAssets(release).map((a) => ({
     ...a,
-    archLabel: t.dl.arch[a.arch] ?? a.arch,
+    arch: a.arch ?? 'x64',
+    archLabel: a.platform === 'mac' ? (t.dl.arch[a.arch] ?? a.arch) : t.dl.arch.pc,
+    kindLabel: t.dl.kind?.[a.kind] ?? a.kind,
     sizeLabel: fmtSize(a.size),
     ext: extname(a.name),
   }));
+  const byKind = (k) => assets.find((a) => a.kind === k) ?? null;
+  const platforms = { mac: byKind('dmg'), windows: { nsis: byKind('nsis'), msi: byKind('msi') }, linux: { appimage: byKind('appimage'), deb: byKind('deb') } };
+  // The macOS file is still `primary` (the metadata, the JSON-LD and the install steps are about the macOS app); with files for
+  // other platforms too the page offers the visitor's own file (`multi`).
+  const macAssets = assets.filter((a) => a.platform === 'mac');
+  const multi = assets.some((a) => a.platform !== 'mac');
   const primary =
-    assets.find((a) => a.arch === 'universal') ?? assets.find((a) => a.arch === release.primaryArch) ?? assets[0] ?? null;
-  const archs = new Set(assets.map((a) => a.arch));
+    macAssets.find((a) => a.arch === 'universal') ?? macAssets.find((a) => a.arch === release.primaryArch) ?? macAssets[0] ?? (multi ? null : assets[0] ?? null);
+  const archs = new Set(macAssets.map((a) => a.arch));
   let archKey = null;
   if (archs.has('universal')) archKey = 'universal';
   else if (archs.has('x64') && archs.has('arm64')) archKey = 'both';
@@ -48,11 +79,14 @@ export function prepareRelease(release, t) {
     date: fmtDate(release.date, t.locale),
     minMac: release.minMacOS,
     signed: release.signed === true,
+    windowsSigned: release.windowsSigned === true,
     notesUrl: release.notesUrl,
     assets,
+    platforms,
+    multi,
     primary,
-    others: assets.filter((a) => a !== primary),
-    swap: assets.length === 2 && archs.has('x64') && archs.has('arm64'),
+    others: macAssets.filter((a) => a !== primary),
+    swap: !multi && macAssets.length === 2 && archs.has('x64') && archs.has('arm64'),
     archNote: archKey ? t.dl.archNote[archKey] : '',
   };
 }

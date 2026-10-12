@@ -4,15 +4,18 @@
 //   node scripts/release/pack-release.mjs check-app   --app <IntelyIDE.app> --version <X.Y.Z> [--home <dir>] [--forbid <text>]...
 //   node scripts/release/pack-release.mjs patch-paths --app <IntelyIDE.app> [--home <dir>]
 //   node scripts/release/pack-release.mjs finalize    --version <X.Y.Z> --dmg <file> --out <dir> --commit <sha> [--date YYYY-MM-DD] [--notarized yes]
-//                                                     [--site-data <release.json>] [--repo OWNER/REPO]
-//   node scripts/release/pack-release.mjs verify      --version <X.Y.Z> --out <dir> [--commit <sha>] [--site-data <release.json>]
+//                                                     [--ci yes] [--site-data <release.json>] [--repo OWNER/REPO]
+//   node scripts/release/pack-release.mjs verify      --version <X.Y.Z> --out <dir> [--commit <sha>] [--site-data <release.json>] [--partial yes]
 //
 // check-app    the bundle has the version, the sidecar, the SDK installer and the SDK pin files and the relay kit (equal to their sources), no
-//              path of the builder's home in any file, and an x86_64 main executable.
+//              path of the builder's home in any file, and a universal main executable (x86_64 and arm64).
 // patch-paths  the build bakes the builder's checkout path into the executable (CARGO_MANIFEST_DIR fallbacks, never used in a bundle).
 //              Every `<home>/` is replaced by a neutral string of the same length, so nothing shifts and no personal path ships.
-// finalize     writes SHA256SUMS, the SBOM, RELEASE_NOTES.md, build-record.json and (with --site-data) the site's release.json.
-// verify       the files of <out> still match SHA256SUMS and the record (and the record's commit, when --commit is given).
+// finalize     writes SHA256SUMS, the SBOM, RELEASE_NOTES.md, build-record.json and (with --ci yes and --site-data) the site's release.json.
+//              Without --ci only the disk image is listed (the first step of a build); with --ci the four installers the GitHub Actions
+//              workflow built (AppImage, deb, NSIS exe, MSI) must already be in <dir> under their release names (assets.mjs).
+// verify       the files of <out> still match SHA256SUMS and the record (and the record's commit, when --commit is given), and the record
+//              lists every release file; --partial yes accepts a record that has only the disk image.
 //
 // Exit codes: 0 ok, 1 a check failed, 2 usage or input error.
 import { spawnSync } from "node:child_process";
@@ -21,6 +24,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync,
 import os from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { assetNames, ALL_CI_KINDS, MIN_BYTES } from "./assets.mjs";
 import { loadLocalNeedles } from "../licenses/publish-scan.mjs";
 import { changelogSection, scanText } from "./notes.mjs";
 
@@ -135,7 +139,10 @@ export function checkApp({ app, version, home = os.homedir(), forbid = [], root 
   const exe = join(app, "Contents/MacOS/intely-switch-ide");
   if (existsSync(exe)) {
     const r = run("lipo", ["-archs", exe], { encoding: "utf8" });
-    if (r.status === 0 && r.stdout.trim() !== "x86_64") problems.push(`the executable is ${r.stdout.trim()}, expected x86_64`);
+    if (r.status === 0) {
+      const archs = r.stdout.trim().split(/\s+/).sort().join(" ");
+      if (archs !== "arm64 x86_64") problems.push(`the executable is ${archs || "(unknown)"}, expected a universal binary (arm64 x86_64)`);
+    }
   } else problems.push("no executable in the bundle");
   return problems;
 }
@@ -159,9 +166,27 @@ export function parseSums(text) {
 
 const demote = (md) => md.replace(/^(#{2,5}) /gm, (_, h) => `${h}# `);
 
+const mib = (f) => `${(f.size / 1048576).toFixed(1)} MiB`;
+
 /** The text of the GitHub release. Facts only: what is attached, how to verify and install, what changed. */
-export function renderNotes({ version, repo = REPO, dmg, sbom, body, notarized = false }) {
+export function renderNotes({ version, repo = REPO, dmg, sbom, ci = {}, body, notarized = false }) {
   const base = `https://github.com/${repo}/blob/main`;
+  const rows = [
+    `| \`${dmg.name}\` | macOS 13.5 or later, Intel and Apple Silicon (one universal app), ${mib(dmg)} | \`${dmg.sha256}\` |`,
+    ci.nsis && `| \`${ci.nsis.name}\` | Windows 10 or 11 (64-bit) installer, ${mib(ci.nsis)} | \`${ci.nsis.sha256}\` |`,
+    ci.msi && `| \`${ci.msi.name}\` | Windows 10 or 11 (64-bit) MSI package, ${mib(ci.msi)} | \`${ci.msi.sha256}\` |`,
+    ci.appimage && `| \`${ci.appimage.name}\` | Linux (64-bit) AppImage, runs on most distributions, ${mib(ci.appimage)} | \`${ci.appimage.sha256}\` |`,
+    ci.deb && `| \`${ci.deb.name}\` | Linux (64-bit) package for Debian and Ubuntu, ${mib(ci.deb)} | \`${ci.deb.sha256}\` |`,
+    `| \`${sbom.name}\` | Software bill of materials (CycloneDX) of what is inside the app | \`${sbom.sha256}\` |`,
+    "| `SHA256SUMS` | The checksums of the files above | |",
+  ].filter(Boolean);
+  const mac = `**macOS.** Open \`${dmg.name}\`, drag IntelyIDE to Applications, eject the image and open the app from Applications. ${notarized ? "The app is signed with the maintainer's Developer ID and notarized by Apple, so it opens without a Gatekeeper warning. To check: `spctl --assess --type execute --verbose /Applications/IntelyIDE.app` prints `accepted` and `source=Notarized Developer ID`." : "The app is signed ad hoc and is not notarized, so macOS refuses the first launch. On macOS 15 and later open System Settings > Privacy & Security, scroll to the message about IntelyIDE, choose Open Anyway and confirm. On macOS 13 and 14 right-click the app and choose Open. Do this only for a file you downloaded from this repository's Releases page."}`;
+  const win = ci.nsis || ci.msi
+    ? `\n**Windows.** Run the installer. These Windows files are not code-signed yet, so SmartScreen may show "Windows protected your PC": choose More info, then Run anyway, and only for a file you downloaded from this repository's Releases page (compare it with \`SHA256SUMS\` first).`
+    : "";
+  const linux = ci.appimage || ci.deb
+    ? `\n**Linux.** ${ci.appimage ? `Make the AppImage executable and start it: \`chmod +x ${ci.appimage.name} && ./${ci.appimage.name}\`. ` : ""}${ci.deb ? `On Debian and Ubuntu you can install \`${ci.deb.name}\` with \`sudo apt install ./${ci.deb.name}\`.` : ""}`
+    : "";
   return `# IntelyIDE ${version}
 
 The stable release of IntelyIDE, a desktop Git client for several repositories at once, with coding agents that can edit but never commit or push.
@@ -170,19 +195,17 @@ The stable release of IntelyIDE, a desktop Git client for several repositories a
 
 | File | What it is | SHA-256 |
 |---|---|---|
-| \`${dmg.name}\` | The app for Intel Macs (it also runs on Apple Silicon under Rosetta 2), ${(dmg.size / 1048576).toFixed(1)} MiB | \`${dmg.sha256}\` |
-| \`${sbom.name}\` | Software bill of materials (CycloneDX) of what is inside the disk image | \`${sbom.sha256}\` |
-| \`SHA256SUMS\` | The checksums of the files above | |
+${rows.join("\n")}
 
 ## Install
 
-1. Open \`${dmg.name}\`, drag IntelyIDE to Applications, eject the image and open the app from Applications.
-2. ${notarized ? "The app is signed with the maintainer's Developer ID and notarized by Apple, so it opens without a Gatekeeper warning. To check: `spctl --assess --type execute --verbose /Applications/IntelyIDE.app` prints `accepted` and `source=Notarized Developer ID`." : "The app is signed ad hoc and is not notarized, so macOS refuses the first launch. On macOS 15 and later open System Settings > Privacy & Security, scroll to the message about IntelyIDE, choose Open Anyway and confirm. On macOS 13 and 14 right-click the app and choose Open. Do this only for a file you downloaded from this repository's Releases page."}
-3. Agent runs also need Node.js 24 or newer, your own Claude Code login and the Claude Agent SDK, which you install once with the installer inside the app: \`node '/Applications/IntelyIDE.app/Contents/Resources/sidecar/sdk-install.js' --yes\` (run it with \`--plan\` first to see what it would download). The Git features work without any of this. Details: [docs/install-macos.md](${base}/docs/install-macos.md) and [docs/getting-started.md](${base}/docs/getting-started.md).
+${mac}${win}${linux}
+
+Agent runs also need Node.js 24 or newer, your own Claude Code login and the Claude Agent SDK, which you install once with the installer inside the app (on macOS: \`node '/Applications/IntelyIDE.app/Contents/Resources/sidecar/sdk-install.js' --yes\`; run it with \`--plan\` first to see what it would download). The Git features work without any of this. Details: [docs/install-macos.md](${base}/docs/install-macos.md) and [docs/getting-started.md](${base}/docs/getting-started.md).
 
 ## Verify the download
 
-In the folder with the files: \`shasum -a 256 -c SHA256SUMS\`. This detects a damaged download. The checksums come from the same page as the files, so they cannot prove who made them.
+In the folder with the files: \`shasum -a 256 -c SHA256SUMS\` (on Windows: \`certutil -hashfile <file> SHA256\` and compare by eye). This detects a damaged download. The checksums come from the same page as the files, so they cannot prove who made them.
 
 ## What's changed
 
@@ -197,9 +220,17 @@ ${demote(body)}
 `;
 }
 
-/** The site's download data (site/data/release.json). */
-export function siteRelease({ version, date, dmg, repo = REPO, previous = {}, notarized = false }) {
+/**
+ * The site's download data (site/data/release.json). `assets` is keyed by platform:
+ *   mac: { name, url, size, sha256, arch: "universal" }, windows: { nsis, msi }, linux: { appimage, deb }
+ * (a platform is left out when its files were not built). The site (site/src/lib.mjs) still reads the older array form.
+ */
+export function siteRelease({ version, date, dmg, ci = {}, repo = REPO, previous = {}, notarized = false }) {
   const tag = `v${version}`;
+  const entry = (f, extra = {}) => ({ name: f.name, url: `https://github.com/${repo}/releases/download/${tag}/${f.name}`, ...extra, size: f.size, sha256: f.sha256 });
+  const assets = { mac: entry(dmg, { arch: "universal" }) };
+  if (ci.nsis || ci.msi) assets.windows = { ...(ci.nsis && { nsis: entry(ci.nsis, { arch: "x64" }) }), ...(ci.msi && { msi: entry(ci.msi, { arch: "x64" }) }) };
+  if (ci.appimage || ci.deb) assets.linux = { ...(ci.appimage && { appimage: entry(ci.appimage, { arch: "x64" }) }), ...(ci.deb && { deb: entry(ci.deb, { arch: "x64" }) }) };
   return {
     _comment: previous._comment ?? "Single source of truth for every download fact on the site. Written by `pnpm release:build`; do not edit by hand.",
     version,
@@ -207,10 +238,10 @@ export function siteRelease({ version, date, dmg, repo = REPO, previous = {}, no
     date,
     minMacOS: previous.minMacOS ?? "13.5",
     signed: notarized,
-    appleSiliconPlanned: previous.appleSiliconPlanned ?? true,
+    windowsSigned: false,
     notesUrl: `https://github.com/${repo}/releases/tag/${tag}`,
     sha256sumsUrl: `https://github.com/${repo}/releases/download/${tag}/SHA256SUMS`,
-    assets: [{ name: dmg.name, url: `https://github.com/${repo}/releases/download/${tag}/${dmg.name}`, arch: "x64", size: dmg.size, sha256: dmg.sha256 }],
+    assets,
   };
 }
 
@@ -221,50 +252,70 @@ function runSbom(version, out, root) {
   if (r.status !== 0) throw new Fail(`sbom.mjs failed: ${(r.stderr || r.stdout).trim().split("\n").slice(-3).join(" | ")}`);
 }
 
-export function finalize({ version, dmg: dmgPath, out, commit, date, siteData, repo = REPO, root = ROOT, notarized = false }) {
-  const name = `IntelyIDE_${version}_x64.dmg`;
-  if (basename(dmgPath) !== name) throw new Fail(`the disk image must be named ${name}`, 2);
+const describeFile = (path) => ({ name: basename(path), size: statSync(path).size, sha256: sha256File(path) });
+
+export function finalize({ version, dmg: dmgPath, out, commit, date, siteData, repo = REPO, root = ROOT, notarized = false, ci: withCi = false }) {
+  const names = assetNames(version);
+  if (basename(dmgPath) !== names.dmg) throw new Fail(`the disk image must be named ${names.dmg}`, 2);
   if (!existsSync(dmgPath)) throw new Fail(`no disk image at ${dmgPath}`, 2);
   mkdirSync(out, { recursive: true });
-  const sbomName = `IntelyIDE_${version}_x64.sbom.cdx.json`;
-  const sbomPath = join(out, sbomName);
+  const ci = {};
+  if (withCi) {
+    const missing = [];
+    for (const kind of ALL_CI_KINDS) {
+      const p = join(out, names[kind]);
+      if (!existsSync(p)) missing.push(`${names[kind]} (not found)`);
+      else if (statSync(p).size < MIN_BYTES[kind]) missing.push(`${names[kind]} (only ${statSync(p).size} bytes)`);
+      else ci[kind] = describeFile(p);
+    }
+    if (missing.length) throw new Fail(`the workflow files are not all in ${out}: ${missing.join(", ")}`);
+  }
+  const sbomPath = join(out, names.sbom);
   runSbom(version, sbomPath, root);
-  const dmg = { name, size: statSync(dmgPath).size, sha256: sha256File(dmgPath) };
-  const sbom = { name: sbomName, size: statSync(sbomPath).size, sha256: sha256File(sbomPath) };
-  writeAtomic(join(out, "SHA256SUMS"), buildSums([dmg, sbom]));
+  const dmg = describeFile(dmgPath);
+  const sbom = describeFile(sbomPath);
+  const listed = [dmg, ...ALL_CI_KINDS.filter((k) => ci[k]).map((k) => ci[k]), sbom];
+  writeAtomic(join(out, "SHA256SUMS"), buildSums(listed));
 
   const changelog = readFileSync(join(root, "CHANGELOG.md"), "utf8");
   const section = changelogSection(changelog, version);
   const when = date ?? section.date ?? new Date().toISOString().slice(0, 10);
-  const notes = renderNotes({ version, repo, dmg, sbom, body: section.body, notarized });
+  const notes = renderNotes({ version, repo, dmg, sbom, ci, body: section.body, notarized });
   // the publish-scan rules (and the owner's local needles, when that untracked file exists) over the text; rule ids and lines only
   const hits = scanText(notes, "release-notes.md", loadLocalNeedles(root));
   if (hits.length) throw new Fail(`the release notes trip the publish scan:\n  ${hits.map((h) => `line ${h.line}: ${h.rule}`).join("\n  ")}`);
   writeAtomic(join(out, "RELEASE_NOTES.md"), notes);
 
-  writeAtomic(join(out, "build-record.json"), JSON.stringify({ version, commit, date: when, files: { [dmg.name]: dmg, [sbom.name]: sbom }, signing: notarized ? "developer id, notarized" : "ad hoc, not notarized" }, null, 2) + "\n");
+  const files = Object.fromEntries(listed.map((f) => [f.name, f]));
+  writeAtomic(
+    join(out, "build-record.json"),
+    JSON.stringify({ version, commit, date: when, platforms: withCi ? ["mac", "windows", "linux"] : ["mac"], files, signing: notarized ? "developer id, notarized" : "ad hoc, not notarized" }, null, 2) + "\n",
+  );
 
-  if (siteData) {
+  if (siteData && withCi) {
     let previous = {};
     try {
       previous = JSON.parse(readFileSync(siteData, "utf8"));
     } catch {
       /* first time */
     }
-    writeAtomic(siteData, JSON.stringify(siteRelease({ version, date: when, dmg, repo, previous, notarized }), null, 2) + "\n");
+    writeAtomic(siteData, JSON.stringify(siteRelease({ version, date: when, dmg, ci, repo, previous, notarized }), null, 2) + "\n");
   }
-  return { dmg, sbom, date: when };
+  return { dmg, sbom, ci, date: when };
 }
 
 /** Problems of an artifact folder: files must match SHA256SUMS and the record; with `commit` the record must be for it. */
-export function verifyOut({ version, out, commit, siteData }) {
+export function verifyOut({ version, out, commit, siteData, partial = false }) {
   const problems = [];
   const recFile = join(out, "build-record.json");
   if (!existsSync(recFile)) return [`no build-record.json in ${out}`];
   const rec = JSON.parse(readFileSync(recFile, "utf8"));
+  const names = assetNames(version);
   if (rec.version !== version) problems.push(`the build record is for ${rec.version}, expected ${version}`);
   if (commit && rec.commit !== commit) problems.push(`the build record is for commit ${String(rec.commit).slice(0, 12)}, HEAD is ${commit.slice(0, 12)}`);
   const sums = existsSync(join(out, "SHA256SUMS")) ? parseSums(readFileSync(join(out, "SHA256SUMS"), "utf8")) : new Map();
+  const expected = partial ? [names.dmg, names.sbom] : [names.dmg, ...ALL_CI_KINDS.map((k) => names[k]), names.sbom];
+  for (const name of expected) if (!rec.files?.[name]) problems.push(`the build record does not list ${name}${partial ? "" : " (pnpm release:collect fetches the Windows and Linux files)"}`);
   for (const [file, meta] of Object.entries(rec.files ?? {})) {
     const p = join(out, file);
     if (!existsSync(p)) problems.push(`missing: ${file}`);
@@ -275,14 +326,17 @@ export function verifyOut({ version, out, commit, siteData }) {
     }
   }
   if (!existsSync(join(out, "RELEASE_NOTES.md"))) problems.push("missing: RELEASE_NOTES.md");
-  if (siteData) {
+  if (siteData && !partial) {
     try {
       const site = JSON.parse(readFileSync(siteData, "utf8"));
-      const asset = site.assets?.[0];
-      const dmg = rec.files?.[`IntelyIDE_${version}_x64.dmg`];
       if (site.version !== version) problems.push(`site data says version ${site.version}`);
       if (site.status !== "stable") problems.push(`site data status is ${site.status}, expected stable`);
-      if (!asset || !dmg || asset.sha256 !== dmg.sha256 || asset.size !== dmg.size) problems.push("site data does not describe this disk image (hash or size)");
+      const a = site.assets ?? {};
+      const listed = { dmg: a.mac, nsis: a.windows?.nsis, msi: a.windows?.msi, appimage: a.linux?.appimage, deb: a.linux?.deb };
+      for (const [kind, asset] of Object.entries(listed)) {
+        const f = rec.files?.[names[kind]];
+        if (!asset || !f || asset.name !== names[kind] || asset.sha256 !== f.sha256 || asset.size !== f.size) problems.push(`site data does not describe ${names[kind]} (name, hash or size)`);
+      }
     } catch (e) {
       problems.push(`site data unreadable: ${e.message}`);
     }
@@ -326,13 +380,13 @@ export function main(argv, io = { log: console.log, err: console.error }) {
     }
     if (cmd === "finalize") {
       need("version", "dmg", "out", "commit");
-      const r = finalize({ version: o.version, dmg: resolve(o.dmg), out: resolve(o.out), commit: o.commit, date: o.date, siteData: o.siteData ? resolve(o.siteData) : undefined, repo: o.repo ?? REPO, notarized: o.notarized === "yes" });
+      const r = finalize({ version: o.version, dmg: resolve(o.dmg), out: resolve(o.out), commit: o.commit, date: o.date, siteData: o.siteData ? resolve(o.siteData) : undefined, repo: o.repo ?? REPO, notarized: o.notarized === "yes", ci: o.ci === "yes" });
       io.log(`finalize: ${r.dmg.name} ${r.dmg.size} bytes sha256 ${r.dmg.sha256}`);
       return 0;
     }
     if (cmd === "verify") {
       need("version", "out");
-      const problems = verifyOut({ version: o.version, out: resolve(o.out), commit: o.commit, siteData: o.siteData ? resolve(o.siteData) : undefined });
+      const problems = verifyOut({ version: o.version, out: resolve(o.out), commit: o.commit, siteData: o.siteData ? resolve(o.siteData) : undefined, partial: o.partial === "yes" });
       problems.forEach((p) => io.err(`FAIL ${p}`));
       io.log(problems.length ? `verify: ${problems.length} problem(s)` : "verify: OK");
       return problems.length ? 1 : 0;
