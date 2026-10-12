@@ -42,7 +42,7 @@ pub struct SpawnSpec {
     pub rows: u16,
     /// Overlaid on the process environment (the login-shell `PATH` and friends).
     pub env: HashMap<String, String>,
-    /// Defaults to `$SHELL`, else `/bin/zsh`.
+    /// Defaults to `$SHELL`, else `/bin/zsh` (see [`default_shell`]).
     pub shell: Option<PathBuf>,
 }
 
@@ -76,8 +76,13 @@ fn io_err(what: &str, e: impl std::fmt::Display) -> EngineError {
     EngineError::new(code::IO, format!("{what}: {e}"))
 }
 
+/// `$SHELL`, else `/bin/zsh` (macOS) / `/bin/bash` (Linux); on Windows PowerShell, which every supported Windows has.
 pub fn default_shell() -> PathBuf {
-    std::env::var_os("SHELL").filter(|s| !s.is_empty()).map_or_else(|| PathBuf::from("/bin/zsh"), PathBuf::from)
+    if cfg!(windows) {
+        return PathBuf::from("powershell.exe");
+    }
+    let fallback = if cfg!(target_os = "macos") { "/bin/zsh" } else { "/bin/bash" };
+    std::env::var_os("SHELL").filter(|s| !s.is_empty()).map_or_else(|| PathBuf::from(fallback), PathBuf::from)
 }
 
 impl TermManager {
@@ -104,7 +109,10 @@ impl TermManager {
         }
         let shell = spec.shell.clone().unwrap_or_else(default_shell);
         let mut cmd = CommandBuilder::new(&shell);
-        cmd.arg("-l");
+        // a login shell on Unix (the user's PATH and aliases); PowerShell has no such flag
+        if cfg!(not(windows)) {
+            cmd.arg("-l");
+        }
         cmd.cwd(&spec.cwd);
         for key in std::env::vars_os().filter_map(|(k, _)| k.into_string().ok()).filter(|k| k.starts_with("INTELY_")) {
             cmd.env_remove(key);
@@ -154,7 +162,7 @@ impl TermManager {
             let code = child.wait().ok().map(|s| s.exit_code() as i32);
             // Like a terminal window closing: whatever the shell left running gets SIGHUP.
             if usable_pgid(pid) {
-                unsafe { libc::killpg(pid, libc::SIGHUP) };
+                intely_core::sys::hangup_group(pid);
             }
             let until = Instant::now() + DRAIN_GRACE;
             while !reader_done.load(Ordering::Acquire) && Instant::now() < until {
@@ -247,7 +255,7 @@ fn process_groups(shell: i32) -> Vec<i32> {
 /// SIGHUP like a closing terminal window (an interactive shell ignores SIGTERM), then the escalating kill.
 fn end_groups(groups: &[i32], grace: Duration) {
     for &g in groups {
-        unsafe { libc::killpg(g, libc::SIGHUP) };
+        intely_core::sys::hangup_group(g);
     }
     let hangup = Instant::now() + HANGUP_WAIT;
     while Instant::now() < hangup && groups.iter().any(|&g| !live_group_pids(g).is_empty()) {

@@ -564,6 +564,7 @@ mod tests {
         assert!(file_hunks(&ctx(), &f.config(), ".env", &DiffSource::WorktreeVsHead).await.unwrap().is_empty());
     }
 
+    #[cfg(unix)]
     #[tokio::test]
     async fn paths_must_stay_inside_the_repo() {
         let f = Fixture::new();
@@ -581,6 +582,7 @@ mod tests {
         assert_eq!(e.code, code::INVALID_SELECTION);
     }
 
+    #[cfg(unix)]
     #[tokio::test]
     async fn tracked_symlink_shows_its_target_not_the_target_file() {
         let f = Fixture::new();

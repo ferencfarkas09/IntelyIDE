@@ -1,6 +1,8 @@
 mod common;
 
+#[cfg_attr(not(unix), allow(unused_imports))]
 use std::fs;
+#[cfg(unix)]
 use std::os::unix::fs::symlink;
 use std::sync::Arc;
 
@@ -67,6 +69,7 @@ fn capacity_evicts_the_oldest() {
     assert_eq!(t.redeem(&first.token, &[Purpose::ScanRoot], &v).err().unwrap().code, "tokenExpired");
 }
 
+#[cfg(unix)]
 #[test]
 fn a_directory_swapped_for_a_symlink_between_issue_and_redeem_is_refused() {
     let (fx, _c, t, v) = setup();

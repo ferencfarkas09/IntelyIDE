@@ -2,6 +2,7 @@
 //! command on this machine under another HOME (the "server"). The permission broker judges the server's files through the sidecar's
 //! `fs/query`, the git guard is uploaded, nothing of this Mac's login shell is sent, and a server that cannot answer denies.
 
+#![cfg(unix)]
 mod common;
 
 use std::os::unix::fs::PermissionsExt;

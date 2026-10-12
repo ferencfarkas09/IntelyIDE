@@ -720,6 +720,7 @@ fn relative_and_absolute_roots_are_judged_against_the_working_directory() {
     assert_eq!(bash(&c, &format!("git add {parent}")).by, DecidedBy::HardStop);
 }
 
+#[cfg(unix)]
 #[test]
 fn symlinked_protected_paths_are_judged_by_their_target() {
     let fx = fx();
@@ -869,6 +870,7 @@ fn git_aliases_are_judged_as_what_they_run() {
     }
 }
 
+#[cfg(unix)]
 #[test]
 fn a_renamed_copy_or_link_of_the_real_git_is_still_git() {
     let real = std::path::Path::new("/usr/bin/git");

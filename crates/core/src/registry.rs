@@ -70,7 +70,7 @@ impl Location {
         // `INTELY_DATA_DIR` (tests, the e2e harness) moves every piece of IDE state, so a run with it never touches the real one.
         let default_dir = || match nonempty("INTELY_DATA_DIR") {
             Some(d) => PathBuf::from(d),
-            None => PathBuf::from(var("HOME").unwrap_or_default()).join("Library/Application Support/IntelySwitchIDE"),
+            None => crate::sys::data_dir_under(&PathBuf::from(var("HOME").or_else(|| var("USERPROFILE")).unwrap_or_default())),
         };
         if let Some(p) = nonempty("INTELY_WORKSPACE") {
             let file = PathBuf::from(p);

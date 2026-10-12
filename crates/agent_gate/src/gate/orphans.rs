@@ -6,11 +6,10 @@
 
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
-use std::os::fd::AsRawFd;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use libc::pid_t;
+use super::procinfo::pid_t;
 use serde::{Deserialize, Serialize};
 
 use super::cancel::{terminate_group, usable_pgid};
@@ -166,9 +165,7 @@ impl OrphanRegistry {
     /// Exclusive advisory lock so two IDE instances never interleave a read-modify-write.
     fn lock(&self) -> io::Result<LockGuard> {
         let file = OpenOptions::new().create(true).truncate(false).write(true).open(&self.lock_path)?;
-        if unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX) } != 0 {
-            return Err(io::Error::last_os_error());
-        }
+        lock_exclusive(&file)?;
         Ok(LockGuard(file))
     }
 }
@@ -177,8 +174,33 @@ struct LockGuard(File);
 
 impl Drop for LockGuard {
     fn drop(&mut self) {
-        unsafe { libc::flock(self.0.as_raw_fd(), libc::LOCK_UN) };
+        unlock(&self.0);
     }
+}
+
+#[cfg(unix)]
+fn lock_exclusive(file: &File) -> io::Result<()> {
+    use std::os::fd::AsRawFd;
+    if unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX) } != 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(())
+}
+
+#[cfg(unix)]
+fn unlock(file: &File) {
+    use std::os::fd::AsRawFd;
+    unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_UN) };
+}
+
+#[cfg(not(unix))]
+fn lock_exclusive(file: &File) -> io::Result<()> {
+    file.lock()
+}
+
+#[cfg(not(unix))]
+fn unlock(file: &File) {
+    let _ = file.unlock();
 }
 
 enum Verdict {

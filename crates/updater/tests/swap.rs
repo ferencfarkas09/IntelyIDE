@@ -1,6 +1,8 @@
 //! U4: the swap, its in-process rollback and the repair of an interrupted swap
 //! ((design notes: updater-spec) 10.2 `swap`). Real directories; failures and "power loss" are injected
 //! through `FsOps` so every point between two file-system operations is exercised.
+#![cfg(target_os = "macos")]
+#![cfg(unix)]
 mod common;
 
 use std::cell::{Cell, RefCell};

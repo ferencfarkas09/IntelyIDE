@@ -1,5 +1,6 @@
 //! Commit sequence against real git: RESULTS.md cases C1-C17 re-expressed on `git::commit::run_commit`.
 
+#![cfg(unix)]
 mod common;
 
 use std::time::{Duration, Instant};

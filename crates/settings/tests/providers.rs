@@ -1,5 +1,7 @@
 //! Provider registry against fake CLIs in a temp PATH. No real CLI, no Keychain (the in-memory secret store), no network.
 
+#![cfg(unix)]
+#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
@@ -25,6 +27,7 @@ struct Fixture {
     events: Arc<Mutex<Vec<ProviderStateChange>>>,
 }
 
+#[cfg(unix)]
 fn script(dir: &Path, name: &str, body: &str) {
     let path = dir.join(name);
     std::fs::write(&path, format!("#!/bin/sh\n{body}\n")).unwrap();

@@ -26,14 +26,7 @@ pub fn open_in_browser(url: &str) -> Result<(), String> {
         }
         return Err("the browser is not opened under the e2e harness".to_owned());
     }
-    #[cfg(target_os = "macos")]
-    let status = std::process::Command::new("/usr/bin/open").arg(url).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
-    #[cfg(not(target_os = "macos"))]
-    let status: std::io::Result<std::process::ExitStatus> = Err(std::io::Error::other("unsupported platform"));
-    match status {
-        Ok(s) if s.success() => Ok(()),
-        _ => Err("the browser could not be opened".to_owned()),
-    }
+    intely_core::sys::open_external(std::ffi::OsStr::new(url)).map_err(|_| "the browser could not be opened".to_owned())
 }
 
 #[cfg(test)]

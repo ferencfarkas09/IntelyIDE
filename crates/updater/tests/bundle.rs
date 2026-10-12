@@ -1,4 +1,5 @@
 //! U3: install-location classes and staged-bundle validation ((design notes: updater-spec) 10.2 `bundle`).
+#![cfg(target_os = "macos")]
 mod common;
 
 use std::cell::RefCell;

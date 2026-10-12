@@ -478,8 +478,10 @@ mod tests {
         assert!(dir.to_string_lossy().len() + 41 < 104, "{}", dir.display());
     }
 
+    #[cfg(unix)]
     #[test]
     fn the_control_folder_is_private_to_us_or_there_is_none() {
+        #[cfg(unix)]
         use std::os::unix::fs::MetadataExt;
         let dir = control_dir();
         if !dir.as_os_str().is_empty() {

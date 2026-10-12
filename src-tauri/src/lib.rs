@@ -12,10 +12,19 @@ use std::sync::Arc;
 
 use commands::EngineSlot;
 use intely_core::Engine;
-use tauri::{Emitter, LogicalPosition, Manager, RunEvent, TitleBarStyle, WebviewWindowBuilder, WindowEvent};
+use tauri::{Emitter, Manager, RunEvent, WebviewWindowBuilder, WindowEvent};
+#[cfg(target_os = "macos")]
+use tauri::{LogicalPosition, TitleBarStyle};
 
 pub fn run() {
     perf::init();
+    // Windows has no HOME; every module that looks for the home directory (`~/.claude`, the data directory) reads it.
+    #[cfg(windows)]
+    if std::env::var_os("HOME").is_none_or(|h| h.is_empty()) {
+        if let Some(profile) = std::env::var_os("USERPROFILE") {
+            std::env::set_var("HOME", profile);
+        }
+    }
     // Our own menu is set in setup(); without the default one AppKit has no Edit menu to decorate while it finishes
     // launching (it loads the Writing Tools framework for that, which sits on the startup path).
     let app = tauri::Builder::default()
@@ -575,10 +584,16 @@ pub fn run() {
                 // the registry decides what opens (the legacy workspace.json is migrated once); a problem starts the app detached
                 let slot = modules::workspaces::setup(app, sink, true);
                 perf::line("engine_created");
-                window = window.traffic_light_position(LogicalPosition::new(16.0, 18.0));
+                #[cfg(target_os = "macos")]
+                {
+                    window = window.traffic_light_position(LogicalPosition::new(16.0, 18.0));
+                }
                 slot
             } else {
-                window = window.title_bar_style(TitleBarStyle::Visible).hidden_title(false);
+                #[cfg(target_os = "macos")]
+                {
+                    window = window.title_bar_style(TitleBarStyle::Visible).hidden_title(false);
+                }
                 modules::workspaces::setup(app, sink, false)
             };
             app.manage(slot);

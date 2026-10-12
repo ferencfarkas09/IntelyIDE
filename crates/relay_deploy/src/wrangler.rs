@@ -7,7 +7,6 @@
 
 use std::collections::VecDeque;
 use std::io::{Read, Write};
-use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::mpsc::{self, RecvTimeoutError};
@@ -345,11 +344,9 @@ impl ProcessSpawner {
 
 const KILL_GRACE: Duration = Duration::from_secs(3);
 
-fn killpg(pid: u32, sig: i32) {
-    // SAFETY: plain signal delivery to the process group we created with `process_group(0)`.
-    unsafe {
-        libc::killpg(pid as i32, sig);
-    }
+fn killpg(pid: u32, kill: bool) {
+    // The process group we created with `new_group`.
+    intely_core::sys::kill_group(pid as i32, kill);
 }
 
 /// Reads a pipe, splits on `\n` and `\r`, caps every line at [`MAX_INTAKE_BYTES`] (the masker cuts it to [`crate::mask::MAX_LINE_BYTES`] after masking) and hands masked lines to `tx`.
@@ -401,8 +398,8 @@ impl Spawner for ProcessSpawner {
         cmd.current_dir(&inv.cwd)
             .stdin(if inv.stdin.is_some() { Stdio::piped() } else { Stdio::null() })
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .process_group(0);
+            .stderr(Stdio::piped());
+        intely_core::sys::NewGroup::new_group(&mut cmd);
         let mut child = match cmd.spawn() {
             Ok(c) => c,
             Err(_) => return failed_start,
@@ -446,21 +443,21 @@ impl Spawner for ProcessSpawner {
             }
             if let Some(t) = terminated_at {
                 if t.elapsed() >= KILL_GRACE {
-                    killpg(pid, libc::SIGKILL);
+                    killpg(pid, true);
                     terminated_at = Some(Instant::now());
                 }
             } else if cancel() {
                 cancelled = true;
-                killpg(pid, libc::SIGTERM);
+                killpg(pid, false);
                 terminated_at = Some(Instant::now());
             } else if started.elapsed() >= inv.timeout {
                 timed_out = true;
-                killpg(pid, libc::SIGTERM);
+                killpg(pid, false);
                 terminated_at = Some(Instant::now());
             }
             if status.is_some() {
                 // The child is gone: anything still holding the pipes belongs to its group.
-                killpg(pid, libc::SIGKILL);
+                killpg(pid, true);
                 let deadline = Instant::now() + Duration::from_millis(500);
                 while let Ok(line) = rx.recv_timeout(deadline.saturating_duration_since(Instant::now())) {
                     sink(&line);
@@ -630,8 +627,10 @@ impl Spawner for ScriptedSpawner {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
     use std::os::unix::fs::PermissionsExt;
 
+    #[cfg(unix)]
     fn script(dir: &Path, name: &str, body: &str) -> PathBuf {
         let p = dir.join(name);
         std::fs::write(&p, format!("#!/bin/sh\n{body}\n")).unwrap();
@@ -649,6 +648,7 @@ mod tests {
         (o, lines)
     }
 
+    #[cfg(unix)]
     #[test]
     fn runs_masks_and_reports_the_exit_code() {
         let d = tempfile::tempdir().unwrap();
@@ -670,6 +670,7 @@ mod tests {
         assert_eq!(collect(&ProcessSpawner::for_tests(), &i, &|| false).0.exit_code, 127);
     }
 
+    #[cfg(unix)]
     #[test]
     fn stdin_reaches_the_child_and_is_masked() {
         let d = tempfile::tempdir().unwrap();
@@ -681,6 +682,7 @@ mod tests {
         assert_eq!(lines, vec!["got:***".to_owned()]);
     }
 
+    #[cfg(unix)]
     #[test]
     fn stop_kills_the_whole_process_group() {
         let d = tempfile::tempdir().unwrap();
@@ -708,6 +710,7 @@ mod tests {
         assert!(!alive, "the sleep child survived the stop");
     }
 
+    #[cfg(unix)]
     #[test]
     fn timeout_terminates_and_reports_it() {
         let d = tempfile::tempdir().unwrap();
@@ -718,6 +721,7 @@ mod tests {
         assert_eq!(o.exit_code, 143);
     }
 
+    #[cfg(unix)]
     #[test]
     fn overlong_lines_are_capped() {
         let d = tempfile::tempdir().unwrap();

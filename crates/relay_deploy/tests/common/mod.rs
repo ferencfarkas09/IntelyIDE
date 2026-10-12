@@ -151,6 +151,7 @@ impl Http for FakeRelay {
     }
 }
 
+#[cfg(unix)]
 /// A kit in `root`: `remote-relay` (source, package.json, wrangler.jsonc of the real repo, installed wrangler at the pinned version)
 /// and `remote-web` (a tiny built dist with `index.html` and `sw.js`).
 pub fn make_kit(root: &Path) -> RelayKit {
@@ -231,10 +232,12 @@ impl Default for FixtureOpts {
     }
 }
 
+#[cfg(unix)]
 pub fn fixture(spawner: ScriptedSpawner) -> Fixture {
     fixture_with(spawner, FixtureOpts::default())
 }
 
+#[cfg(unix)]
 pub fn fixture_with(spawner: ScriptedSpawner, o: FixtureOpts) -> Fixture {
     let tmp = tempfile::tempdir().unwrap();
     let kit = make_kit(&tmp.path().join("kit"));

@@ -2,22 +2,31 @@
 
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
+#[cfg(unix)]
 use std::process::Stdio;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+#[cfg(unix)]
 use tokio::process::Command;
 
+#[cfg(unix)]
+use crate::sys::NewGroup;
 use crate::{EngineError, EnvSource, EnvState, EnvStatus};
 
+#[cfg(not(windows))]
 pub const FALLBACK_PATH: &str = "/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin";
+/// Windows hands a GUI app the full user `PATH`: there is nothing to add.
+#[cfg(windows)]
+pub const FALLBACK_PATH: &str = "";
 /// Timeout of the `$SHELL -ilc 'env -0'` probe.
 pub const PROBE_TIMEOUT: Duration = Duration::from_secs(8);
 /// A cached environment older than this is resolved again even when the invalidation hash still matches.
 const CACHE_TTL_MS: i64 = 12 * 60 * 60 * 1000;
 const CACHE_VERSION: u32 = 1;
+#[cfg(unix)]
 const BEGIN_MARKER: &str = "__INTELY_ENV_BEGIN__";
 
 /// Keys that survive from the login shell into hook environments.
@@ -39,10 +48,9 @@ impl Default for EnvOptions {
     }
 }
 
-/// `~/Library/Application Support/IntelySwitchIDE/env.json`
+/// `env.json` in the data directory ([`crate::sys::data_dir`]).
 pub fn default_cache_path() -> Option<PathBuf> {
-    let home = std::env::var_os("HOME")?;
-    Some(PathBuf::from(home).join("Library/Application Support/IntelySwitchIDE/env.json"))
+    crate::sys::data_dir().map(|d| d.join("env.json"))
 }
 
 #[derive(Serialize, Deserialize)]
@@ -212,27 +220,22 @@ fn now_ms() -> i64 {
 }
 
 fn default_shell() -> PathBuf {
-    std::env::var_os("SHELL").filter(|s| !s.is_empty()).map_or_else(|| PathBuf::from("/bin/zsh"), PathBuf::from)
+    let fallback = if cfg!(target_os = "macos") { "/bin/zsh" } else { "/bin/bash" };
+    std::env::var_os("SHELL").filter(|s| !s.is_empty()).map_or_else(|| PathBuf::from(fallback), PathBuf::from)
 }
 
 /// Process `PATH` followed by the fallback directories it does not contain yet.
 fn fallback_path() -> String {
-    let mut dirs: Vec<String> = std::env::var("PATH").unwrap_or_default().split(':').filter(|d| !d.is_empty()).map(str::to_owned).collect();
-    for d in FALLBACK_PATH.split(':') {
-        if !dirs.iter().any(|x| x == d) {
-            dirs.push(d.to_owned());
+    let mut dirs: Vec<PathBuf> = std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default()).filter(|d| !d.as_os_str().is_empty()).collect();
+    for d in std::env::split_paths(FALLBACK_PATH).filter(|d| !d.as_os_str().is_empty()) {
+        if !dirs.contains(&d) {
+            dirs.push(d);
         }
     }
-    dirs.join(":")
+    std::env::join_paths(dirs).map(|p| p.to_string_lossy().into_owned()).unwrap_or_default()
 }
 
-fn find_in_path(path: &str, bin: &str) -> Option<PathBuf> {
-    use std::os::unix::fs::PermissionsExt;
-    path.split(':')
-        .filter(|d| !d.is_empty())
-        .map(|d| Path::new(d).join(bin))
-        .find(|p| p.metadata().is_ok_and(|m| m.is_file() && m.permissions().mode() & 0o111 != 0))
-}
+use crate::sys::find_in_path;
 
 /// Hash of everything that decides the shell's environment: the shell, its startup files and the nvm default alias.
 /// A change in any of them invalidates the cache.
@@ -260,6 +263,14 @@ fn fingerprint(shell: &Path) -> String {
     hex::encode(h.finalize())
 }
 
+/// Windows has no login shell to ask: a GUI app gets the user's full environment from Explorer.
+#[cfg(not(unix))]
+async fn probe_shell(_shell: &Path, _timeout: Duration) -> Result<BTreeMap<String, String>, String> {
+    let vars: BTreeMap<String, String> = std::env::vars().filter(|(k, _)| whitelisted(k) || k.eq_ignore_ascii_case("PATH")).map(|(k, v)| (if k.eq_ignore_ascii_case("PATH") { "PATH".to_owned() } else { k }, v)).collect();
+    if vars.contains_key("PATH") { Ok(vars) } else { Err("the process has no PATH".to_owned()) }
+}
+
+#[cfg(unix)]
 async fn probe_shell(shell: &Path, timeout: Duration) -> Result<BTreeMap<String, String>, String> {
     let script = format!("printf %s {BEGIN_MARKER}; env -0");
     let child = Command::new(shell)
@@ -269,7 +280,7 @@ async fn probe_shell(shell: &Path, timeout: Duration) -> Result<BTreeMap<String,
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .env("TERM", "dumb")
-        .process_group(0)
+        .new_group()
         .kill_on_drop(true)
         .spawn()
         .map_err(|e| format!("cannot start {}: {e}", shell.display()))?;
@@ -277,8 +288,7 @@ async fn probe_shell(shell: &Path, timeout: Duration) -> Result<BTreeMap<String,
     match tokio::time::timeout(timeout, child.wait_with_output()).await {
         Err(_) => {
             if let Some(pgid) = pgid.filter(|p| *p > 1) {
-                // SAFETY: plain syscall on the group this function created.
-                unsafe { libc::killpg(pgid, libc::SIGKILL) };
+                crate::sys::kill_group(pgid, true);
             }
             Err(format!("{} -ilc did not finish within {} s", shell.display(), timeout.as_secs()))
         }
@@ -291,6 +301,7 @@ async fn probe_shell(shell: &Path, timeout: Duration) -> Result<BTreeMap<String,
 }
 
 /// Parses `env -0` output (after the marker, which hides banners printed by rc files) and keeps the whitelisted keys.
+#[cfg(unix)]
 fn parse_env_dump(stdout: &[u8]) -> Option<BTreeMap<String, String>> {
     let marker = BEGIN_MARKER.as_bytes();
     let at = stdout.windows(marker.len()).position(|w| w == marker)? + marker.len();
@@ -308,12 +319,15 @@ fn parse_env_dump(stdout: &[u8]) -> Option<BTreeMap<String, String>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
     use std::os::unix::fs::PermissionsExt;
 
     /// How long a fake login shell may take before the resolver gives up: far above its real cost, so a loaded machine cannot turn
     /// "the shell was slow to start" into a failed resolve.
+    #[cfg_attr(not(unix), allow(dead_code))]
     const SHELL_BUDGET: Duration = Duration::from_secs(60);
 
+    #[cfg(unix)]
     fn fake_shell(dir: &Path, body: &str) -> PathBuf {
         let p = dir.join("fakeshell");
         std::fs::write(&p, format!("#!/bin/sh\n{body}\n")).unwrap();
@@ -325,6 +339,7 @@ mod tests {
         EnvResolver::with_options("/usr/local/bin/git", EnvOptions { cache_path: cache.then(|| dir.join("cache/env.json")), shell: Some(shell), timeout })
     }
 
+    #[cfg(unix)]
     #[test]
     fn dump_parsing_skips_banners_and_filters_the_whitelist() {
         let raw = b"Welcome banner\n\x1b[0m__INTELY_ENV_BEGIN__PATH=/a/bin:/b/bin\0HOME=/Users/x\0SECRET_TOKEN=abc\0LC_ALL=en_US.UTF-8\0LANG=en_US.UTF-8\0SSH_AUTH_SOCK=/tmp/agent\0MULTI=line1\nline2\0";
@@ -346,6 +361,7 @@ mod tests {
         assert_eq!(r.status().state, EnvState::Resolving);
     }
 
+    #[cfg(unix)]
     #[tokio::test]
     async fn resolves_through_the_shell_with_marker_and_reports_node() {
         let tmp = tempfile::tempdir().unwrap();
@@ -367,6 +383,7 @@ mod tests {
         assert_eq!(*seen.lock().unwrap(), vec![EnvState::Resolving, EnvState::Ready]);
     }
 
+    #[cfg(unix)]
     #[tokio::test]
     async fn timeout_and_garbage_fall_back_with_a_message() {
         let tmp = tempfile::tempdir().unwrap();
@@ -387,6 +404,7 @@ mod tests {
         assert!(st.message.unwrap().contains("cannot start"));
     }
 
+    #[cfg(unix)]
     #[tokio::test]
     async fn cache_is_used_until_the_fingerprint_changes() {
         let tmp = tempfile::tempdir().unwrap();
@@ -418,6 +436,7 @@ mod tests {
         assert_eq!(runs(), 4);
     }
 
+    #[cfg(unix)]
     #[tokio::test]
     async fn expired_or_corrupt_cache_is_ignored() {
         let tmp = tempfile::tempdir().unwrap();

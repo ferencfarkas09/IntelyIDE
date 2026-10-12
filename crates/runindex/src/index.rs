@@ -253,14 +253,13 @@ impl Index {
 
     /// Writes the documents (already scrubbed) next to the other state files, owner-only, atomically.
     pub fn save(&self, path: &Path) -> io::Result<()> {
-        use std::os::unix::fs::PermissionsExt;
         if let Some(dir) = path.parent() {
             intely_agent_core::events::log::create_private_dir_all(dir)?;
         }
         let saved = Saved { version: VERSION, entries: self.entries.values().cloned().collect() };
         let tmp = path.with_extension("json.tmp");
         fs::write(&tmp, serde_json::to_vec(&saved).map_err(io::Error::other)?)?;
-        fs::set_permissions(&tmp, fs::Permissions::from_mode(0o600))?;
+        intely_core::sys::set_mode_best_effort(&tmp, 0o600);
         fs::rename(&tmp, path)
     }
 

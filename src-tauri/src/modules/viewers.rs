@@ -49,5 +49,5 @@ pub async fn viewers_open_external(engine: State<'_, EngineSlot>, repo_id: Strin
     }
     let root = root(&engine, &repo_id).await?;
     let full = viewer::resolve(&root, &rel_path).map_err(to_engine)?;
-    std::process::Command::new("/usr/bin/open").arg(full).spawn().map(drop).map_err(|e| EngineError::new("io", e.to_string()))
+    intely_core::sys::open_external(full.as_os_str()).map_err(|e| EngineError::new("io", e.to_string()))
 }

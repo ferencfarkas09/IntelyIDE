@@ -5,6 +5,7 @@
 #![allow(dead_code)]
 
 use std::collections::BTreeMap;
+#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -333,6 +334,7 @@ impl Fixture {
             .collect()
     }
 
+    #[cfg(unix)]
     /// An executable hook (`name` is `pre-commit`, `pre-push`, ...).
     pub fn hook(&self, name: &str, script: &str) {
         let p = self.git_dir().join("hooks").join(name);
@@ -345,6 +347,7 @@ impl Fixture {
         let _ = std::fs::remove_file(self.git_dir().join("hooks").join(name));
     }
 
+    #[cfg(unix)]
     /// An executable hook in the bare remote (e.g. `pre-receive`).
     pub fn remote_hook(&self, name: &str, script: &str) {
         let remote = self.remote.as_ref().expect("fixture has a remote");
@@ -560,6 +563,7 @@ pub fn wait_until(timeout: Duration, mut cond: impl FnMut() -> bool) -> bool {
     cond()
 }
 
+#[cfg(unix)]
 /// Whether a process with this pid is alive.
 pub fn pid_alive(pid: i32) -> bool {
     // SAFETY: signal 0 only checks for existence.

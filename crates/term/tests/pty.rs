@@ -6,6 +6,7 @@ use std::sync::mpsc::{channel, Receiver};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+#[cfg_attr(not(unix), allow(unused_imports))]
 use intely_agent_gate::gate::procinfo::live_group_pids;
 use intely_agent_gate::OrphanRegistry;
 use intely_core::jail::{Jail, READ_ONLY, TEST_JAIL};
@@ -65,7 +66,7 @@ fn the_shell_starts_in_the_requested_directory() {
     let (t, rx) = open(&m, dir.path());
     m.write(&t.term_id, "pwd -P\r").unwrap();
     let want = dir.path().canonicalize().unwrap();
-    let (out, _) = read_until(&rx, |o| o.lines().any(|l| l.trim_end() == want.to_str().unwrap()));
+    let (out, _) = read_until(&rx, |o| o.lines().any(|l| l.trim_end().ends_with(want.to_str().unwrap())));
     assert!(out.contains(want.to_str().unwrap()));
     m.shutdown();
 }
@@ -83,13 +84,14 @@ fn resize_reaches_the_shell() {
     m.shutdown();
 }
 
+#[cfg(unix)]
 #[test]
 fn closing_ends_the_shell_and_its_background_jobs_and_reports_the_exit() {
     let dir = tempfile::tempdir().unwrap();
     let m = manager();
     let (t, rx) = open(&m, dir.path());
     m.write(&t.term_id, "sleep 300 &\recho job:$!\r").unwrap();
-    let pid_of = |o: &str| o.lines().find_map(|l| l.trim_end().strip_prefix("job:")?.parse::<i32>().ok());
+    let pid_of = |o: &str| o.lines().find_map(|l| l.trim_end().rsplit_once("job:")?.1.parse::<i32>().ok());
     let (out, _) = read_until(&rx, |o| pid_of(o).is_some());
     let job = pid_of(&out).unwrap();
     assert!(alive(job) && alive(t.pid));
@@ -107,6 +109,7 @@ fn closing_ends_the_shell_and_its_background_jobs_and_reports_the_exit() {
     m.close(&t.term_id);
 }
 
+#[cfg(unix)]
 fn alive(pid: i32) -> bool {
     unsafe { libc::kill(pid, 0) == 0 }
 }

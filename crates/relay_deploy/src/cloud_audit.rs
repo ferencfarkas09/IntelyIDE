@@ -18,8 +18,6 @@
 
 use std::fs;
 use std::io::Write;
-use std::os::unix::fs::OpenOptionsExt;
-use std::os::unix::io::AsRawFd;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
@@ -136,7 +134,7 @@ impl CloudAudit {
 
     fn write_anchor(&self, count: usize, hash: &str) -> Result<()> {
         let tmp = self.path.with_file_name(format!("{ANCHOR}.tmp"));
-        let mut f = fs::OpenOptions::new().create(true).write(true).truncate(true).mode(0o600).open(&tmp)?;
+        let mut f = intely_core::sys::open_mode(fs::OpenOptions::new().create(true).write(true).truncate(true), 0o600).open(&tmp)?;
         write!(f, "{count} {hash}\n")?;
         f.sync_all()?;
         fs::rename(&tmp, self.anchor_path())?;
@@ -199,10 +197,9 @@ impl CloudAudit {
         if let Some(dir) = self.path.parent() {
             private_dir(dir)?;
         }
-        let f = fs::OpenOptions::new().create(true).truncate(false).write(true).mode(0o600).open(self.path.with_file_name(LOCK_FILE))?;
-        // SAFETY: flock on a descriptor this struct owns.
-        if unsafe { libc::flock(f.as_raw_fd(), libc::LOCK_EX) } != 0 {
-            return Err(DeployError::Io(format!("the audit log lock failed: {}", std::io::Error::last_os_error())));
+        let f = intely_core::sys::open_mode(fs::OpenOptions::new().create(true).truncate(false).write(true), 0o600).open(self.path.with_file_name(LOCK_FILE))?;
+        if let Err(e) = intely_core::sys::lock_exclusive(&f) {
+            return Err(DeployError::Io(format!("the audit log lock failed: {e}")));
         }
         Ok(FileLock(f))
     }
@@ -228,7 +225,7 @@ impl CloudAudit {
         };
         e.hash = chain_hash(&e);
         let line = format!("{}\n", serde_json::to_string(&e).map_err(|err| DeployError::Io(err.to_string()))?);
-        let mut f = fs::OpenOptions::new().create(true).append(true).mode(0o600).open(&self.path)?;
+        let mut f = intely_core::sys::open_mode(fs::OpenOptions::new().create(true).append(true), 0o600).open(&self.path)?;
         f.write_all(line.as_bytes())?;
         f.sync_all()?;
         self.write_anchor(hashes.len() + 1, &e.hash)?;
@@ -272,8 +269,7 @@ struct FileLock(fs::File);
 
 impl Drop for FileLock {
     fn drop(&mut self) {
-        // SAFETY: unlocking the descriptor this guard owns; closing it would release the lock anyway.
-        unsafe { libc::flock(self.0.as_raw_fd(), libc::LOCK_UN) };
+        intely_core::sys::unlock(&self.0);
     }
 }
 
@@ -299,6 +295,7 @@ mod tests {
         assert_eq!(fs::read_dir(tmp.path()).unwrap().count(), 0, "constructing and reading create nothing");
     }
 
+    #[cfg(unix)]
     #[test]
     fn entries_chain_from_the_genesis_and_verify() {
         let (_t, a) = log();
@@ -435,6 +432,7 @@ mod tests {
         assert_eq!(CloudAudit::new(&dir).verify(), Ok(48));
     }
 
+    #[cfg(unix)]
     #[test]
     fn a_damaged_log_is_kept_aside_and_a_new_chain_starts() {
         let (t, a) = log();
@@ -482,6 +480,7 @@ mod tests {
         assert_eq!(a.verify(), Ok(1));
     }
 
+    #[cfg(unix)]
     #[test]
     fn an_unwritable_location_is_an_error_not_a_silent_skip() {
         let tmp = tempfile::tempdir().unwrap();

@@ -24,12 +24,15 @@ pub const BUDGET_TERM: Duration = Duration::from_secs(1);
 pub const BUDGET_PREVIEW: Duration = Duration::from_secs(1);
 pub const BUDGET_FILES: Duration = Duration::from_secs(1);
 pub const BUDGET_MONGO: Duration = Duration::from_secs(1);
+#[cfg_attr(not(test), allow(dead_code))] // used by the tests and the other platforms' hooks only
 /// The engine swap (`Engine::switch_workspace`, SHUTDOWN_GRACE).
 pub const BUDGET_ENGINE: Duration = Duration::from_secs(4);
+#[cfg_attr(not(test), allow(dead_code))] // used by the tests and the other platforms' hooks only
 pub const BUDGET_REGISTRY: Duration = Duration::from_secs(1);
 /// Hooks that only flip state (contract caches, the Remote notice): they get one poll and no waiting.
 pub const BUDGET_NONE: Duration = Duration::ZERO;
 
+#[cfg_attr(not(test), allow(dead_code))] // used by the tests and the other platforms' hooks only
 /// The whole switch has 20 s; the steps below must add up to at most this.
 pub const BUDGET_TOTAL_MAX: Duration = Duration::from_secs(18);
 /// A gate that was never cleared by `workspaces_ready` clears itself after this long.
@@ -49,11 +52,13 @@ pub const TEARDOWN_ORDER: [(&str, Duration); 9] = [
     ("remote", BUDGET_NONE),
 ];
 
+#[cfg_attr(not(test), allow(dead_code))] // used by the tests and the other platforms' hooks only
 /// Budget of the hook called `name` (unknown names get none).
 pub fn budget_for(name: &str) -> Duration {
     TEARDOWN_ORDER.iter().find(|(n, _)| *n == name).map_or(BUDGET_NONE, |(_, b)| *b)
 }
 
+#[cfg_attr(not(test), allow(dead_code))] // used by the tests and the other platforms' hooks only
 /// Sum of every budget of a switch: the hooks, the engine swap and the registry write.
 pub fn total_budget() -> Duration {
     TEARDOWN_ORDER.iter().map(|(_, b)| *b).sum::<Duration>() + BUDGET_ENGINE + BUDGET_REGISTRY
@@ -305,6 +310,7 @@ pub fn ordered(hooks: &[Arc<dyn SwitchHook>]) -> Vec<(Arc<dyn SwitchHook>, Durat
     out
 }
 
+#[cfg_attr(not(test), allow(dead_code))] // used by the tests and the other platforms' hooks only
 /// Everything the hooks report as busy, split into blocking and confirmable.
 pub fn busy_report(hooks: &[Arc<dyn SwitchHook>]) -> BusyReport {
     classify_busy(hooks.iter().flat_map(|h| h.busy()))
@@ -331,6 +337,12 @@ pub fn check_optional(gate: Option<&SwitchGate>) -> Result<(), EngineError> {
 }
 
 /// Whether any process of the group `pgid` exists (`kill -0 -- -pgid`).
+#[cfg(not(unix))]
+pub fn group_alive(pgid: i32) -> bool {
+    pgid > 1 && intely_core::sys::pid_alive(pgid as u32)
+}
+
+#[cfg(unix)]
 pub fn group_alive(pgid: i32) -> bool {
     pgid > 1
         && std::process::Command::new("/bin/kill")
@@ -344,6 +356,12 @@ pub fn group_alive(pgid: i32) -> bool {
 }
 
 /// SIGKILL to the whole group. Never `pgid <= 1`.
+#[cfg(not(unix))]
+pub fn kill_group(pgid: i32) {
+    intely_core::sys::kill_group(pgid, true);
+}
+
+#[cfg(unix)]
 pub fn kill_group(pgid: i32) {
     if pgid > 1 {
         let _ = std::process::Command::new("/bin/kill")

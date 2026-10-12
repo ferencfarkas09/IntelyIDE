@@ -1,6 +1,7 @@
 //! The workspace registry ((design notes: workspaces-spec) 4.2 to 4.6, 4.12, 9.1): storage, atomicity, locking, problems,
 //! pinned mode, migration, instance lock, probing and identity-keyed protection. Fixtures only (`tempfile`).
 
+#![cfg(unix)]
 use std::cell::Cell;
 use std::collections::BTreeSet;
 use std::io;
@@ -123,7 +124,7 @@ fn vars<'a>(pairs: &'a [(&'a str, &'a str)]) -> impl Fn(&str) -> Option<String> 
 #[test]
 fn location_precedence_and_jail_gating() {
     let default = Location::from_env(vars(&[("HOME", "/Users/x")]));
-    assert_eq!(default.registry, PathBuf::from("/Users/x/Library/Application Support/IntelySwitchIDE/workspaces.json"));
+    assert_eq!(default.registry, intely_core::sys::data_dir_under(std::path::Path::new("/Users/x")).join("workspaces.json"));
     assert!(default.pinned.is_none() && !default.env_ignored);
 
     let pinned = Location::from_env(vars(&[("HOME", "/h"), ("INTELY_WORKSPACE", "/a/b/ws.json"), ("INTELY_WORKSPACES", "/z/w.json"), ("INTELY_READONLY", "1")]));
@@ -137,7 +138,7 @@ fn location_precedence_and_jail_gating() {
     // no jail: ignored, and the caller can show the warning
     let l = Location::from_env(vars(&[("HOME", "/h"), ("INTELY_WORKSPACES", "/x/y/w.json")]));
     assert!(l.env_ignored);
-    assert_eq!(l.dir, PathBuf::from("/h/Library/Application Support/IntelySwitchIDE"));
+    assert_eq!(l.dir, intely_core::sys::data_dir_under(std::path::Path::new("/h")));
     let l = Location::from_env(vars(&[("HOME", "/h"), ("INTELY_WORKSPACES", "/x/y/w.json"), ("INTELY_READONLY", "0")]));
     assert!(l.env_ignored, "INTELY_READONLY=0 is no jail");
     // INTELY_DATA_DIR moves the default state directory (and is beaten by an honoured INTELY_WORKSPACES)

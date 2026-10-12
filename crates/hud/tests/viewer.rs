@@ -1,3 +1,4 @@
+#[cfg_attr(not(unix), allow(unused_imports))]
 use intely_hud::viewer::{base64, read_range, resolve, stat};
 
 fn repo() -> tempfile::TempDir {
@@ -30,6 +31,7 @@ fn ranged_reads_walk_a_file_and_report_eof() {
     assert_eq!(stat(d.path(), "logs/a.log").unwrap().size, 11);
 }
 
+#[cfg(unix)]
 #[test]
 fn escapes_secrets_git_and_symlinks_are_refused() {
     let d = repo();

@@ -7,6 +7,7 @@
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
+#[cfg(target_os = "macos")]
 use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -19,7 +20,9 @@ use intely_core::EngineError;
 use intely_roles::types::RunState;
 use intely_runindex::brief::facts_text;
 use intely_runindex::index::{Facets, Query, SearchResult};
-use intely_runindex::night::{parse_on_battery, Effect, NewItem, NightPlan, Observation, Paused, Phase, RunObs, MAX_RUNS_PER_NIGHT};
+#[cfg(target_os = "macos")]
+use intely_runindex::night::parse_on_battery;
+use intely_runindex::night::{Effect, NewItem, NightPlan, Observation, Paused, Phase, RunObs, MAX_RUNS_PER_NIGHT};
 use intely_runindex::{build_brief, Brief, GitDiff, Index, UsageIndex, UsageReport};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -122,6 +125,25 @@ pub fn setup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+/// Whether the machine runs on battery: `pmset` (macOS), the power-supply class of the kernel (Linux); Windows reports false.
+#[cfg(target_os = "macos")]
+fn read_on_battery() -> bool {
+    Command::new("/usr/bin/pmset").args(["-g", "batt"]).output().map(|o| parse_on_battery(&String::from_utf8_lossy(&o.stdout))).unwrap_or(false)
+}
+
+#[cfg(target_os = "linux")]
+fn read_on_battery() -> bool {
+    std::fs::read_dir("/sys/class/power_supply").into_iter().flatten().flatten().any(|e| {
+        let dir = e.path();
+        std::fs::read_to_string(dir.join("type")).is_ok_and(|t| t.trim() == "Battery") && std::fs::read_to_string(dir.join("status")).is_ok_and(|s| s.trim() == "Discharging")
+    })
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+fn read_on_battery() -> bool {
+    false
+}
+
 impl Inner {
     fn runs_dir(&self) -> PathBuf {
         self.data_dir.join("runs")
@@ -192,7 +214,7 @@ impl Inner {
                 return v;
             }
         }
-        let v = Command::new("/usr/bin/pmset").args(["-g", "batt"]).output().map(|o| parse_on_battery(&String::from_utf8_lossy(&o.stdout))).unwrap_or(false);
+        let v = read_on_battery();
         *cache = Some((Instant::now(), v));
         v
     }

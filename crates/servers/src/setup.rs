@@ -434,9 +434,12 @@ fn run_setup(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
     use crate::testkit::*;
+    #[cfg_attr(not(unix), allow(unused_imports))]
     use std::cell::RefCell;
 
+    #[cfg(unix)]
     fn opts(f: &Fake, res: PathBuf) -> SetupOptions {
         let _ = f;
         SetupOptions {
@@ -449,16 +452,19 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
     fn run(f: &Fake, o: &SetupOptions) -> (Result<ServerStatus, SetupError>, Vec<SetupEvent>) {
         let events = RefCell::new(Vec::new());
         let r = setup(&f.ssh, &f.cfg, o, &|e| events.borrow_mut().push(e));
         (r, events.into_inner())
     }
 
+    #[cfg_attr(not(unix), allow(dead_code))]
     fn state_of(ev: &[SetupEvent], step: SetupStep) -> Vec<StepState> {
         ev.iter().filter(|e| e.step == step).map(|e| e.state).collect()
     }
 
+    #[cfg(unix)]
     fn ready_fake() -> Fake {
         let f = Fake::new();
         f.stub_node("v24.9.0");
@@ -515,6 +521,7 @@ mod tests {
         assert_eq!(r, None);
     }
 
+    #[cfg(unix)]
     #[test]
     fn sdk_installer_runs_and_its_progress_is_forwarded() {
         let f = ready_fake();
@@ -530,6 +537,7 @@ mod tests {
         assert!(f.home.join("sdk-install-ran").is_file());
     }
 
+    #[cfg(unix)]
     #[test]
     fn setup_reaches_ready_and_a_second_run_skips_everything() {
         let f = ready_fake();
@@ -555,6 +563,7 @@ mod tests {
         assert!(!f.home.join("sdk-install-ran").exists(), "SDK is ok, the installer must not run");
     }
 
+    #[cfg(unix)]
     #[test]
     fn bundle_is_uploaded_atomically_with_private_files() {
         let f = ready_fake();
@@ -565,6 +574,7 @@ mod tests {
         let base = f.home.join(".intely/1.1.1/resources");
         assert!(base.join("sidecar/index.js").is_file() && base.join("sdk-pin/tree.sha256").is_file());
         assert!(!f.home.join(".intely/1.1.1.tmp").exists());
+        #[cfg(unix)]
         use std::os::unix::fs::PermissionsExt;
         for n in ["index.js", "sdk-install.js"] {
             let mode = std::fs::metadata(base.join("sidecar").join(n)).unwrap().permissions().mode() & 0o777;
@@ -574,6 +584,7 @@ mod tests {
         assert_eq!(mode, 0o700);
     }
 
+    #[cfg(unix)]
     #[test]
     fn old_bundles_are_pruned_to_the_two_newest() {
         let f = ready_fake();
@@ -594,6 +605,7 @@ mod tests {
         assert!(f.home.join(".intely/shims/a1").exists());
     }
 
+    #[cfg(unix)]
     #[test]
     fn a_failed_upload_leaves_no_half_installed_bundle() {
         let f = ready_fake();
@@ -609,6 +621,7 @@ mod tests {
         assert!(state_of(&ev, SetupStep::Sdk).is_empty(), "the run stops at the first failure");
     }
 
+    #[cfg(unix)]
     #[test]
     fn setup_stops_when_the_server_is_unreachable() {
         let f = ready_fake();
@@ -623,6 +636,7 @@ mod tests {
         assert_eq!(ev.borrow().len(), 2);
     }
 
+    #[cfg(unix)]
     #[test]
     fn sdk_installer_error_is_reported() {
         let f = ready_fake();
@@ -639,6 +653,7 @@ mod tests {
         assert!(state_of(&ev, SetupStep::Sdk).contains(&StepState::Info));
     }
 
+    #[cfg(unix)]
     #[test]
     fn sdk_installer_without_a_result_line_fails() {
         let f = ready_fake();
@@ -649,6 +664,7 @@ mod tests {
         assert!(e.message.contains("without a result"));
     }
 
+    #[cfg(unix)]
     #[test]
     fn missing_node_without_permission_to_install_it_fails_the_sdk_step() {
         let f = Fake::new();
@@ -659,6 +675,7 @@ mod tests {
         assert!(e.message.contains("Node 24"));
     }
 
+    #[cfg(unix)]
     #[test]
     fn node_step_fails_clearly_on_an_unsupported_platform() {
         // The fake server is this machine: macOS has no pinned download, and old Node must be replaced.
@@ -677,6 +694,7 @@ mod tests {
         assert_eq!(state_of(&ev, SetupStep::Node), [StepState::Started, StepState::Failed]);
     }
 
+    #[cfg(unix)]
     #[test]
     fn claude_step_installs_with_npm_into_the_managed_prefix() {
         let f = Fake::new();
@@ -701,6 +719,7 @@ mod tests {
         assert!(args.contains(&format!("{}/.intely/claude", f.home.display())));
     }
 
+    #[cfg(unix)]
     #[test]
     fn verify_names_what_is_still_missing() {
         let f = Fake::new();
@@ -720,6 +739,7 @@ mod tests {
         assert!(verify.message.contains("still missing") && verify.message.contains("claude CLI"), "{}", verify.message);
     }
 
+    #[cfg(unix)]
     #[test]
     fn bad_app_versions_are_refused_before_anything_runs() {
         let f = ready_fake();
@@ -733,6 +753,7 @@ mod tests {
         assert!(!f.home.join(".intely").exists());
     }
 
+    #[cfg(unix)]
     #[test]
     fn setup_error_tail_is_capped() {
         let f = ready_fake();

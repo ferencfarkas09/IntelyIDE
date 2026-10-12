@@ -32,7 +32,13 @@ pub async fn e2e_screenshot(window: WebviewWindow, e2e: State<'_, E2e>, stem: St
     let (tx, rx) = std::sync::mpsc::channel::<Result<Vec<u8>, String>>();
     {
         let tx = tx.clone();
+        #[cfg(target_os = "macos")]
         window.with_webview(move |webview| snapshot::take(webview.inner(), width, tx)).map_err(|e| e.to_string())?;
+        #[cfg(not(target_os = "macos"))]
+        {
+            let _ = (width, &window);
+            snapshot::take(std::ptr::null_mut(), width, tx);
+        }
     }
     drop(tx);
     let png = tauri::async_runtime::spawn_blocking(move || rx.recv_timeout(std::time::Duration::from_secs(20)))

@@ -23,6 +23,7 @@ use serde::Serialize;
 use super::{lock, ms32, Conn, Sink, Studio};
 use crate::api::*;
 use crate::audit::{event, AuditEvent};
+#[cfg_attr(not(unix), allow(unused_imports))]
 use crate::connspec::{AuthMechanism, ConnSpec, HostPort, Scheme, TlsMode, Tunnel, TunnelAuth};
 use crate::diagnose::{self, Ctx, Hint};
 use crate::driver::{CancelToken, Error as DriverError, ProxyEndpoint, Session, SessionOpts, SpecConnect};
@@ -775,6 +776,7 @@ impl Studio {
             return Err(cancelled());
         }
         let mut ctx = p.ctx.clone();
+        #[cfg_attr(not(unix), allow(unused_mut))]
         let mut relay: Option<ProxyEndpoint> = None;
         let failed = |diag: Diagnosis, ctx: Ctx| Ok(Staged::Failed { diag, ctx, host_key: None, refused: Vec::new() });
 
@@ -1046,6 +1048,7 @@ impl Studio {
         let level = profile.effective_level(None);
         let p = Prepared { spec, secrets, profile: profile.clone(), level, host_override: profile.safety.level_override.is_some(), relax, ctx };
         let mut res = Resources::default();
+        #[cfg_attr(not(unix), allow(unused_mut))]
         let mut relay: Option<ProxyEndpoint> = None;
         #[cfg(unix)]
         if let Some((lease, ep)) = self.open_ssh(&p, Owner::Connection(id.to_string()), Arc::new(AtomicBool::new(false))).await? {

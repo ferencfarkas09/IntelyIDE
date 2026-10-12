@@ -137,9 +137,20 @@ pub fn kill_in_snapshot(snap: &Snapshot, pid: u32) -> Result<(), KillError> {
     if !row.can_kill {
         return Err(KillError::Protected);
     }
+    terminate(pid)
+}
+
+#[cfg(unix)]
+fn terminate(pid: u32) -> Result<(), KillError> {
     // SAFETY: plain kill(2) on a pid that belongs to our own tree
     let rc = unsafe { libc::kill(pid as libc::pid_t, libc::SIGTERM) };
     if rc == 0 { Ok(()) } else { Err(KillError::Signal(std::io::Error::last_os_error().raw_os_error().unwrap_or(-1))) }
+}
+
+#[cfg(not(unix))]
+fn terminate(pid: u32) -> Result<(), KillError> {
+    intely_core::sys::kill_group(pid as i32, false);
+    Ok(())
 }
 
 #[cfg(target_os = "macos")]

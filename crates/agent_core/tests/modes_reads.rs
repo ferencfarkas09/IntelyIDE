@@ -1,5 +1,6 @@
 //! The wider set of low-risk reads (find, tail, stat, sort ...) and the actionable denial texts of Automatic and the read-only roles.
 
+#![cfg(unix)]
 mod common;
 
 use common::*;

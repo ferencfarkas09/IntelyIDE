@@ -152,7 +152,9 @@ pub fn kill_survivor(hooks: &[Arc<dyn SwitchHook>], pid: u32) -> Res<()> {
     }
 }
 
+#[cfg_attr(not(test), allow(dead_code))] // used by the tests and the other platforms' hooks only
 /// Everything that still runs from the last switch.
+#[cfg_attr(not(unix), allow(dead_code))]
 pub fn survivors_of(hooks: &[Arc<dyn SwitchHook>]) -> Vec<Survivor> {
     switchhook::collect_survivors(hooks)
 }
@@ -206,10 +208,13 @@ pub async fn workspaces_kill_survivor(state: State<'_, Arc<WorkspacesState>>, pi
 mod tests {
     use std::path::Path;
     use std::sync::Mutex;
+    #[cfg_attr(not(unix), allow(unused_imports))]
     use std::time::{Duration, Instant};
 
     use intely_core::jail::Jail;
+    #[cfg_attr(not(unix), allow(unused_imports))]
     use intely_core::registry::{Env, Location, NewRepo, NewWorkspace, Registry, RepoKind, ValidatedRepo};
+    #[cfg_attr(not(unix), allow(unused_imports))]
     use intely_core::{BusyItem, BusyKind, EventSink, SurvivorKind, WorkspaceOrigin};
     use intely_pathpick::{PathTokens, Policy, Validator};
 
@@ -239,6 +244,7 @@ mod tests {
     }
 
     /// A scripted module: records its `stop` into the shared log, and can misbehave on request.
+    #[cfg_attr(not(unix), allow(dead_code))]
     struct Hook {
         name: &'static str,
         log: Arc<Mutex<Vec<String>>>,
@@ -250,6 +256,7 @@ mod tests {
     }
 
     impl Hook {
+        #[cfg_attr(not(unix), allow(dead_code))]
         fn new(name: &'static str, log: &Arc<Mutex<Vec<String>>>) -> Self {
             Self { name, log: log.clone(), busy: Mutex::default(), survivors: Mutex::default(), gate: None, hang: false, on_stop: None }
         }
@@ -287,6 +294,7 @@ mod tests {
         }
     }
 
+    #[cfg_attr(not(unix), allow(dead_code))]
     struct Fx {
         _tmp: tempfile::TempDir,
         root: PathBuf,
@@ -296,7 +304,9 @@ mod tests {
         b: String,
     }
 
+    #[cfg(unix)]
     fn git_repo(root: &Path, name: &str) -> ValidatedRepo {
+        #[cfg(unix)]
         use std::os::unix::fs::MetadataExt;
         let p = root.join("repos").join(name);
         std::fs::create_dir_all(&p).unwrap();
@@ -312,6 +322,7 @@ mod tests {
         ValidatedRepo { canonical_path: p.canonicalize().unwrap().to_string_lossy().into_owned(), suggested_name: name.into(), identity: format!("{}:{}", m.dev(), m.ino()), kind: RepoKind::Repo, main: None }
     }
 
+    #[cfg(unix)]
     fn fx() -> Fx {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path().canonicalize().unwrap();
@@ -341,22 +352,27 @@ mod tests {
         }
     }
 
+    #[cfg_attr(not(unix), allow(dead_code))]
     fn log() -> Arc<Mutex<Vec<String>>> {
         Arc::new(Mutex::new(Vec::new()))
     }
 
+    #[cfg_attr(not(unix), allow(dead_code))]
     fn run(f: &Fx, hooks: &[Arc<dyn SwitchHook>], id: Option<&str>, force: bool, keep_active: bool, rec: &Recorder) -> Res<SwitchResult> {
         tauri::async_runtime::block_on(run_switch(&f.state, &f.engine, &RealClock, hooks, SwitchRequest { id: id.map(str::to_owned), force, keep_active }, rec))
     }
 
+    #[cfg_attr(not(unix), allow(dead_code))]
     fn repo_ids(f: &Fx) -> Vec<String> {
         tauri::async_runtime::block_on(f.engine.workspace_get()).unwrap().repos.into_iter().map(|r| r.name).collect()
     }
 
+    #[cfg_attr(not(unix), allow(dead_code))]
     fn item(kind: BusyKind, n: u32) -> BusyItem {
         BusyItem { kind, count: n, labels: (0..n).map(|i| format!("x{i}")).collect() }
     }
 
+    #[cfg(unix)]
     #[test]
     fn a_switch_stops_the_modules_in_order_swaps_the_engine_records_the_workspace_and_keeps_the_gate_until_ready() {
         let f = fx();
@@ -395,6 +411,7 @@ mod tests {
         assert_eq!(f.state.registry.view().active_id, None);
     }
 
+    #[cfg(unix)]
     #[test]
     fn busy_is_split_into_blocking_and_confirmable_and_refuses_without_stopping_anything() {
         let f = fx();
@@ -431,6 +448,7 @@ mod tests {
         assert_eq!(l.lock().unwrap().len(), 2);
     }
 
+    #[cfg(unix)]
     #[test]
     fn a_module_past_its_budget_becomes_a_warning_and_the_switch_still_completes() {
         let f = fx();
@@ -447,6 +465,7 @@ mod tests {
         assert_eq!(repo_ids(&f), vec!["b1"]);
     }
 
+    #[cfg(unix)]
     #[test]
     fn a_failure_after_teardown_started_leaves_the_engine_detached_and_is_not_a_nothing_changed_error() {
         let f = fx();
@@ -472,6 +491,7 @@ mod tests {
         assert_eq!(repo_ids(&f), vec!["a1", "a2"]);
     }
 
+    #[cfg(unix)]
     #[test]
     fn a_bad_target_is_refused_before_anything_is_stopped() {
         let f = fx();
@@ -488,6 +508,7 @@ mod tests {
         assert!(!f.state.gate.is_set());
     }
 
+    #[cfg(unix)]
     #[test]
     fn a_second_switch_is_refused_and_does_not_touch_the_first_ones_gate() {
         let f = fx();
@@ -499,6 +520,7 @@ mod tests {
         drop(ticket);
     }
 
+    #[cfg(unix)]
     #[test]
     fn keep_active_detaches_the_engine_but_leaves_the_registry_alone() {
         let f = fx();
@@ -515,6 +537,7 @@ mod tests {
         assert!(f.state.decorate(f.state.registry.view(), None).open_error.is_none());
     }
 
+    #[cfg(unix)]
     #[test]
     fn a_registry_that_cannot_be_written_is_a_warning_not_a_failure() {
         let f = fx();
@@ -528,6 +551,7 @@ mod tests {
         assert_eq!(repo_ids(&f), vec!["b1"], "the switch stands");
     }
 
+    #[cfg(unix)]
     #[test]
     fn survivors_are_reported_and_only_listed_pids_can_be_killed() {
         let f = fx();

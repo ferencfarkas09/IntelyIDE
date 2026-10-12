@@ -2,7 +2,6 @@
 //! reads no resource, runs no prompt. Tauri-free and async; every string that leaves it passed the exact-value scrubber and `redact` first.
 
 use std::collections::BTreeMap;
-use std::os::unix::fs::DirBuilderExt;
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::{Arc, Mutex, PoisonError};
@@ -387,12 +386,10 @@ async fn handshake_stdio(rpc: &mut Rpc, opts: &ProbeOptions, scrub: &Scrubber) -
     Ok(finish_ok(init, tools, truncated, scrub))
 }
 
-fn kill_group(pid: Option<u32>, signal: i32) {
+fn kill_group(pid: Option<u32>, signal: bool) {
     if let Some(pid) = pid.filter(|p| *p > 1) {
-        // SAFETY: killpg only signals the process group we created with `process_group(0)`.
-        unsafe {
-            libc::killpg(pid as i32, signal);
-        }
+        // Only the process group we created with `new_group`.
+        intely_core::sys::kill_group(pid as i32, signal);
     }
 }
 
@@ -401,11 +398,14 @@ async fn probe_stdio(server: &ProbeServer, opts: &ProbeOptions, scrub: &Scrubber
         return (Err(McpErr::new(code::SPAWN_FAILED, "command not found on the login PATH")), String::new());
     };
     let dir = std::env::temp_dir().join(format!("intely-mcp-test-{}", uuid::Uuid::new_v4().simple()));
-    if let Err(e) = std::fs::DirBuilder::new().mode(0o700).create(&dir) {
+    let mut dir_builder = std::fs::DirBuilder::new();
+    intely_core::sys::dir_mode(&mut dir_builder, 0o700);
+    if let Err(e) = dir_builder.create(&dir) {
         return (Err(McpErr::new(code::IO, format!("cannot create a working directory for the test: {}", e.kind()))), String::new());
     }
     let mut cmd = Command::new(command);
-    cmd.args(&server.args).env_clear().envs(&opts.env).current_dir(&dir).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).kill_on_drop(true).process_group(0);
+    cmd.args(&server.args).env_clear().envs(&opts.env).current_dir(&dir).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).kill_on_drop(true);
+    intely_core::sys::NewGroup::new_group(&mut cmd);
     for v in &server.env {
         cmd.env(&v.name, v.value.expose());
     }
@@ -433,9 +433,9 @@ async fn probe_stdio(server: &ProbeServer, opts: &ProbeOptions, scrub: &Scrubber
     let result = tokio::time::timeout(opts.timeout, handshake_stdio(&mut rpc, opts, scrub)).await;
     // teardown: close stdin, ask the group to stop, 300 ms later make sure, reap, remove the directory
     drop(rpc.stdin.take());
-    kill_group(pid, libc::SIGTERM);
+    kill_group(pid, false);
     let status = tokio::time::timeout(GRACE, child.wait()).await.ok().and_then(Result::ok);
-    kill_group(pid, libc::SIGKILL);
+    kill_group(pid, true);
     let status = match status {
         Some(s) => Some(s),
         None => tokio::time::timeout(Duration::from_secs(2), child.wait()).await.ok().and_then(Result::ok),

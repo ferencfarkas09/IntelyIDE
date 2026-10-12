@@ -52,6 +52,7 @@ impl CloseGuard {
         *self.phase.lock().expect("phase lock") = if open { Phase::Dialog } else { Phase::Idle };
     }
 
+    #[cfg_attr(not(test), allow(dead_code))] // used by the tests and the other platforms' hooks only
     pub fn on_close_request(&self, now: Instant) -> Verdict {
         self.on_close_request_with(now, false)
     }

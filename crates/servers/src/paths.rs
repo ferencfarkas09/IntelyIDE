@@ -182,10 +182,13 @@ pub fn candidates_for(w: &Wanted, found: &[FoundRepo]) -> Vec<FoundRepo> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
     use crate::testkit::*;
+    #[cfg_attr(not(unix), allow(unused_imports))]
     use std::collections::BTreeMap;
     use std::process::Command;
 
+    #[cfg_attr(not(unix), allow(dead_code))]
     fn git(dir: &std::path::Path, args: &[&str]) {
         assert!(Command::new("git").arg("-C").arg(dir).args(args).status().unwrap().success(), "{args:?}");
     }
@@ -198,6 +201,7 @@ mod tests {
         assert_eq!(repo_key(Some("  "), "web-shop"), "dir:web-shop");
     }
 
+    #[cfg(unix)]
     #[test]
     fn resolution_order_is_mapping_then_the_default() {
         let mut cfg = test_cfg();
@@ -228,6 +232,7 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
     #[test]
     fn a_mapped_path_is_cleaned_and_resolved_the_same_way() {
         let mut cfg = test_cfg();
@@ -268,6 +273,7 @@ mod tests {
         assert!(s.contains(r#""$HOME"/'"#));
     }
 
+    #[cfg(unix)]
     #[test]
     fn finds_repositories_on_the_fake_server() {
         let f = Fake::new();
@@ -311,6 +317,7 @@ mod tests {
         assert!(parse_search(&big).is_empty());
     }
 
+    #[cfg(unix)]
     #[test]
     fn the_search_script_skips_folders_with_control_characters() {
         let f = Fake::new();

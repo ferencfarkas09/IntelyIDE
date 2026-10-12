@@ -283,6 +283,102 @@ pub fn resolve(base: &Path, raw: &str, home: Option<&Path>) -> PathBuf {
     }
 }
 
+/// How paths of an OS spell and compare: Windows writes `\\` and `C:` in either case and compares names without regard to case, and the
+/// default macOS volume (APFS) does the same. A pure value so the rules can be tested for every OS on every OS.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PathStyle {
+    pub backslash: bool,
+    pub fold_case: bool,
+}
+
+impl PathStyle {
+    pub const UNIX: PathStyle = PathStyle { backslash: false, fold_case: false };
+    pub const MACOS: PathStyle = PathStyle { backslash: false, fold_case: true };
+    pub const WINDOWS: PathStyle = PathStyle { backslash: true, fold_case: true };
+
+    pub fn host() -> PathStyle {
+        if cfg!(windows) {
+            Self::WINDOWS
+        } else if cfg!(target_os = "macos") {
+            Self::MACOS
+        } else {
+            Self::UNIX
+        }
+    }
+}
+
+fn style_parts(path: &str, style: PathStyle) -> Vec<String> {
+    let text = if style.backslash { path.replace('\\', "/") } else { path.to_owned() };
+    // `\\?\C:\x` (the verbatim prefix Windows canonicalisation adds) is the same place as `C:\x`
+    let text = text.strip_prefix("//?/").map(str::to_owned).unwrap_or(text);
+    text.split('/').filter(|p| !p.is_empty() && *p != ".").map(|p| p.to_lowercase()).collect()
+}
+
+/// The components of `path` below `home` (lower-cased, for the lists below), or `None` when the path is not inside it.
+/// `home` is compared exactly on a case-sensitive system and without regard to case where `style.fold_case` is set.
+pub fn rel_to_home(home: &str, path: &str, style: PathStyle) -> Option<Vec<String>> {
+    let (h, p) = (style_parts(home, style), style_parts(path, style));
+    // lower-casing is only a fold for the comparison on a case-sensitive system: compare the original spelling there
+    if !style.fold_case {
+        let strip = |t: &str| -> Vec<String> { t.split('/').filter(|x| !x.is_empty() && *x != ".").map(str::to_owned).collect() };
+        let (ho, po) = (strip(home), strip(path));
+        if po.len() < ho.len() || po[..ho.len()] != ho[..] {
+            return None;
+        }
+        return Some(po[ho.len()..].iter().map(|x| x.to_lowercase()).collect());
+    }
+    (p.len() >= h.len() && p[..h.len()] == h[..]).then(|| p[h.len()..].to_vec())
+}
+
+/// Credential, browser-profile and password-manager locations directly below the home directory, for every supported OS (the
+/// lists are cheap, and a Windows-style or Linux-style path may be named on any host). `c` is the lower-cased path below home.
+pub fn home_secret_reason(c: &[String]) -> Option<&'static str> {
+    let at = |i: usize| c.get(i).map(String::as_str);
+    const BROWSER: &str = "a browser profile, cookie store or password manager";
+    match at(0)? {
+        ".claude.json" => Some("the Claude Code user configuration (MCP environments and OAuth state)"),
+        ".claude" if at(1) != Some("agents") => Some("the Claude Code user data (transcripts, plans, settings, credentials)"),
+        // macOS
+        "library" => match (at(1)?, at(2)) {
+            ("application support", Some(app)) if APP_SUPPORT_SECRET_DIRS.contains(&app) || (app == "google" && at(3) == Some("chrome")) => Some(BROWSER),
+            ("group containers", Some(g)) if g.contains("1password") => Some("a password manager data directory"),
+            ("safari" | "cookies", _) => Some("the Safari profile or cookie store"),
+            ("containers", Some("com.apple.safari")) => Some("the Safari profile or cookie store"),
+            ("caches", Some("claude-cli-nodejs")) => Some("the Claude CLI cache (MCP logs)"),
+            _ => None,
+        },
+        // Linux
+        ".mozilla" | ".thunderbird" | ".gnupg" | ".pki" | ".password-store" => Some(BROWSER),
+        ".config" => match at(1)? {
+            "google-chrome" | "google-chrome-beta" | "google-chrome-unstable" | "chromium" | "microsoft-edge" | "brave-browser" | "bravesoftware" | "vivaldi" | "opera" | "firefox" | "1password" | "bitwarden" | "keepassxc" | "claude" => Some(BROWSER),
+            _ => None,
+        },
+        ".local" => match (at(1)?, at(2)) {
+            ("share", Some("keyrings" | "gnome-keyring" | "kwalletd" | "kwallet" | "keepassxc")) => Some("the desktop keyring (stored passwords)"),
+            _ => None,
+        },
+        ".var" if at(1) == Some("app") => match at(2) {
+            Some(app) if app.contains("firefox") || app.contains("chrome") || app.contains("chromium") || app.contains("brave") || app.contains("1password") || app.contains("bitwarden") || app.contains("keepass") => Some(BROWSER),
+            _ => None,
+        },
+        "snap" => match at(1) {
+            Some("firefox" | "chromium" | "brave" | "1password" | "bitwarden") => Some(BROWSER),
+            _ => None,
+        },
+        // Windows (%APPDATA% is AppData\Roaming, %LOCALAPPDATA% is AppData\Local)
+        "appdata" => match (at(1)?, at(2), at(3)) {
+            ("roaming", Some("microsoft"), Some("credentials" | "protect" | "vault" | "crypto" | "systemcertificates")) => Some("the Windows credential store (DPAPI master keys, saved credentials)"),
+            ("local", Some("microsoft"), Some("credentials" | "vault" | "edge")) => Some("the Windows credential store or an Edge profile"),
+            ("local", Some("google"), Some("chrome" | "chrome beta")) => Some(BROWSER),
+            ("local", Some("bravesoftware" | "chromium" | "vivaldi" | "opera software"), _) => Some(BROWSER),
+            ("roaming", Some("mozilla" | "thunderbird" | "1password" | "bitwarden" | "keepassxc" | "claude" | "opera software"), _) => Some(BROWSER),
+            ("local", Some("1password" | "packages"), Some(p)) if p.contains("1password") => Some(BROWSER),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
 fn name_of(c: Component<'_>) -> Option<String> {
     match c {
         Component::Normal(n) => Some(n.to_string_lossy().into_owned()),
@@ -498,22 +594,9 @@ impl Jail {
     /// own `.claude` directory stays readable, `~/.claude` (transcripts, plans, settings, credentials) does not, except
     /// `~/.claude/agents/**` (the global role files the IDE manages).
     fn home_never_read_reason(&self, resolved: &Path) -> Option<&'static str> {
-        let rel = resolved.strip_prefix(self.home_real.as_deref()?).ok()?;
-        let c: Vec<String> = rel.components().filter_map(name_of).map(|n| n.to_ascii_lowercase()).collect();
-        let at = |i: usize| c.get(i).map(String::as_str);
-        match at(0)? {
-            ".claude.json" => Some("the Claude Code user configuration (MCP environments and OAuth state)"),
-            ".claude" if at(1) != Some("agents") => Some("the Claude Code user data (transcripts, plans, settings, credentials)"),
-            "library" => match (at(1)?, at(2)) {
-                ("application support", Some(app)) if APP_SUPPORT_SECRET_DIRS.contains(&app) || (app == "google" && at(3) == Some("chrome")) => Some("a browser profile, cookie store or password manager"),
-                ("group containers", Some(g)) if g.contains("1password") => Some("a password manager data directory"),
-                ("safari" | "cookies", _) => Some("the Safari profile or cookie store"),
-                ("containers", Some("com.apple.safari")) => Some("the Safari profile or cookie store"),
-                ("caches", Some("claude-cli-nodejs")) => Some("the Claude CLI cache (MCP logs)"),
-                _ => None,
-            },
-            _ => None,
-        }
+        let home = self.home_real.as_deref()?;
+        let c = rel_to_home(&home.to_string_lossy(), &resolved.to_string_lossy(), PathStyle::host())?;
+        home_secret_reason(&c)
     }
 
     /// [`wrangler_secret_reason`] plus `<IDE state>/relay-deploy`, wherever the state directory is.
@@ -684,6 +767,45 @@ fn user_persistence_reason(path: &Path) -> Option<&'static str> {
 
 #[cfg(test)]
 mod tests {
+    fn reason(home: &str, path: &str, style: PathStyle) -> Option<&'static str> {
+        rel_to_home(home, path, style).and_then(|c| home_secret_reason(&c))
+    }
+
+    #[test]
+    fn windows_credential_and_browser_locations_are_never_read_in_any_spelling() {
+        for p in [
+            r"C:\Users\Me\AppData\Roaming\Microsoft\Credentials\ABC",
+            r"c:\users\me\appdata\roaming\microsoft\protect\S-1-5\key",
+            r"C:\Users\Me\AppData\Local\Microsoft\Edge\User Data\Default\Cookies",
+            r"C:\Users\Me\AppData\Local\Google\Chrome\User Data\Default\Login Data",
+            r"C:/Users/Me/AppData/Roaming/Mozilla/Firefox/Profiles/x/logins.json",
+            r"\\?\C:\Users\Me\AppData\Local\BraveSoftware\Brave-Browser\User Data",
+            r"C:\USERS\ME\APPDATA\ROAMING\MICROSOFT\VAULT\x",
+        ] {
+            assert!(reason(r"C:\Users\Me", p, PathStyle::WINDOWS).is_some(), "{p}");
+        }
+        assert!(reason(r"C:\Users\Me", r"C:\Users\Me\AppData\Local\Programs\app\x.txt", PathStyle::WINDOWS).is_none());
+        assert!(reason(r"C:\Users\Me", r"D:\Users\Me\AppData\Roaming\Mozilla", PathStyle::WINDOWS).is_none(), "another drive is another place");
+        assert!(reason(r"C:\Users\Me", r"C:\Users\Me2\AppData\Roaming\Mozilla", PathStyle::WINDOWS).is_none());
+    }
+
+    #[test]
+    fn linux_credential_and_browser_locations_are_never_read() {
+        for p in ["/home/me/.mozilla/firefox/x/logins.json", "/home/me/.config/google-chrome/Default/Cookies", "/home/me/.config/chromium/Default/Login Data", "/home/me/.local/share/keyrings/login.keyring", "/home/me/.gnupg/private-keys-v1.d/k", "/home/me/snap/firefox/common/.mozilla/x"] {
+            assert!(reason("/home/me", p, PathStyle::UNIX).is_some(), "{p}");
+        }
+        assert!(reason("/home/me", "/home/me/.local/share/applications/x.desktop", PathStyle::UNIX).is_none());
+        assert!(reason("/home/me", "/home/me/.config/nvim/init.lua", PathStyle::UNIX).is_none());
+    }
+
+    #[test]
+    fn case_is_folded_only_where_the_system_folds_it() {
+        assert!(reason("/Users/me", "/users/ME/library/application support/google/chrome/x", PathStyle::MACOS).is_some());
+        assert!(reason("/home/me", "/home/ME/.mozilla/x", PathStyle::UNIX).is_none(), "a case-sensitive system: another user's folder");
+        assert!(reason("/home/me", "/home/me/.Mozilla/x", PathStyle::UNIX).is_some(), "names below home are still judged in lower case");
+        assert_eq!(rel_to_home("C:\\Users\\Me", "c:/users/me/x//./y", PathStyle::WINDOWS), Some(vec!["x".to_owned(), "y".to_owned()]));
+    }
+
     use super::*;
 
     #[test]
@@ -777,6 +899,7 @@ mod tests {
         assert!(jail.wrangler_secret_reason(Path::new("/state/runs/x")).is_none());
     }
 
+    #[cfg(unix)]
     #[test]
     fn symlinks_are_judged_by_their_target() {
         let dir = tempfile::tempdir().unwrap();
@@ -794,8 +917,10 @@ mod tests {
         assert!(!jail.contains(&jail.resolve("../elsewhere")));
     }
 
+    #[cfg(unix)]
     #[test]
     fn dangling_symlinks_and_dotdot_through_linked_dirs_are_judged_by_their_real_destination() {
+        #[cfg(unix)]
         use std::os::unix::fs::symlink;
         let dir = tempfile::tempdir().unwrap();
         let repo = std::fs::canonicalize(dir.path()).unwrap();
@@ -826,6 +951,7 @@ mod tests {
         assert!(jail.contains(&jail.resolve("src/../ordinary.txt")));
     }
 
+    #[cfg(unix)]
     #[test]
     fn a_symlink_loop_does_not_hang_or_panic() {
         let dir = tempfile::tempdir().unwrap();
@@ -896,6 +1022,7 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
     #[test]
     fn an_mcp_temp_directory_is_never_read_and_never_written_whatever_the_spelling() {
         let dir = tempfile::tempdir().unwrap();
@@ -914,6 +1041,7 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
     #[test]
     fn the_code_of_an_enabled_mcp_server_is_write_protected_by_name_only() {
         let dir = tempfile::tempdir().unwrap();

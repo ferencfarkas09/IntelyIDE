@@ -1,0 +1,64 @@
+# Compile and test the Rust workspace on Linux and Windows (the macOS jobs live in ci.yml).
+name: crossplatform-check
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: [feat/multiplatform-ci]
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: never
+  RUST_BACKTRACE: 1
+  RUST_VERSION: "1.96.0"
+
+jobs:
+  rust:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false   # one platform's errors must not hide the other's
+      matrix:
+        include:
+          - { name: linux-x86_64, os: ubuntu-22.04 }
+          - { name: windows-x86_64, os: windows-2025 }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - name: Linux system packages
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libsecret-1-dev libssl-dev patchelf git
+      - run: rustup toolchain install "$RUST_VERSION" --profile minimal && rustup default "$RUST_VERSION"
+        shell: bash
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: crossplatform-${{ matrix.name }}
+          cache-on-failure: true
+      - run: pnpm install --frozen-lockfile
+      # Tauri resources / the host tests need these: sidecar/dist and the relay kit are not tracked
+      - run: pnpm --filter @intely/sidecar build
+      - run: pnpm run build:relay-kit
+      - name: frontendDist for the app crate (an empty one is enough to compile)
+        shell: bash
+        run: mkdir -p ui/dist && [ -f ui/dist/index.html ] || echo '<!doctype html>' > ui/dist/index.html
+      - name: git identity for the tests that commit
+        run: |
+          git config --global user.email ci@example.invalid
+          git config --global user.name ci
+          git config --global init.defaultBranch main
+      - name: cargo check (all targets)
+        run: cargo check --workspace --all-targets --locked
+      - name: cargo test
+        # No --fail-fast: list every failing test of the platform in one run. Unix-only tests are #[cfg(unix)].
+        run: cargo test --workspace --no-fail-fast --locked

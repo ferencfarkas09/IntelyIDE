@@ -18,8 +18,7 @@ pub struct Policy {
 
 impl Policy {
     pub fn new(jail: Arc<Jail>, home: PathBuf, state_dir: PathBuf) -> Self {
-        // SAFETY: geteuid has no preconditions.
-        let uid = unsafe { libc::geteuid() } as u32;
+        let uid = intely_core::sys::euid();
         Self { jail, home, uid, state_dir }
     }
 
@@ -71,5 +70,5 @@ fn state_dir_for(jail: &Jail, home: &Path, var: impl Fn(&str) -> Option<String>)
     if let Some(dir) = var("INTELY_DATA_DIR").filter(|v| !v.is_empty()) {
         return canon_lenient(Path::new(&dir));
     }
-    home.join("Library/Application Support/IntelySwitchIDE")
+    intely_core::sys::data_dir_under(home)
 }

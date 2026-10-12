@@ -11,6 +11,8 @@
 //! the role of the old app (it passes a short-lived stand-in pid as the process to wait for) and,
 //! where the spec says "the new instance", the fixture program writes the markers itself.
 //! Everything started here is killed afterwards.
+#![cfg(target_os = "macos")]
+#![cfg(unix)]
 mod common;
 
 use std::fs;

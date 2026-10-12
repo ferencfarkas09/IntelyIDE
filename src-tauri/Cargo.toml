@@ -43,13 +43,17 @@ intely-servers = { version = "0.0.0", path = "../crates/servers" }
 intely-mcp = { version = "0.0.0", path = "../crates/mcp" }
 intely-relay-bundle = { version = "0.0.0", path = "../crates/relay_bundle" }
 intely-relay-deploy = { version = "0.0.0", path = "../crates/relay_deploy" }
-# Native folder dialog (NSOpenPanel); no GUI toolkit backends. (design notes: workspaces-spec) 5.2.
+# Native folder dialog (NSOpenPanel, Windows common dialog; GTK3 on Linux, see below); no other backends. (design notes: workspaces-spec) 5.2.
 rfd = { version = "0.17", default-features = false }
 intely-updater = { version = "0.0.0", path = "../crates/updater" }
 # Timers and wake-ups of the update scheduler (modules/updates.rs); the request itself lives in intely-updater (notice).
 tokio = { version = "1.53.1", features = ["time", "sync"] }
 # MongoDB Studio: optional dependency, part of the default (official) build (D2); the in-app switch stays off.
 intely-mongo = { version = "0.0.0", path = "../crates/mongo", optional = true, features = ["mongo"] }
+
+# The folder dialog on Linux goes through GTK3 (tauri already links it); macOS and Windows use their own dialogs.
+[target.'cfg(target_os = "linux")'.dependencies]
+rfd = { version = "0.17", default-features = false, features = ["gtk3"] }
 
 # WKWebView snapshots for the e2e harness (e2e_shot.rs) and the in-process AppleScript of the run notifications (modules/notify.rs); the versions are the ones tauri/wry already resolve.
 [target.'cfg(target_os = "macos")'.dependencies]

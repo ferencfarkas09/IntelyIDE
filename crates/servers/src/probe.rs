@@ -376,6 +376,7 @@ pub fn rfc3339_utc(secs: u64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
     use crate::testkit::*;
 
     const GOOD: &str = "os=Linux\narch=x86_64\nhome=/home/me\nuser=dev\nnode=/usr/bin/node\nnode_version=v24.13.0\nclaude=/home/me/.local/bin/claude\nclaude_version=2.1.0 (Claude Code)\ngit=/usr/bin/git\ngit_version=git version 2.43.0\nhave_tar=yes\nhave_curl=yes\nhave_wget=no\nhave_sha256=yes\nfree_kb=1234567\nclaude_login=yes\nbundle=1.1.0\nbundle=1.1.1\nsidecar_probe={\"sidecar\":\"1.1.1\",\"sdk\":{\"ok\":true,\"version\":\"0.3.287\"}}\n";
@@ -500,6 +501,7 @@ mod tests {
         assert!(!probe_script(None).contains("sidecar_probe"));
     }
 
+    #[cfg(unix)]
     #[test]
     fn probe_on_the_fake_server() {
         let f = Fake::new();
@@ -519,6 +521,7 @@ mod tests {
         assert_eq!(st.os.as_deref(), Some(if cfg!(target_os = "macos") { "Darwin" } else { "Linux" }));
     }
 
+    #[cfg(unix)]
     #[test]
     fn probe_finds_managed_node_before_the_system_one_and_claude_candidates() {
         let f = Fake::new();
@@ -536,6 +539,7 @@ mod tests {
         assert_eq!(st.claude.version.as_deref(), Some("2.2.0"));
     }
 
+    #[cfg(unix)]
     #[test]
     fn probe_reads_login_state() {
         let f = Fake::new();
@@ -548,6 +552,7 @@ mod tests {
         assert_eq!(probe(&f.ssh, &f.cfg, "1").claude.logged_in, Some(true));
     }
 
+    #[cfg(unix)]
     #[test]
     fn probe_runs_the_sidecar_probe_of_the_current_bundle() {
         let f = Fake::new();
@@ -563,6 +568,7 @@ mod tests {
         assert!(!probe(&f.ssh, &f.cfg, "1.1.2").ready);
     }
 
+    #[cfg(unix)]
     #[test]
     fn unreachable_servers_become_a_status_not_a_panic() {
         let f = Fake::new();
