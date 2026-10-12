@@ -114,7 +114,7 @@ impl FakeHub {
         let ctx = self.ctx.lock().unwrap().clone();
         let p = pending_permission(AGENT, req, "tool-1", &intent, &ctx, &LowList::default(), self.clock.now_ms());
         self.table.register(p.clone());
-        self.publish(EventKind::PermissionRequest { req_id: req.into(), tool_id: "tool-1".into(), intent, options: vec![PermissionOption::AllowOnce, PermissionOption::Deny], session_allow: None, plan: None, plan_truncated: None, modes: Vec::new() });
+        self.publish(EventKind::PermissionRequest { req_id: req.into(), tool_id: "tool-1".into(), intent, options: vec![PermissionOption::AllowOnce, PermissionOption::Deny], session_allow: None, plan: None, plan_truncated: None, modes: Vec::new(), peer: None });
         p
     }
 

@@ -81,7 +81,7 @@ function RowView(props: { agentId: string; row: TranscriptRow; lastErrorKey: str
           // The card shows a refused answer itself (it goes back to pending with the reason), so the rejection needs no second report here.
           <Show
             when={isExitPlan(p().intent)}
-            fallback={<PermissionCard item={p()} delegates={agentView(props.agentId)?.delegates} onAnswer={(d) => void answerPermission(props.agentId, p().reqId, d).catch(() => {})} />}
+            fallback={<PermissionCard item={p()} delegates={agentView(props.agentId)?.delegates} runTitle={(id) => agentRow(id)?.title} onAnswer={(d) => void answerPermission(props.agentId, p().reqId, d).catch(() => {})} />}
           >
             <PlanApprovalCard item={p()} mcp={agentRow(props.agentId)?.mcp} onAnswer={(d, extra) => void answerPermission(props.agentId, p().reqId, d, extra).catch(() => {})} />
           </Show>

@@ -290,6 +290,16 @@ A run can be placed on a server you own (Settings > Servers). The agent's shell,
 - **The folder on the server is the right one.** A repository lives at `<root>/<local folder name>`. A hidden folder name (`.ssh`, `.aws`) is refused, two repositories of one run with the same folder name are refused, and when both sides have an `origin` they must name the same repository (the path `owner/repo` is compared; scheme, user name, host spelling, an ssh alias and `.git` do not count): a copy of another project under the same name is not worked on.
 - **Not covered.** A server is another machine with its own users. A process on it that is not one of the agent's judged tool calls (another account, a program the agent started that does something the broker did not read), a link created between two commands of one run, and everything the server's accounts can do are outside these checks. Claude Code itself is installed from the npm registry when you choose that setup step, in its current version and without a hash check (Node.js and the Agent SDK are pinned and verified). Use a server where a mistake is cheap, and review and commit there yourself: the IDE does not show the server's working copy.
 
+## Messages between your runs (`docs/peer-runs.md`)
+
+Two tools (`peer_list`, `peer_send`) let one of your Claude runs message another of your runs that is working. The call is made by the IDE host, never by the target's machine, never to a teammate, and a message is a note with an attribution and nothing else.
+
+- **It grants nothing.** The text is not an input of the permission broker; the receiving run keeps its mode, its hard stops, its saved allows and its cards, and `git push` stays human-only. The text is framed "from another run, not from the user".
+- **A card per pair.** `peer_send` asks once for each (sending run, target run) pair (`agents.peerMessages` = `ask`, the default); "always in this session" saves that one pair for that run only. `auto` removes the card, `off` removes the tools. Automatic and Bypass runs never show a card, so they do not send under `ask`; plan mode and sub-agents do not send.
+- **A stronger target always asks.** A message to a run in a more permissive mode shows a card with the target's mode and place and the start of the text for every message, never "always in this session", also under `auto`; a target in Automatic or Bypass is never saved. The host binds the call to the sidecar that owns the sending run and judges it again when it is sent.
+- **Limits.** 4 KB a message, 6 a minute per pair, 30 per run, and 8 hops without a message from you, then "Runs stopped messaging each other - your turn". A target that is unknown, finished, idle or the sender itself is refused.
+- **Both transcripts show it** as an agent message, apart from your own notes.
+
 ## Team: what a teammate can do on your machine (`docs/team.md`)
 
 Members of a team (Settings > Team) can ask your machine for exactly two things, and your machine decides on both. Everything else is not a message the receiving code understands.

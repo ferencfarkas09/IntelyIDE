@@ -240,6 +240,8 @@ pub struct Run {
     /// Moves on every change of the rules a card was asked under (a mode change, a tighter MCP policy). A click on a card that was asked
     /// under an older epoch is judged again (permission-modes spec 5.3); one asked under the current rules was judged by them already.
     pub rules_epoch: u64,
+    /// Messages to other runs the person approved with "Allow once" and that were not sent yet: `<target>\0<hash of the text>`. One use each.
+    pub peer_once: BTreeSet<String>,
     /// The rules epoch each pending request was folded under.
     pub card_epoch: BTreeMap<String, u64>,
     /// The policy's look at the files of the server this run executes on (`None` for a run on this Mac); runtime only.
@@ -251,7 +253,7 @@ pub struct Run {
 
 impl Run {
     pub fn new(meta: Meta, state: RunState, ctx: PolicyContext, quiet: bool) -> Self {
-        Self { meta, state, ctx, live: None, cancel: None, muted: false, quiet, mode_busy: false, mcp_ids: BTreeMap::new(), mcp_secret: BTreeSet::new(), rules_epoch: 0, card_epoch: BTreeMap::new(), remote_fs: None, busy_until: None }
+        Self { meta, state, ctx, live: None, cancel: None, muted: false, quiet, mode_busy: false, mcp_ids: BTreeMap::new(), mcp_secret: BTreeSet::new(), rules_epoch: 0, peer_once: BTreeSet::new(), card_epoch: BTreeMap::new(), remote_fs: None, busy_until: None }
     }
 
     /// Forgets everything that belongs to one session and only to it: the in-memory session allows (D10, never persisted) and the MCP

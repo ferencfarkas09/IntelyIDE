@@ -266,3 +266,17 @@ describe("<RolesSection> Auto run settings", () => {
     expect(block.getByRole("switch", { name: "Let the lead hand work to roles" }).hasAttribute("disabled")).toBe(true);
   });
 });
+
+describe("<RolesSection> messages between runs", () => {
+  it("defaults to asking once per pair and stores the choice as agents.peerMessages", async () => {
+    await ready();
+    const block = within(screen.getByRole("region", { name: "Auto run" }));
+    const select = block.getByLabelText("Messages between my runs") as HTMLSelectElement;
+    expect(select.value).toBe("ask");
+    expect(block.getByText(/never lets it grant a permission/)).toBeTruthy();
+    fireEvent.change(select, { target: { value: "off" } });
+    await waitFor(async () => expect((await ipc.settings.get("agents")).peerMessages).toBe("off"));
+    fireEvent.change(block.getByLabelText("Messages between my runs"), { target: { value: "auto" } });
+    await waitFor(async () => expect((await ipc.settings.get("agents")).peerMessages).toBe("auto"));
+  });
+});

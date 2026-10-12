@@ -174,7 +174,7 @@ impl AgentSlot {
 // ---- Auto: settings and availability -----------------------------------------------------------------------------------
 
 /// The `agents` settings namespace as the host's [`AgentDefaults`] (flat keys: `defaultModel`, `defaultEffort`, `delegationCap`,
-/// `maxBudgetUsd`, `autoEnabled`, `delegationEnabled`; the Settings > Roles block writes the two switches as nested `auto.enabled` and
+/// `maxBudgetUsd`, `autoEnabled`, `delegationEnabled`, `peerMessages`; the Settings > Roles block writes the two switches as nested `auto.enabled` and
 /// `delegation.enabled`, which win over the flat keys). Read at every start; anything invalid falls back to the defaults.
 fn defaults_from(ns: &serde_json::Map<String, serde_json::Value>) -> AgentDefaults {
     use serde_json::Value;
@@ -192,6 +192,8 @@ fn defaults_from(ns: &serde_json::Map<String, serde_json::Value>) -> AgentDefaul
         max_budget_usd: ns.get("maxBudgetUsd").and_then(Value::as_f64),
         auto_enabled: switch(ns, "auto", "autoEnabled"),
         delegation_enabled: switch(ns, "delegation", "delegationEnabled"),
+        // `agents.peerMessages`: "ask" (default) | "auto" | "off"; anything else reads as ask
+        peer_messages: ns.get("peerMessages").and_then(Value::as_str).map_or_else(Default::default, intely_agent_core::peer::PeerMode::parse),
     }
     .sanitized()
 }

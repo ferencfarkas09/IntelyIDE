@@ -7,6 +7,7 @@ use std::time::Duration;
 
 use intely_agent_core::delegates::DelegateResolver;
 use intely_agent_core::mcp::{McpRulesSupplier, McpScrubSupplier, McpSupplier};
+use intely_agent_core::peer::PeerMode;
 use intely_agent_core::providers::Effort;
 use intely_agent_gate::{CancelPlan, GateConfig};
 
@@ -35,11 +36,13 @@ pub struct AgentDefaults {
     pub auto_enabled: bool,
     /// Kill switch `agents.delegation.enabled` (default on): off = Auto runs as one agent.
     pub delegation_enabled: bool,
+    /// `agents.peerMessages` (default `ask`): whether the runs of one person may message each other (docs/peer-runs.md).
+    pub peer_messages: PeerMode,
 }
 
 impl Default for AgentDefaults {
     fn default() -> Self {
-        Self { model: "claude-sonnet-5-5".into(), effort: Some(Effort::Medium), delegation_cap: 12, max_budget_usd: None, auto_enabled: true, delegation_enabled: true }
+        Self { model: "claude-sonnet-5-5".into(), effort: Some(Effort::Medium), delegation_cap: 12, max_budget_usd: None, auto_enabled: true, delegation_enabled: true, peer_messages: PeerMode::Ask }
     }
 }
 

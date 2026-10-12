@@ -188,6 +188,22 @@ wire_types! {
         pub description: Option<String>,
     }
 
+    /// What the card of a `peer_send` call tells the person about the run it would message: made by the host (never by the sidecar),
+    /// shown with the card and not part of the stored intent.
+    #[serde(rename_all = "camelCase")]
+    pub struct PeerCard {
+        /// The target run's title.
+        pub title: String,
+        /// `local` or the server's name.
+        pub location: String,
+        /// The mode the target works in.
+        pub mode: PermissionMode,
+        /// A bounded excerpt (400 characters) of the message text.
+        pub text: String,
+        /// The target is more permissive than the sender: this card is shown for every message and cannot be saved for the run.
+        pub riskier: bool,
+    }
+
     #[serde(rename_all = "camelCase")]
     pub struct PlanItem {
         pub content: String,
@@ -309,6 +325,10 @@ wire_types! {
             #[serde(default)]
             #[cfg_attr(feature = "specta", specta(optional))]
             modes: Vec<PermissionMode>,
+            /// `peer_send`: who the message would go to and a bounded excerpt of it (host-made).
+            #[serde(default)]
+            #[cfg_attr(feature = "specta", specta(optional))]
+            peer: Option<PeerCard>,
         },
         #[serde(rename = "permission.resolved")]
         PermissionResolved { req_id: String, outcome: PermissionOutcome, by: DecidedBy },
@@ -345,6 +365,14 @@ wire_types! {
             #[serde(default)]
             #[cfg_attr(feature = "specta", specta(optional))]
             reason: Option<String>,
+            /// A message another run of the same person sent to this one (`run 'title' (where)`), not a note of the user.
+            #[serde(default)]
+            #[cfg_attr(feature = "specta", specta(optional))]
+            from: Option<String>,
+            /// This run sent the text to that other run (same label form); the row is the sender's record of it.
+            #[serde(default)]
+            #[cfg_attr(feature = "specta", specta(optional))]
+            to: Option<String>,
         },
         #[serde(rename = "usage")]
         Usage { usage: UsageRecord },

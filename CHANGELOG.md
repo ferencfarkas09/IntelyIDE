@@ -4,6 +4,10 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 
 ## [Unreleased]
 
+### Added
+
+- Your own runs can message each other, so a run on this Mac and a run on a server (or two runs here) work together. A Claude run gets two tools: `peer_list` (your other open runs: title, where, repositories, state; no transcript, no files) and `peer_send` (a message of up to 4 KB into a run that is working; the answer is that run sending one back). The IDE carries every message, also to a run on a server; nothing goes to teammates. By default a card asks once per pair of runs; Settings > Roles > Auto run > Messages between my runs can switch it to automatic or off. A message grants nothing: the receiving run keeps its own rules, and `git push` stays yours. Limits: 6 messages a minute per pair, 30 per run, 8 hops without a message from you ("Runs stopped messaging each other - your turn"). Both runs show the message as an agent message ("Sent to ..." / "From ..."), and the run list marks runs that talk. See `docs/peer-runs.md`.
+
 ## [1.3.3] - 2026-10-12
 
 ### Added

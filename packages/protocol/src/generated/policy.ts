@@ -33,7 +33,9 @@ export type PolicyRequest = {
 };
 
 /**  What kind of saved allow an "Allow always in this session" answer would create. */
-export type SessionAllowKind = "exec" | "net" | "mcp" | "write";
+export type SessionAllowKind = "exec" | "net" | "mcp" | "write" | 
+/**  A run may message one other run: the scope is that run's id. */
+"peer";
 
 /**
  *  What an "Allow always in this session" answer would allow; the card states exactly this. Plain data: the UI

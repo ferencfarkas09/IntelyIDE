@@ -8,7 +8,7 @@ import type { AgentRow } from "../../store/agents";
 import { foreignReason, isForeign } from "../../store/agentScope";
 import { repoConfig } from "../../store/workspace";
 import { LocationChip } from "../servers/LocationChip";
-import { Badge, RepoBadge, ShieldCheck, StatusDot } from "../../ui-kit";
+import { Badge, Icon, MessagesSquare, RepoBadge, ShieldCheck, StatusDot } from "../../ui-kit";
 import { roleColor } from "./roleColors";
 import { activityLine } from "./sessionsLogic";
 
@@ -20,6 +20,8 @@ const LABEL = { running: "runs.running", needsYou: "runs.needsYou", done: "runs.
 export function RunCard(props: { row: AgentRow; view: AgentView | undefined; selected: boolean; onSelect: () => void }) {
   const r = () => props.row;
   const foreign = () => isForeign(r().repoIds);
+  /** The run has sent or received messages to or from another run of the same person. */
+  const talking = () => props.view?.items.some((i) => i.type === "note" && (i.from !== undefined || i.to !== undefined)) === true;
   const cost = () => costLabel(r().usage, r().caps.usage ?? { cap: "no" });
   const status = () => (r().status === "running" && r().throttle ? { tone: "warn" as const, label: r().throttle!.state === "retrying" ? t("runs.card.retrying") : t("runs.card.throttled") } : { tone: TONE[r().status], label: t(LABEL[r().status]) });
   return (
@@ -41,6 +43,11 @@ export function RunCard(props: { row: AgentRow; view: AgentView | undefined; sel
           {r().role === "auto" ? t("runs.role.auto") : r().role}
         </span>
         <Show when={r().location}>{(id) => <LocationChip id={id()} />}</Show>
+        <Show when={talking()}>
+          <span class="run-card__peer" title={t("peer.talking")} role="img" aria-label={t("peer.talking")} data-testid="run-talking">
+            <Icon icon={MessagesSquare} size={12} />
+          </span>
+        </Show>
         <Show when={(r().delegates?.length ?? 0) > 0}>
           <Badge size="sm" class="run-card__lead" title={t("runs.leadTip")}>{t("runs.leadChip", { model: modelLabel(r().model), count: r().delegates!.length })}</Badge>
         </Show>

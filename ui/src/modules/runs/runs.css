@@ -137,6 +137,7 @@
 .auto-card__first span { flex: 1 1 0; min-width: 0; overflow-wrap: anywhere; }
 .auto-card__first svg { flex: none; color: var(--info); }
 .run-card__lead { max-width: 100%; }
+.run-card__peer { display: inline-flex; align-items: center; color: var(--accent-text); }
 
 /* Permission mode field of the New run dialog: the cards re-flow to one column when the form is narrow. */
 .newrun__modes { container: newrun-modes / inline-size; }

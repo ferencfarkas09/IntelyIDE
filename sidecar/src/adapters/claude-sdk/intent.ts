@@ -1,6 +1,10 @@
 // Claude tool name -> ToolClass/ToolKind/ToolIntent (providers-plan 5.4). Adapters only classify; Rust parses and decides.
 import type { Actor, ToolIntent, ToolKind } from '../../types.js';
 import { redact } from '../../redact.js';
+import { PEER_SEND_TOOL, PEER_SERVER } from './peer-tools.js';
+
+/** The full name of the peer tool that sends a message to another run of the same person (see peer-tools.ts). */
+const PEER_SEND_FULL = `mcp__${PEER_SERVER}__${PEER_SEND_TOOL}`;
 
 type In = Record<string, unknown>;
 const str = (v: unknown): string | undefined => (typeof v === 'string' && v ? v : undefined);
@@ -69,6 +73,9 @@ export function intentFor(tool: string, rawInput: unknown, parentToolId?: string
         const rest = tool.slice('mcp__'.length);
         const cut = rest.indexOf('__');
         const server = cut < 0 ? rest : rest.slice(0, cut);
+        // The IDE's own peer tools: the broker needs the target run, and only that, to ask once per pair. It travels in `argv`, which the
+        // card keeps. `args` carries a redacted copy of the text for the host's card excerpt only: the host never serialises it into an event or the log.
+        if (tool === PEER_SEND_FULL) return { ...base, class: 'mcp', server, argv: [str(input.run_id) ?? ''], ...({ args: [redact(str(input.text) ?? '').slice(0, 2000)] } as object), summary: `${PEER_SERVER}: ${PEER_SEND_TOOL}` };
         return { ...base, class: 'mcp', server, summary: `${server}: ${cut < 0 ? '' : rest.slice(cut + 2)}`.trim() };
       }
       // Monitor and any other tool that runs a shell string go through the same command analysis as Bash.
