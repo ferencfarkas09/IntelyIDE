@@ -4,7 +4,6 @@
 use std::collections::BTreeMap;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
-use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -306,7 +305,11 @@ impl TeamState {
         let p = Persisted { team_id: self.team_id.clone(), relay: self.relay.clone(), me: self.me.clone(), roster: self.roster.clone(), replay: self.replay.clone(), seq_reserved: self.seq_reserved, outbox: self.outbox.clone(), pending_revokes: self.pending_revokes.clone() };
         fs::create_dir_all(state_dir)?;
         let tmp = state_dir.join("team.json.tmp");
-        OpenOptions::new().create(true).write(true).truncate(true).mode(0o600).open(&tmp)?.write_all(&serde_json::to_vec_pretty(&p)?)?;
+        let mut options = OpenOptions::new();
+        options.create(true).write(true).truncate(true);
+        #[cfg(unix)]
+        std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+        options.open(&tmp)?.write_all(&serde_json::to_vec_pretty(&p)?)?;
         fs::rename(tmp, Self::path_in(state_dir))?;
         self.dirty = false;
         Ok(())

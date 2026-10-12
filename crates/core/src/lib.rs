@@ -11,6 +11,7 @@ pub mod parse;
 pub mod registry;
 pub mod repo_actor;
 pub mod status;
+pub mod sys;
 pub mod types;
 pub mod watcher;
 pub mod workspace;

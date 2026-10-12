@@ -398,7 +398,10 @@ fn move_aside(repo: &Path, rel: &str, dest_root: &Path) -> Result<(), EngineErro
     }
     if md.file_type().is_symlink() {
         let target = fs::read_link(&from).map_err(|e| io_err(rel, e))?;
+        #[cfg(unix)]
         std::os::unix::fs::symlink(target, &to).map_err(|e| io_err(rel, e))?;
+        #[cfg(windows)]
+        std::os::windows::fs::symlink_file(target, &to).map_err(|e| io_err(rel, e))?;
     } else {
         fs::copy(&from, &to).map_err(|e| io_err(rel, e))?;
         if fs::metadata(&to).map_or(true, |m| m.len() != md.len()) {

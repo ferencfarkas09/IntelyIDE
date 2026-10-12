@@ -87,6 +87,14 @@ describe('analytics consent', () => {
     assert.deepEqual({ ...ev[2] }, { link_location: 'hero-dl', language: 'en', transport_type: 'beacon', file_name: 'IntelyIDE_1.2.3_x64.dmg', version: '1.2.3' });
   });
 
+  it('adds the platform of a download link that names one', () => {
+    const b = browser('granted');
+    const n = b.win.dataLayer.length;
+    b.click(b.target('[data-ga]', { 'data-ga': 'download', 'data-ga-label': 'hero-dl', 'data-ga-platform': 'windows', href: 'https://github.com/o/r/releases/download/v1.2.3/IntelyIDE_1.2.3_x64-setup.exe' }));
+    const ev = [...b.win.dataLayer[n]];
+    assert.deepEqual({ ...ev[2] }, { link_location: 'hero-dl', language: 'en', transport_type: 'beacon', file_name: 'IntelyIDE_1.2.3_x64-setup.exe', version: '1.2.3', platform: 'windows' });
+  });
+
   it('keeps the raw file name when the link has a malformed escape', () => {
     const b = browser('granted');
     const n = b.win.dataLayer.length;

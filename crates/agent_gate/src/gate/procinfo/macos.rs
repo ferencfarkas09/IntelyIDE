@@ -3,32 +3,11 @@
 
 use std::mem;
 
-use libc::{c_int, c_void, pid_t};
+use libc::{c_int, c_void};
+
+use super::pid_t;
 
 const SZOMB: u32 = 5;
-
-/// A process identity that survives pid reuse: the pid plus its start time (seconds).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct ProcKey {
-    pub pid: i32,
-    pub start_sec: u64,
-}
-
-impl ProcKey {
-    pub fn of(pid: pid_t) -> Option<Self> {
-        start_sec(pid).map(|start_sec| Self { pid, start_sec })
-    }
-
-    pub fn current() -> Self {
-        let pid = std::process::id() as pid_t;
-        Self::of(pid).unwrap_or(Self { pid, start_sec: 0 })
-    }
-
-    /// The same process is still running (a zombie counts as gone).
-    pub fn is_alive(&self) -> bool {
-        bsd_info(self.pid).is_some_and(|i| i.pbi_status != SZOMB && i.pbi_start_tvsec == self.start_sec)
-    }
-}
 
 fn bsd_info(pid: pid_t) -> Option<libc::proc_bsdinfo> {
     if pid <= 0 {

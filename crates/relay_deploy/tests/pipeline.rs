@@ -1,5 +1,6 @@
 //! The preview and deploy job against a scripted wrangler and a fake relay (spec 11.1 `pipeline`, 11.4b). No process, no network.
 
+#![cfg(unix)]
 mod common;
 
 use std::fs;
@@ -184,6 +185,7 @@ fn stale_previews_are_refused() {
     assert_eq!(run_deploy(&f, &r).0.unwrap_err().code(), "previewStale");
 }
 
+#[cfg(unix)]
 #[test]
 fn every_bound_component_is_reverified_before_the_spawn() {
     type Tamper = Box<dyn Fn(&Fixture)>;

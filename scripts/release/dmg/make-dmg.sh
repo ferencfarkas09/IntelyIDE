@@ -90,7 +90,7 @@ else
    System Settings > Privacy & Security and choose \"Open Anyway\" once."
 fi
 cat > "$STAGE/.legal/README.txt" <<TXT
-IntelyIDE $VERSION (Intel x64)
+IntelyIDE $VERSION (Intel and Apple Silicon)
 
 1. Drag IntelyIDE into the Applications folder, then open it from there.
 $FIRST

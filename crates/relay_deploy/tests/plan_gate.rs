@@ -1,6 +1,7 @@
 //! The server-side deploy gate (plan nonce), the unverified-module acknowledgement and the staged key rotation, against a scripted
 //! wrangler and a fake relay. No process, no network, no real Cloudflare account.
 
+#![cfg(unix)]
 mod common;
 
 use common::*;

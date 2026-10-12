@@ -150,6 +150,7 @@ fn write_matrix_protected_and_outside() {
     }
 }
 
+#[cfg(unix)]
 #[test]
 fn the_plan_notes_file_is_the_only_write_plan_mode_allows() {
     let e = env();
@@ -531,7 +532,7 @@ fn write_inside_saved_allow_and_the_widened_exec_surface() {
     for mode in [ASK, EDIT] {
         let mut c = e.ctx(mode);
         c.saved.push(SavedAllow::WriteInside);
-        let mut by = |input: Value| {
+        let by = |input: Value| {
             let d = decide_tool(&c, "Write", input);
             (d.decision, d.by, d.rule.unwrap_or_default())
         };

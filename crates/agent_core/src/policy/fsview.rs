@@ -74,9 +74,12 @@ pub trait FsView: Send + Sync {
 pub struct LocalFs;
 
 fn meta_of(m: &std::fs::Metadata) -> FsMeta {
-    use std::os::unix::fs::PermissionsExt;
     let t = m.file_type();
-    FsMeta { is_file: t.is_file(), is_dir: t.is_dir(), is_symlink: t.is_symlink(), len: m.len(), executable: m.permissions().mode() & 0o111 != 0 }
+    #[cfg(unix)]
+    let executable = std::os::unix::fs::PermissionsExt::mode(&m.permissions()) & 0o111 != 0;
+    #[cfg(not(unix))]
+    let executable = false;
+    FsMeta { is_file: t.is_file(), is_dir: t.is_dir(), is_symlink: t.is_symlink(), len: m.len(), executable }
 }
 
 impl FsView for LocalFs {
@@ -417,6 +420,7 @@ mod tests {
         });
     }
 
+    #[cfg(unix)]
     #[test]
     fn local_fs_reports_kinds() {
         let dir = tempfile::tempdir().unwrap();

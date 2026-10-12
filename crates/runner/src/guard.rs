@@ -44,7 +44,7 @@ pub fn access(jail: &Jail, allowed: bool, cwd: Option<&Path>) -> ProcessAccess {
 
 /// First executable `git` on `path`.
 fn find_git(path: &OsStr) -> Option<PathBuf> {
-    std::env::split_paths(path).map(|d| d.join("git")).find(|p| p.is_absolute() && p.is_file())
+    intely_core::sys::find_in_path(&path.to_string_lossy(), "git").filter(|p| p.is_absolute() && p.is_file())
 }
 
 /// In read-only mode: the `PATH` value that puts a read-only `git` shim (no commit, checkout, reset, add, ...; exit
@@ -55,7 +55,7 @@ pub fn read_only_git_path(jail: &Jail, path: Option<&OsStr>) -> Result<Option<Os
         return Ok(None);
     }
     let Some(real) = path.and_then(find_git) else { return Ok(None) };
-    let dir = std::env::temp_dir().join(format!("intely-run-git-{}", unsafe { libc::geteuid() }));
+    let dir = std::env::temp_dir().join(format!("intely-run-git-{}", intely_core::sys::euid()));
     let shim = shim::generate_read_only(&dir, &real)
         .map_err(|e| EngineError::new(intely_core::code::IO, format!("could not prepare the read-only git shim: {e}")))?;
     Ok(Some(shim.path_value(path)))

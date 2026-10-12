@@ -1,5 +1,6 @@
 //! The config store (MCP spec 9.2 "store"): persistence, the proof in the Keychain, secrets, policies, workspace overrides, seeding and the Test.
 
+#![cfg(unix)]
 mod common;
 
 use std::os::unix::fs::PermissionsExt;

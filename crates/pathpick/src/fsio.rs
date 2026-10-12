@@ -4,19 +4,14 @@
 //! FIFO opened with `O_NONBLOCK` does not block, a device or a symlink is refused, so `.git/HEAD` as a FIFO or `config`
 //! as a link to `/dev/zero` fails at once instead of hanging the command.
 
-use std::fs::OpenOptions;
 use std::io::{self, Read};
-use std::os::unix::fs::OpenOptionsExt;
 use std::path::Path;
 
 pub const HEAD_CAP: usize = 4 * 1024;
 pub const CONFIG_CAP: usize = 256 * 1024;
 
 pub fn read_small(path: &Path, cap: usize) -> io::Result<Vec<u8>> {
-    let file = OpenOptions::new()
-        .read(true)
-        .custom_flags(libc::O_NONBLOCK | libc::O_NOFOLLOW | libc::O_CLOEXEC)
-        .open(path)?;
+    let file = intely_core::sys::open_read_nofollow(path)?;
     if !file.metadata()?.is_file() {
         return Err(io::Error::new(io::ErrorKind::InvalidData, "not a regular file"));
     }

@@ -134,7 +134,7 @@ pub fn agent_data_dir() -> PathBuf {
 pub fn agent_data_dir_from(var: impl Fn(&str) -> Option<String>) -> PathBuf {
     match var("INTELY_DATA_DIR").filter(|v| !v.is_empty()) {
         Some(d) => PathBuf::from(d),
-        None => var("HOME").map_or_else(|| PathBuf::from("."), |h| PathBuf::from(h).join("Library/Application Support/IntelySwitchIDE")),
+        None => var("HOME").or_else(|| var("USERPROFILE")).map_or_else(|| PathBuf::from("."), |h| intely_core::sys::data_dir_under(&PathBuf::from(h))),
     }
 }
 
@@ -532,6 +532,7 @@ pub fn repo_path_in_registry(state: &WorkspacesState, workspace_id: &str, repo_i
     ws.repos.iter().find(|r| r.id == repo_id).map(|r| PathBuf::from(&r.path)).ok_or_else(|| EngineError::new(code::REPO_MISSING, format!("unknown repo {repo_id}")))
 }
 
+#[cfg_attr(not(test), allow(dead_code))] // used by the tests and the other platforms' hooks only
 /// Repo ids whose accepted risk set differs from what the repository's config says now (`ws.trustChanged`).
 pub fn changed_trust(state: &WorkspacesState, ws: &Workspace) -> Vec<String> {
     ws.repos
@@ -683,15 +684,7 @@ pub async fn workspaces_reveal(state: State<'_, Arc<WorkspacesState>>, workspace
     let st = state.inner().clone();
     let path = blocking(move || repo_path_in_registry(&st, &workspace_id, &repo_id)).await?;
     blocking(move || {
-        std::process::Command::new("/usr/bin/open")
-            .arg("-R")
-            .arg("--")
-            .arg(&path)
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .spawn()
-            .map(drop)
+        intely_core::sys::reveal_in_file_manager(&path)
             .map_err(|e| EngineError::new(code::IO, format!("cannot reveal {}: {e}", path.display())))
     })
     .await
@@ -760,7 +753,9 @@ mod tests {
     struct Fx {
         _tmp: tempfile::TempDir,
         root: PathBuf,
+        #[allow(dead_code)]
         dir: PathBuf,
+        #[allow(dead_code)]
         home: PathBuf,
         state: Arc<WorkspacesState>,
         clock: Arc<TokenClock>,
@@ -1159,7 +1154,7 @@ mod tests {
     fn the_agent_policy_and_the_registry_resolve_one_state_directory_and_refuse_every_state_file() {
         use intely_agent_core::policy::paths::Jail as PathJail;
         let home = "/Users/someone";
-        let default_dir = PathBuf::from(home).join("Library/Application Support/IntelySwitchIDE");
+        let default_dir = intely_core::sys::data_dir_under(std::path::Path::new(home));
         let vars = |pairs: &'static [(&'static str, &'static str)]| move |k: &str| pairs.iter().find(|(n, _)| *n == k).map(|(_, v)| (*v).to_owned());
 
         // default

@@ -1,5 +1,6 @@
 //! Persistent state: the device registry, the audit chain and the identity.
 
+#![cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::sync::Arc;
 

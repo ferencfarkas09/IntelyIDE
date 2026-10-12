@@ -93,14 +93,7 @@ pub async fn preview_open_external(url: String) -> Res<()> {
         return Err(EngineError::new("testJail", "the E2E jail does not open a browser"));
     }
     tauri::async_runtime::spawn_blocking(move || {
-        #[cfg(target_os = "macos")]
-        let status = std::process::Command::new("/usr/bin/open").arg(&target.url).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
-        #[cfg(not(target_os = "macos"))]
-        let status: std::io::Result<std::process::ExitStatus> = Err(std::io::Error::other("unsupported platform"));
-        match status {
-            Ok(s) if s.success() => Ok(()),
-            _ => Err(EngineError::new("openFailed", "the browser could not be opened")),
-        }
+        intely_core::sys::open_external(std::ffi::OsStr::new(&target.url)).map_err(|_| EngineError::new("openFailed", "the browser could not be opened"))
     })
     .await
     .map_err(|_| EngineError::new("io", "the browser task failed"))?

@@ -3,7 +3,6 @@
 //! reports conflicts the usual way. The scripts live in the temp directory, never in the repository.
 
 use std::collections::HashSet;
-use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
 use intely_core::jail::{matches_live, LIVE_BRANCH_CONFIRM};
@@ -191,12 +190,15 @@ fn work_dir(repo_id: &str, repo: &Path) -> PathBuf {
 }
 
 fn quote(path: &Path) -> String {
-    format!("'{}'", path.to_string_lossy().replace('\'', "'\\''"))
+    // Git for Windows runs these scripts with its own sh: forward slashes keep `C:/...` paths intact there.
+    let text = path.to_string_lossy();
+    let text = if cfg!(windows) { text.replace('\\', "/") } else { text.into_owned() };
+    format!("'{}'", text.replace('\'', "'\\''"))
 }
 
 fn write_script(path: &Path, body: &str) -> Result<(), EngineError> {
     std::fs::write(path, format!("#!/bin/sh\n{body}"))?;
-    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755))?;
+    intely_core::sys::set_mode_best_effort(path, 0o755);
     Ok(())
 }
 

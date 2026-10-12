@@ -1171,6 +1171,19 @@ fn valid_ref_part(s: &str) -> bool {
 
 /// Resolves on SIGTERM, SIGINT or SIGHUP. The shell turns it into a regular exit so `Engine::shutdown` runs; only
 /// SIGKILL and crashes skip it (the next start sweeps what they leave, `git::orphans`).
+#[cfg(windows)]
+pub async fn termination_signal() {
+    // Ctrl+C and Ctrl+Break; a closing window goes through the shell's own exit path.
+    let (Ok(mut c), Ok(mut brk)) = (tokio::signal::windows::ctrl_c(), tokio::signal::windows::ctrl_break()) else {
+        return std::future::pending().await;
+    };
+    tokio::select! {
+        _ = c.recv() => {}
+        _ = brk.recv() => {}
+    }
+}
+
+#[cfg(unix)]
 pub async fn termination_signal() {
     use tokio::signal::unix::{signal, SignalKind};
     let (Ok(mut term), Ok(mut int), Ok(mut hup)) =

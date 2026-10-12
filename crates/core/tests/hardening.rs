@@ -1,6 +1,7 @@
 //! Git hardening ((design notes: workspaces-spec) T4, T7): a hostile `core.fsmonitor` is never executed by an IDE-spawned git,
 //! every git spawn in the workspace goes through the hardened helper (lint), and `git init` is a jailed mutation.
 
+#![cfg(unix)]
 mod common;
 
 use std::os::unix::fs::PermissionsExt;

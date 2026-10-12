@@ -1,6 +1,7 @@
 //! Multi-repo scenarios: parallel commit and push, partial failure with retry, cost on a big repo, and real
 //! husky 9 + lint-staged (skipped with a clear message when npm is offline).
 
+#![cfg(unix)]
 mod common;
 
 use std::process::{Command, Stdio};

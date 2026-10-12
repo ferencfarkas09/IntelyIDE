@@ -9,7 +9,7 @@
 //!
 //! Verified against real `mongod` 8.0.32 processes and a user-level sshd (`scripts/mongo-fixture/local.sh`, no Docker): see
 //! `(design notes: mongo-live-report)`. The Docker backend (`matrix.sh up`) produces the same variables but has not been run on this machine.
-#![cfg(feature = "mongo")]
+#![cfg(all(feature = "mongo", unix))]
 
 mod fixtures;
 

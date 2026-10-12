@@ -707,6 +707,7 @@ mod tests {
         assert!(Jail::off().check_git(outside, &["push", "https://github.com/x/y.git"]).is_ok());
     }
 
+    #[cfg(unix)]
     #[test]
     fn canon_follows_symlinks_and_resolves_missing_tails() {
         let tmp = tempfile::tempdir().unwrap();
@@ -717,8 +718,10 @@ mod tests {
         assert_eq!(canon_lenient(&tmp.path().join("a/../b/c")), root.join("b/c"));
     }
 
+    #[cfg(unix)]
     #[test]
     fn canon_judges_a_dangling_symlink_by_its_destination() {
+        #[cfg(unix)]
         use std::os::unix::fs::symlink;
         let tmp = tempfile::tempdir().unwrap();
         let root = canon_lenient(tmp.path());

@@ -1,10 +1,12 @@
 //! Rewind snapshots on fixture repos only: the user's index is never touched, restore round-trips tree and index.
 
+#![cfg(unix)]
 mod common;
 
 use common::{real_git, Repo};
 use intely_agent_gate::rewind::{Rewind, RewindError};
 
+#[cfg(unix)]
 fn rewind() -> Rewind {
     common::isolate_env();
     Rewind::new(real_git())

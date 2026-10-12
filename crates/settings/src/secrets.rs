@@ -358,23 +358,20 @@ impl SecretStore for VaultStore {
 pub const MONGO_SERVICE: &str = "com.intelyhome.intelyide.mongo";
 pub const LEGACY_MONGO_SERVICE: &str = "hu.happygastro.intelyswitchide.mongo";
 
-#[cfg(target_os = "macos")]
 pub use keychain::{KeychainSecretStore, ScopedKeychainStore, SERVICE};
 
-#[cfg(target_os = "macos")]
 mod keychain {
-    use security_framework::item::{ItemClass, ItemSearchOptions, Limit};
-    use security_framework::passwords::{delete_generic_password, get_generic_password, set_generic_password};
-
     use std::sync::{Arc, OnceLock};
 
-    use super::{validate_key, LegacyFallbackStore, Secret, SecretStore, SecretsHealth, VaultStore, LEGACY_MONGO_SERVICE, LEGACY_SERVICE, MONGO_SERVICE};
-    use crate::error::{code, Result, SettingsError};
+    use super::{LegacyFallbackStore, Secret, SecretStore, SecretsHealth, VaultStore, LEGACY_MONGO_SERVICE, LEGACY_SERVICE, MONGO_SERVICE};
+    use crate::error::Result;
+    use backend::{get, has, keys, remove, set};
+    #[cfg(all(target_os = "macos", test))]
+    pub use backend::keychain_message;
 
     /// One Keychain service for the whole IDE; one generic-password item per key (account = key).
     /// Items stored by earlier versions under [`LEGACY_SERVICE`] are read once and copied here.
     pub const SERVICE: &str = "com.intelyhome.intelyide";
-    const ERR_SEC_ITEM_NOT_FOUND: i32 = -25300;
 
     /// Holds no state; every call goes to the user's Keychain.
     #[derive(Debug, Default, Clone, Copy)]
@@ -420,62 +417,218 @@ mod keychain {
         }
     }
 
-    /// A message the user can act on, by OSStatus. The raw status stays in `detail`.
-    pub fn keychain_message(status: i32) -> &'static str {
-        match status {
-            -128 => "Keychain access was cancelled or denied. Choose \"Always Allow\" in the macOS dialog, or allow IntelyIDE in Keychain Access, and try again.",
-            -25293 => "The Keychain rejected the authorisation. Unlock the login keychain (Keychain Access) and try again.",
-            -25308 => "The Keychain is locked or cannot show its dialog right now. Unlock the login keychain and try again.",
-            -34018 => "This development build is not signed for Keychain access (ad-hoc signature, no entitlement), so macOS refuses it. Secrets are kept in memory for this session.",
-            -25291 | -25295 => "No usable Keychain was found (login keychain missing or unavailable).",
-            _ => "The macOS Keychain refused the request.",
+    /// The macOS Keychain (generic-password items, account = key).
+    #[cfg(target_os = "macos")]
+    mod backend {
+        use security_framework::item::{ItemClass, ItemSearchOptions, Limit};
+        use security_framework::passwords::{delete_generic_password, get_generic_password, set_generic_password};
+
+        use super::super::{validate_key, Secret};
+        use crate::error::{code, Result, SettingsError};
+
+        const ERR_SEC_ITEM_NOT_FOUND: i32 = -25300;
+
+        /// A message the user can act on, by OSStatus. The raw status stays in `detail`.
+        pub fn keychain_message(status: i32) -> &'static str {
+            match status {
+                -128 => "Keychain access was cancelled or denied. Choose \"Always Allow\" in the macOS dialog, or allow IntelyIDE in Keychain Access, and try again.",
+                -25293 => "The Keychain rejected the authorisation. Unlock the login keychain (Keychain Access) and try again.",
+                -25308 => "The Keychain is locked or cannot show its dialog right now. Unlock the login keychain and try again.",
+                -34018 => "This development build is not signed for Keychain access (ad-hoc signature, no entitlement), so macOS refuses it. Secrets are kept in memory for this session.",
+                -25291 | -25295 => "No usable Keychain was found (login keychain missing or unavailable).",
+                _ => "The macOS Keychain refused the request.",
+            }
+        }
+
+        fn keychain_error(e: security_framework::base::Error) -> SettingsError {
+            SettingsError::new(code::KEYCHAIN, keychain_message(e.code())).with_detail(format!("OSStatus {}", e.code()))
+        }
+
+        pub fn has(service: &str, key: &str) -> Result<bool> {
+            validate_key(key)?;
+            // Attributes only: the secret data is not read, so no access prompt for the item.
+            match ItemSearchOptions::new().class(ItemClass::generic_password()).service(service).account(key).load_attributes(true).search() {
+                Ok(found) => Ok(!found.is_empty()),
+                Err(e) if e.code() == ERR_SEC_ITEM_NOT_FOUND => Ok(false),
+                Err(e) => Err(keychain_error(e)),
+            }
+        }
+
+        /// The accounts of a service from attributes only (no secret data is read, so no access prompt).
+        pub fn keys(service: &str) -> Result<Vec<String>> {
+            match ItemSearchOptions::new().class(ItemClass::generic_password()).service(service).load_attributes(true).limit(Limit::All).search() {
+                Ok(found) => Ok(found.iter().filter_map(|r| r.simplify_dict()).filter_map(|d| d.get("acct").cloned()).collect()),
+                Err(e) if e.code() == ERR_SEC_ITEM_NOT_FOUND => Ok(Vec::new()),
+                Err(e) => Err(keychain_error(e)),
+            }
+        }
+
+        pub fn set(service: &str, key: &str, value: Secret) -> Result<()> {
+            validate_key(key)?;
+            set_generic_password(service, key, value.expose().as_bytes()).map_err(keychain_error)
+        }
+
+        pub fn remove(service: &str, key: &str) -> Result<()> {
+            validate_key(key)?;
+            match delete_generic_password(service, key) {
+                Err(e) if e.code() != ERR_SEC_ITEM_NOT_FOUND => Err(keychain_error(e)),
+                _ => Ok(()),
+            }
+        }
+
+        pub fn get(service: &str, key: &str) -> Result<Option<Secret>> {
+            validate_key(key)?;
+            match get_generic_password(service, key) {
+                Ok(bytes) => String::from_utf8(bytes)
+                    .map(|s| Some(Secret::new(s)))
+                    .map_err(|_| SettingsError::new(code::KEYCHAIN, "the stored secret is not valid UTF-8")),
+                Err(e) if e.code() == ERR_SEC_ITEM_NOT_FOUND => Ok(None),
+                Err(e) => Err(keychain_error(e)),
+            }
         }
     }
 
-    fn keychain_error(e: security_framework::base::Error) -> SettingsError {
-        SettingsError::new(code::KEYCHAIN, keychain_message(e.code())).with_detail(format!("OSStatus {}", e.code()))
-    }
+    /// Windows Credential Manager and the Secret Service (GNOME Keyring, KWallet) through `keyring-core`: one generic item per
+    /// (service, key). The Secret Service has no size limit. Credential Manager caps a blob at 2560 bytes (stored as UTF-16, so
+    /// 1280 characters), and the vault is one JSON map of every secret: a value longer than [`CHUNK`] characters is split over
+    /// the items `key`, `key.1`, `key.2`, ... and `key` holds a `\u{1}chunks:<n>` marker instead. Reads join the pieces; a value
+    /// that shrank leaves no stale piece behind (`set` removes the pieces beyond the new count).
+    #[cfg(not(target_os = "macos"))]
+    mod backend {
+        use std::sync::OnceLock;
 
-    fn has(service: &str, key: &str) -> Result<bool> {
-        validate_key(key)?;
-        // Attributes only: the secret data is not read, so no access prompt for the item.
-        match ItemSearchOptions::new().class(ItemClass::generic_password()).service(service).account(key).load_attributes(true).search() {
-            Ok(found) => Ok(!found.is_empty()),
-            Err(e) if e.code() == ERR_SEC_ITEM_NOT_FOUND => Ok(false),
-            Err(e) => Err(keychain_error(e)),
+        use keyring_core::{Entry, Error as KeyError};
+
+        use super::super::{validate_key, Secret};
+        use crate::error::{code, Result, SettingsError};
+
+        /// Characters per Credential Manager item: far below the 1280-character limit, so multi-byte text still fits.
+        const CHUNK: usize = 600;
+        const MARKER: &str = "\u{1}chunks:";
+        /// Pieces a value may have (600 * 64 = 38 KB of secrets).
+        const MAX_CHUNKS: usize = 64;
+
+        fn store_error(e: KeyError) -> SettingsError {
+            let message = match &e {
+                KeyError::NoStorageAccess(_) | KeyError::PlatformFailure(_) => {
+                    if cfg!(windows) {
+                        "Windows Credential Manager refused the request."
+                    } else {
+                        "No Secret Service was found or it is locked. Start GNOME Keyring or KWallet and unlock it, then try again."
+                    }
+                }
+                KeyError::TooLong(..) => "A secret is too long for the credential store.",
+                _ => "The credential store refused the request.",
+            };
+            SettingsError::new(code::KEYCHAIN, message).with_detail(e.to_string())
         }
-    }
 
-    /// The accounts of a service from attributes only (no secret data is read, so no access prompt).
-    fn keys(service: &str) -> Result<Vec<String>> {
-        match ItemSearchOptions::new().class(ItemClass::generic_password()).service(service).load_attributes(true).limit(Limit::All).search() {
-            Ok(found) => Ok(found.iter().filter_map(|r| r.simplify_dict()).filter_map(|d| d.get("acct").cloned()).collect()),
-            Err(e) if e.code() == ERR_SEC_ITEM_NOT_FOUND => Ok(Vec::new()),
-            Err(e) => Err(keychain_error(e)),
+        /// Installs the credential store of the OS once. A failure is kept and reported on every call.
+        fn ready() -> Result<()> {
+            static STORE: OnceLock<std::result::Result<(), String>> = OnceLock::new();
+            let state = STORE.get_or_init(|| {
+                #[cfg(windows)]
+                let built = windows_native_keyring_store::Store::new();
+                #[cfg(not(windows))]
+                let built = zbus_secret_service_keyring_store::Store::new();
+                match built {
+                    Ok(store) => {
+                        keyring_core::set_default_store(store);
+                        Ok(())
+                    }
+                    Err(e) => Err(e.to_string()),
+                }
+            });
+            state.clone().map_err(|d| SettingsError::new(code::KEYCHAIN, "The credential store of this system is not available.").with_detail(d))
         }
-    }
 
-    fn set(service: &str, key: &str, value: Secret) -> Result<()> {
-        validate_key(key)?;
-        set_generic_password(service, key, value.expose().as_bytes()).map_err(keychain_error)
-    }
-
-    fn remove(service: &str, key: &str) -> Result<()> {
-        validate_key(key)?;
-        match delete_generic_password(service, key) {
-            Err(e) if e.code() != ERR_SEC_ITEM_NOT_FOUND => Err(keychain_error(e)),
-            _ => Ok(()),
+        fn entry(service: &str, account: &str) -> Result<Entry> {
+            ready()?;
+            Entry::new(service, account).map_err(store_error)
         }
-    }
 
-    fn get(service: &str, key: &str) -> Result<Option<Secret>> {
-        validate_key(key)?;
-        match get_generic_password(service, key) {
-            Ok(bytes) => String::from_utf8(bytes)
-                .map(|s| Some(Secret::new(s)))
-                .map_err(|_| SettingsError::new(code::KEYCHAIN, "the stored secret is not valid UTF-8")),
-            Err(e) if e.code() == ERR_SEC_ITEM_NOT_FOUND => Ok(None),
-            Err(e) => Err(keychain_error(e)),
+        fn read_one(service: &str, account: &str) -> Result<Option<String>> {
+            match entry(service, account)?.get_password() {
+                Ok(v) => Ok(Some(v)),
+                Err(KeyError::NoEntry) => Ok(None),
+                Err(e) => Err(store_error(e)),
+            }
+        }
+
+        fn delete_one(service: &str, account: &str) -> Result<()> {
+            match entry(service, account)?.delete_credential() {
+                Ok(()) | Err(KeyError::NoEntry) => Ok(()),
+                Err(e) => Err(store_error(e)),
+            }
+        }
+
+        fn piece(key: &str, n: usize) -> String {
+            format!("{key}.{n}")
+        }
+
+        fn pieces_of(head: &str) -> Option<usize> {
+            head.strip_prefix(MARKER).and_then(|n| n.parse().ok()).filter(|n| (1..=MAX_CHUNKS).contains(n))
+        }
+
+        pub fn has(service: &str, key: &str) -> Result<bool> {
+            validate_key(key)?;
+            Ok(read_one(service, key)?.is_some())
+        }
+
+        /// The accounts of a service. Not enumerated: the only caller is the migration from earlier per-secret items, which never
+        /// existed on these systems, so the list is empty.
+        pub fn keys(_service: &str) -> Result<Vec<String>> {
+            Ok(Vec::new())
+        }
+
+        pub fn set(service: &str, key: &str, value: Secret) -> Result<()> {
+            validate_key(key)?;
+            let text = value.expose();
+            let old = read_one(service, key)?.as_deref().and_then(pieces_of).unwrap_or(0);
+            let chars: Vec<char> = text.chars().collect();
+            let new = if !cfg!(windows) || chars.len() <= CHUNK {
+                entry(service, key)?.set_password(text).map_err(store_error)?;
+                0
+            } else {
+                let parts: Vec<String> = chars.chunks(CHUNK).map(|c| c.iter().collect()).collect();
+                if parts.len() > MAX_CHUNKS {
+                    return Err(SettingsError::new(code::KEYCHAIN, "A secret is too long for the credential store."));
+                }
+                for (i, part) in parts.iter().enumerate() {
+                    entry(service, &piece(key, i + 1))?.set_password(part).map_err(store_error)?;
+                }
+                // the head last: a reader never sees a marker whose pieces are not there yet
+                entry(service, key)?.set_password(&format!("{MARKER}{}", parts.len())).map_err(store_error)?;
+                parts.len()
+            };
+            for n in (new + 1)..=old {
+                delete_one(service, &piece(key, n))?;
+            }
+            Ok(())
+        }
+
+        pub fn remove(service: &str, key: &str) -> Result<()> {
+            validate_key(key)?;
+            let old = read_one(service, key)?.as_deref().and_then(pieces_of).unwrap_or(0);
+            delete_one(service, key)?;
+            for n in 1..=old {
+                delete_one(service, &piece(key, n))?;
+            }
+            Ok(())
+        }
+
+        pub fn get(service: &str, key: &str) -> Result<Option<Secret>> {
+            validate_key(key)?;
+            let Some(head) = read_one(service, key)? else { return Ok(None) };
+            let Some(count) = pieces_of(&head) else { return Ok(Some(Secret::new(head))) };
+            let mut whole = String::new();
+            for n in 1..=count {
+                match read_one(service, &piece(key, n))? {
+                    Some(p) => whole.push_str(&p),
+                    None => return Err(SettingsError::new(code::KEYCHAIN, "A stored secret is incomplete; enter it again.")),
+                }
+            }
+            Ok(Some(Secret::new(whole)))
         }
     }
 

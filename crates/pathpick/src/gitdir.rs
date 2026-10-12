@@ -352,14 +352,13 @@ pub fn scan_risks(work_dir: Option<&Path>, git_dir: &Path, config_dir: Option<&P
         _ => config_dir.unwrap_or(git_dir).join("hooks"),
     };
     if let Ok(rd) = std::fs::read_dir(&hooks_dir) {
-        use std::os::unix::fs::PermissionsExt;
         for item in rd.flatten().take(200) {
             let Ok(name) = item.file_name().into_string() else { continue };
             if name.ends_with(".sample") {
                 continue;
             }
             if let Ok(md) = std::fs::symlink_metadata(item.path()) {
-                if (md.is_file() || md.file_type().is_symlink()) && md.permissions().mode() & 0o111 != 0 {
+                if (md.is_file() || md.file_type().is_symlink()) && intely_core::sys::is_executable(&md, &item.path()) {
                     digest_lines.push(format!("hook:{name}={}", md.len()));
                     keys.push(format!("hook:{name}"));
                 }

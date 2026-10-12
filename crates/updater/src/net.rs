@@ -642,16 +642,17 @@ fn content_length(headers: &[(String, String)]) -> Result<Option<u64>, UpdateErr
 /// `<dest>` created 0600, `O_CREAT|O_EXCL|O_NOFOLLOW`: an existing file or a pre-planted symlink is
 /// refused and left alone.
 fn open_part(dest: &Path) -> Result<std::fs::File, UpdateError> {
-    use std::os::unix::fs::OpenOptionsExt;
-    std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .mode(0o600)
-        .custom_flags(libc::O_NOFOLLOW)
-        .open(dest)
-        .map_err(|e| map_io(&e))
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600).custom_flags(libc::O_NOFOLLOW);
+    }
+    options.open(dest).map_err(|e| map_io(&e))
 }
 
+#[cfg(unix)]
 fn map_io(e: &std::io::Error) -> UpdateError {
     let code = match e.raw_os_error() {
         Some(n) if n == libc::ENOSPC || n == libc::EDQUOT => ErrorCode::NoSpace,
@@ -661,6 +662,18 @@ fn map_io(e: &std::io::Error) -> UpdateError {
             std::io::ErrorKind::AlreadyExists => ErrorCode::AlreadyRunning,
             _ => ErrorCode::NotWritable,
         },
+    };
+    UpdateError::with(code, "partFile")
+}
+
+
+#[cfg(not(unix))]
+fn map_io(e: &std::io::Error) -> UpdateError {
+    let code = match e.kind() {
+        std::io::ErrorKind::StorageFull | std::io::ErrorKind::QuotaExceeded => ErrorCode::NoSpace,
+        std::io::ErrorKind::ReadOnlyFilesystem => ErrorCode::ReadOnlyVolume,
+        std::io::ErrorKind::AlreadyExists => ErrorCode::AlreadyRunning,
+        _ => ErrorCode::NotWritable,
     };
     UpdateError::with(code, "partFile")
 }

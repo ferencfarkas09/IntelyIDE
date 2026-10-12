@@ -14,6 +14,12 @@ use intely_agent_core::hub::AgentHub;
 use intely_remote::slot::{RemoteSlot, SlotConfig};
 use intely_settings::{MemorySecretStore, SecretStore};
 
+#[cfg(target_os = "linux")]
+fn threads() -> usize {
+    std::fs::read_dir("/proc/self/task").expect("/proc/self/task").count()
+}
+
+#[cfg(not(target_os = "linux"))]
 fn threads() -> usize {
     let out = Command::new("ps").args(["-M", "-p", &std::process::id().to_string()]).output().expect("ps");
     String::from_utf8_lossy(&out.stdout).lines().count().saturating_sub(1)

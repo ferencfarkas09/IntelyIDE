@@ -324,6 +324,7 @@ async fn pull_and_fetch_get_their_own_run_ids_and_kinds() {
     assert_eq!(sink.result(&fetch.run_id).await.kind, OpKind::Fetch);
 }
 
+#[cfg(unix)]
 #[tokio::test]
 async fn shutdown_kills_child_process_groups_and_waits_for_the_runs() {
     let pids = Arc::new(Mutex::new(Vec::<i32>::new()));

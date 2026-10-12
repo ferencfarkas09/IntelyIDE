@@ -87,7 +87,7 @@ fn keychain_allowed(var: impl Fn(&str) -> bool) -> bool {
 }
 
 fn secret_store() -> Arc<dyn SecretStore> {
-    #[cfg(target_os = "macos")]
+    // macOS Keychain, Windows Credential Manager or the Linux Secret Service (`intely_settings::KeychainSecretStore`)
     if keychain_allowed(|v| std::env::var_os(v).is_some_and(|x| !x.is_empty())) {
         // A denied Keychain, an ad-hoc-signed dev build the OS distrusts or an unanswered dialog falls back to memory with a
         // message (`secrets_status`), it never fails the call or hangs the settings screen.
@@ -101,7 +101,7 @@ fn login_path(engine: &EngineSlot) -> String {
     let path = engine.get().ok().and_then(|e| e.login_env().get("PATH").cloned()).or_else(|| std::env::var("PATH").ok()).unwrap_or_default();
     // e2e harness only: a directory with stub CLIs (scenario z puts a `gemini` stub there) searched before the real PATH
     match (std::env::var("INTELY_E2E").is_ok_and(|v| v == "1"), std::env::var("INTELY_E2E_EXTRA_PATH")) {
-        (true, Ok(extra)) if !extra.is_empty() => format!("{extra}:{path}"),
+        (true, Ok(extra)) if !extra.is_empty() => std::env::join_paths(std::env::split_paths(&extra).chain(std::env::split_paths(&path))).map_or(path, |p| p.to_string_lossy().into_owned()),
         _ => path,
     }
 }

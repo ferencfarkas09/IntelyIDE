@@ -70,11 +70,16 @@ fn claude_bin() -> PathBuf {
     if let Some(p) = std::env::var_os("INTELY_CLAUDE_BIN") {
         return PathBuf::from(p);
     }
-    let home = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_default();
-    [home.join(".local/bin/claude"), home.join(".claude/local/claude"), PathBuf::from("/opt/homebrew/bin/claude"), PathBuf::from("/usr/local/bin/claude")]
-        .into_iter()
+    let home = intely_core::sys::home_dir().unwrap_or_default();
+    let mut places = vec![home.join(".local/bin"), home.join(".claude/local"), PathBuf::from("/opt/homebrew/bin"), PathBuf::from("/usr/local/bin")];
+    if cfg!(windows) {
+        places.extend(std::env::var_os("APPDATA").map(|a| PathBuf::from(a).join("npm")));
+    }
+    places
+        .iter()
+        .flat_map(|d| intely_core::sys::executable_names("claude").into_iter().map(move |n| d.join(n)))
         .find(|p| p.is_file())
-        .unwrap_or_else(|| PathBuf::from("claude"))
+        .unwrap_or_else(|| PathBuf::from(intely_core::sys::program("claude")))
 }
 
 /// One tool-less Haiku call from an empty directory, so no project settings, hooks or memory are loaded.

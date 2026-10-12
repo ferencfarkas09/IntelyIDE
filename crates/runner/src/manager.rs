@@ -8,7 +8,6 @@
 
 use std::collections::{HashMap, VecDeque};
 use std::io::Read;
-use std::os::unix::process::{CommandExt, ExitStatusExt};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -58,6 +57,16 @@ pub struct StartOpts {
     pub allow_second_heavy: bool,
     /// Overlaid on the process environment (the login-shell `PATH` and friends).
     pub env: HashMap<String, String>,
+}
+
+#[cfg(unix)]
+fn exit_signal(s: &std::process::ExitStatus) -> Option<i32> {
+    std::os::unix::process::ExitStatusExt::signal(s)
+}
+
+#[cfg(not(unix))]
+fn exit_signal(_s: &std::process::ExitStatus) -> Option<i32> {
+    None
 }
 
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -271,8 +280,9 @@ impl RunManager {
             }
         }
 
-        let mut cmd = Command::new(&plan.argv[0]);
-        cmd.args(&plan.argv[1..]).current_dir(repo).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).process_group(0);
+        let mut cmd = Command::new(intely_core::sys::program(&plan.argv[0]));
+        cmd.args(&plan.argv[1..]).current_dir(repo).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
+        intely_core::sys::NewGroup::new_group(&mut cmd);
         for key in std::env::vars_os().filter_map(|(k, _)| k.into_string().ok()).filter(|k| k.starts_with("INTELY_") || k == "CI") {
             cmd.env_remove(key);
         }
@@ -359,7 +369,7 @@ impl RunManager {
             let orphans = inner.orphans.clone();
             let grace = inner.grace;
             std::thread::spawn(move || {
-                let code = child.wait().ok().and_then(|s| s.code().or_else(|| s.signal().map(|sig| 128 + sig)));
+                let code = child.wait().ok().and_then(|s| s.code().or_else(|| exit_signal(&s).map(|sig| 128 + sig)));
                 // Whatever the main process left behind goes with it.
                 end_groups(&[pid], Duration::from_secs(2).min(grace));
                 if let Some(o) = orphans {

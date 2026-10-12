@@ -123,9 +123,12 @@ pub fn remove_shim(ssh: &Ssh, cfg: &ServerCfg, home: &str, agent_id: &str) -> Re
 mod tests {
     use super::*;
     use crate::probe::{BundleStatus, ClaudeStatus, GitStatus, NodeStatus, SdkStatus};
+    #[cfg(unix)]
     use crate::testkit::*;
+    #[cfg_attr(not(unix), allow(unused_imports))]
     use std::process::Command;
 
+    #[cfg_attr(not(unix), allow(dead_code))]
     fn ready_status() -> ServerStatus {
         ServerStatus {
             reachable: true,
@@ -140,6 +143,7 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
     #[test]
     fn remote_paths_of_a_ready_server() {
         let p = remote_paths(&ready_status(), &test_cfg(), "1.1.1").unwrap();
@@ -148,6 +152,7 @@ mod tests {
         assert_eq!((p.node.as_str(), p.git.as_str()), ("/home/me/.intely/node/bin/node", "/usr/bin/git"));
     }
 
+    #[cfg(unix)]
     #[test]
     fn remote_paths_need_a_ready_enabled_server_and_clean_paths() {
         let cfg = test_cfg();
@@ -167,6 +172,7 @@ mod tests {
         assert!(remote_paths(&st, &cfg, "1.1.1").is_none());
     }
 
+    #[cfg(unix)]
     #[test]
     fn sidecar_command_shape() {
         let p = remote_paths(&ready_status(), &test_cfg(), "1.1.1").unwrap();
@@ -181,6 +187,7 @@ mod tests {
         assert!(!c.contains('\n'));
     }
 
+    #[cfg(unix)]
     #[test]
     fn sidecar_command_drops_hostile_providers() {
         let p = remote_paths(&ready_status(), &test_cfg(), "1.1.1").unwrap();
@@ -191,6 +198,7 @@ mod tests {
         assert!(!c.contains("--providers"));
     }
 
+    #[cfg(unix)]
     #[test]
     fn sidecar_command_runs_the_right_program_with_the_right_arguments() {
         // Run the command with sh and a fake node that prints its arguments; paths contain quotes and spaces.
@@ -220,6 +228,7 @@ mod tests {
         assert_eq!(lines[2..], ["[--providers=claude]", "[--policy-timeout=1234]"]);
     }
 
+    #[cfg(unix)]
     #[test]
     fn sidecar_command_survives_the_fake_ssh_transport() {
         let f = Fake::new();
@@ -238,12 +247,14 @@ mod tests {
         assert_eq!(String::from_utf8_lossy(&out.stdout), "ok\n");
     }
 
+    #[cfg(unix)]
     fn shim_src(f: &Fake) -> std::path::PathBuf {
         let d = f.dir.path().join("shim");
         write_exec(&d.join("git"), "#!/bin/sh\necho shim\n");
         d
     }
 
+    #[cfg(unix)]
     #[test]
     fn upload_and_remove_shim() {
         let f = Fake::new();
@@ -260,6 +271,7 @@ mod tests {
         remove_shim(&f.ssh, &f.cfg, &home, "agent-1").unwrap();
     }
 
+    #[cfg(unix)]
     #[test]
     fn remove_shim_only_touches_its_own_dir() {
         let f = Fake::new();
@@ -273,6 +285,7 @@ mod tests {
         assert!(f.home.join(".intely/shims/other").exists());
     }
 
+    #[cfg(unix)]
     #[test]
     fn upload_shim_validates_inputs() {
         let f = Fake::new();

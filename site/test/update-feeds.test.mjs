@@ -21,7 +21,10 @@ const tmp = () => {
 const SIG = 'untrusted comment: signature from tauri secret key (TEST throwaway)\nRUQfake\ntrusted comment: t\nZmFrZQ==\n';
 const sha = (b) => createHash('sha256').update(b).digest('hex');
 
-function feed({ version = '0.1.0', channel = 'stable', seq = 1, mutate } = {}) {
+// the stable feed must announce the version of data/release.json
+const RELEASE_VERSION = JSON.parse(readFileSync(join(SITE, 'data/release.json'), 'utf8')).version;
+
+function feed({ version = RELEASE_VERSION, channel = 'stable', seq = 1, mutate } = {}) {
   const o = buildFeed({
     channel, seq, version, generatedAt: '2026-10-20T09:00:00Z', notes: `## ${version}\n`,
     assets: { x64: { signature: 'ZmFrZXNpZw==', bytes: 5 * 1024 * 1024, sha256: 'a'.repeat(64), unpackedBytes: 9 * 1024 * 1024 } },
@@ -30,7 +33,7 @@ function feed({ version = '0.1.0', channel = 'stable', seq = 1, mutate } = {}) {
   return feedBytes(o);
 }
 
-/** A data dir: release.json (version 0.1.0) + update/ with the given files. */
+/** A data dir: release.json (the committed one) + update/ with the given files. */
 function fixture(files) {
   const data = tmp();
   cpSync(join(SITE, 'data/release.json'), join(data, 'release.json'));

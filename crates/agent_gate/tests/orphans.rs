@@ -1,5 +1,6 @@
 //! Orphan protection: the startup sweep kills groups of dead IDE instances and nothing else.
 
+#![cfg(unix)]
 mod common;
 
 use std::time::Duration;
