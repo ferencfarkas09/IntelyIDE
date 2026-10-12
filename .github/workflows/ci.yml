@@ -252,6 +252,7 @@ jobs:
           shared-key: ci-aarch64
           save-if: ${{ github.ref == 'refs/heads/main' }}
           cache-on-failure: true
+      - run: pnpm run build:relay-kit # the relay kit is a Tauri resource of the app crate
       - run: bash scripts/ci/build-smoke.sh
 
   ci-ok:
