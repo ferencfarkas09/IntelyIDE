@@ -177,6 +177,8 @@ pre { background: var(--bg-soft); border: 1px solid var(--line); border-radius: 
   .feature:nth-of-type(even) { grid-template-columns: 7fr 5fr; }
   .feature:nth-of-type(even) .feature-text { order: 2; }
 }
+.feature-solo { grid-template-columns: 1fr !important; }
+.feature-solo .feature-text { position: static; order: 0 !important; max-width: 760px; }
 .pill { display: inline-block; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-mute); font-size: .85rem; font-weight: 550; }
 .ticks { list-style: none; padding: 0; margin: 0 0 1em; display: grid; gap: 8px; }
 .ticks li { position: relative; padding-left: 28px; }

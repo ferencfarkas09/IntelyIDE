@@ -65,7 +65,7 @@ export default {
     // Csak akkor jelenik meg, ha a data/release.json státusza "alpha" vagy "beta" (a "stable" esetén soha).
     preNotice: 'Ez egy előzetes kiadás. Számíts darabosságra.',
     allDownloads: 'Minden letöltés és ellenőrzőösszeg',
-    signedNote: 'Ezt a buildet az Apple aláírta és hitelesítette.',
+    signedNote: 'Developer ID-vel aláírva és az Apple által hitelesítve. Figyelmeztetés nélkül megnyílik.',
   },
   highlights: {
     title: 'Kiemelt funkciók',
@@ -73,11 +73,14 @@ export default {
     items: [
       { id: 'multi-repo', h: 'Több repós Változások fa', p: 'Minden repó változása egy csoportosított fában. Nézd át, commitold és told fel mindet.' },
       { id: 'agents', h: 'Ügynökök korlátokkal', p: 'Az ügynökök szerkesztenek, de sosem commitolnak és nem pusholnak. A Rewind pillanatkép bármely futást visszavon.' },
+      { id: 'team', h: 'Csapat (Béta)', p: 'Lásd élőben a kollégák ügynökfutásait, küldj jegyzetet egy futásba, és osszátok meg a Claude memóriát, mindezt végpontok közt titkosítva, a saját relédon át.' },
+      { id: 'servers', h: 'Ügynökök a saját szervereiden', p: 'Add hozzá a szervert az ssh-célpontjával, és futtass rajta ügynököket, például 3-at a build szerveren és 2-t a Macen.' },
+      { id: 'remote', h: 'Telefonos átjáró', p: 'Hagyd jóvá vagy válaszold meg az ügynökfutásokat a telefonodról, a saját relédon át, végpontok közt titkosítva.' },
+      { id: 'notifications', h: 'Értesítések', p: 'Banner és Dock-számláló, ha egy futásnak szüksége van rád, kérdez, lefutott vagy hibára futott.' },
       { id: 'providers', h: 'Hozd a saját ügynöködet', p: 'A Claude a fő út. A Codex, Gemini, Copilot és mások kísérleti providerként csatlakoznak.' },
       { id: 'mongo', h: 'MongoDB Studio', p: 'Alapból csak olvasható, MI-támogatott lekérdezésekkel angolul vagy magyarul.' },
       { id: 'api-contract', h: 'API contract ellenőrzés', p: 'Vedd észre az eltérést a backend Swaggere és a kliens repók között. Nézd a specifikációt csak olvasva.' },
-      { id: 'remote', h: 'Távoli', p: 'Kövesd és válaszold meg az ügynökfutásokat telefonról, végpontok közt titkosítva.' },
-      { id: 'team', h: 'Csapat (Béta)', p: 'Kövesd a kollégák futásait csak olvashatóan, a saját relén át, végpontok közt titkosítva.' },
+      { id: 'trust', h: 'Aláírt és hitelesített', p: 'Developer ID-vel aláírva és az Apple által hitelesítve (notarizálva), ezért figyelmeztetés nélkül megnyílik.' },
     ],
   },
   why: {
@@ -146,18 +149,44 @@ export default {
       {
         id: 'team',
         h: 'Csapat: dolgozzatok együtt',
-        p: 'Hozz létre csapatot a saját relén, és hívd meg a kollégákat egyszer használható kóddal. Kövesd az élő futásaikat, az eszközhívásaikat és a diffjeiket, küldj jegyzetet egy futásba (a tulajdonos hagyja jóvá), és tartsd azonosan a Claude memóriát a gépeken. Minden végpontok közt titkosított, projektenként osztható, a csapattársak pedig soha nem válaszolhatnak engedélykártyára és nem indíthatnak futást.',
-        list: ['Saját relé, fiók és általunk üzemeltetett szolgáltatás nélkül', 'Projektenkénti megosztás, maszkolt titkokkal', 'Tag eltávolításakor kulcscsere'],
+        p: 'Hozz létre csapatot a saját Cloudflare relédon, és hívd meg a kollégákat egyszer használható meghívókóddal. Mielőtt bármi megosztásra kerül, mindkét fél összeveti a hatjegyű biztonsági kódot, a relén átmenő minden adat pedig végpontok közt titkosított. Lásd, mit csinál a csapattársad ügynöke, miközben dolgozik, és segíts neki anélkül, hogy átvennéd az irányítást.',
+        list: [
+          'A csapattárs ügynökfutásai élőben: eszközhívások, válaszok és diffek, projektenként megosztva, a titkok eltávolításával',
+          'Jegyzet küldése a csapattárs futásába. Az ügynökhöz csak azután jut el, hogy a gazdája jóváhagyta.',
+          'A csapattárs munkaterületének pillanatképe, projektenként önként bekapcsolva',
+          'Közös Claude memória: a memory/*.md jegyzetek szinkronban maradnak, a CLAUDE.md külön kapcsolóval vehető be, és minden változást átnézhetsz, mielőtt életbe lép',
+          'A csapattársak soha nem válaszolhatnak engedélykártyára és nem indíthatnak futást. Tag eltávolításakor kulcscsere történik.',
+        ],
         pill: 'Béta',
         shots: [['team', 'A Csapat fül: egy kolléga futása csak olvashatóan, jóváhagyásra váró jegyzettel.'], ['team-memory', 'Közös Claude memória függő CLAUDE.md változással és ütközési másolattal.']],
       },
       {
+        id: 'servers',
+        h: 'Ügynökök a saját szervereiden',
+        p: 'Fogd munkára a nagy gépedet. Add hozzá a szervert az ssh-célpontjával, a többit az IDE elintézi: telepíti a Node.js-t, ha hiányzik, az ügynökfájlokat és az Agent SDK-t. Utána ugyanabból az Új futás ablakból indíthatsz rajta futásokat.',
+        list: [
+          'Oszd meg a feladatot, például 3 ügynök a build szerveren és 2 ezen a Macen',
+          'Szerverenként megadható ügynökkorlát',
+          'A jogosultsági szabályok és a jóváhagyás az IDE-ben marad, és a szerver fájljait ítélik meg',
+          'A git-védelem minden futással együtt utazik, így ott sem tudnak az ügynökök commitolni vagy pusholni',
+        ],
+        pill: 'Linux konténerrel és szkriptelt helyettesítővel próbálták ki, sok valódi szerverrel még nem',
+        shots: [],
+      },
+      {
         id: 'remote',
-        h: 'Távoli: figyeld telefonról',
-        p: 'Egy opcionális, végpontok közt titkosított telefonos társalkalmazással az asztalodtól távol is követheted az ügynökök futását és válaszolhatsz a kérdéseikre. A relét futtathatod a saját Cloudflare fiókodban.',
-        list: ['Opcionális, amíg be nem állítod, ki van kapcsolva', 'Végpontok közt titkosított', 'Relé a saját Cloudflare fiókodban'],
+        h: 'Telefonos átjáró: hagyd jóvá bárhonnan',
+        p: 'Párosítsd a telefonodat az IDE-vel egy relén át, amelyet a saját Cloudflare fiókodban telepítesz. Kövesd az ügynökfutásokat, és hagyd jóvá vagy válaszold meg őket, amikor nem vagy az asztalodnál. Minden végpontok közt titkosított, a projekt pedig nem üzemeltet relét helyetted.',
+        list: ['A telefon párosítása egyszer használható kóddal és biztonsági kóddal, amelyet a Macen erősítesz meg', 'Engedély jóváhagyása vagy kérdés megválaszolása a telefonról', 'Opcionális, amíg be nem állítod, ki van kapcsolva'],
         pill: 'Kísérleti: valódi Cloudflare fiókkal és iPhone-nal még nem ellenőrizték',
         shots: [['remote', 'A telefonos társalkalmazás egy futó ügynökkel.']],
+      },
+      {
+        id: 'notifications',
+        h: 'Értesítések: tudd, mikor kellesz',
+        p: 'Indíts el egy hosszú futást, foglalkozz mással, és az IDE majd megkoppintja a válladat. Banner jelenik meg, ha egy futás engedélyt kér, kérdez, lefutott vagy hibára futott, a Dock-ikon pedig számolja a várakozó futásokat.',
+        list: ['Minden értesítéstípushoz külön kapcsoló', 'Szünet a bannerek között és percenkénti korlát, hogy sose árasszanak el', 'Opcionális hang'],
+        shots: [],
       },
       {
         id: 'mongo',
@@ -240,6 +269,8 @@ export default {
     bestH: 'Legjobb szándék szerint, nem garancia',
     bestP:
       'Ezek a rétegek együtt dolgoznak, de legjobb szándék szerint működnek. Nem jelentenek garantált biztonsági határt. Commit előtt olvasd át, mit változtatott az ügynök.',
+    signedH: 'Aláírt és hitelesített',
+    signedP: 'Az appot és a lemezképet Developer ID-vel írták alá, és az Apple hitelesítette (notarizálta), így a macOS az első indításkor figyelmeztetés nélkül megnyitja az IntelyIDE-t, offline is.',
     privH: 'Helyi elsőbbség',
     privP: 'A munkád a gépeden marad. A hitelesítő adatok a macOS Kulcskarikában vannak. Az IntelyIDE nem küld telemetriát. Naponta egyszer, egy egyszeri tájékoztatás után megkérdezi a GitHub nyilvános API-ját, hogy van-e újabb kiadás, és csak a verziószámát küldi el. Ez kikapcsolható.',
   },
@@ -270,7 +301,7 @@ export default {
     dragAlt: 'Húzd az IntelyIDE ikont az Alkalmazások mappára.',
     gk: {
       h: 'A macOS figyelmeztetésről',
-      p: 'Az IntelyIDE ad-hoc aláírású, de az Apple nem hitelesítette (notarizálta), ezért a macOS az első indításkor megerősítést kér. Ez várható. A megnyitás módja:',
+      p: 'Az 1.3.0 előtti buildek ad-hoc aláírásúak, és az Apple nem hitelesítette (notarizálta) őket, ezért a macOS az első indításkor megerősítést kér. Ez várható. Egy ilyen build megnyitása:',
       steps: [
         'Próbáld meg egyszer megnyitni az IntelyIDE-t, majd zárd be a figyelmeztetést.',
         'Nyisd meg a Rendszerbeállításokat, majd az Adatvédelem és biztonság részt.',

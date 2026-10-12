@@ -66,7 +66,7 @@ export default {
     // Shown only when data/release.json has status "alpha" or "beta" (never for "stable").
     preNotice: 'This is a pre-release. Expect rough edges.',
     allDownloads: 'All downloads and checksums',
-    signedNote: 'This build is signed and notarized by Apple.',
+    signedNote: 'Signed with a Developer ID and notarized by Apple. It opens without warnings.',
   },
   highlights: {
     title: 'Highlights',
@@ -74,11 +74,14 @@ export default {
     items: [
       { id: 'multi-repo', h: 'Multi-repo Changes tree', p: 'Every repository’s changes in one grouped tree. Review, commit and push across all of them.' },
       { id: 'agents', h: 'Agents with guardrails', p: 'Agents edit but never commit or push. A Rewind snapshot undoes any run.' },
+      { id: 'team', h: 'Team (Beta)', p: 'See colleagues’ agent runs live, send a note into one and share Claude memory, all end-to-end encrypted through your own relay.' },
+      { id: 'servers', h: 'Run agents on your own servers', p: 'Add a server by its ssh target and run agents there, for example 3 on a build server and 2 on your Mac.' },
+      { id: 'remote', h: 'Phone gateway', p: 'Approve or answer agent runs from your phone through your own relay, end-to-end encrypted.' },
+      { id: 'notifications', h: 'Notifications', p: 'A banner and a Dock count when a run needs you, asks a question, finishes or fails.' },
       { id: 'providers', h: 'Bring your own agent', p: 'Claude is the main path. Codex, Gemini, Copilot and more plug in as experimental providers.' },
       { id: 'mongo', h: 'MongoDB Studio', p: 'Read-only by default, with AI-assisted queries in English or Hungarian.' },
       { id: 'api-contract', h: 'API contract checks', p: 'Spot drift between your backend’s Swagger and its client repositories. Browse the spec read-only.' },
-      { id: 'remote', h: 'Remote', p: 'Watch and answer agent runs from your phone, end-to-end encrypted.' },
-      { id: 'team', h: 'Team (Beta)', p: 'Follow colleagues’ runs read-only through your own relay, end-to-end encrypted.' },
+      { id: 'trust', h: 'Signed and notarized', p: 'Signed with a Developer ID and notarized by Apple, so it opens without warnings.' },
     ],
   },
   why: {
@@ -147,18 +150,44 @@ export default {
       {
         id: 'team',
         h: 'Team: work together',
-        p: 'Create a team on your own relay and invite colleagues with a one-time code. Follow their runs, tool calls and diffs live, send a note into a run (the owner approves it) and keep Claude memory equal across computers. Everything is end-to-end encrypted, shared per project, and teammates can never answer permission cards or start runs.',
-        list: ['Your own relay, no account and no service we run', 'Per-project sharing with secrets masked', 'Removing a member rotates the key'],
+        p: 'Create a team on your own Cloudflare relay and invite colleagues with a one-time invite code. Both sides compare a six-digit safety code before anything is shared, and everything the relay carries is end-to-end encrypted. See what a teammate’s agent is doing while it happens, and help them without taking over.',
+        list: [
+          'Live view of a teammate’s agent runs: tool calls, answers and diffs, shared per project with secrets redacted',
+          'Send a note into a teammate’s run. It reaches the agent only after its owner approves it.',
+          'A snapshot of a teammate’s workspace, opt-in per project',
+          'Shared Claude memory: memory/*.md notes stay in sync, CLAUDE.md is a separate opt-in with a review before any change',
+          'Teammates can never answer permission cards or start runs. Removing a member rotates the key.',
+        ],
         pill: 'Beta',
         shots: [['team', 'The Team tab: a teammate\'s run read-only, with a note waiting for your approval.'], ['team-memory', 'Shared Claude memory with a pending CLAUDE.md change and a conflict copy.']],
       },
       {
+        id: 'servers',
+        h: 'Run agents on your own servers',
+        p: 'Put a big machine to work. Add a server by its ssh target and the IDE sets it up for you: Node.js if it is missing, the agent files and the Agent SDK. Then start runs there from the same New run dialog.',
+        list: [
+          'Split a task, for example 3 agents on the build server and 2 on this Mac',
+          'A limit of agents per server',
+          'The permission rules and the approval broker stay in the IDE and judge the server’s files',
+          'The git guard travels with each run, so agents there cannot commit or push either',
+        ],
+        pill: 'Tried against a Linux container and a scripted stand-in, not yet many real servers',
+        shots: [],
+      },
+      {
         id: 'remote',
-        h: 'Remote: watch from your phone',
-        p: 'An optional, end-to-end-encrypted phone companion lets you watch agent runs and answer their questions away from your desk. You can run the relay on your own Cloudflare account.',
-        list: ['Optional and off until you set it up', 'End-to-end encrypted', 'Relay on your own Cloudflare account'],
+        h: 'Phone gateway: approve from anywhere',
+        p: 'Pair your phone with the IDE through a relay you deploy on your own Cloudflare account. Watch agent runs, and approve or answer them when you are away from your desk. Everything is end-to-end encrypted, and the project hosts no relay for you.',
+        list: ['Pair a phone with a one-time code and a safety code you confirm on the Mac', 'Approve a permission or answer a question from the phone', 'Optional and off until you set it up'],
         pill: 'Experimental: not yet verified against a real Cloudflare account or iPhone',
         shots: [['remote', 'The phone companion showing an agent run in progress.']],
+      },
+      {
+        id: 'notifications',
+        h: 'Notifications: know when a run needs you',
+        p: 'Start a long run, switch to something else and let the IDE tap you on the shoulder. A banner appears when a run needs a permission, asks a question, finishes or fails, and the Dock icon counts the runs that are waiting.',
+        list: ['A switch for each kind of notification', 'A gap between banners and a cap per minute, so you are never flooded', 'An optional sound'],
+        shots: [],
       },
       {
         id: 'mongo',
@@ -241,6 +270,8 @@ export default {
     bestH: 'Best effort, not a guarantee',
     bestP:
       'These layers work together, but they are best effort. They are not a security boundary guarantee. Read what an agent changed before you commit it.',
+    signedH: 'Signed and notarized',
+    signedP: 'The app and the disk image are signed with a Developer ID and notarized by Apple, so macOS opens IntelyIDE on the first launch without a warning, even offline.',
     privH: 'Local-first',
     privP: 'Your work stays on your machine. Credentials are stored in the macOS Keychain. IntelyIDE has no telemetry. Once a day, after a one-time notice, it asks the public GitHub API whether a newer release exists and sends nothing but its version number. You can turn that off.',
   },
@@ -271,7 +302,7 @@ export default {
     dragAlt: 'Drag the IntelyIDE icon onto the Applications folder.',
     gk: {
       h: 'About the macOS warning',
-      p: 'IntelyIDE is ad-hoc signed but not notarized by Apple, so macOS asks you to confirm the first launch. That is expected. To open it:',
+      p: 'Builds before 1.3.0 are ad-hoc signed but not notarized by Apple, so macOS asks you to confirm the first launch. That is expected. To open such a build:',
       steps: [
         'Try to open IntelyIDE once, then close the warning.',
         'Open System Settings, then Privacy &amp; Security.',

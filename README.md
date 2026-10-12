@@ -16,7 +16,7 @@ A desktop Git client for working across several repositories at once, with codin
 [![Platform: macOS](https://img.shields.io/badge/platform-macOS-lightgrey)](#requirements)
 
 > [!NOTE]
-> IntelyIDE 1.2.0 is a stable release. The installed app starts in normal (writable) mode: like any Git client it can commit, push and save files in the repositories you open, and agent runs can edit files there. The protections described under "Safety model" are layered and best-effort, not a guarantee, and the in-app enforcement chip reads "Weak" until you run the proof suite on your machine. Use it on repositories you can restore, and do not leave agents running unattended. When started from source with `pnpm dev:app` it is read-only instead (it refuses commits, pushes, saves, agent runs and network access).
+> IntelyIDE 1.3 is a stable release. The installed app starts in normal (writable) mode: like any Git client it can commit, push and save files in the repositories you open, and agent runs can edit files there. The protections described under "Safety model" are layered and best-effort, not a guarantee, and the in-app enforcement chip reads "Weak" until you run the proof suite on your machine. Use it on repositories you can restore, and do not leave agents running unattended. When started from source with `pnpm dev:app` it is read-only instead (it refuses commits, pushes, saves, agent runs and network access).
 
 <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/changes-tree-dark.png"><img alt="IntelyIDE Changes view: four repositories in one tree, each file tagged with its repository and branch, with one commit message box for the checked files." src="docs/screenshots/changes-tree-light.png" width="900"></picture>
 
@@ -50,17 +50,18 @@ Agents are part of the same window, within limits:
 - **Approval drawer and history.** Permission requests, refusals and finished runs in one place.
 - **Notes to a working agent.** Add something for the lead or a running subagent without stopping the run; the agent reads it with its next tool call, and the transcript shows whether it arrived.
 - **Usage.** How much of your Claude plan's 5-hour session and 7-day week is left, and the tokens and API-equivalent cost of the runs this IDE started: by day, hour and model, with a year grid of busy days.
-- **Agents on your own servers.** Run agents over `ssh` on a server you own, for example 3 on a build server and 2 on this Mac from one New run. The IDE sets the server up (Node.js, the agent files, the Agent SDK), the permission rules stay in the IDE and judge the server's files, and the git guard travels with each run. See [docs/remote-servers.md](docs/remote-servers.md).
-- **Notifications.** A banner and a Dock count when a run needs a permission, asks a question, finishes or fails, with a switch for each and a limit on how often. See [docs/notifications.md](docs/notifications.md).
+- **Team collaboration (Beta).** Create a team on your own Cloudflare relay and invite colleagues with a one-time invite code; both sides compare a safety code first, and everything is end-to-end encrypted. See teammates' agent runs, tool calls and diffs live (shared per project, secrets redacted), send a note into a run (its owner approves it), look at a teammate's workspace snapshot and keep Claude memory (`memory/*.md`, and `CLAUDE.md` as a separate opt-in with a review) in sync. Teammates can never answer permission cards or start runs. See [docs/team.md](docs/team.md).
+- **Agents on your own servers.** Add a server by its `ssh` target and the IDE sets it up (Node.js, the agent files, the Agent SDK). Then run agents there, for example 3 on a build server and 2 on this Mac from one New run, with a limit of agents per server. The permission rules and the approval broker stay in the IDE and judge the server's files, and the git guard travels with each run. See [docs/remote-servers.md](docs/remote-servers.md).
+- **Phone gateway (Remote, experimental).** Pair a phone through a relay on your own Cloudflare account, then approve permissions or answer questions from the phone. End-to-end encrypted. See [docs/remote-cloudflare.md](docs/remote-cloudflare.md).
+- **Notifications.** A banner and a Dock count when a run needs a permission, asks a question, finishes or fails, with a switch for each kind and a limit on how often. See [docs/notifications.md](docs/notifications.md).
+- **Signed and notarized.** From 1.3.0 on the app is signed with a Developer ID and notarized by Apple, so it opens without a warning.
 - **Built-in tools.** A small editor, a project tree, a terminal, and a preview with an element inspector.
 - **53 languages.** English and Hungarian are written by hand. The other 51 are machine-translated and wait for native review; some newer screens (for example MongoDB Studio, workspaces and MCP settings) are not translated yet and show English there. See [docs/i18n.md](docs/i18n.md).
 
-- **Team collaboration (Beta).** Work with colleagues through a relay you deploy yourself: follow their runs read-only, send a note into a run (the owner approves it), look at their workspace changes and share Claude memory. End-to-end encrypted, per project, and teammates can never answer permission cards or start runs. See [docs/team.md](docs/team.md).
 
 <details>
 <summary>More modules (experimental, off by default)</summary>
 
-- **Remote.** A phone view through a relay that you deploy on your own Cloudflare account. The project does not host a relay for you.
 - **Sentry issues.** List the issues of one organization with filters and search, open the newest event with its stack and hand an issue to an agent ("Fix with agent"). It needs your own token and asks Sentry nothing until you add one; it has not been tried against a live Sentry server yet.
 - **MongoDB Studio.** Browse collections with your own connections; credentials go to the macOS Keychain.
 - **Happy integrations.** An optional module for one company's services (time tracker, chat, tasks). It is off by default, has no preset server, and is of no use to most people.
@@ -90,7 +91,7 @@ It is not for you if:
 - you want a full code editor replacement;
 - you want an agent to commit and push for you;
 - you use Windows or Linux (macOS only);
-- you need a notarized, supported product today.
+- you need a vendor-supported product with a service agreement today.
 
 ## Safety model
 
@@ -116,7 +117,7 @@ The full layer table, the enforcement suite and its results are in [docs/safety.
 
 ## Status and known limitations
 
-This is version 1.2.0. It has been used mostly by its author, on an Intel Mac.
+This is version 1.3.1. It has been used mostly by its author, on an Intel Mac.
 
 - Write mode is not judged suitable for unattended daily use on repositories you cannot restore.
 - The agent protections are best-effort. See the safety model above.
@@ -136,7 +137,7 @@ This is version 1.2.0. It has been used mostly by its author, on an Intel Mac.
 <!--dmg:available-->
 ### macOS installer (DMG)
 
-1. Download `IntelyIDE_1.2.0_x64.dmg` from the Releases page of this repository. It is built for Intel Macs and also runs on Apple Silicon under Rosetta 2, more slowly. Apple may remove Rosetta in a future macOS. If you are unsure which Mac you have: Apple menu > About This Mac.
+1. Download `IntelyIDE_1.3.1_x64.dmg` from the Releases page of this repository. It is built for Intel Macs and also runs on Apple Silicon under Rosetta 2, more slowly. Apple may remove Rosetta in a future macOS. If you are unsure which Mac you have: Apple menu > About This Mac.
 2. Check the download. `shasum -a 256 --ignore-missing -c SHA256SUMS` in the download folder detects a corrupted download only; the checksums come from the same page as the file, so they cannot prove where it came from.
 3. Open the DMG and drag IntelyIDE to Applications, then open it from there.
 4. First launch. <!--dmg:v:adhoc,developer-id--><!--This build is not notarized, so macOS refuses the first launch: on macOS 15 and later open System Settings > Privacy & Security, scroll to the message about IntelyIDE, choose Open Anyway and confirm; on macOS 13 and 14 right-click the app and choose Open. Do this only for a file you downloaded from this repository's Releases page.--><!--/dmg:v--><!--dmg:v:notarized-->The app is notarized and opens normally.<!--/dmg:v-->

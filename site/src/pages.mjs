@@ -250,7 +250,7 @@ function home(ctx) {
   const why = t.why.cards.map((c) => `<li class="card"><h3>${c.h}</h3><p>${c.p}</p></li>`).join('');
   const features = t.features.items
     .map(
-      (f) => `<article class="feature" id="${f.id}" aria-labelledby="${f.id}-h">
+      (f) => `<article class="feature${f.shots.length ? '' : ' feature-solo'}" id="${f.id}" aria-labelledby="${f.id}-h">
 <div class="feature-text">
 <h3 id="${f.id}-h">${f.h}</h3>
 ${f.pill ? `<p class="pill">${f.pill}</p>` : ''}
@@ -258,7 +258,7 @@ ${f.pill ? `<p class="pill">${f.pill}</p>` : ''}
 <ul class="ticks">${f.list.map((x) => `<li>${x}</li>`).join('')}</ul>
 ${f.note ? `<p class="note">${f.note}</p>` : ''}
 </div>
-<div class="feature-media">${f.shots.map(([n, a]) => frame(picture(ctx.root, n, a))).join('')}</div>
+${f.shots.length ? `<div class="feature-media">${f.shots.map(([n, a]) => frame(picture(ctx.root, n, a))).join('')}</div>` : ''}
 </article>`,
     )
     .join('\n');
@@ -313,6 +313,7 @@ ${providers(ctx)}
 <div><h3>${t.trust.bestH}</h3><p>${t.trust.bestP}</p></div>
 <div><h3>${t.trust.privH}</h3>
 <p>${t.trust.privP}</p></div>
+<div><h3>${t.trust.signedH}</h3><p>${t.trust.signedP}</p></div>
 </div>
 </div>
 </section>
