@@ -79,7 +79,7 @@ describe('files for several platforms', () => {
     for (const p of ['index.html', 'hu/index.html', 'download/index.html']) {
       const html = page(p);
       assert.doesNotMatch(html, /\son[a-z]+="/);
-      for (const m of html.matchAll(/<script\b([^>]*)>/g)) assert.match(m[1], /src=|type="application\/ld\+json"|^\s*$/, m[0]);
+      for (const m of html.matchAll(/<script\b([^>]*)>/gi)) assert.match(m[1], /src=|type="application\/ld\+json"|^\s*$/, m[0]);
       assert.doesNotMatch(html, /style="/);
     }
     assert.match(readFileSync(join(dist, 'assets/site.js'), 'utf8'), /detectPlatform/);
