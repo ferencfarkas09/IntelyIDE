@@ -62,11 +62,11 @@ jobs:
           [[ "$INPUT_COMMIT" =~ ^[0-9a-f]{40}$ ]] || { echo "commit must be a full 40-character SHA"; exit 1; }
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.commit }}
+          ref: ${{ github.sha }}
           persist-credentials: false
-      - name: The checkout is the commit and its version
+      - name: The checkout is the workflow commit and its version
         run: |
-          [ "$(git rev-parse HEAD)" = "$INPUT_COMMIT" ] || { echo "checked out $(git rev-parse HEAD), expected $INPUT_COMMIT"; exit 1; }
+          [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] || { echo "checked out $(git rev-parse HEAD), expected $GITHUB_SHA"; exit 1; }
           node scripts/release/check-version.mjs
           [ "$(node -p "JSON.parse(require('fs').readFileSync('package.json', 'utf8')).version")" = "$INPUT_VERSION" ] || { echo "package.json is not version $INPUT_VERSION"; exit 1; }
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
