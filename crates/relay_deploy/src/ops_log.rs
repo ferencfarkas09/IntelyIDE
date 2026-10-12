@@ -5,7 +5,6 @@
 
 use std::fs;
 use std::io::Write;
-use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -76,7 +75,7 @@ impl OpsLog {
             private_dir(dir)?;
         }
         let line = serde_json::to_string(&rec.cleaned()).map_err(|e| crate::DeployError::Io(e.to_string()))?;
-        let mut f = fs::OpenOptions::new().create(true).append(true).mode(0o600).open(&self.path)?;
+        let mut f = intely_core::sys::open_mode(fs::OpenOptions::new().create(true).append(true), 0o600).open(&self.path)?;
         writeln!(f, "{line}")?;
         drop(f);
         let all = self.read();
@@ -98,6 +97,7 @@ mod tests {
         OpRecord { ts, op: "deploy".into(), outcome: "ok".into(), worker: worker.into(), account_tail: "cdef".into(), exit_code: Some(0), duration_ms: 12 }
     }
 
+    #[cfg(unix)]
     #[test]
     fn appends_and_keeps_only_the_last_500_lines() {
         let tmp = tempfile::tempdir().unwrap();

@@ -3,6 +3,7 @@
 //! The orphan is recognised by its command line (`ps` hides the environment of other processes on current macOS).
 
 use std::path::Path;
+#[cfg(unix)]
 use std::process::Command;
 use std::time::Duration;
 
@@ -27,16 +28,12 @@ pub fn sweep_stale_temp_indexes(repo_root: &Path) {
     }
     // An orphaned commit would read a vanished temp index as empty and could commit a tree without any files.
     let orphans = orphaned_commits(repo_root);
-    for sig in [libc::SIGTERM, libc::SIGKILL] {
+    for kill in [false, true] {
         for pid in &orphans {
             // Each git child leads its own process group, so this takes the hooks down with it.
-            // SAFETY: plain signal delivery to a pid/group we just found.
-            unsafe {
-                let target = if libc::getpgid(*pid as i32) == *pid as i32 { -(*pid as i32) } else { *pid as i32 };
-                libc::kill(target, sig);
-            }
+            stop_orphan(*pid, kill);
         }
-        if !orphans.is_empty() && sig == libc::SIGTERM {
+        if !orphans.is_empty() && !kill {
             std::thread::sleep(Duration::from_millis(300));
         }
     }
@@ -45,13 +42,33 @@ pub fn sweep_stale_temp_indexes(repo_root: &Path) {
     }
 }
 
+#[cfg(unix)]
+fn stop_orphan(pid: u32, kill: bool) {
+    let sig = if kill { libc::SIGKILL } else { libc::SIGTERM };
+    // SAFETY: plain signal delivery to a pid/group we just found.
+    unsafe {
+        let target = if libc::getpgid(pid as i32) == pid as i32 { -(pid as i32) } else { pid as i32 };
+        libc::kill(target, sig);
+    }
+}
+
+#[cfg(not(unix))]
+fn stop_orphan(pid: u32, kill: bool) {
+    crate::sys::kill_group(pid as i32, kill);
+}
+
 fn pid_alive(pid: u32) -> bool {
-    // SAFETY: signal 0 only probes for existence.
-    let rc = unsafe { libc::kill(pid as i32, 0) };
-    rc == 0 || std::io::Error::last_os_error().raw_os_error() == Some(libc::EPERM)
+    crate::sys::pid_alive(pid)
 }
 
 /// Pids re-parented to launchd (ppid 1) that run this engine's `git -C <repo> ... commit -F - --cleanup=whitespace`.
+#[cfg(not(unix))]
+fn orphaned_commits(_repo_root: &Path) -> Vec<u32> {
+    // No `ps` and no reparenting to an init process on Windows: nothing to find.
+    Vec::new()
+}
+
+#[cfg(unix)]
 fn orphaned_commits(repo_root: &Path) -> Vec<u32> {
     let Ok(out) = Command::new("ps").args(["-axww", "-o", "pid=,ppid=,command="]).output() else { return Vec::new() };
     let root = format!("-C {}", repo_root.display());
@@ -69,8 +86,10 @@ fn orphaned_commits(repo_root: &Path) -> Vec<u32> {
 
 #[cfg(test)]
 mod tests {
+    #[cfg_attr(not(unix), allow(unused_imports))]
     use super::*;
 
+    #[cfg(unix)]
     #[test]
     fn dead_apps_leave_nothing_behind_and_live_ones_are_left_alone() {
         let dir = tempfile::tempdir().unwrap();

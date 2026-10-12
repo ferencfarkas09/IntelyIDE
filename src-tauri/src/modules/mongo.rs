@@ -64,7 +64,6 @@ impl Sink for Events {
 /// The connection secrets live in the shared Keychain vault (one item for the whole IDE); the items of the old `.mongo` services are migrated into it. Tests, the E2E harness
 /// and the read-only smoke never touch the Keychain (a dev build can pop a permission dialog).
 fn secret_store() -> Arc<dyn SecretStore> {
-    #[cfg(target_os = "macos")]
     if !["INTELY_E2E", "INTELY_E2E_SCRIPT", "INTELY_READONLY", "INTELY_SECRETS"].iter().any(|v| std::env::var_os(v).is_some_and(|x| !x.is_empty())) {
         return Arc::new(intely_settings::FallbackSecretStore::new(Arc::new(intely_settings::KeychainSecretStore)));
     }

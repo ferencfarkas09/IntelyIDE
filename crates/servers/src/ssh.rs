@@ -14,7 +14,17 @@ use std::sync::mpsc::{self, Receiver};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use std::os::unix::process::CommandExt;
+/// Own process group on Unix (so the whole tree can be killed); no console window on Windows.
+fn new_group(cmd: &mut Command) -> &mut Command {
+    #[cfg(unix)]
+    {
+        std::os::unix::process::CommandExt::process_group(cmd, 0)
+    }
+    #[cfg(windows)]
+    {
+        std::os::windows::process::CommandExt::creation_flags(cmd, 0x0800_0000) // CREATE_NO_WINDOW
+    }
+}
 
 /// Output cap per stream (stdout and stderr each).
 pub const OUTPUT_CAP: usize = 1024 * 1024;
@@ -152,8 +162,8 @@ impl Ssh {
             .env("COPYFILE_DISABLE", "1")
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .process_group(0);
+            .stderr(Stdio::piped());
+        new_group(&mut tar);
         let mut tar_child = tar.spawn().map_err(|e| SshError::spawn(Path::new("tar"), &e))?;
         let tar_pid = tar_child.id();
         let tar_err = tar_child.stderr.take().map(drain);
@@ -425,6 +435,14 @@ fn collect(rx: Option<Receiver<(Vec<u8>, bool)>>, wait: Duration) -> (Vec<u8>, b
 }
 
 /// Kills a whole process group (the child was started with `process_group(0)`, so its pid is the group id).
+#[cfg(windows)]
+fn kill_group(pid: u32) {
+    let mut cmd = Command::new("taskkill");
+    cmd.args(["/PID", &pid.to_string(), "/T", "/F"]).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+    let _ = new_group(&mut cmd).status();
+}
+
+#[cfg(unix)]
 fn kill_group(pid: u32) {
     let _ = Command::new("sh")
         .arg("-c")
@@ -459,7 +477,8 @@ fn run(cmd: Command, input: Input<'_>, timeout: Duration, also_kill: Option<u32>
 
 /// [`run`] with a cap per output stream.
 fn run_cap(mut cmd: Command, input: Input<'_>, timeout: Duration, also_kill: Option<u32>, cap: usize) -> std::io::Result<Raw> {
-    cmd.stdout(Stdio::piped()).stderr(Stdio::piped()).process_group(0);
+    cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+    new_group(&mut cmd);
     let bytes = match input {
         Input::Bytes(b) => {
             cmd.stdin(Stdio::piped());
@@ -504,6 +523,7 @@ fn run_cap(mut cmd: Command, input: Input<'_>, timeout: Duration, also_kill: Opt
     Ok(Raw { code, stdout, stderr, truncated: cut_out || cut_err, timed_out })
 }
 
+#[cfg(unix)]
 /// Why `meta` is not a private folder of the user `uid`; `None` when it is (a real folder, not a link, owned by that user).
 fn why_not_private(meta: &std::fs::Metadata, uid: u32) -> Option<&'static str> {
     use std::os::unix::fs::MetadataExt;
@@ -519,6 +539,7 @@ fn why_not_private(meta: &std::fs::Metadata, uid: u32) -> Option<&'static str> {
     }
 }
 
+#[cfg(unix)]
 /// Makes `dir` a folder of this user that nobody else can enter, or says why it cannot be one.
 fn claim_dir(dir: &Path, uid: u32) -> std::io::Result<()> {
     use std::io::{Error, ErrorKind};
@@ -548,14 +569,27 @@ fn claim_dir(dir: &Path, uid: u32) -> std::io::Result<()> {
 /// a shared place (`/tmp`, because a socket path must be short) and their names are predictable (`%C` is a hash of the host, port and
 /// user), so a folder that another user created first, or a link planted at its name, would let that user into every connection. Such a
 /// candidate is skipped; `None` means no sharing of connections (`Ssh::control_dir` empty).
+#[cfg(unix)]
 pub fn private_control_dir(candidates: &[PathBuf]) -> Option<PathBuf> {
     // SAFETY: `geteuid` has no preconditions and cannot fail.
     let uid = unsafe { libc::geteuid() };
     candidates.iter().find(|dir| claim_dir(dir, uid).is_ok()).cloned()
 }
 
+/// Windows: OpenSSH for Windows has no `ControlMaster`, so connections are never shared (`Ssh::control_dir` stays empty).
+#[cfg(not(unix))]
+pub fn private_control_dir(_candidates: &[PathBuf]) -> Option<PathBuf> {
+    None
+}
+
 /// Where the control sockets go by default: short (`/tmp/intely-ssh-<user>`, the socket path limit is about 100 bytes), once by name and
 /// once by number in case the name was taken by somebody else.
+#[cfg(not(unix))]
+pub fn default_control_dirs() -> Vec<PathBuf> {
+    Vec::new()
+}
+
+#[cfg(unix)]
 pub fn default_control_dirs() -> Vec<PathBuf> {
     let user: String = std::env::var("USER").unwrap_or_default().chars().filter(|c| c.is_ascii_alphanumeric()).take(16).collect();
     // SAFETY: `geteuid` has no preconditions and cannot fail.
@@ -571,16 +605,20 @@ pub fn default_control_dirs() -> Vec<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
     use crate::testkit::*;
 
+    #[cfg(unix)]
     fn cfg(port: Option<u16>) -> ServerCfg {
         ServerCfg { port, ..test_cfg() }
     }
 
+    #[cfg_attr(not(unix), allow(dead_code))]
     fn strs(v: Vec<OsString>) -> Vec<String> {
         v.into_iter().map(|s| s.to_string_lossy().into_owned()).collect()
     }
 
+    #[cfg(unix)]
     #[test]
     fn base_args_shape() {
         let ssh = Ssh { bin: "ssh".into(), control_dir: "/tmp/cd".into() };
@@ -609,6 +647,7 @@ mod tests {
         assert_eq!(a[a.len() - 1], "big.example.com");
     }
 
+    #[cfg(unix)]
     #[test]
     fn without_a_control_folder_connections_are_not_shared() {
         let ssh = Ssh { bin: "ssh".into(), control_dir: PathBuf::new() };
@@ -618,11 +657,14 @@ mod tests {
         assert!(ssh.control_path_fits());
     }
 
+    #[cfg(unix)]
     fn mode_of(p: &Path) -> u32 {
+        #[cfg(unix)]
         use std::os::unix::fs::MetadataExt;
         std::fs::symlink_metadata(p).unwrap().mode() & 0o777
     }
 
+    #[cfg(unix)]
     #[test]
     fn a_missing_control_folder_is_made_private() {
         let t = tempfile::tempdir().unwrap();
@@ -633,8 +675,10 @@ mod tests {
         assert_eq!(private_control_dir(&[d.clone()]), Some(d));
     }
 
+    #[cfg(unix)]
     #[test]
     fn an_open_control_folder_of_ours_is_closed() {
+        #[cfg(unix)]
         use std::os::unix::fs::PermissionsExt;
         let t = tempfile::tempdir().unwrap();
         let d = t.path().join("cd");
@@ -644,6 +688,7 @@ mod tests {
         assert_eq!(mode_of(&d), 0o700);
     }
 
+    #[cfg(unix)]
     #[test]
     fn a_link_or_a_file_at_the_name_is_not_used() {
         let t = tempfile::tempdir().unwrap();
@@ -661,10 +706,12 @@ mod tests {
         assert_eq!(private_control_dir(&[]), None);
     }
 
+    #[cfg(unix)]
     #[test]
     fn a_folder_of_another_user_is_not_private() {
         let t = tempfile::tempdir().unwrap();
         let meta = std::fs::symlink_metadata(t.path()).unwrap();
+        #[cfg(unix)]
         use std::os::unix::fs::MetadataExt;
         assert_eq!(why_not_private(&meta, meta.uid()), None);
         assert_eq!(why_not_private(&meta, meta.uid().wrapping_add(1)), Some("it belongs to another user"));
@@ -679,6 +726,7 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
     #[test]
     fn port_comes_before_the_separator() {
         let ssh = Ssh { bin: "ssh".into(), control_dir: "/tmp/cd".into() };
@@ -689,6 +737,7 @@ mod tests {
         assert!(p < d);
     }
 
+    #[cfg(unix)]
     #[test]
     fn hostile_destination_stays_after_the_separator_as_one_argument() {
         let ssh = Ssh { bin: "ssh".into(), control_dir: "/tmp/cd".into() };
@@ -700,6 +749,7 @@ mod tests {
         assert!(a[..d].iter().all(|x| !x.contains("ProxyCommand")));
     }
 
+    #[cfg(unix)]
     #[test]
     fn command_has_one_remote_argument_and_piped_stdio() {
         let ssh = Ssh { bin: "ssh".into(), control_dir: "/tmp/cd".into() };
@@ -782,6 +832,7 @@ mod tests {
         assert_eq!(tail("  short \n"), "short");
     }
 
+    #[cfg(unix)]
     #[test]
     fn exec_runs_the_script_on_the_fake_server() {
         let f = Fake::new();
@@ -792,6 +843,7 @@ mod tests {
         assert!(!out.success());
     }
 
+    #[cfg(unix)]
     #[test]
     fn exec_rejects_an_invalid_config_before_spawning() {
         let f = Fake::new();
@@ -801,6 +853,7 @@ mod tests {
         assert!(e.detail.contains("destination"));
     }
 
+    #[cfg(unix)]
     #[test]
     fn exec_turns_exit_255_into_a_classified_error() {
         let f = Fake::new();
@@ -814,6 +867,7 @@ mod tests {
         assert!(e.hint.unwrap().ends_with("ssh badkey.test"));
     }
 
+    #[cfg(unix)]
     #[test]
     fn exec_times_out_and_kills_the_process_group() {
         let f = Fake::new();
@@ -826,6 +880,7 @@ mod tests {
         assert!(!marker.exists());
     }
 
+    #[cfg(unix)]
     #[test]
     fn exec_caps_output() {
         let f = Fake::new();
@@ -835,6 +890,7 @@ mod tests {
         assert!(out.success());
     }
 
+    #[cfg(unix)]
     #[test]
     fn exec_with_a_missing_ssh_binary_is_an_error_not_a_panic() {
         let f = Fake::new();
@@ -843,6 +899,7 @@ mod tests {
         assert!(e.detail.contains("cannot start"));
     }
 
+    #[cfg(unix)]
     #[test]
     fn script_commands_that_read_stdin_need_dev_null() {
         // Documents why: `cat` would eat the rest of the script.
@@ -851,6 +908,7 @@ mod tests {
         assert_eq!(out.stdout_text(), "after\n");
     }
 
+    #[cfg(unix)]
     #[test]
     fn push_tar_copies_files_with_modes_into_the_server_home() {
         let f = Fake::new();
@@ -868,6 +926,7 @@ mod tests {
         assert!(!dst.join("._a.txt").exists());
     }
 
+    #[cfg(unix)]
     #[test]
     fn push_tar_reports_a_failing_local_tar() {
         let f = Fake::new();
@@ -877,6 +936,7 @@ mod tests {
         assert!(e.detail.contains("tar"), "{e}");
     }
 
+    #[cfg(unix)]
     #[test]
     fn push_tar_reports_a_failing_remote() {
         let f = Fake::new();
@@ -890,6 +950,7 @@ mod tests {
         assert!(!e.detail.is_empty());
     }
 
+    #[cfg(unix)]
     #[test]
     fn push_tar_rejects_bad_entries_and_dirs() {
         let f = Fake::new();
@@ -904,6 +965,7 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
     #[test]
     fn push_tar_times_out() {
         let f = Fake::new();

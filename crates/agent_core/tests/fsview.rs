@@ -4,6 +4,7 @@
 //! the `fs/query` wire contract is enough for the whole policy (a view that serializes every call into the JSON ops and answers them from
 //! a real directory gives the same decisions as the local file system), and a decision costs few round trips.
 
+#![cfg(unix)]
 mod common;
 
 use std::collections::BTreeMap;

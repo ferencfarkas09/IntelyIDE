@@ -302,7 +302,6 @@ fn parse_git_config(text: &str) -> ConfigInfo {
 
 /// `path` is the configured `core.hooksPath` (relative to the repo root unless absolute) or the `.git/hooks` dir.
 fn detect_hooks(common_dir: &Path, hooks_path: Option<&str>) -> HookInfo {
-    use std::os::unix::fs::PermissionsExt;
     if let Some(p) = hooks_path.filter(|p| !p.is_empty()) {
         let trimmed = p.trim_end_matches('/');
         let kind = if trimmed.ends_with(".husky/_") || trimmed.ends_with(".husky") { HookKind::Husky } else { HookKind::Custom };
@@ -313,7 +312,7 @@ fn detect_hooks(common_dir: &Path, hooks_path: Option<&str>) -> HookInfo {
     let has_active = std::fs::read_dir(&dir).is_ok_and(|rd| {
         rd.filter_map(Result::ok).any(|e| {
             let name = e.file_name();
-            !name.to_string_lossy().ends_with(".sample") && e.metadata().is_ok_and(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
+            !name.to_string_lossy().ends_with(".sample") && e.metadata().is_ok_and(|m| crate::sys::is_executable(&m, &e.path()))
         })
     });
     if has_active {
@@ -327,6 +326,7 @@ fn detect_hooks(common_dir: &Path, hooks_path: Option<&str>) -> HookInfo {
 mod tests {
     use super::*;
     use crate::exec::fixture::*;
+    #[cfg(unix)]
     use std::os::unix::fs::PermissionsExt;
 
     fn fake_classify(path: &str, untracked: bool, size: Option<u64>) -> GuardState {
@@ -470,6 +470,7 @@ mod tests {
         assert_eq!(lit.files.iter().map(|c| c.path.as_str()).collect::<Vec<_>>(), vec!["[x]/a.txt"]);
     }
 
+    #[cfg(unix)]
     #[tokio::test]
     async fn list_untracked_rejects_escaping_paths() {
         let f = Fixture::new();
@@ -573,6 +574,7 @@ mod tests {
         assert!(dirs.common_dir.ends_with(".git"));
     }
 
+    #[cfg(unix)]
     #[tokio::test]
     async fn hooks_detection() {
         let f = Fixture::new();

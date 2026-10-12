@@ -50,6 +50,29 @@
     });
   });
 
+  // With files for several platforms: point the big button at the visitor's own file. Apple Silicon or Intel does not matter (universal
+  // macOS app). Unknown systems (phones, tablets, ChromeOS) keep the link to the release page.
+  function detectPlatform() {
+    const ua = navigator.userAgent || '';
+    const hint = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '';
+    if (/android|iphone|ipad|ipod|cros/i.test(ua) || /android|ios|chrome os/i.test(hint)) return null;
+    if (/mac/i.test(hint) || /Macintosh|Mac OS X/.test(ua)) return navigator.maxTouchPoints > 1 ? null : 'mac'; // iPadOS reports a Mac with touch
+    if (/win/i.test(hint) || /Windows/.test(ua)) return 'windows';
+    if (/linux|x11/i.test(hint) || /Linux|X11/.test(ua)) return 'linux';
+    return null;
+  }
+  const platform = detectPlatform();
+  document.querySelectorAll('[data-dl-multi]').forEach((block) => {
+    const btn = block.querySelector('.dl-btn');
+    const link = platform && block.querySelector('.dl-other a[data-primary][data-platform="' + platform + '"]');
+    if (!btn || !link) return;
+    btn.setAttribute('href', link.getAttribute('href'));
+    btn.dataset.gaPlatform = platform;
+    btn.querySelector('.dl-main').textContent = link.dataset.label;
+    btn.querySelector('.dl-sub').textContent = link.dataset.sub;
+    block.querySelectorAll('[data-note]').forEach((n) => n.classList.toggle('is-current', n.dataset.note === platform));
+  });
+
   // Offer the matching build when both Intel and Apple Silicon exist and the browser reveals the CPU.
   const block = document.querySelector('[data-dl-block][data-swap]');
   navigator.userAgentData?.getHighEntropyValues?.(['architecture']).then(({ architecture }) => {

@@ -4,8 +4,13 @@
 
 use std::collections::{HashMap, VecDeque};
 use std::io::{BufRead, BufReader, Write};
-use std::os::unix::process::CommandExt;
 use std::process::{Child, ChildStdin, Command, Stdio};
+
+use intely_core::sys::NewGroup;
+
+/// The two signals the host sends (the Unix numbers; on Windows they pick `taskkill` without or with `/F`).
+pub const SIGTERM: i32 = 15;
+pub const SIGKILL: i32 = 9;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, Weak};
@@ -58,7 +63,7 @@ fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
 impl Sidecar {
     /// Starts the process in its own process group (so a kill reaches everything it left behind).
     pub fn spawn(mut cmd: Command, generation: u64, handler: Weak<dyn Handler>) -> std::io::Result<Arc<Self>> {
-        cmd.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).process_group(0);
+        cmd.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).new_group();
         let mut child = cmd.spawn()?;
         let pid = child.id();
         let stdin = child.stdin.take();
@@ -219,10 +224,8 @@ impl Sidecar {
 
     /// Signals the sidecar's process group (its pgid equals its pid).
     pub fn signal(&self, sig: i32) {
-        // SAFETY: plain signal delivery to a group we created; the pid is ours until reaped.
-        unsafe {
-            libc::killpg(self.pid as libc::pid_t, sig);
-        }
+        // The group was created by `spawn`; the pid is ours until reaped.
+        intely_core::sys::kill_group(self.pid as i32, sig == SIGKILL);
     }
 
     /// Waits for the reader threads (after the process is gone).

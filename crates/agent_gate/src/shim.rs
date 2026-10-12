@@ -9,8 +9,6 @@
 use std::ffi::{OsStr, OsString};
 use std::fs;
 use std::io::{self, Write};
-use std::os::unix::ffi::OsStrExt;
-use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 
 /// Exit status of a refused command.
@@ -30,7 +28,7 @@ impl Shim {
     pub fn path_value(&self, existing: Option<&OsStr>) -> OsString {
         let mut out = self.dir.as_os_str().to_os_string();
         if let Some(rest) = existing.filter(|p| !p.is_empty()) {
-            out.push(":");
+            out.push(if cfg!(windows) { ";" } else { ":" });
             out.push(rest);
         }
         out
@@ -58,15 +56,11 @@ fn generate_with(dir: &Path, real_git: &Path, allow_add: bool) -> io::Result<Shi
     if !real_git.is_absolute() || !real_git.is_file() {
         return Err(invalid(format!("real git must be an absolute path to a file: {}", real_git.display())));
     }
-    if real_git.as_os_str().as_bytes().contains(&b'\n') {
+    if real_git.to_string_lossy().contains('\n') {
         return Err(invalid("real git path contains a newline".into()));
     }
     fs::create_dir_all(dir)?;
-    fs::set_permissions(dir, fs::Permissions::from_mode(0o700))?;
-    let dir = dir.canonicalize()?;
-    if fs::metadata(&dir)?.uid() != unsafe { libc::geteuid() } {
-        return Err(invalid(format!("shim directory {} is not owned by the current user", dir.display())));
-    }
+    let dir = private_dir(dir)?;
     if real_git.canonicalize()?.starts_with(&dir) {
         return Err(invalid("real git is inside the shim directory (the shim would call itself)".into()));
     }
@@ -75,13 +69,41 @@ fn generate_with(dir: &Path, real_git: &Path, allow_add: bool) -> io::Result<Shi
     let body = render(real_git, &refusal_log, allow_add);
     let tmp = dir.join(".git.tmp");
     {
-        let mut f = fs::OpenOptions::new().write(true).create(true).truncate(true).mode(0o755).open(&tmp)?;
+        let mut f = open_options(0o755).write(true).create(true).truncate(true).open(&tmp)?;
         f.write_all(body.as_bytes())?;
         f.sync_all()?;
     }
     fs::rename(&tmp, &script)?;
-    fs::OpenOptions::new().append(true).create(true).mode(0o600).open(&refusal_log)?;
+    open_options(0o600).append(true).create(true).open(&refusal_log)?;
     Ok(Shim { dir, script, refusal_log })
+}
+
+/// Makes `dir` private to the user and returns its canonical path. Unix: mode 0700 and owned by the current user. Windows:
+/// the profile directory the caller picks is already private to the user (ACLs inherit from it).
+#[cfg(unix)]
+fn private_dir(dir: &Path) -> io::Result<PathBuf> {
+    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+    fs::set_permissions(dir, fs::Permissions::from_mode(0o700))?;
+    let dir = dir.canonicalize()?;
+    if fs::metadata(&dir)?.uid() != unsafe { libc::geteuid() } {
+        return Err(invalid(format!("shim directory {} is not owned by the current user", dir.display())));
+    }
+    Ok(dir)
+}
+
+#[cfg(not(unix))]
+fn private_dir(dir: &Path) -> io::Result<PathBuf> {
+    dir.canonicalize()
+}
+
+fn open_options(mode: u32) -> fs::OpenOptions {
+    #[allow(unused_mut)]
+    let mut o = fs::OpenOptions::new();
+    #[cfg(unix)]
+    std::os::unix::fs::OpenOptionsExt::mode(&mut o, mode);
+    #[cfg(not(unix))]
+    let _ = mode;
+    o
 }
 
 fn invalid(msg: String) -> io::Error {
@@ -90,7 +112,8 @@ fn invalid(msg: String) -> io::Error {
 
 /// POSIX single-quoting.
 fn sq(path: &Path) -> String {
-    sq_str(&path.to_string_lossy())
+    // Git Bash (the shell Claude Code uses on Windows) runs this script: forward slashes keep `C:/...` paths intact.
+    if cfg!(windows) { sq_str(&path.to_string_lossy().replace('\\', "/")) } else { sq_str(&path.to_string_lossy()) }
 }
 
 fn sq_str(text: &str) -> String {

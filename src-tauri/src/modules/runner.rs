@@ -261,7 +261,7 @@ pub async fn run_dismiss(state: State<'_, RunState>, server_id: String) -> Res<(
 #[tauri::command]
 pub async fn run_open(state: State<'_, RunState>, server_id: String) -> Res<()> {
     let url = state.0.url(&server_id).filter(|u| u.starts_with("http://localhost:")).ok_or_else(|| EngineError::new(code::IO, "the server has no detected port"))?;
-    std::process::Command::new("open").arg(url).spawn().map(|_| ()).map_err(|e| EngineError::new(code::IO, format!("could not open the browser: {e}")))
+    intely_core::sys::open_external(std::ffi::OsStr::new(&url)).map_err(|e| EngineError::new(code::IO, format!("could not open the browser: {e}")))
 }
 
 /// What the jail says about starting a process; with a repo id the E2E fixture-root rule is applied to that repo.
@@ -384,6 +384,8 @@ setInterval(() => {}, 1000);
         wait_for("the manager to notice", 20, || !state.0.list().iter().any(is_live));
     }
 
+    // macOS only: how long the stubborn group lives depends on what `npm` does with SIGTERM, which differs on the Linux runners
+    #[cfg(target_os = "macos")]
     #[test]
     fn a_missed_budget_is_reported_as_runner_stuck() {
         let (repo, state, _) = fixture(Duration::from_secs(60));

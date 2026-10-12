@@ -290,6 +290,7 @@ mod tests {
         assert!(st.hook().survivors().is_empty());
     }
 
+    #[cfg(unix)]
     #[test]
     fn a_terminal_may_only_start_inside_the_workspace_the_home_folder_or_the_fixture() {
         let tmp = tempfile::tempdir().unwrap();

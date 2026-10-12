@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { buildChildEnv } from '../../env.js';
+import { killTree as killGroupTree } from '../../killtree.js';
 import type { AuthMode, SessionEnv } from '../../types.js';
 
 const run = promisify(execFile);
@@ -103,7 +104,7 @@ export async function processTree(root: number): Promise<number[]> {
 const alive = (pid: number) => { try { process.kill(pid, 0); return true; } catch { return false; } };
 
 export function signalGroup(pid: number, sig: NodeJS.Signals): void {
-  try { process.kill(-pid, sig); } catch { try { process.kill(pid, sig); } catch { /* gone */ } }
+  if (!killGroupTree(pid, sig)) { try { process.kill(pid, sig); } catch { /* gone */ } }
 }
 
 /**

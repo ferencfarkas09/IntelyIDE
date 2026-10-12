@@ -445,8 +445,11 @@ async fn the_audit_log_records_shape_and_hash_but_no_bodies() {
     for forbidden in ["Gyorsan", "424242", first_id.as_str(), "mongodb://", "127.0.0.1"] {
         assert!(!text.contains(forbidden), "audit leaked {forbidden}: {text}");
     }
-    use std::os::unix::fs::PermissionsExt;
-    assert_eq!(std::fs::metadata(e.studio.audit_path()).unwrap().permissions().mode() & 0o777, 0o600);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        assert_eq!(std::fs::metadata(e.studio.audit_path()).unwrap().permissions().mode() & 0o777, 0o600);
+    }
 }
 
 #[tokio::test]
@@ -618,6 +621,7 @@ mod t6b {
     use super::fakes::certs::{server_config, Names, Pki};
     use super::fakes::servers;
     use super::*;
+    #[cfg_attr(not(unix), allow(unused_imports))]
     use intely_mongo::api::{DialogKind, ErrorClass, SecretKind, SessionSecrets, StepId, StepState, TestReport, TlsRelax};
     use intely_mongo::connspec::{AuthMechanism, ConnSpec, HostPort, TlsMode};
     use intely_mongo::exchange::ExportOptions;

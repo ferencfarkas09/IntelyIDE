@@ -2,7 +2,9 @@
 //! Each task owns its helper file; U1 created the stubs.
 #![allow(dead_code)]
 
+#[cfg(target_os = "macos")]
 pub mod fixture_app;
+#[cfg(target_os = "macos")]
 pub mod fixture_bin;
 pub mod keys;
 pub mod server;

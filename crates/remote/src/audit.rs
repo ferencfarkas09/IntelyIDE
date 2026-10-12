@@ -5,7 +5,6 @@
 
 use std::fs::{self, OpenOptions};
 use std::io::Write;
-use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -181,7 +180,11 @@ impl AuditLog {
         if let Some(dir) = self.path.parent() {
             fs::create_dir_all(dir)?;
         }
-        OpenOptions::new().create(true).append(true).mode(0o600).open(&self.path)?.write_all(&line)?;
+        let mut options = OpenOptions::new();
+        options.create(true).append(true);
+        #[cfg(unix)]
+        std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+        options.open(&self.path)?.write_all(&line)?;
         self.secrets.set(self.head_key, Secret::new(e.hash.clone()))?;
         self.head = e.hash.clone();
         self.seq = e.seq;

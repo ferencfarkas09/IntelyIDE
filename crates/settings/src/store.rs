@@ -5,7 +5,6 @@
 //! hard stop already denies to agents. Secrets never belong here: [`SettingsStore::set`] refuses secret-looking keys.
 
 use std::io::Write;
-use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, PoisonError};
@@ -154,7 +153,11 @@ fn write_atomic(path: &Path, root: &Object) -> Result<()> {
     let tmp = dir.join(format!(".settings.{}.{}.tmp", std::process::id(), COUNTER.fetch_add(1, Ordering::Relaxed)));
     let mut json = serde_json::to_vec_pretty(root).map_err(|e| SettingsError::new(code::IO, e.to_string()))?;
     json.push(b'\n');
-    let written = std::fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(&tmp).and_then(|mut f| {
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+    let written = options.open(&tmp).and_then(|mut f| {
         f.write_all(&json)?;
         f.sync_all()
     });
@@ -167,6 +170,7 @@ fn write_atomic(path: &Path, root: &Object) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(unix)]
     use std::os::unix::fs::PermissionsExt;
     use std::sync::{Arc, Mutex};
 
@@ -227,6 +231,7 @@ mod tests {
         assert_eq!(file["terminal"], json!({ "shell": "zsh" }));
     }
 
+    #[cfg(unix)]
     #[test]
     fn the_file_is_private_and_no_temp_file_is_left() {
         let dir = tempfile::tempdir().unwrap();
@@ -286,6 +291,7 @@ mod tests {
         assert_eq!(Value::Object(seen[0].value.clone()), json!({ "a": 1 }));
     }
 
+    #[cfg(unix)]
     #[test]
     fn a_failed_write_leaves_memory_unchanged() {
         let dir = tempfile::tempdir().unwrap();

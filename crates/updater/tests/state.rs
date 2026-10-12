@@ -1,5 +1,6 @@
 //! U4: state.json, snapshots, markers, lock, log, `early_boot` and `recover()`
 //! ((design notes: updater-spec) 10.2 `state`, 7.2 failure cases by stage, T21, T29).
+#![cfg(target_os = "macos")]
 mod common;
 
 use std::cell::{Cell, RefCell};

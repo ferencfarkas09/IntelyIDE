@@ -283,6 +283,7 @@ pub fn validate_git_url(url: &str) -> Result<(), &'static str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
     use crate::testkit::*;
     use std::process::Command;
 
@@ -377,6 +378,7 @@ mod tests {
         assert!(s.contains("check 1 '/srv/it'\\''s here/b'\n"));
     }
 
+    #[cfg_attr(not(unix), allow(dead_code))]
     fn git(dir: &std::path::Path, args: &[&str]) {
         let st = Command::new("git").arg("-C").arg(dir).args(args).status().unwrap();
         assert!(st.success(), "{args:?}");
@@ -424,6 +426,7 @@ mod tests {
         assert!(clone_repo(&ssh, &cfg, ".aws", "https://example.com/o/r.git").is_err());
     }
 
+    #[cfg(unix)]
     #[test]
     fn repo_states_on_the_fake_server() {
         let f = Fake::new();
@@ -455,6 +458,7 @@ mod tests {
         assert!(!a.exists && !a.is_git);
     }
 
+    #[cfg(unix)]
     #[test]
     fn repo_states_validates_names_and_handles_empty() {
         let f = Fake::new();
@@ -466,6 +470,7 @@ mod tests {
         assert!(repo_states(&f.ssh, &f.cfg, &["ok".into(), "bad name".into()]).is_err());
     }
 
+    #[cfg(unix)]
     #[test]
     fn repo_states_survive_hostile_repo_config() {
         // core.fsmonitor in the repo's own config must not run a command.
@@ -480,6 +485,7 @@ mod tests {
         assert!(!marker.exists());
     }
 
+    #[cfg(unix)]
     #[test]
     fn clone_runs_git_with_the_protection_flags() {
         let f = Fake::new();
@@ -499,6 +505,7 @@ mod tests {
         assert!(f.home.join("work/my-repo/.git").is_dir());
     }
 
+    #[cfg(unix)]
     #[test]
     fn clone_refuses_an_existing_directory_and_reports_git_errors() {
         let f = Fake::new();
@@ -510,6 +517,7 @@ mod tests {
         assert!(e.detail.contains("repository not found") && e.detail.contains("128"), "{e}");
     }
 
+    #[cfg(unix)]
     #[test]
     fn clone_validates_before_connecting() {
         let f = Fake::new();
@@ -520,6 +528,7 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
     #[test]
     fn the_physical_folder_is_reported_for_a_link() {
         let f = Fake::new();
@@ -536,6 +545,7 @@ mod tests {
         assert!(crate::cfg::forbidden_repo_dir("/", Some(f.home.to_str().unwrap())).is_some());
     }
 
+    #[cfg(unix)]
     #[test]
     fn mapped_folders_with_spaces_and_quotes_are_looked_at_and_cloned_into() {
         let f = Fake::new();
@@ -556,6 +566,7 @@ mod tests {
         assert!(e.detail.contains("already exists"), "{e}");
     }
 
+    #[cfg(unix)]
     #[test]
     fn hostile_folders_are_refused_before_ssh() {
         let f = Fake::new();

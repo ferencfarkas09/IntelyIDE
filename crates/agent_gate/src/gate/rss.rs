@@ -4,7 +4,7 @@
 
 use std::collections::HashSet;
 
-use libc::pid_t;
+use super::procinfo::pid_t;
 
 use super::procinfo;
 

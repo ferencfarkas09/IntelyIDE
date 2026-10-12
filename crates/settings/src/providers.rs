@@ -7,7 +7,6 @@
 
 use std::collections::HashMap;
 use std::io::Read;
-use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex, PoisonError};
@@ -196,12 +195,24 @@ const STRAY_ENV: [(&str, &str, &str); 6] = [
 // ---- CLI detection -------------------------------------------------------------------------------------------------
 
 fn is_executable(path: &Path) -> bool {
-    std::fs::metadata(path).is_ok_and(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
+    std::fs::metadata(path).is_ok_and(|m| m.is_file() && has_exec_bit(&m))
+}
+
+#[cfg(unix)]
+fn has_exec_bit(m: &std::fs::Metadata) -> bool {
+    std::os::unix::fs::PermissionsExt::mode(&m.permissions()) & 0o111 != 0
+}
+
+/// Windows has no execute bit: the callers look the CLI up under its `.exe` / `.cmd` name.
+#[cfg(not(unix))]
+fn has_exec_bit(_m: &std::fs::Metadata) -> bool {
+    true
 }
 
 /// `command -v <bin>` against an explicit PATH string; relative and empty entries are ignored.
 pub fn find_in_path(bin: &str, path: &str) -> Option<PathBuf> {
-    std::env::split_paths(path).filter(|d| d.is_absolute()).map(|d| d.join(bin)).find(|p| is_executable(p))
+    let names: Vec<String> = if cfg!(windows) { vec![format!("{bin}.exe"), format!("{bin}.cmd"), format!("{bin}.bat")] } else { vec![bin.to_owned()] };
+    std::env::split_paths(path).filter(|d| d.is_absolute()).flat_map(|d| names.iter().map(move |n| d.join(n)).collect::<Vec<_>>()).find(|p| is_executable(p))
 }
 
 /// The first dotted number in a `--version` output (`claude 2.1.284 (build x)` gives `2.1.284`).

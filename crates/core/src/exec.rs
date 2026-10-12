@@ -17,6 +17,7 @@ use tokio::sync::Notify;
 use tokio::time::Instant;
 
 use crate::env::EnvResolver;
+use crate::sys::NewGroup;
 use crate::jail::{check_agent_git, Jail, Mode, Origin};
 use crate::parse::progress::{classify_progress_line, LineSplitter, ProgressLine};
 use crate::{code, EngineError, EventSink, FailureKind, OpEvent, OpKind, OpLine, StepStatus, StreamKind};
@@ -196,15 +197,19 @@ pub struct RunResult {
     pub cancelled: bool,
 }
 
-/// `/usr/local/bin/git` if it exists, else the first `git` on `PATH`.
+/// `/usr/local/bin/git` if it exists, else the first `git` (`git.exe` on Windows) on `PATH`.
 pub fn pinned_git_path() -> PathBuf {
     let preferred = Path::new("/usr/local/bin/git");
     if preferred.exists() {
         return preferred.to_path_buf();
     }
-    std::env::var_os("PATH")
-        .and_then(|paths| std::env::split_paths(&paths).map(|d| d.join("git")).find(|p| p.is_file()))
-        .unwrap_or_else(|| PathBuf::from("git"))
+    let on_path = std::env::var("PATH").ok().and_then(|paths| crate::sys::find_in_path(&paths, "git"));
+    // Git for Windows is usually on the PATH; when the app was started without it, look where its installer puts it.
+    #[cfg(windows)]
+    let on_path = on_path.or_else(|| {
+        ["ProgramFiles", "ProgramFiles(x86)", "LocalAppData"].iter().filter_map(|v| std::env::var_os(v)).map(|d| PathBuf::from(d).join("Programs/Git/cmd/git.exe")).chain(std::env::var_os("ProgramFiles").map(|d| PathBuf::from(d).join("Git/cmd/git.exe"))).find(|p| p.is_file())
+    });
+    on_path.unwrap_or_else(|| PathBuf::from("git"))
 }
 
 /// Config every git process of the IDE carries, whoever spawns it ((design notes: workspaces-spec) 5.5, T4): `core.fsmonitor`
@@ -275,15 +280,15 @@ fn build_command(ctx: &GitCtx, repo: &Path, args: &[&str], opts: &RunOpts) -> Co
     cmd.stdin(if opts.stdin.is_some() { Stdio::piped() } else { Stdio::null() })
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .process_group(0)
+        .new_group()
         .kill_on_drop(true);
     cmd
 }
 
-fn signal_group(pgid: Option<i32>, sig: i32) {
+fn signal_group(pgid: Option<i32>, kill: bool) {
     if let Some(pgid) = pgid.filter(|p| *p > 1) {
-        // SAFETY: plain syscall; the group was created by this module and is only signalled until it is reaped.
-        unsafe { libc::killpg(pgid, sig) };
+        // The group was created by this module and is only signalled until it is reaped.
+        crate::sys::kill_group(pgid, kill);
     }
 }
 
@@ -296,7 +301,7 @@ struct GroupGuard {
 impl Drop for GroupGuard {
     fn drop(&mut self) {
         if self.armed {
-            signal_group(self.pgid, libc::SIGKILL);
+            signal_group(self.pgid, true);
         }
     }
 }
@@ -402,7 +407,7 @@ pub async fn run_git_full(
     // Terminate the group: SIGTERM now, SIGKILL after the grace period.
     macro_rules! terminate {
         () => {
-            signal_group(pgid, libc::SIGTERM);
+            signal_group(pgid, false);
             kill_at = Some(Instant::now() + KILL_GRACE);
         };
     }
@@ -436,7 +441,7 @@ pub async fn run_git_full(
                 terminate!();
             }
             _ = sleep_until_opt(kill_at) => {
-                signal_group(pgid, libc::SIGKILL);
+                signal_group(pgid, true);
                 kill_at = None;
             }
             _ = sleep_until_opt(drain_until) => break,
@@ -676,6 +681,7 @@ pub(crate) mod fixture {
     }
 
     #[derive(Default)]
+    #[cfg_attr(not(unix), allow(dead_code))]
     pub struct RecordingSink(pub std::sync::Mutex<Vec<OpEvent>>);
     impl EventSink for RecordingSink {
         fn snapshot(&self, _: RepoSnapshot) {}
@@ -859,9 +865,11 @@ mod tests {
         assert!(r.truncated && r.output.stdout.len() == 1000);
     }
 
+    #[cfg(unix)]
     /// A repo whose pre-commit hook blocks for a long time; it records the pids of the hook shell and of a background
     /// child (`sleep`) in `<pids>/hook` and `<pids>/bg`, and touches `<pids>/finished` if it ever completes.
     fn slow_hook_repo(pids: &Path) -> Fixture {
+        #[cfg(unix)]
         use std::os::unix::fs::PermissionsExt;
         let f = Fixture::new();
         let hook = f.root.join(".git/hooks/pre-commit");
@@ -873,12 +881,14 @@ mod tests {
         f
     }
 
+    #[cfg(unix)]
     fn pid_alive(pids: &Path, name: &str) -> bool {
         let pid: i32 = std::fs::read_to_string(pids.join(name)).unwrap_or_else(|_| panic!("{name} pid file")).trim().parse().unwrap();
         // SAFETY: signal 0 only probes for existence.
         unsafe { libc::kill(pid, 0) == 0 }
     }
 
+    #[cfg(unix)]
     /// Starting git plus its hook takes a while on a loaded machine: retry with a longer timeout until the hook got far
     /// enough to record its pids, so the assertions below are about the kill, not about start-up speed.
     async fn first_attempt_where_the_hook_started<F, Fut>(mut attempt: F) -> (tempfile::TempDir, Fixture)
@@ -899,6 +909,7 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
     #[tokio::test]
     async fn timeout_kills_the_whole_process_group() {
         let started = std::time::Instant::now();
@@ -914,6 +925,7 @@ mod tests {
         assert!(!pid_alive(pids.path(), "hook") && !pid_alive(pids.path(), "bg"), "group member survived");
     }
 
+    #[cfg(unix)]
     #[tokio::test]
     async fn cancel_sends_sigterm_to_the_group_and_reports_cancelled() {
         let pids = tempfile::tempdir().unwrap();
@@ -938,6 +950,7 @@ mod tests {
         assert!(c.is_cancelled());
     }
 
+    #[cfg(unix)]
     #[tokio::test]
     async fn dropping_the_future_kills_the_process_group() {
         let (pids, _f) = first_attempt_where_the_hook_started(|root, timeout| async move {
@@ -950,12 +963,14 @@ mod tests {
         assert!(!pid_alive(pids.path(), "hook") && !pid_alive(pids.path(), "bg"), "group member survived the drop");
     }
 
+    #[cfg(unix)]
     #[tokio::test]
     async fn stream_to_run_emits_op_events_with_progress_percent() {
         let f = Fixture::new();
         let sink = Arc::new(RecordingSink::default());
         let hook = f.root.join(".git/hooks/pre-commit");
         std::fs::write(&hook, "#!/bin/sh\necho out-line\nprintf 'Counting objects:  50%% (1/2)\\rCounting objects: 100%% (2/2)\\n' >&2\necho err-line >&2\n").unwrap();
+        #[cfg(unix)]
         use std::os::unix::fs::PermissionsExt;
         std::fs::set_permissions(&hook, std::fs::Permissions::from_mode(0o755)).unwrap();
         f.write("a.txt", "a");
@@ -1004,6 +1019,7 @@ mod tests {
         tokio::time::timeout(Duration::from_millis(100), t.cancelled()).await.expect("already cancelled");
     }
 
+    #[cfg(unix)]
     #[test]
     fn path_safety() {
         let tmp = tempfile::tempdir().unwrap();

@@ -60,8 +60,11 @@ fn a_new_profile_is_read_only_with_ai_off_and_the_uri_lives_only_in_the_secret_s
     }
     assert_eq!(f.store.uri(&p.id).unwrap().unwrap().expose(), uri);
     // the file mode is 0600
-    use std::os::unix::fs::PermissionsExt;
-    assert_eq!(std::fs::metadata(f.dir.path().join("settings.json")).unwrap().permissions().mode() & 0o777, 0o600);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        assert_eq!(std::fs::metadata(f.dir.path().join("settings.json")).unwrap().permissions().mode() & 0o777, 0o600);
+    }
 }
 
 #[test]
@@ -348,8 +351,11 @@ fn the_audit_line_has_a_shape_and_a_hash_but_no_values() {
         assert!(!text.contains(lit), "{text}");
     }
     assert!(text.contains("<ObjectId>") && text.contains("\"origin\":\"desktop\"") && text.contains(&audit::filter_hash("c1", filter)));
-    use std::os::unix::fs::PermissionsExt;
-    assert_eq!(std::fs::metadata(log.path()).unwrap().permissions().mode() & 0o777, 0o600);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        assert_eq!(std::fs::metadata(log.path()).unwrap().permissions().mode() & 0o777, 0o600);
+    }
 }
 
 

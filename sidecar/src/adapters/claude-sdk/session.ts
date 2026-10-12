@@ -5,6 +5,7 @@ import { type ChildProcess, spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import type { AgentDefinition, Options, Query, SDKUserMessage, SpawnedProcess } from '@anthropic-ai/claude-agent-sdk';
 import { buildChildEnv } from '../../env.js';
+import { killTree } from '../../killtree.js';
 import { redact } from '../../redact.js';
 import { loadSdk, loadZod } from '../../sdk.js';
 import type {
@@ -99,7 +100,7 @@ function spawnGrouped(host: HostServices, stderrTail: { text: string }, onSpawn:
     onSpawn(child);
     const killGroup = (sig: NodeJS.Signals) => {
       if (child.pid === undefined) return false;
-      try { process.kill(-child.pid, sig); return true; } catch { return child.kill(sig); }
+      return killTree(child.pid, sig) || child.kill(sig);
     };
     return {
       stdin: child.stdin!,
@@ -432,6 +433,6 @@ export class ClaudeSession implements AgentSession {
     const exited = new Promise<void>((r) => c.once('exit', () => r()));
     const grace = new Promise<void>((r) => setTimeout(r, CLOSE_GRACE_MS));
     await Promise.race([exited, grace]);
-    if (c.exitCode === null && c.signalCode === null && c.pid !== undefined) { try { process.kill(-c.pid, 'SIGKILL'); } catch { /* gone */ } }
+    if (c.exitCode === null && c.signalCode === null && c.pid !== undefined) { killTree(c.pid, 'SIGKILL'); }
   }
 }

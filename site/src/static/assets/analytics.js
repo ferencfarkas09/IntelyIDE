@@ -78,6 +78,8 @@
         // a malformed escape: keep the raw name
       }
       params.file_name = fileName;
+      var platform = el.getAttribute('data-ga-platform');
+      if (platform) params.platform = platform;
       params.version = (doc.body && doc.body.getAttribute('data-version')) || '';
     } else if (kind === 'lang') {
       params.language = label;

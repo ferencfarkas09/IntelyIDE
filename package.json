@@ -32,6 +32,7 @@
     "release:status": "bash scripts/release/release.sh status",
     "release:preflight": "bash scripts/release/release.sh preflight",
     "release:build": "bash scripts/release/release.sh build",
+    "release:collect": "bash scripts/release/release.sh collect",
     "release:publish": "bash scripts/release/release.sh publish",
     "release:check-contacts": "node scripts/release/check-contacts.mjs",
     "site:deploy": "pnpm --dir site run deploy"

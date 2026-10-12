@@ -25,6 +25,7 @@ use tauri::{AppHandle, DragDropEvent, Emitter, Manager, State};
 type Res<T> = Result<T, EngineError>;
 
 /// `x-apple.systempreferences:` URL of Privacy & Security > Files and Folders. Fixed: the command takes no argument.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 const PRIVACY_URL: &str = "x-apple.systempreferences:com.apple.preference.security?Privacy_FilesAndFolders";
 const SCAN_EVENT_GAP: Duration = Duration::from_millis(200);
 
@@ -47,14 +48,14 @@ impl PickerState {
     }
 }
 
-/// The real macOS dialog (`NSOpenPanel` through `rfd`). Cancel is `Cancelled`; rfd reports no other failure.
+/// The real system dialog (`NSOpenPanel`, the Windows common dialog, GTK3 through `rfd`). Cancel is `Cancelled`; rfd reports no other failure.
 pub struct RfdBackend {
     app: AppHandle,
 }
 
 impl PickBackend for RfdBackend {
     fn available(&self) -> bool {
-        cfg!(target_os = "macos")
+        cfg!(any(target_os = "macos", windows, target_os = "linux"))
     }
 
     fn pick(&self, req: &NativeRequest) -> Result<NativeAnswer, EngineError> {
@@ -182,12 +183,16 @@ pub async fn picker_drop_listen(state: State<'_, PickerState>, on: bool) -> Res<
 #[tauri::command]
 pub async fn picker_open_privacy_settings() -> Res<()> {
     // Fixed argument, no shell, nothing from the webview.
-    std::process::Command::new("open")
+    // macOS only (Privacy & Security > Files and Folders); other systems have no such gate, so there is nothing to open.
+    #[cfg(target_os = "macos")]
+    return std::process::Command::new("open")
         .arg(PRIVACY_URL)
         .stdin(std::process::Stdio::null())
         .status()
         .map(|_| ())
-        .map_err(|e| EngineError::new(codes::IO, e.to_string()))
+        .map_err(|e| EngineError::new(codes::IO, e.to_string()));
+    #[cfg(not(target_os = "macos"))]
+    Ok(())
 }
 
 /// `picker_git_init`: every refusal that needs no git first, then the (jailed) `git init`, then the folder is validated

@@ -5,7 +5,6 @@
 
 use std::fs;
 use std::io::Read;
-use std::os::unix::fs::{DirBuilderExt, MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
@@ -106,7 +105,7 @@ pub fn sha256_file(path: &Path, max: u64) -> Result<String> {
 
 /// Searches `path_var` (a `PATH` value) for an executable file called `name`.
 pub fn which_in(path_var: &str, name: &str) -> Option<PathBuf> {
-    path_var.split(':').filter(|d| !d.is_empty()).map(|d| Path::new(d).join(name)).find(|p| fs::metadata(p).is_ok_and(|m| m.is_file() && m.permissions().mode() & 0o111 != 0))
+    intely_core::sys::find_in_path(path_var, name)
 }
 
 /// `v24.13.0` -> `[24, 13, 0]` (an nvm version directory); anything else is not a version.
@@ -172,6 +171,7 @@ impl RelayKit {
         Self::locate_in(jail, env_kit, settings_kit, exe)
     }
 
+    #[cfg_attr(not(unix), allow(dead_code))]
     pub(crate) fn locate_in(jail: &Jail, env_kit: Option<&str>, settings_kit: Option<&Path>, exe: Option<&Path>) -> Result<Self> {
         let confine = |p: &Path| -> Result<()> {
             if jail.mode() == Mode::E2e && !jail.in_fixture(p) {
@@ -274,7 +274,7 @@ impl RelayKit {
             node_ok: which_in(path_var, "node").is_some(),
             pnpm_ok: which_in(path_var, "pnpm").is_some(),
             dist_built: built.is_some(),
-            dist_built_at: built.and_then(|m| u64::try_from(m.mtime()).ok()),
+            dist_built_at: built.and_then(|m| m.modified().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_secs())),
             relay_version: self.relay_version(),
         }
     }
@@ -465,14 +465,17 @@ fn copy_regular_tree(from: &Path, to: &Path, depth: usize) -> Result<()> {
             copy_regular_tree(&src, &dst, depth + 1)?;
         } else if kind.is_file() {
             fs::copy(&src, &dst)?;
-            fs::set_permissions(&dst, fs::Permissions::from_mode(0o600))?;
+            intely_core::sys::set_mode_best_effort(&dst, 0o600);
         }
     }
     Ok(())
 }
 
 pub fn private_dir(path: &Path) -> Result<()> {
-    fs::DirBuilder::new().recursive(true).mode(0o700).create(path)?;
+    let mut builder = fs::DirBuilder::new();
+    builder.recursive(true);
+    intely_core::sys::dir_mode(&mut builder, 0o700);
+    builder.create(path)?;
     Ok(())
 }
 
@@ -567,7 +570,10 @@ pub fn parse_jsonc(text: &str) -> Result<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
+    use std::os::unix::fs::PermissionsExt;
 
+    #[cfg(unix)]
     fn kit_dir(root: &Path, pinned: &str, installed: Option<&str>) {
         fs::create_dir_all(root.join("remote-relay/src")).unwrap();
         fs::create_dir_all(root.join("remote-relay/node_modules/wrangler/bin")).unwrap();
@@ -583,6 +589,7 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
     #[test]
     fn locate_order_and_confinement() {
         let tmp = tempfile::tempdir().unwrap();
@@ -625,6 +632,7 @@ mod tests {
         assert_eq!(RelayKit::locate(&off, Some(a.to_str().unwrap()), None, None).unwrap_err().code(), "kitMissing");
     }
 
+    #[cfg(unix)]
     #[test]
     fn the_pin_must_be_exact_and_match_the_installed_wrangler() {
         let tmp = tempfile::tempdir().unwrap();
@@ -655,6 +663,7 @@ mod tests {
         assert_eq!(RelayKit::at(&out).unwrap().wrangler_bin().unwrap_err().code(), "wranglerMissing");
     }
 
+    #[cfg(unix)]
     #[test]
     fn check_reads_files_and_the_path_only() {
         let tmp = tempfile::tempdir().unwrap();
@@ -679,6 +688,7 @@ mod tests {
         assert!(r.dist_built && r.dist_built_at.is_some_and(|t| t > 1_600_000_000));
     }
 
+    #[cfg(unix)]
     #[test]
     fn snapshot_copies_regular_source_files_and_rehash_matches() {
         let tmp = tempfile::tempdir().unwrap();
@@ -709,12 +719,14 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
     fn executable(path: &Path) {
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         fs::write(path, "#!/bin/sh\n").unwrap();
         fs::set_permissions(path, fs::Permissions::from_mode(0o755)).unwrap();
     }
 
+    #[cfg(unix)]
     #[test]
     fn a_finder_launched_app_finds_nvm_and_pnpm_installs_the_bare_path_cannot_see() {
         let home = tempfile::tempdir().unwrap();
@@ -742,6 +754,7 @@ mod tests {
         assert_eq!(tool_path("/usr/bin", None, None), "/usr/bin:/opt/homebrew/bin:/usr/local/bin");
     }
 
+    #[cfg(unix)]
     #[test]
     fn pnpm_homes_are_added_only_when_they_exist() {
         let home = tempfile::tempdir().unwrap();
@@ -763,6 +776,7 @@ mod tests {
         assert!(parse_jsonc("{ unterminated").is_err());
     }
 
+    #[cfg(unix)]
     #[test]
     fn the_packaged_kit_is_copied_once_per_version_and_keeps_installed_tools() {
         let tmp = tempfile::tempdir().unwrap();

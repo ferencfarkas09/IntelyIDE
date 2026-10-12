@@ -4,7 +4,6 @@
 
 use std::fs;
 use std::io::Read;
-use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt};
 use std::path::{Path, PathBuf};
 
 use crate::error::{BundleError, Result};
@@ -114,7 +113,7 @@ fn walk_dir(dir: &Path, rel: &str, depth: usize, limits: &Limits, skip: Skip, ou
             if depth == 0 && (child_rel == MANIFEST_NAME || (skip.push_config && child_rel == PUSH_CONFIG)) {
                 continue;
             }
-            if meta.nlink() > 1 {
+            if intely_core::sys::nlink(&meta) > 1 {
                 return Err(refuse("hardlink", &child_rel));
             }
             check_file_name(&name, &child_rel)?;
@@ -155,7 +154,10 @@ pub fn entries(found: &[Found], limits: &Limits) -> Result<Vec<FileEntry>> {
 pub fn read_regular(abs: &Path, expected: &fs::Metadata, max: u64, rel: &str) -> Result<Vec<u8>> {
     let mut f = fs::OpenOptions::new().read(true).open(abs)?;
     let m = f.metadata()?;
-    if !m.is_file() || m.dev() != expected.dev() || m.ino() != expected.ino() || m.nlink() > 1 {
+    if !m.is_file() || {
+        let (a, b) = (intely_core::sys::file_ids(&m), intely_core::sys::file_ids(expected));
+        a.0 != b.0 || a.1 != b.1
+    } || intely_core::sys::nlink(&m) > 1 {
         return Err(refuse("changed", rel));
     }
     let mut buf = Vec::with_capacity(m.len().min(max) as usize);
@@ -168,14 +170,17 @@ pub fn read_regular(abs: &Path, expected: &fs::Metadata, max: u64, rel: &str) ->
 
 /// Creates a directory (and parents) with mode 0700.
 pub fn create_dir_private(path: &Path) -> Result<()> {
-    fs::DirBuilder::new().recursive(true).mode(0o700).create(path)?;
+    let mut builder = fs::DirBuilder::new();
+    builder.recursive(true);
+    intely_core::sys::dir_mode(&mut builder, 0o700);
+    builder.create(path)?;
     Ok(())
 }
 
 /// Writes a new file (never overwrites, never follows a link), mode 0644: the staged files are public by design.
 pub fn write_new(path: &Path, bytes: &[u8]) -> Result<()> {
     use std::io::Write;
-    let mut f = fs::OpenOptions::new().write(true).create_new(true).mode(0o644).open(path)?;
+    let mut f = intely_core::sys::open_mode(fs::OpenOptions::new().write(true).create_new(true), 0o644).open(path)?;
     f.write_all(bytes)?;
     f.sync_all()?;
     Ok(())

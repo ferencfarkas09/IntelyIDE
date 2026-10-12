@@ -1,9 +1,13 @@
 //! IntelyIDE updater: verified in-app update ((design notes: updater-spec)).
 //!
+//! The swap of the installed app (`bundle`, `stage`, `swap`, `relaunch`, `state`) replaces a macOS `.app` bundle and exists on macOS only; the
+//! feed, signature checks and update notice are portable. Windows and Linux builds update through their installers/packages.
+//!
 //! Tauri-free. The crate never reads environment variables (the Tauri module passes everything in)
 //! and has no thread or timer of its own. This file holds the shared error vocabulary; the modules
 //! are owned by the tasks of spec section 11 (U1: limits, keys, endpoints, version, feed, verify).
 
+#[cfg(target_os = "macos")]
 pub mod bundle;
 pub mod busy;
 pub mod endpoints;
@@ -14,9 +18,13 @@ pub mod keys;
 pub mod limits;
 pub mod net;
 pub mod notice;
+#[cfg(target_os = "macos")]
 pub mod relaunch;
+#[cfg(target_os = "macos")]
 pub mod stage;
+#[cfg(target_os = "macos")]
 pub mod state;
+#[cfg(target_os = "macos")]
 pub mod swap;
 pub mod verify;
 pub mod version;

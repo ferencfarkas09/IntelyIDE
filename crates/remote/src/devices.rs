@@ -5,7 +5,6 @@
 
 use std::fs;
 use std::io::Write;
-use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -145,11 +144,16 @@ impl DeviceRegistry {
         if let Some(dir) = self.path.parent() {
             fs::create_dir_all(dir)?;
             // the state dir is owner-only; a freshly created one must not be world-readable
-            let _ = fs::set_permissions(dir, fs::Permissions::from_mode(0o700));
+            #[cfg(unix)]
+            let _ = fs::set_permissions(dir, std::os::unix::fs::PermissionsExt::from_mode(0o700));
         }
         let tmp = self.path.with_extension("json.tmp");
         {
-            let mut f = fs::OpenOptions::new().create(true).truncate(true).write(true).mode(0o600).open(&tmp)?;
+            let mut options = fs::OpenOptions::new();
+            options.create(true).truncate(true).write(true);
+            #[cfg(unix)]
+            std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+            let mut f = options.open(&tmp)?;
             f.write_all(&body)?;
             f.sync_all()?;
         }

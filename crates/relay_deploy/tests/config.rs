@@ -1,5 +1,6 @@
 //! Generated config (spec 11.1 `config`, 4.3): allow-list, string-aware JSONC, name rules, no account id, custom domain.
 
+#![cfg(unix)]
 mod common;
 
 use std::fs;

@@ -56,6 +56,9 @@
       "../remote-web/package.json": "relay-kit/remote-web/package.json",
       "../remote-web/dist": "relay-kit/remote-web/dist"
     },
-    "macOS": { "minimumSystemVersion": "13.5" }
+    "category": "DeveloperTool",
+    "shortDescription": "A desktop Git client for several repositories at once, with coding agents that can edit but never commit or push.",
+    "macOS": { "minimumSystemVersion": "13.5" },
+    "windows": { "nsis": { "installMode": "currentUser" } }
   }
 }

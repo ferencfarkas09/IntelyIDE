@@ -1,25 +1,34 @@
 # Packaging
 
-This page describes how the macOS app and its disk image are built today, by hand on one Mac, and which parts of a fuller release pipeline do not exist yet. Applies to version 1.4.0.
+This page describes how a release is built today: the macOS app and its disk image on the maintainer's own Mac, the Windows and Linux installers on GitHub Actions, and which parts of a fuller release pipeline do not exist yet. Applies to version 1.4.0.
 
 It is written for the maintainer. Users want [install-macos.md](install-macos.md).
 
 ## What is built
 
-One disk image for Intel (x64) Macs, named `IntelyIDE_<version>_x64.dmg`, with an app inside that is signed with a Developer ID Application certificate, built with the hardened runtime and notarized by Apple (the ticket is stapled to the app and to the image). The default build does this. An ad-hoc signed build, without a Developer ID and without notarization, is still possible with `--ad-hoc` (see section 3). There is no native Apple Silicon build; Apple Silicon Macs run the Intel build under Rosetta 2.
+Per release, all attached to the same GitHub release:
+
+| File | Built where | Signing |
+|---|---|---|
+| `IntelyIDE_<version>_universal.dmg` | Locally, on the maintainer's Intel Mac | Developer ID, hardened runtime, notarized, ticket stapled to the app and to the image |
+| `IntelyIDE_<version>_x64-setup.exe`, `IntelyIDE_<version>_x64.msi` | GitHub Actions, `windows-2025` | Not code-signed yet (SmartScreen asks the user to choose More info, then Run anyway) |
+| `IntelyIDE_<version>_x86_64.AppImage`, `intelyide_<version>_amd64.deb` | GitHub Actions, `ubuntu-22.04` | Not signed |
+| `IntelyIDE_<version>.sbom.cdx.json`, `SHA256SUMS` | Locally, from the files above | |
+
+The macOS app is one universal binary (Intel and Apple Silicon in one file), so there is a single disk image for every Mac. The default build is signed and notarized; an ad-hoc signed build, without a Developer ID and without notarization, is still possible with `--ad-hoc` (see section 3). The file names are defined once in `scripts/release/assets.mjs`.
 
 ## Prerequisites
 
-The prerequisites of [building.md](building.md), an Intel Mac with enough free disk for a release build, and no other heavy work running at the same time. The disk image step needs Python 3 (a pinned `dmgbuild` is installed into a private virtual environment under `.scratch/`) and the macOS tools `ditto`, `codesign`, `hdiutil` and `shasum`.
+The prerequisites of [building.md](building.md), an Intel Mac with enough free disk for a release build, no other heavy work running at the same time, and both macOS Rust targets for the universal build (`rustup target add x86_64-apple-darwin aarch64-apple-darwin`). The Windows and Linux installers need no local tooling; `gh` must be logged in to start and download the workflow run. The disk image step needs Python 3 (a pinned `dmgbuild` is installed into a private virtual environment under `.scratch/`) and the macOS tools `ditto`, `codesign`, `hdiutil` and `shasum`.
 
 ## 1. Build the app bundle
 
 ```sh
 pnpm install --frozen-lockfile
-pnpm tauri build --bundles app
+pnpm tauri build --target universal-apple-darwin --bundles app --ci -- --locked
 ```
 
-The application bundle is written below the Cargo target directory, in `release/bundle/macos/`. Set `CARGO_TARGET_DIR` to choose where; `scripts/build-release.sh` uses `.scratch/target-rel` by default for its unbundled variant. Check the finished bundle before you use it:
+The application bundle is written below the Cargo target directory, in `universal-apple-darwin/release/bundle/macos/` (two builds, x86_64 and aarch64, joined with `lipo`; `pack-release.mjs check-app` requires both architectures in the main executable). Set `CARGO_TARGET_DIR` to choose where; `scripts/build-release.sh` uses `.scratch/target-rel` by default for its unbundled variant. Check the finished bundle before you use it:
 
 - `Contents/Info.plist` has the version you expect (`CFBundleShortVersionString`) and the bundle identifier. The bundle identifier is `com.intelyhome.intelyide`; the state folder keeps its development-era name `IntelySwitchIDE` until a rename with a migration.
 - `Contents/Resources/legal/LICENSE` exists.
@@ -34,30 +43,28 @@ The app still does not contain Node, Claude Code or the Agent SDK: the Mac needs
 ## 3. Build the disk image
 
 ```sh
-scripts/release/dmg/make-dmg.sh --app <path to the .app> --out dist-release/IntelyIDE_<version>_x64.dmg --identity "<Developer ID Application identity>" --notary-profile <notarytool profile>
+scripts/release/dmg/make-dmg.sh --app <path to the .app> --out dist-release/<version>/IntelyIDE_<version>_universal.dmg --identity "<Developer ID Application identity>" --notary-profile <notarytool profile>
 ```
 
 The Developer ID mode is the default of `pnpm release:build`, which reads the identity and the profile from the environment variables `INTELY_SIGN_IDENTITY` and `INTELY_NOTARY_PROFILE`. The profile is created once with `xcrun notarytool store-credentials`. For the ad-hoc mode, pass `--ad-hoc-sign` to `make-dmg.sh` (or `--ad-hoc` to `pnpm release:build`) instead of `--identity` and `--notary-profile`.
 
 The script stages a copy of the app (signed with the `--identity` certificate, or ad hoc when `--ad-hoc-sign` is given), the licence files and a short read-me, draws the background, builds the image with `dmgbuild`, verifies it with `hdiutil`, and writes `<image>.sha256` next to it. With `--identity` it also submits the image for notarization with the `--notary-profile` and staples the ticket to the app and to the image. It does not use Finder or AppleScript.
 
-## 4. Checksums
+## 4. Windows and Linux installers (GitHub Actions)
 
-```sh
-cd dist-release
-shasum -a 256 IntelyIDE_1.2.0_x64.dmg > SHA256SUMS
-shasum -a 256 -c SHA256SUMS
-```
+`.github/workflows/release-build.yml` (`workflow_dispatch`, inputs `version` and the full `commit` SHA) checks the commit out, installs the Linux packages (`libwebkit2gtk-4.1-dev`, `libayatana-appindicator3-dev`, `librsvg2-dev`, `libsecret-1-dev`, `patchelf`, and a few more), builds the relay kit and the sidecar, runs `pnpm exec tauri build --bundles appimage,deb` (Linux) or `--bundles nsis,msi` (Windows), renames the results with `scripts/release/stage-artifacts.mjs` and uploads them as the artifacts `release-linux` and `release-windows`. It has no secret, a read-only token and publishes nothing. `pnpm release:collect` (also the last part of `pnpm release:build`) starts it for the commit of the disk image, waits, downloads the artifacts into `dist-release/<version>/` and checks their names and sizes. The commit must be on `origin/main` first, and the workflow file must exist on `main`.
 
-The checksum file detects corruption only. It comes from the same page as the download and proves nothing about its origin.
+## 5. Checksums
 
-## 5. Publish
+`pack-release.mjs finalize` writes `SHA256SUMS` over the disk image, the four installers and the SBOM, and `shasum -a 256 -c SHA256SUMS` checks them. The checksum file detects corruption only. It comes from the same page as the download and proves nothing about its origin.
 
-`pnpm release` does steps 1 to 5 in one command (see [releasing.md](releasing.md)): it builds the app, makes the disk image, writes the checksums and the SBOM, tags the commit and publishes the GitHub release. By hand: create the annotated tag and the GitHub release yourself and attach the disk image and `SHA256SUMS`; see [release-checklist.md](release-checklist.md). Then switch the README installer block with `node scripts/release/readme-toggle.mjs --dmg notarized` (or `--dmg adhoc` for an ad-hoc build).
+## 6. Publish
+
+`pnpm release` does steps 1 to 6 in one command (see [releasing.md](releasing.md)): it builds the app, makes the disk image, gets the installers from GitHub Actions, writes the checksums and the SBOM, tags the commit and publishes the GitHub release with all files. By hand: create the annotated tag and the GitHub release yourself and attach every file of the table above and `SHA256SUMS`; see [release-checklist.md](release-checklist.md). Then switch the README installer block with `node scripts/release/readme-toggle.mjs --dmg notarized` (or `--dmg adhoc` for an ad-hoc build).
 
 ## What does not exist yet
 
-- A release workflow in CI, a build of the Apple Silicon image, build provenance attestations, an update feed and verified in-app updates. The crate `updater` holds the groundwork for them but its install step is not wired into the app and its update keys are not set. What does exist is a new-version notice (it asks GitHub once a day and links to the release page; see [privacy.md](privacy.md)).
+- Code signing of the Windows installers, a macOS build in CI, build provenance attestations, an update feed and verified in-app updates. The crate `updater` holds the groundwork for them but its install step is not wired into the app and its update keys are not set. What does exist is a new-version notice (it asks GitHub once a day and links to the release page; see [privacy.md](privacy.md)).
 - A one-command orchestrator for steps 1 to 4 and a Node runtime inside the bundle (the app uses the Node 24 of the Mac).
 - A record file per build that states what was signed. Because of that, the README block is switched by hand.
 

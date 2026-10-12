@@ -3,6 +3,8 @@
 //! is used (the script sleeps with absolute `/bin/sleep`); where a cap is 10 minutes the cap
 //! constant is scaled in a COPY of the text and the substitution is asserted, so the branch after
 //! the cap is still exercised.
+#![cfg(target_os = "macos")]
+#![cfg(unix)]
 mod common;
 
 use std::fs;

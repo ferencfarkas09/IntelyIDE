@@ -5,6 +5,7 @@ mod common;
 use common::*;
 use intely_agent_core::api::{AgentStartRequest, PermissionDecision, RunStatus};
 use intely_agent_core::events::invariants::InvariantChecker;
+#[cfg_attr(not(unix), allow(unused_imports))]
 use intely_agent_core::events::types::{EventKind, NoteState, PermissionOutcome, StopReason, ToolStatus};
 use intely_agent_core::events::log::{EventLog, JsonlEventLog};
 
@@ -128,6 +129,7 @@ fn stop_ends_the_turn_cancelled_and_the_run_can_go_on() {
     host.shutdown();
 }
 
+#[cfg(unix)]
 #[test]
 fn a_killed_sidecar_closes_the_open_turn_and_frees_every_slot() {
     let dir = tempfile::tempdir().unwrap();

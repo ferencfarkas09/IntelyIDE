@@ -11,13 +11,13 @@ pub const INVALID_WORKSPACE: &str = "invalidWorkspace";
 
 const DEFAULT_PROTECTED: [&str; 4] = ["main", "master", "production", "release/*"];
 
-/// `INTELY_WORKSPACE` if set, else `~/Library/Application Support/IntelySwitchIDE/workspace.json`.
+/// `INTELY_WORKSPACE` if set, else `workspace.json` in the data directory ([`crate::sys::data_dir_under`]).
 pub fn resolve_path() -> PathBuf {
     if let Some(p) = std::env::var_os("INTELY_WORKSPACE") {
         return PathBuf::from(p);
     }
-    let home = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_default();
-    home.join("Library/Application Support/IntelySwitchIDE/workspace.json")
+    let home = crate::sys::home_dir().unwrap_or_default();
+    crate::sys::data_dir_under(&home).join("workspace.json")
 }
 
 /// The directory that holds all IDE state (registry, workspace files, backups, side stores): the parent of the

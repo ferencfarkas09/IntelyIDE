@@ -582,6 +582,8 @@ fn the_directory_is_created_private_and_a_pre_existing_path_is_refused() {
     d.remove(); // idempotent
 }
 
+// macOS only: its temp directory lives under /var/folders, outside /tmp, so a deep base can move to /tmp and the jail can tell the two apart
+#[cfg(target_os = "macos")]
 #[test]
 fn a_deep_temp_directory_moves_the_tunnel_directory_to_tmp_so_that_ssh_can_bind_its_socket() {
     // real sshd, macOS: ssh binds `<ctl>.<16 characters>`, so `<dir>/c` plus 17 bytes must fit the 103 usable bytes of sun_path
@@ -602,6 +604,8 @@ fn a_deep_temp_directory_moves_the_tunnel_directory_to_tmp_so_that_ssh_can_bind_
     assert!(default_macos_tmp + 1 + dir::dir_name(uid, "0000000000000000").len() + 2 < dir::SSH_SAFE_CONTROL_PATH);
 }
 
+// macOS only: the "other" directory is made in /tmp, which on Linux is the same place as the fixture's temp directory (allowed)
+#[cfg(target_os = "macos")]
 #[test]
 fn the_directory_respects_the_write_jail() {
     let fx = fx();

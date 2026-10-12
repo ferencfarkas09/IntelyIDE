@@ -6,7 +6,6 @@
 
 use std::collections::HashSet;
 use std::io;
-use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
 use std::sync::mpsc;
@@ -35,13 +34,14 @@ impl StatInfo {
         let flags = std::os::macos::fs::MetadataExt::st_flags(md);
         #[cfg(not(target_os = "macos"))]
         let flags = 0;
+        let (dev, ino, uid) = intely_core::sys::file_ids(md);
         Self {
             is_dir: md.is_dir(),
             is_file: md.is_file(),
             is_symlink: md.file_type().is_symlink(),
-            dev: md.dev(),
-            ino: md.ino(),
-            uid: md.uid(),
+            dev,
+            ino,
+            uid,
             size: md.len(),
             flags,
         }

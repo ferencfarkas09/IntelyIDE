@@ -4,7 +4,6 @@
 
 use std::collections::HashMap;
 use std::io::Read;
-use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, PoisonError};
 
@@ -29,6 +28,20 @@ pub struct DigestCache {
     hashed: std::sync::atomic::AtomicUsize,
 }
 
+/// What identifies a file's content cheaply: device, inode, size, modification and change time. Windows has no inode and no
+/// change time: its key is the size and the modification time, and the creation time in the last slot.
+#[cfg(unix)]
+fn cache_key(md: &std::fs::Metadata) -> CacheKey {
+    use std::os::unix::fs::MetadataExt;
+    (md.dev(), md.ino(), md.len(), i128::from(md.mtime()) * 1_000_000_000 + i128::from(md.mtime_nsec()), i128::from(md.ctime()) * 1_000_000_000 + i128::from(md.ctime_nsec()))
+}
+
+#[cfg(not(unix))]
+fn cache_key(md: &std::fs::Metadata) -> CacheKey {
+    let ns = |t: std::io::Result<std::time::SystemTime>| t.ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map_or(0, |d| d.as_nanos() as i128);
+    (0, 0, md.len(), ns(md.modified()), ns(md.created()))
+}
+
 impl DigestCache {
     /// How many files were actually read and hashed (a test hook).
     pub fn hashed_count(&self) -> usize {
@@ -40,7 +53,7 @@ impl DigestCache {
         if md.len() > MAX_CODE_FILE {
             return Err(McpErr::new(code::CODE_TOO_BIG, "a file the server runs is larger than 1 GiB and cannot be confirmed"));
         }
-        let key: CacheKey = (md.dev(), md.ino(), md.len(), i128::from(md.mtime()) * 1_000_000_000 + i128::from(md.mtime_nsec()), i128::from(md.ctime()) * 1_000_000_000 + i128::from(md.ctime_nsec()));
+        let key: CacheKey = cache_key(&md);
         if let Some(hit) = self.map.lock().unwrap_or_else(PoisonError::into_inner).get(&key) {
             return Ok(hit.clone());
         }
@@ -87,7 +100,7 @@ impl CodeFile {
 }
 
 fn is_executable_file(p: &Path) -> bool {
-    p.metadata().is_ok_and(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
+    p.metadata().is_ok_and(|m| intely_core::sys::is_executable(&m, p))
 }
 
 /// `command` as given when it is an absolute path, else the first executable of that name on the ABSOLUTE entries of `path` (an empty or
@@ -233,7 +246,8 @@ pub fn text_digest(text: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use std::os::unix::fs::symlink;
+    #[cfg(unix)]
+    use std::os::unix::fs::{symlink, PermissionsExt};
 
     use super::*;
     use crate::model::{McpServerRecord, Origin};
@@ -263,6 +277,7 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
     fn script(dir: &Path, name: &str, body: &str) -> PathBuf {
         let p = dir.join(name);
         std::fs::write(&p, body).unwrap();
@@ -270,6 +285,7 @@ mod tests {
         p
     }
 
+    #[cfg(unix)]
     #[test]
     fn bare_commands_resolve_on_absolute_path_entries_only() {
         let dir = tempfile::tempdir().unwrap();
@@ -280,6 +296,7 @@ mod tests {
         assert_eq!(resolve_command("/nonexistent/tool", &path), None);
     }
 
+    #[cfg(unix)]
     #[test]
     fn a_symlink_is_judged_by_its_target_and_content_changes_the_lines() {
         let dir = tempfile::tempdir().unwrap();
@@ -328,6 +345,7 @@ mod tests {
         assert!(!files[0].exists());
     }
 
+    #[cfg(unix)]
     #[test]
     fn code_inside_a_run_directory_the_state_directory_or_a_temp_directory_is_refused() {
         let run = tempfile::tempdir().unwrap();

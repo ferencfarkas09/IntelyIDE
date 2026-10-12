@@ -92,7 +92,8 @@ function header(ctx, path) {
   const nav = ['features', 'trust', 'open', 'install', 'faq']
     .map((id) => `<li><a href="${anchor(id === 'open' ? 'open-source' : id)}"${ga('nav', id)}>${t.nav[id]}</a></li>`)
     .join('');
-  const dl = rel.primary?.url ?? releasesUrl(ctx.cfg);
+  // with files for several platforms the header button opens the download page; the visitor's own file is offered there
+  const dl = rel.multi ? href(ctx, dlPath(ctx.lang)) : (rel.primary?.url ?? releasesUrl(ctx.cfg));
   return `<header class="site-header" id="top">
 <div class="wrap bar">
 <a class="brand" href="${href(ctx, home)}" aria-label="${t.ui.home}">${logo(ctx)}</a>
@@ -103,7 +104,7 @@ ${ctx.noLang ? '' : `<li><a href="${href(ctx, switchPath)}" hreflang="${otherLan
 </ul>
 </nav>
 <div class="bar-actions">
-${ctx.sticky ? `<a class="btn btn-sm hdr-dl" href="${esc(dl)}"${ga('download', 'header')}>${icons.download('sm')}<span>${t.dl.button}</span></a>` : ''}
+${ctx.sticky ? `<a class="btn btn-sm hdr-dl" href="${esc(dl)}"${ga('download', 'header')}>${icons.download('sm')}<span>${rel.multi ? t.dl.buttonGeneric : t.dl.button}</span></a>` : ''}
 <button type="button" class="icon-btn js-only" id="theme-toggle"${ga('theme', 'header')} aria-pressed="false" aria-label="${t.ui.theme}">${icons.theme()}</button>
 <button type="button" class="icon-btn js-only menu-btn" aria-expanded="false" aria-controls="site-nav" aria-label="${t.ui.menu}">${icons.menu()}</button>
 </div>
@@ -111,9 +112,46 @@ ${ctx.sticky ? `<a class="btn btn-sm hdr-dl" href="${esc(dl)}"${ga('download', '
 </header>`;
 }
 
+/**
+ * Files for several platforms: one big button, a line with the other platforms and a note for Windows and Linux.
+ * Without JavaScript the button opens the release page, where every file is listed. assets/site.js reads the OS and points the button at
+ * the matching link of the "other platforms" line (data-platform, data-label, data-sub, data-primary); Apple Silicon or Intel does not matter,
+ * the macOS app is universal.
+ */
+function multiDownloadBlock(ctx, id) {
+  const { t, rel, cfg } = ctx;
+  const ver = `${t.dl.version} ${esc(rel.version)}${rel.statusLabel ? ` ${rel.statusLabel}` : ''}`;
+  const pl = rel.platforms;
+  const link = (a, platform, { primary = false, text }) =>
+    `<a href="${esc(a.url)}" data-platform="${platform}"${primary ? ' data-primary' : ''} data-label="${esc(t.dl.forPlatform[platform])}" data-sub="${esc([ver, a.kindLabel, a.ext, a.sizeLabel, a.archLabel].filter(Boolean).join(' · '))}"${ga('download', id + '-' + platform + (primary ? '' : '-' + a.kind))} data-ga-platform="${platform}">${text}</a>`;
+  const win = pl.windows.nsis ?? pl.windows.msi;
+  const lin = pl.linux.appimage ?? pl.linux.deb;
+  const parts = [
+    pl.mac && link(pl.mac, 'mac', { primary: true, text: t.dl.platformName.mac }),
+    win && link(win, 'windows', { primary: true, text: t.dl.platformName.windows }),
+    lin && `${t.dl.platformName.linux} (${[pl.linux.appimage && link(pl.linux.appimage, 'linux', { primary: true, text: 'AppImage' }), pl.linux.deb && link(pl.linux.deb, 'linux', { text: '.deb' })].filter(Boolean).join(', ')})`,
+  ].filter(Boolean);
+  const notes = [win && ['windows', t.dl.winNote], lin && ['linux', t.dl.linuxNote]].filter(Boolean);
+  return `<div class="dl-block" id="${id}" data-dl-block data-dl-multi>
+<a class="dl-btn" href="${esc(rel.notesUrl)}" data-ga-platform="other"${ga('download', id)}>
+${icons.download()}
+<span class="dl-text"><span class="dl-main" data-default="${esc(t.dl.buttonGeneric)}">${t.dl.buttonGeneric}</span><span class="dl-sub" data-default="${ver}">${ver}</span></span>
+</a>
+<p class="dl-other">${t.dl.otherPlatforms} ${parts.join(' · ')}</p>
+<ul class="dl-notes">${notes.map(([k, text]) => `<li data-note="${k}">${text}</li>`).join('')}</ul>
+<p class="dl-meta">${t.dl.minMac} ${esc(rel.minMac)} ${t.dl.orLater}. ${rel.archNote}</p>
+<ul class="dl-links">
+<li><a href="${esc(rel.notesUrl)}"${ga('cta', 'release-notes')}>${t.dl.notes}</a></li>
+${rel.sumsUrl ? `<li><a href="${esc(rel.sumsUrl)}"${ga('cta', 'checksums')}>${t.dl.sums}</a></li>` : ''}
+<li><a href="${cfg.repoUrl}"${ga('cta', 'github-repo')}>${icons.github(16)} ${t.dl.github}</a></li>
+</ul>
+</div>`;
+}
+
 /** The big download button plus everything directly under it. */
 function downloadBlock(ctx, { id = 'download' } = {}) {
   const { t, rel, cfg } = ctx;
+  if (rel.multi) return multiDownloadBlock(ctx, id);
   const p = rel.primary;
   const sub = (a) =>
     [`${t.dl.version} ${esc(rel.version)}${rel.statusLabel ? ` ${rel.statusLabel}` : ''}`, a.ext, a.sizeLabel, rel.others.length || rel.swap ? a.archLabel : '']
@@ -144,7 +182,7 @@ function assetTable(ctx) {
   const rows = rel.assets
     .map(
       (a) => `<tr>
-<td data-label="${t.dl.colFile}"><a href="${esc(a.url)}"${ga('download', 'table')}>${esc(a.name)}</a></td>
+<td data-label="${t.dl.colFile}"><a href="${esc(a.url)}"${ga('download', 'table')} data-ga-platform="${a.platform}">${esc(a.name)}</a></td>
 <td data-label="${t.dl.colArch}">${esc(a.archLabel)}</td>
 <td data-label="${t.dl.colSize}">${esc(a.sizeLabel)}</td>
 <td data-label="${t.dl.colSha}"><code class="sha">${esc(a.sha256)}</code> <button type="button" class="copy js-only" data-copy="${esc(a.sha256)}" data-done="${t.ui.copied}" aria-label="${t.ui.copyLabel}: ${esc(a.name)}">${t.ui.copy}</button></td>
@@ -349,7 +387,7 @@ ${icons.arrow()}
 <span class="drag-tile">${icons.folder()}<span>${t.install.dragFolder}</span></span>
 </div>
 ${gatekeeper(ctx)}
-<p class="center"><a class="btn" href="${esc(rel.primary?.url ?? releasesUrl(cfg))}"${ga('download', 'install')}>${icons.download('sm')}<span>${t.dl.button}</span></a></p>
+<p class="center"><a class="btn" href="${esc(rel.multi ? href(ctx, dlPath(ctx.lang)) : (rel.primary?.url ?? releasesUrl(cfg)))}"${ga('download', 'install')}>${icons.download('sm')}<span>${rel.multi ? t.dl.buttonGeneric : t.dl.button}</span></a></p>
 </div>
 </section>
 
@@ -377,13 +415,13 @@ function jsonLd(ctx) {
     name: 'IntelyIDE',
     description: t.meta.homeDesc,
     applicationCategory: 'DeveloperApplication',
-    operatingSystem: 'macOS',
+    operatingSystem: rel.multi ? 'macOS, Windows, Linux' : 'macOS',
     softwareVersion: rel.version,
     inLanguage: t.lang,
     isAccessibleForFree: true,
     offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
     license: `${cfg.repoUrl}/blob/main/LICENSE`,
-    downloadUrl: rel.primary?.url ?? releasesUrl(cfg),
+    downloadUrl: rel.multi ? rel.notesUrl : (rel.primary?.url ?? releasesUrl(cfg)),
     url: ctx.abs(homePath(ctx.lang)),
     author: { '@type': 'Person', name: 'Ferenc Farkas' },
     publisher: { '@type': 'Organization', name: 'IntelyHome', url: cfg.orgUrl },

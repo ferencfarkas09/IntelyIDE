@@ -1,6 +1,7 @@
 //! Deleting role files: every check before anything is touched, a verified backup of every file first, symlink-proof and
 //! race-safe. Throwaway directories only.
 
+#![cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 

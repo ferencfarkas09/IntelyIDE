@@ -83,6 +83,7 @@ impl HarnessSet {
         threads.into_iter().for_each(|t| drop(t.join()));
     }
 
+    #[allow(dead_code)] // used by the tests on some platforms only
     pub fn len(&self) -> usize {
         self.map.lock().unwrap().len()
     }

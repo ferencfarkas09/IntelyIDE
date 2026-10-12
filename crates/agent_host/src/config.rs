@@ -1,7 +1,7 @@
 //! Host configuration and the environment hygiene around the sidecar (providers-plan 4.2, 5.5).
 
 use std::collections::{BTreeMap, HashMap};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -249,12 +249,7 @@ pub fn scrub_env(vars: &HashMap<String, String>) -> BTreeMap<String, String> {
 /// First executable called `name` on the `PATH` of `vars` (falls back to the process `PATH`).
 pub fn find_on_path(name: &str, vars: &HashMap<String, String>) -> Option<PathBuf> {
     let path = vars.get("PATH").cloned().or_else(|| std::env::var("PATH").ok())?;
-    std::env::split_paths(&path).map(|d| d.join(name)).find(|p| is_executable(p))
-}
-
-fn is_executable(p: &Path) -> bool {
-    use std::os::unix::fs::PermissionsExt;
-    p.metadata().is_ok_and(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
+    intely_core::sys::find_in_path(&path, name)
 }
 
 #[cfg(test)]

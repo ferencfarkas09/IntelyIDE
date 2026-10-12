@@ -41,8 +41,10 @@ pub fn try_read(jail: &Jail, repo: &Path, args: &[&str]) -> Option<String> {
 
 #[cfg(test)]
 mod hardening_tests {
+    #[cfg_attr(not(unix), allow(unused_imports))]
     use super::*;
 
+    #[cfg_attr(not(unix), allow(dead_code))]
     fn git(dir: &std::path::Path, args: &[&str]) {
         let out = std::process::Command::new(intely_core::exec::pinned_git_path())
             .current_dir(dir)
@@ -58,9 +60,11 @@ mod hardening_tests {
         assert!(out.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&out.stderr));
     }
 
+    #[cfg(unix)]
     /// A committed, dirty repo whose `core.fsmonitor` is a program that leaves `marker` behind. The control run proves
     /// that an unhardened git really executes it.
     fn hostile_repo() -> (tempfile::TempDir, std::path::PathBuf, std::path::PathBuf) {
+        #[cfg(unix)]
         use std::os::unix::fs::PermissionsExt;
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path().canonicalize().unwrap();
@@ -82,6 +86,7 @@ mod hardening_tests {
         (dir, repo, marker)
     }
 
+    #[cfg(unix)]
     #[test]
     fn the_gitx_git_helper_never_runs_core_fsmonitor() {
         let (_d, repo, marker) = hostile_repo();

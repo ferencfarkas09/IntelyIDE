@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
-use libc::pid_t;
+use super::procinfo::pid_t;
 use serde::{Deserialize, Serialize};
 
 use super::cancel::{terminate_group, usable_pgid, TermOutcome};

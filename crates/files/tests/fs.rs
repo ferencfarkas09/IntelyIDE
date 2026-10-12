@@ -1,3 +1,4 @@
+#![cfg(unix)]
 mod common;
 
 use std::os::unix::fs::{symlink, PermissionsExt};

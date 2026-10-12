@@ -150,6 +150,7 @@ fn the_four_real_repo_paths_are_outside_every_fixture_root() {
     assert!(default_root.check_op("push_start", Path::new("/Users/example/Projects/admin")).is_err());
 }
 
+#[cfg(unix)]
 #[tokio::test]
 async fn a_symlink_into_the_fixture_root_does_not_launder_a_foreign_repo() {
     let inside = Sandbox::new();

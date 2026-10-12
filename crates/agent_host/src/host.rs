@@ -1638,7 +1638,7 @@ impl Inner {
             intely_agent_core::events::log::create_private_dir_all(&dir)?;
             let tmp = path.with_extension("json.tmp");
             std::fs::write(&tmp, serde_json::to_vec_pretty(meta).map_err(std::io::Error::other)?)?;
-            std::fs::set_permissions(&tmp, std::os::unix::fs::PermissionsExt::from_mode(0o600))?;
+            intely_core::sys::set_mode_best_effort(&tmp, 0o600);
             std::fs::rename(&tmp, &path)
         };
         if let Err(e) = write() {
@@ -1971,7 +1971,7 @@ impl Inner {
         }
         let spawned = spawned?;
         if spawned.wait_hello(Duration::from_secs(45)).is_none() {
-            spawned.signal(libc::SIGKILL);
+            spawned.signal(crate::sidecar::SIGKILL);
             let tail = spawned.stderr_tail();
             return Err(err("sidecarStart", format!("the agent sidecar on {} did not start{}", scfg.name, if tail.is_empty() { String::new() } else { format!(": {tail}") })));
         }
@@ -1989,10 +1989,7 @@ impl Inner {
             std::fs::create_dir_all(&local)?;
             let git = local.join("git");
             std::fs::write(&git, script)?;
-            {
-                use std::os::unix::fs::PermissionsExt;
-                std::fs::set_permissions(&git, std::fs::Permissions::from_mode(0o755))?;
-            }
+            intely_core::sys::set_mode_best_effort(&git, 0o755);
             intely_servers::upload_shim(env.registry.ssh(), &env.cfg, &env.paths.home, agent_id, &local).map_err(std::io::Error::other)
         })();
         let _ = std::fs::remove_dir_all(&local);
@@ -2055,7 +2052,7 @@ impl Inner {
                 st.generation += 1;
                 let handler: Weak<dyn Handler> = self.me.clone();
                 let sc = Sidecar::spawn(cmd, st.generation, handler).map_err(|e| err("sidecarSpawn", format!("cannot start the agent sidecar: {e}")))?;
-                self.gate.register_owner(&sc.owner, Some(sc.pid as libc::pid_t));
+                self.gate.register_owner(&sc.owner, Some(sc.pid as i32));
                 st.sidecar = Some(sc.clone());
                 st.sidecar_providers = providers;
                 sc
@@ -2068,7 +2065,7 @@ impl Inner {
             }
         }
         if sc.wait_hello(Duration::from_secs(15)).is_none() {
-            sc.signal(libc::SIGKILL);
+            sc.signal(crate::sidecar::SIGKILL);
             let tail = sc.stderr_tail();
             return Err(err("sidecarStart", format!("the agent sidecar did not start{}", if tail.is_empty() { String::new() } else { format!(": {tail}") })));
         }
@@ -2079,9 +2076,9 @@ impl Inner {
     fn stop_sidecar(&self, sc: &Arc<Sidecar>) {
         sc.close_stdin();
         if !sc.wait_exit(Duration::from_secs(6)) {
-            sc.signal(libc::SIGTERM);
+            sc.signal(crate::sidecar::SIGTERM);
             if !sc.wait_exit(Duration::from_secs(2)) {
-                sc.signal(libc::SIGKILL);
+                sc.signal(crate::sidecar::SIGKILL);
                 sc.wait_exit(Duration::from_secs(2));
             }
         }
@@ -2856,7 +2853,7 @@ impl Inner {
             // renewals stopped: the sidecar hangs; killing it lets `on_closed` close the runs honestly
             ReclaimReason::Expired | ReclaimReason::OwnerGone => {
                 if let Some(sc) = lock(&self.state).sidecar.clone() {
-                    sc.signal(libc::SIGKILL);
+                    sc.signal(crate::sidecar::SIGKILL);
                 }
             }
             ReclaimReason::OwnerClosed | ReclaimReason::Cancelled => {}
