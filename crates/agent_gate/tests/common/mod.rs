@@ -3,6 +3,7 @@
 
 #![allow(dead_code)]
 
+#[cfg(unix)]
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -13,6 +14,9 @@ use intely_agent_gate::gate::{procinfo, rss};
 
 static ISOLATE: Once = Once::new();
 
+#[cfg(unix)]
+#[cfg(unix)]
+#[cfg(unix)]
 /// No user or system git config can leak into a fixture, and no ambient git env redirects a command.
 pub fn isolate_env() {
     ISOLATE.call_once(|| {
@@ -30,6 +34,7 @@ pub struct Group {
 }
 
 impl Group {
+    #[cfg(unix)]
     /// `sh -c script` as the leader of a new process group (pgid == pid).
     pub fn sh(script: &str) -> Self {
         let child = Command::new("sh")
@@ -44,15 +49,18 @@ impl Group {
         Self { child }
     }
 
+    #[cfg(unix)]
     pub fn sleeper() -> Self {
         Self::sh("sleep 300")
     }
 
+    #[cfg(unix)]
     /// Leader plus two grandchildren, all in the same group.
     pub fn with_grandchildren() -> Self {
         Self::sh("sleep 300 & sleep 300 & wait")
     }
 
+    #[cfg(unix)]
     /// Ignores SIGTERM (children inherit the ignore), so only SIGKILL ends it.
     pub fn stubborn() -> Self {
         Self::sh("trap '' TERM; sleep 300 & sleep 300 & wait")
@@ -75,6 +83,7 @@ impl Group {
 }
 
 impl Drop for Group {
+    #[cfg(unix)]
     fn drop(&mut self) {
         // descendants that moved to another process group would survive the killpg below
         for pid in rss::descendants(self.pgid()).into_iter().filter(|p| *p != self.pgid()) {
@@ -85,6 +94,7 @@ impl Drop for Group {
     }
 }
 
+#[cfg(unix)]
 /// A process that is not a group leader of its own and is not in the test's group is irrelevant here; this one is
 /// a plain child used as a stand-in for the sidecar (the lease owner).
 pub fn spawn_owner() -> Child {
@@ -115,6 +125,7 @@ pub struct Repo {
 }
 
 impl Repo {
+    #[cfg(unix)]
     pub fn new() -> Self {
         isolate_env();
         let dir = tempfile::Builder::new().prefix("intely-gate-").tempdir().expect("temp dir");

@@ -1,5 +1,6 @@
 //! Roles from files and the overlay. Every directory is a throwaway one: nothing here can reach `~/.claude`.
 
+#![cfg(unix)]
 use std::path::Path;
 
 use intely_agent_core::providers::{Effort, PermissionMode};

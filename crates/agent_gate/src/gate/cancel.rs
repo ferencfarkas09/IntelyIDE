@@ -11,7 +11,7 @@ use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
-use libc::pid_t;
+use super::procinfo::pid_t;
 use serde::Serialize;
 
 use super::lease::Gate;
@@ -193,12 +193,12 @@ pub fn run(gate: Arc<Gate>, lease_id: String, plan: CancelPlan, sink: Arc<dyn Ca
                     Step::Sigterm => {
                         sigterm_at = Some(t0.elapsed());
                         report.stage = "term";
-                        signal_groups(&gate.lease_pgids(&lease_id), libc::SIGTERM);
+                        signal_groups(&gate.lease_pgids(&lease_id), false);
                     }
                     Step::Sigkill => {
                         sigkill_at = Some(t0.elapsed());
                         report.stage = "kill";
-                        signal_groups(&gate.lease_pgids(&lease_id), libc::SIGKILL);
+                        signal_groups(&gate.lease_pgids(&lease_id), true);
                     }
                     Step::Finish { synthesize_turn_end } => {
                         let perms = std::mem::take(&mut *lock(&tracker.pending_permissions));
@@ -240,12 +240,39 @@ pub fn run(gate: Arc<Gate>, lease_id: String, plan: CancelPlan, sink: Arc<dyn Ca
 
 /// A process group id that is safe to signal: not 0/1 and not the gate's own process group.
 pub fn usable_pgid(pgid: pid_t) -> bool {
-    pgid > 1 && pgid != unsafe { libc::getpgrp() }
+    pgid > 1 && pgid != own_pgid()
 }
 
-fn signal_groups(pgids: &[pid_t], sig: libc::c_int) {
+#[cfg(unix)]
+fn own_pgid() -> pid_t {
+    unsafe { libc::getpgrp() }
+}
+
+/// Windows has no process groups: the "group" of a run is its leader process and the pid of the IDE is never signalled.
+#[cfg(not(unix))]
+fn own_pgid() -> pid_t {
+    std::process::id() as pid_t
+}
+
+/// SIGTERM (or SIGKILL when `kill`) to the whole group; on Windows `taskkill /T` ends the leader's process tree.
+#[cfg(unix)]
+fn signal_group(pgid: pid_t, kill: bool) {
+    unsafe { libc::killpg(pgid, if kill { libc::SIGKILL } else { libc::SIGTERM }) };
+}
+
+#[cfg(not(unix))]
+fn signal_group(pgid: pid_t, kill: bool) {
+    let mut cmd = std::process::Command::new("taskkill");
+    cmd.args(["/PID", &pgid.to_string(), "/T"]);
+    if kill {
+        cmd.arg("/F");
+    }
+    let _ = cmd.stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
+}
+
+fn signal_groups(pgids: &[pid_t], kill: bool) {
     for &g in pgids.iter().filter(|g| usable_pgid(**g)) {
-        unsafe { libc::killpg(g, sig) };
+        signal_group(g, kill);
     }
 }
 
@@ -269,7 +296,7 @@ pub fn terminate_group(pgid: pid_t, grace: Duration) -> TermOutcome {
     if procinfo::live_group_pids(pgid).is_empty() {
         return TermOutcome::AlreadyGone;
     }
-    unsafe { libc::killpg(pgid, libc::SIGTERM) };
+    signal_group(pgid, false);
     let deadline = Instant::now() + grace;
     while Instant::now() < deadline {
         if procinfo::live_group_pids(pgid).is_empty() {
@@ -280,7 +307,7 @@ pub fn terminate_group(pgid: pid_t, grace: Duration) -> TermOutcome {
     if procinfo::live_group_pids(pgid).is_empty() {
         return TermOutcome::Terminated;
     }
-    unsafe { libc::killpg(pgid, libc::SIGKILL) };
+    signal_group(pgid, true);
     TermOutcome::Killed
 }
 

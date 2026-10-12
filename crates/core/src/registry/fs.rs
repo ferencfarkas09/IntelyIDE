@@ -4,7 +4,6 @@
 
 use std::collections::{HashMap, HashSet};
 use std::io;
-use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
@@ -48,7 +47,7 @@ pub trait FsProbe: Send + Sync {
     fn read_small(&self, path: &Path, cap: usize) -> io::Result<Vec<u8>>;
 }
 
-fn to_stat(m: &std::fs::Metadata) -> FsStat {
+fn to_stat(m: &std::fs::Metadata, path: &Path) -> FsStat {
     let ft = m.file_type();
     let kind = if ft.is_symlink() {
         FsKind::Symlink
@@ -59,7 +58,25 @@ fn to_stat(m: &std::fs::Metadata) -> FsStat {
     } else {
         FsKind::Other
     };
-    FsStat { kind, dev: m.dev(), ino: m.ino(), uid: m.uid() }
+    let (dev, ino, uid) = identity_of(m, path);
+    FsStat { kind, dev, ino, uid }
+}
+
+#[cfg(unix)]
+fn identity_of(m: &std::fs::Metadata, _path: &Path) -> (u64, u64, u32) {
+    use std::os::unix::fs::MetadataExt;
+    (m.dev(), m.ino(), m.uid())
+}
+
+/// Windows has no inode in stable `std`: the identity of a folder is a hash of its case-folded path, so it changes when the
+/// folder is renamed or replaced by another path but not when the directory entry is recreated at the same path.
+#[cfg(not(unix))]
+fn identity_of(_m: &std::fs::Metadata, path: &Path) -> (u64, u64, u32) {
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    for b in path.to_string_lossy().to_lowercase().replace('\\', "/").bytes() {
+        h = (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
+    }
+    (0, h, 0)
 }
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -67,11 +84,11 @@ pub struct RealFs;
 
 impl FsProbe for RealFs {
     fn stat(&self, path: &Path) -> io::Result<FsStat> {
-        std::fs::symlink_metadata(path).map(|m| to_stat(&m))
+        std::fs::symlink_metadata(path).map(|m| to_stat(&m, path))
     }
 
     fn stat_follow(&self, path: &Path) -> io::Result<FsStat> {
-        std::fs::metadata(path).map(|m| to_stat(&m))
+        std::fs::metadata(path).map(|m| to_stat(&m, path))
     }
 
     fn canonicalize(&self, path: &Path) -> io::Result<PathBuf> {
@@ -80,7 +97,16 @@ impl FsProbe for RealFs {
 
     fn read_small(&self, path: &Path, cap: usize) -> io::Result<Vec<u8>> {
         use std::io::Read;
-        let file = std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NONBLOCK | libc::O_NOFOLLOW | libc::O_CLOEXEC).open(path)?;
+        let mut options = std::fs::OpenOptions::new();
+        options.read(true);
+        #[cfg(unix)]
+        std::os::unix::fs::OpenOptionsExt::custom_flags(&mut options, libc::O_NONBLOCK | libc::O_NOFOLLOW | libc::O_CLOEXEC);
+        // Windows has no O_NOFOLLOW: a symlink is refused by the check on the path before the open.
+        #[cfg(not(unix))]
+        if std::fs::symlink_metadata(path)?.file_type().is_symlink() {
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, "not a regular file"));
+        }
+        let file = options.open(path)?;
         if !file.metadata()?.is_file() {
             return Err(io::Error::new(io::ErrorKind::InvalidInput, "not a regular file"));
         }
@@ -280,6 +306,7 @@ impl IdentityCache {
 mod tests {
     use super::*;
 
+    #[cfg(unix)]
     #[test]
     fn read_small_refuses_fifos_and_symlinks_without_hanging() {
         let d = tempfile::tempdir().unwrap();

@@ -3,8 +3,6 @@
 
 use std::fs::{File, OpenOptions};
 use std::io::{self, Write};
-use std::os::fd::AsRawFd;
-use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -31,7 +29,7 @@ pub fn write_atomic(path: &Path, bytes: &[u8], mode: u32, fault: Option<&Fault>)
     let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| "file".into());
     let tmp = dir.join(format!(".{name}.{}.{}.tmp", std::process::id(), TMP_COUNTER.fetch_add(1, Ordering::Relaxed)));
     let result = (|| {
-        let mut f = OpenOptions::new().write(true).create_new(true).mode(mode).open(&tmp)?;
+        let mut f = crate::sys::open_mode(OpenOptions::new().write(true).create_new(true), mode).open(&tmp)?;
         f.write_all(bytes)?;
         f.sync_all()?;
         drop(f);
@@ -83,7 +81,7 @@ pub fn ensure_dir(dir: &Path) -> io::Result<()> {
         return Ok(());
     }
     let mut builder = std::fs::DirBuilder::new();
-    std::os::unix::fs::DirBuilderExt::mode(&mut builder, 0o700);
+    crate::sys::dir_mode(&mut builder, 0o700);
     builder.recursive(true).create(dir)
 }
 
@@ -111,17 +109,11 @@ pub fn try_lock(path: &Path) -> io::Result<Option<FileLock>> {
     if let Some(dir) = path.parent() {
         ensure_dir(dir)?;
     }
-    let file = OpenOptions::new().read(true).write(true).create(true).truncate(false).mode(0o600).open(path)?;
-    // SAFETY: plain syscall on a descriptor we own.
-    let rc = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
-    if rc == 0 {
-        return Ok(Some(FileLock { _file: file, path: path.to_path_buf() }));
-    }
-    let err = io::Error::last_os_error();
-    if err.kind() == io::ErrorKind::WouldBlock || err.raw_os_error() == Some(libc::EWOULDBLOCK) || err.raw_os_error() == Some(libc::EAGAIN) {
-        Ok(None)
+    let file = crate::sys::open_mode(OpenOptions::new().read(true).write(true).create(true).truncate(false), 0o600).open(path)?;
+    if crate::sys::try_lock_exclusive(&file)? {
+        Ok(Some(FileLock { _file: file, path: path.to_path_buf() }))
     } else {
-        Err(err)
+        Ok(None)
     }
 }
 
@@ -201,12 +193,14 @@ pub fn rotate_backup(src: &Path, dir: &Path, prefix: &str, rev_tag: Option<u64>,
 
 /// `chmod` that ignores failures on exotic filesystems.
 pub fn set_mode_best_effort(path: &Path, mode: u32) {
-    let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode));
+    crate::sys::set_mode_best_effort(path, mode);
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
+    use std::os::unix::fs::PermissionsExt;
 
     fn names(dir: &Path) -> Vec<String> {
         let mut v: Vec<_> = std::fs::read_dir(dir).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
@@ -214,6 +208,7 @@ mod tests {
         v
     }
 
+    #[cfg(unix)]
     #[test]
     fn write_atomic_replaces_and_leaves_no_temp() {
         let d = tempfile::tempdir().unwrap();

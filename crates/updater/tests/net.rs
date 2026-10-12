@@ -3,6 +3,7 @@
 //! Real sockets only to a loopback server (`Endpoints::loopback`); the production host rules, the
 //! redirect allow-list and the address checks run against a scripted transport and a fake resolver,
 //! so no TLS, no network and no real DNS are involved.
+#![cfg(unix)]
 mod common;
 
 use std::collections::{HashMap, VecDeque};

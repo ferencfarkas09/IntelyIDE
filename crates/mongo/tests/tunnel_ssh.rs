@@ -472,7 +472,19 @@ fn prompt_strings_and_which_auth_needs_askpass() {
 }
 
 fn run_askpass(setup: &askpass::AskpassSetup, prompt: &str) -> (Option<i32>, String) {
-    let o = std::process::Command::new(setup.script_path()).arg(prompt).env_clear().envs(setup.env()).stdin(std::process::Stdio::null()).output().unwrap();
+    // A script that was written a moment ago can still be open for writing in a forked child of another test thread: exec then fails with
+    // ETXTBSY ("Text file busy", errno 26) on Linux. It clears in milliseconds, so retry the spawn.
+    let mut tries = 0;
+    let o = loop {
+        match std::process::Command::new(setup.script_path()).arg(prompt).env_clear().envs(setup.env()).stdin(std::process::Stdio::null()).output() {
+            Ok(o) => break o,
+            Err(e) if e.raw_os_error() == Some(26) && tries < 40 => {
+                tries += 1;
+                std::thread::sleep(Duration::from_millis(25));
+            }
+            Err(e) => panic!("{e}"),
+        }
+    };
     (o.status.code(), String::from_utf8_lossy(&o.stdout).into_owned())
 }
 

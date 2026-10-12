@@ -82,11 +82,11 @@ fn ctx_at(cwd: &std::path::Path) -> PolicyContext {
 
 /// The command with `{backend}`, `{admin}`, `{mobile}`, `{scratch}` and `{root}` replaced.
 fn text(w: &World, cmd: &str) -> String {
-    cmd.replace("{backend}", &w.backend.display().to_string())
-        .replace("{admin}", &w.admin.display().to_string())
-        .replace("{mobile}", &w.mobile.display().to_string())
-        .replace("{scratch}", &w.scratch.display().to_string())
-        .replace("{root}", &w.root.display().to_string())
+    cmd.replace("{backend}", &sh(&w.backend))
+        .replace("{admin}", &sh(&w.admin))
+        .replace("{mobile}", &sh(&w.mobile))
+        .replace("{scratch}", &sh(&w.scratch))
+        .replace("{root}", &sh(&w.root))
 }
 
 fn judge(w: &World, cmd: &str) -> (Decision, DecidedBy, String, String) {

@@ -1,5 +1,6 @@
 //! Leases, admission, expiry, owner death, tree RSS and the idle reaper, against real child processes.
 
+#![cfg(unix)]
 mod common;
 
 use std::sync::atomic::{AtomicUsize, Ordering};

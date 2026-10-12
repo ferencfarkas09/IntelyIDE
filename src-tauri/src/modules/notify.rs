@@ -15,6 +15,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Mutex;
 use std::time::Instant;
 
+#[cfg(target_os = "macos")]
 use intely_hud::notify::applescript_with;
 use intely_hud::{Kind, NotifyGate, NotifyPrefs, Verdict};
 use serde::Deserialize;
@@ -124,10 +125,49 @@ fn deliver(app: &AppHandle, title: &str, subtitle: Option<&str>, body: &str, sou
         }
         return;
     }
-    let script = applescript_with(title, subtitle, body, sound);
-    if !deliver_native(app, &script) {
-        via_osascript(script);
+    #[cfg(target_os = "macos")]
+    {
+        let script = applescript_with(title, subtitle, body, sound);
+        if !deliver_native(app, &script) {
+            via_osascript(script);
+        }
     }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (app, sound);
+        deliver_other(title, subtitle, body);
+    }
+}
+
+/// Linux: `notify-send` (libnotify, present on the usual desktops). Windows: a toast through PowerShell. Both get the texts as
+/// arguments / environment variables, never spliced into a script. A missing tool means no banner, never an error.
+#[cfg(not(target_os = "macos"))]
+fn deliver_other(title: &str, subtitle: Option<&str>, body: &str) {
+    let text = match subtitle.filter(|s| !s.is_empty()) {
+        Some(s) => format!("{s}\n{body}"),
+        None => body.to_owned(),
+    };
+    let title = title.to_owned();
+    std::thread::spawn(move || {
+        #[cfg(windows)]
+        {
+            const TOAST: &str = "$ErrorActionPreference='Stop';\
+                [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null;\
+                $x = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText02);\
+                $t = $x.GetElementsByTagName('text');\
+                $t.Item(0).AppendChild($x.CreateTextNode($env:INTELY_NOTE_TITLE)) | Out-Null;\
+                $t.Item(1).AppendChild($x.CreateTextNode($env:INTELY_NOTE_BODY)) | Out-Null;\
+                $id = '{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\\WindowsPowerShell\\v1.0\\powershell.exe';\
+                [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($id).Show([Windows.UI.Notifications.ToastNotification]::new($x))";
+            let mut cmd = std::process::Command::new("powershell.exe");
+            cmd.args(["-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", TOAST]).env("INTELY_NOTE_TITLE", &title).env("INTELY_NOTE_BODY", &text);
+            let _ = intely_core::sys::no_window(&mut cmd).output();
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = std::process::Command::new("notify-send").arg("--app-name=IntelyIDE").arg("--").arg(&title).arg(&text).output();
+        }
+    });
 }
 
 /// Runs the banner inside this process when the app is a bundle; false when it could not (then `osascript` is the fallback).
@@ -144,11 +184,6 @@ fn deliver_native(app: &AppHandle, script: &str) -> bool {
         }
     })
     .is_ok()
-}
-
-#[cfg(not(target_os = "macos"))]
-fn deliver_native(_app: &AppHandle, _script: &str) -> bool {
-    false
 }
 
 /// `…/IntelyIDE.app/Contents/MacOS/<exe>`: the process has a bundle identifier, so a banner is the app's own.
@@ -173,6 +208,7 @@ fn run_in_process(script: &str) -> bool {
     }
 }
 
+#[cfg(target_os = "macos")]
 fn via_osascript(script: String) {
     std::thread::spawn(move || {
         let _ = std::process::Command::new("/usr/bin/osascript").arg("-e").arg(script).output();

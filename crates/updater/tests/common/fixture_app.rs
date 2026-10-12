@@ -1,5 +1,6 @@
 //! Fixture `.app` trees ((design notes: updater-spec) 10.1): a real directory tree that can be ad-hoc signed
 //! with `/usr/bin/codesign`, synthetic Mach-O headers, and a scripted `Runner`.
+#![cfg(unix)]
 use std::cell::RefCell;
 use std::fs;
 use std::io;

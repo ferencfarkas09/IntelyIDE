@@ -5,6 +5,7 @@
 //! Rows that need `session_allow_for` (the policy builder's derivation of "allow always in this session") skip with a loud message while
 //! it is still the fail-closed stub; `INTELY_REQUIRE_POLICY=1` turns that skip into a failure (the integration run sets it).
 
+#![cfg(unix)]
 mod common;
 
 use std::collections::BTreeMap;

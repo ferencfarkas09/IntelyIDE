@@ -156,13 +156,12 @@ impl NightPlan {
     }
 
     pub fn save(&self, path: &Path) -> io::Result<()> {
-        use std::os::unix::fs::PermissionsExt;
         if let Some(dir) = path.parent() {
             intely_agent_core::events::log::create_private_dir_all(dir)?;
         }
         let tmp = path.with_extension("json.tmp");
         fs::write(&tmp, serde_json::to_vec(self).map_err(io::Error::other)?)?;
-        fs::set_permissions(&tmp, fs::Permissions::from_mode(0o600))?;
+        intely_core::sys::set_mode_best_effort(&tmp, 0o600);
         fs::rename(&tmp, path)
     }
 

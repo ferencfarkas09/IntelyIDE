@@ -218,6 +218,7 @@ async fn incoming_traversal_paths_are_rejected() {
     assert!(!b.dir.path().join("escape.md").exists());
 }
 
+#[cfg(unix)]
 #[tokio::test]
 async fn symlinks_and_big_files_are_skipped() {
     let (w, mut a, _) = two();

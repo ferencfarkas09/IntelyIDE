@@ -1,11 +1,14 @@
 //! U3: safe unpack, tree hash, stage directory lifecycle ((design notes: updater-spec) 10.2 `stage`).
+#![cfg(target_os = "macos")]
 mod common;
 
 use std::fs;
+#[cfg(unix)]
 use std::os::unix::fs::{symlink, MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 
 use common::tarball::*;
+#[cfg(unix)]
 use intely_updater::stage::*;
 use intely_updater::{ErrorCode, UpdateError};
 

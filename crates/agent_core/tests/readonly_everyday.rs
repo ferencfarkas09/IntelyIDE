@@ -63,7 +63,7 @@ fn edit(w: &World) -> PolicyContext {
 }
 
 fn text(w: &World, cmd: &str) -> String {
-    cmd.replace("{backend}", &w.backend.display().to_string()).replace("{admin}", &w.admin.display().to_string()).replace("{root}", &w.root.display().to_string())
+    cmd.replace("{backend}", &sh(&w.backend)).replace("{admin}", &sh(&w.admin)).replace("{root}", &sh(&w.root))
 }
 
 /// Every command runs without a card in Plan (read-only) and in Edit, as a low-risk read.

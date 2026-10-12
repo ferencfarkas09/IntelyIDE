@@ -2,6 +2,7 @@
 
 mod common;
 
+#[cfg_attr(not(unix), allow(unused_imports))]
 use std::time::{Duration, Instant};
 
 use common::*;
@@ -9,11 +10,13 @@ use intely_core::jail::Jail;
 use intely_mcp::error::code;
 use intely_mcp::probe::probe;
 
+#[cfg(unix)]
 fn alive(pid: i32) -> bool {
     // SAFETY: signal 0 only checks that the process exists.
     unsafe { libc::kill(pid, 0) == 0 }
 }
 
+#[cfg(unix)]
 async fn gone_within(pid: i32, secs: u64) -> bool {
     let until = Instant::now() + Duration::from_secs(secs);
     while Instant::now() < until {
@@ -25,6 +28,7 @@ async fn gone_within(pid: i32, secs: u64) -> bool {
     !alive(pid)
 }
 
+#[cfg_attr(not(unix), allow(dead_code))]
 fn pids(path: &std::path::Path) -> Vec<i32> {
     for _ in 0..40 {
         if let Ok(t) = std::fs::read_to_string(path) {
@@ -72,6 +76,7 @@ async fn noannotations_reads_as_not_stated() {
     assert!(ok.tools.iter().all(|t| t.read_only_hint.is_none()));
 }
 
+#[cfg(unix)]
 #[tokio::test]
 async fn slow_and_hang_end_at_the_deadline_and_the_process_is_gone() {
     need_node!();
@@ -87,6 +92,7 @@ async fn slow_and_hang_end_at_the_deadline_and_the_process_is_gone() {
     }
 }
 
+#[cfg(unix)]
 #[tokio::test]
 async fn a_grandchild_is_killed_with_the_group_after_a_successful_run() {
     need_node!();

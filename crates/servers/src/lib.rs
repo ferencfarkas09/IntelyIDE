@@ -15,7 +15,7 @@ pub mod repos;
 pub mod setup;
 pub mod shim;
 pub mod ssh;
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod testkit;
 
 pub use cfg::{canonical_path, forbidden_repo_dir, slug_from_name, valid_repo_dir_name, CfgError, ServerCfg};

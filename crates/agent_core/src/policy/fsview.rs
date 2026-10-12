@@ -74,9 +74,12 @@ pub trait FsView: Send + Sync {
 pub struct LocalFs;
 
 fn meta_of(m: &std::fs::Metadata) -> FsMeta {
-    use std::os::unix::fs::PermissionsExt;
     let t = m.file_type();
-    FsMeta { is_file: t.is_file(), is_dir: t.is_dir(), is_symlink: t.is_symlink(), len: m.len(), executable: m.permissions().mode() & 0o111 != 0 }
+    #[cfg(unix)]
+    let executable = std::os::unix::fs::PermissionsExt::mode(&m.permissions()) & 0o111 != 0;
+    #[cfg(not(unix))]
+    let executable = false;
+    FsMeta { is_file: t.is_file(), is_dir: t.is_dir(), is_symlink: t.is_symlink(), len: m.len(), executable }
 }
 
 impl FsView for LocalFs {
@@ -221,6 +224,11 @@ pub fn failed() -> bool {
     FAILED.try_with(|f| f.get() == Some(true)).unwrap_or(false)
 }
 
+/// The paths are of this machine (no remote view in force).
+pub fn is_local_view() -> bool {
+    CURRENT.with(|c| c.borrow().as_ref().is_none_or(|v| v.is_local()))
+}
+
 /// Calls `f` with the view in force. The view is cloned out of the slot first, so a view may itself use [`with_fs`].
 fn with_view<R>(f: impl FnOnce(&dyn FsView) -> R) -> R {
     match CURRENT.with(|c| c.borrow().clone()) {
@@ -285,6 +293,7 @@ pub fn is_local() -> bool {
 
 #[cfg(test)]
 mod tests {
+    use crate::policy::paths::tp;
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -319,13 +328,13 @@ mod tests {
         let view: Arc<dyn FsView> = a.clone();
         with_fs(Some(view), || {
             assert!(!is_local());
-            assert!(is_dir(Path::new("/srv/nowhere")));
+            assert!(is_dir(tp("/srv/nowhere").as_path()));
             with_fs(None, || {
                 assert!(is_local());
-                assert!(!exists(Path::new("/srv/nowhere")));
+                assert!(!exists(tp("/srv/nowhere").as_path()));
             });
             assert!(!is_local());
-            assert!(exists(Path::new("/srv/nowhere/x")));
+            assert!(exists(tp("/srv/nowhere/x").as_path()));
         });
         assert!(is_local());
         assert_eq!(a.0.load(Ordering::SeqCst), 2);
@@ -337,13 +346,13 @@ mod tests {
         let view: Arc<dyn FsView> = a.clone();
         with_fs(Some(view.clone()), || {
             for _ in 0..5 {
-                assert!(is_dir(Path::new("/srv/x")));
+                assert!(is_dir(tp("/srv/x").as_path()));
             }
-            assert!(is_dir(Path::new("/srv/y")));
+            assert!(is_dir(tp("/srv/y").as_path()));
         });
         assert_eq!(a.0.load(Ordering::SeqCst), 2);
         // a new scope asks again
-        with_fs(Some(view), || assert!(exists(Path::new("/srv/x"))));
+        with_fs(Some(view), || assert!(exists(tp("/srv/x").as_path())));
         assert_eq!(a.0.load(Ordering::SeqCst), 3);
     }
 
@@ -417,6 +426,7 @@ mod tests {
         });
     }
 
+    #[cfg(unix)]
     #[test]
     fn local_fs_reports_kinds() {
         let dir = tempfile::tempdir().unwrap();

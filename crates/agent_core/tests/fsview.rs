@@ -4,6 +4,7 @@
 //! the `fs/query` wire contract is enough for the whole policy (a view that serializes every call into the JSON ops and answers them from
 //! a real directory gives the same decisions as the local file system), and a decision costs few round trips.
 
+#![cfg(unix)]
 mod common;
 
 use std::collections::BTreeMap;
@@ -11,7 +12,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
-use common::bash;
+use common::{bash, sh};
 use intely_agent_core::policy::decide::{Decision, PolicyContext};
 use intely_agent_core::policy::fsview::{self, FsEntry, FsMeta, FsView};
 use intely_agent_core::policy::paths;
@@ -513,7 +514,7 @@ const CORPUS: &[&str] = &[
 ];
 
 fn decisions(c: &PolicyContext, w: &World, cmd: &str) -> String {
-    let cmd = cmd.replace("{backend}", &w.root.join("backend").display().to_string()).replace("{admin}", &w.root.join("admin").display().to_string()).replace("{root}", &w.root.display().to_string());
+    let cmd = cmd.replace("{backend}", &sh(&w.root.join("backend"))).replace("{admin}", &sh(&w.root.join("admin"))).replace("{root}", &sh(&w.root));
     let d = bash(c, &cmd);
     format!("{:?}/{:?}/{:?}/{}", d.decision, d.by, d.rule, d.reason)
 }

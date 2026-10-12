@@ -198,6 +198,7 @@ fn the_scrub_list_has_every_secret_value_and_never_prints() {
     assert!(!format!("{s:?}").contains(CANARY));
 }
 
+#[cfg(unix)]
 #[test]
 fn code_that_lies_where_the_agent_can_write_is_refused() {
     let run = tempfile::tempdir().unwrap();

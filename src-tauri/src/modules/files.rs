@@ -207,11 +207,7 @@ pub async fn files_reveal_entry(state: State<'_, FilesState>, engine: State<'_, 
             .and_then(|mut f| writeln!(f, "{}", path.display()))
             .map_err(|e| EngineError::new(intely_core::code::IO, format!("cannot log the reveal of {}: {e}", path.display())));
     }
-    std::process::Command::new("open")
-        .arg("-R")
-        .arg(&path)
-        .spawn()
-        .map(drop)
+    intely_core::sys::reveal_in_file_manager(&path)
         .map_err(|e| EngineError::new(intely_core::code::IO, format!("cannot reveal {}: {e}", path.display())))
 }
 

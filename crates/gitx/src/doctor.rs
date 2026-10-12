@@ -5,7 +5,6 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
-use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{Duration, SystemTime};
@@ -199,6 +198,13 @@ fn path_sanity(opts: &DoctorOpts, found: &BTreeMap<&'static str, PathBuf>, out: 
 
 // ---- disk -------------------------------------------------------------------------------------------------------------
 
+/// Windows: not reported (std has no free-space call and the check must not shell out); the disk check is skipped there.
+#[cfg(not(unix))]
+pub fn free_bytes(_path: &Path) -> Option<u64> {
+    None
+}
+
+#[cfg(unix)]
 pub fn free_bytes(path: &Path) -> Option<u64> {
     use std::ffi::CString;
     use std::os::unix::ffi::OsStrExt;
@@ -218,7 +224,7 @@ fn disk(opts: &DoctorOpts, out: &mut Vec<DoctorCheck>) {
     let mut add = |label: String, path: &Path| {
         let probe = path.ancestors().find(|a| a.exists()).unwrap_or(path);
         if let Ok(m) = fs::metadata(probe) {
-            volumes.entry(m.dev()).or_insert_with(|| (probe.to_path_buf(), Vec::new())).1.push(label);
+            volumes.entry(intely_core::sys::file_ids(&m).0).or_insert_with(|| (probe.to_path_buf(), Vec::new())).1.push(label);
         }
     };
     for (id, p) in &opts.repos {
@@ -293,7 +299,7 @@ fn hooks(opts: &DoctorOpts, git: &Path, id: &str, repo: &Path, out: &mut Vec<Doc
         if !m.is_file() || name.ends_with(".sample") || name.starts_with('.') {
             continue;
         }
-        if m.mode() & 0o111 == 0 { not_exec.push(name.clone()) }
+        if !intely_core::sys::is_executable(&m, &e.path()) { not_exec.push(name.clone()) }
         present.push(name);
     }
     present.sort();
@@ -466,8 +472,10 @@ pub fn run(opts: &DoctorOpts) -> Vec<DoctorCheck> {
 
 #[cfg(test)]
 mod hardening_tests {
+    #[cfg_attr(not(unix), allow(unused_imports))]
     use super::*;
 
+    #[cfg_attr(not(unix), allow(dead_code))]
     fn git(dir: &std::path::Path, args: &[&str]) {
         let out = std::process::Command::new(intely_core::exec::pinned_git_path())
             .current_dir(dir)
@@ -483,9 +491,11 @@ mod hardening_tests {
         assert!(out.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&out.stderr));
     }
 
+    #[cfg(unix)]
     /// A committed, dirty repo whose `core.fsmonitor` is a program that leaves `marker` behind. The control run proves
     /// that an unhardened git really executes it.
     fn hostile_repo() -> (tempfile::TempDir, std::path::PathBuf, std::path::PathBuf) {
+        #[cfg(unix)]
         use std::os::unix::fs::PermissionsExt;
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path().canonicalize().unwrap();
@@ -507,6 +517,7 @@ mod hardening_tests {
         (dir, repo, marker)
     }
 
+    #[cfg(unix)]
     #[test]
     fn the_doctor_child_helper_never_runs_core_fsmonitor_through_git() {
         let (d, repo, marker) = hostile_repo();

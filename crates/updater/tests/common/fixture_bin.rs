@@ -5,11 +5,13 @@
 //! write `clean-exit-<token>`, exit after N seconds, hang, spawn an orphan child process.
 //! A hard lifetime cap makes sure a stray fixture can never linger.
 use std::fs;
+#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::OnceLock;
 
+#[cfg(unix)]
 use super::fixture_app::{have_codesign, sign_adhoc, TEST_EXE};
 
 const SOURCE: &str = r#"
@@ -158,6 +160,7 @@ pub fn have_cc() -> bool {
     Path::new("/usr/bin/cc").exists()
 }
 
+#[cfg(unix)]
 /// Writes `<parent>/<dir_name>` as an `LSBackgroundOnly` app that runs the fixture program with
 /// `behavior`, and signs it ad hoc when `codesign` exists.
 pub fn make_fixture_app(parent: &Path, dir_name: &str, bundle_id: &str, version: &str, behavior: &Behavior) -> PathBuf {

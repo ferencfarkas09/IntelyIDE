@@ -45,7 +45,7 @@ impl<T: FsTransport> RpcFs<T> {
     }
 
     fn arg(p: &Path) -> Option<&str> {
-        p.to_str().filter(|s| p.is_absolute() && !s.is_empty() && s.len() <= MAX_PATH && !s.contains('\0'))
+        p.to_str().filter(|s| (p.is_absolute() || s.starts_with('/')) && !s.is_empty() && s.len() <= MAX_PATH && !s.contains('\0'))
     }
 
     /// One request, with the checks every answer needs: as many results as ops, each a JSON object. Anything else is a failed look.

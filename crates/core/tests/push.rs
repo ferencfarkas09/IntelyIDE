@@ -1,5 +1,6 @@
 //! Push, outgoing computation, pull and fetch against real git and file-transport remotes (RESULTS.md P1-P7).
 
+#![cfg(unix)]
 mod common;
 
 use std::time::Duration;

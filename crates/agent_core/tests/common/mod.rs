@@ -7,6 +7,12 @@ use intely_agent_core::policy::intent::{PolicyRequest, ToolIntent};
 use intely_agent_core::providers::PermissionMode;
 use serde_json::Value;
 
+/// A path as it is written inside a shell command: forward slashes and no `\\?\` prefix (Git Bash on Windows), the plain path elsewhere.
+pub fn sh(p: &std::path::Path) -> String {
+    let s = p.display().to_string();
+    if cfg!(windows) { s.trim_start_matches(r"\\?\").replace('\\', "/") } else { s }
+}
+
 /// A throw-away working directory shaped like a repo (never a real one).
 pub struct Fx {
     pub dir: tempfile::TempDir,

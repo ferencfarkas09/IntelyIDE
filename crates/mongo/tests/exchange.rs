@@ -2,6 +2,7 @@
 //! is strict (caps, unknown fields, hostile hosts and paths, special files) and hardens everything it accepts; errors
 //! name a line and a code, never input text. No Docker, no network: fakes and temp directories only.
 
+#[cfg_attr(not(unix), allow(unused_imports))]
 use std::io::Read;
 use std::path::Path;
 use std::sync::Arc;
@@ -10,6 +11,7 @@ use intely_mongo::api::{AiMode, AiPrefs, Domain, Environment, GlossaryPair, Prof
 use intely_mongo::connspec::{AuthMechanism, ConnSpec, HostPort, ProxySpec, SshSpec, TlsMode, Tunnel, TunnelAuth};
 use intely_mongo::connstring::{Parsed, ParsedSecrets};
 use intely_mongo::error::{code, StudioError};
+#[cfg_attr(not(unix), allow(unused_imports))]
 use intely_mongo::exchange::{self, ExportOptions, FileKind, FileSource, ImportOptions, OpenedFile, OsFiles};
 use intely_mongo::profile::{Profile, ProfileStore};
 use intely_settings::{MemorySecretStore, Secret, SettingsStore};

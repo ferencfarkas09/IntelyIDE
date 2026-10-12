@@ -1,5 +1,6 @@
 //! Cancel protocol: soft interrupt window, SIGTERM, SIGKILL, exactly one turn.end, pending permissions cancelled.
 
+#![cfg(unix)]
 mod common;
 
 use std::sync::atomic::{AtomicUsize, Ordering};

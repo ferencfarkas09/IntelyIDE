@@ -3,7 +3,6 @@
 //! that lives under the fixture root (a fake) runs, never the real one. Tokens are never read: `gh` authenticates
 //! itself, we only look at exit codes, and anything token-shaped is stripped from the text we hand back.
 
-use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Arc;
@@ -19,10 +18,7 @@ pub const GH_MISSING: &str = "ghMissing";
 pub const GH_AUTH: &str = "ghAuth";
 
 pub fn find_in_path(path: &str, bin: &str) -> Option<PathBuf> {
-    path.split(':')
-        .filter(|d| !d.is_empty())
-        .map(|d| Path::new(d).join(bin))
-        .find(|p| p.metadata().is_ok_and(|m| m.is_file() && m.permissions().mode() & 0o111 != 0))
+    intely_core::sys::find_in_path(path, bin)
 }
 
 /// Replaces anything shaped like a GitHub token. Defensive: `gh` does not print its token in the calls we make.

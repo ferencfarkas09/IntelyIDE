@@ -274,6 +274,7 @@ fn the_canary_switches_delegation_off_for_every_later_start() {
     host.shutdown();
 }
 
+#[cfg(unix)]
 #[test]
 fn resume_rebuilds_the_delegate_set_from_the_current_files_and_keeps_the_count() {
     let dir = tempfile::tempdir().unwrap();
@@ -307,6 +308,7 @@ fn resume_rebuilds_the_delegate_set_from_the_current_files_and_keeps_the_count()
     host.shutdown();
 }
 
+#[cfg(unix)]
 #[test]
 fn a_single_role_resume_keeps_the_recorded_permission_as_a_ceiling() {
     use intely_agent_host::roles::RoleDef;

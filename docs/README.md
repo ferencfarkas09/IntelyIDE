@@ -9,6 +9,8 @@ Audiences: **users** run the app, **contributors** change the code, **maintainer
 | [Getting started](getting-started.md) | Install, run modes, the Welcome screen, workspaces, read-only versus writing, a first commit in a throwaway repository | users |
 | [FAQ and troubleshooting](faq.md) | Common questions, fixes, where state and logs live, resetting, uninstalling, reporting bugs | users |
 | [Install on macOS](install-macos.md) | Choosing and verifying the DMG, the Gatekeeper prompt, first-run notes, uninstall | users |
+| [Install on Windows](install-windows.md) | Building and running on Windows 10/11: requirements, what differs | users |
+| [Install on Linux](install-linux.md) | Building and running on Linux: requirements, what differs | users |
 | [Safety model](safety.md) | The layers that protect your repositories, their limits and how they are tested | users, contributors |
 | [Privacy](privacy.md) | What is stored, where, and what leaves your machine | users |
 | [Internationalisation](i18n.md) | How the interface language works and how translations are produced | users, contributors |

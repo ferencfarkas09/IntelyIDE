@@ -1,5 +1,6 @@
 //! GitX tests: fixture repos under a temp dir, a fake `gh` script first on the PATH, no network and no real gh.
 
+#![cfg(unix)]
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};

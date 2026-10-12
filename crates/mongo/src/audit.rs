@@ -4,7 +4,6 @@
 //! URIs, no literal values.**
 
 use std::io::Write;
-use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
@@ -81,7 +80,11 @@ impl AuditLog {
         if std::fs::metadata(&self.path).is_ok_and(|m| m.len() >= self.max_bytes) {
             self.roll();
         }
-        let mut f = std::fs::OpenOptions::new().create(true).append(true).mode(0o600).open(&self.path).map_err(|e| StudioError::new(code::AUDIT, e.to_string()))?;
+        let mut options = std::fs::OpenOptions::new();
+        options.create(true).append(true);
+        #[cfg(unix)]
+        std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+        let mut f = options.open(&self.path).map_err(|e| StudioError::new(code::AUDIT, e.to_string()))?;
         f.write_all(&line).map_err(|e| StudioError::new(code::AUDIT, e.to_string()))
     }
 

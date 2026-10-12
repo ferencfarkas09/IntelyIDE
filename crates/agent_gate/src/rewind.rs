@@ -15,7 +15,6 @@
 use std::collections::BTreeSet;
 use std::ffi::OsStr;
 use std::io::Write;
-use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -302,7 +301,7 @@ impl Rewind {
                 continue; // skip-worktree entries are not in the working tree
             }
             let text = String::from_utf8_lossy(path).into_owned();
-            let on_disk = std::fs::symlink_metadata(top.join(OsStr::from_bytes(path)));
+            let on_disk = std::fs::symlink_metadata(top.join(path_from_git(path)));
             let Ok(meta) = on_disk else { continue }; // deleted tracked file: simply absent from the tree
             if meta.is_dir() || !(meta.is_file() || meta.file_type().is_symlink()) {
                 if tag == b'?' && path.ends_with(b"/") {
@@ -497,14 +496,29 @@ fn prune_empty_parents(top: &Path, file: &Path) {
     }
 }
 
+/// A path as git prints it (`-z`, bytes). Unix paths are arbitrary bytes; on Windows git prints UTF-8.
+fn path_from_git(bytes: &[u8]) -> std::path::PathBuf {
+    #[cfg(unix)]
+    {
+        use std::os::unix::ffi::OsStrExt;
+        std::path::PathBuf::from(OsStr::from_bytes(bytes))
+    }
+    #[cfg(not(unix))]
+    {
+        std::path::PathBuf::from(String::from_utf8_lossy(bytes).into_owned())
+    }
+}
+
 fn now_secs() -> u64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs())
 }
 
 #[cfg(test)]
 mod hardening_tests {
+    #[cfg_attr(not(unix), allow(unused_imports))]
     use super::*;
 
+    #[cfg_attr(not(unix), allow(dead_code))]
     fn git(dir: &std::path::Path, args: &[&str]) {
         let out = std::process::Command::new(intely_core::exec::pinned_git_path())
             .current_dir(dir)
@@ -520,9 +534,11 @@ mod hardening_tests {
         assert!(out.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&out.stderr));
     }
 
+    #[cfg(unix)]
     /// A committed, dirty repo whose `core.fsmonitor` is a program that leaves `marker` behind. The control run proves
     /// that an unhardened git really executes it.
     fn hostile_repo() -> (tempfile::TempDir, std::path::PathBuf, std::path::PathBuf) {
+        #[cfg(unix)]
         use std::os::unix::fs::PermissionsExt;
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path().canonicalize().unwrap();
@@ -544,6 +560,7 @@ mod hardening_tests {
         (dir, repo, marker)
     }
 
+    #[cfg(unix)]
     #[test]
     fn a_rewind_snapshot_never_runs_core_fsmonitor() {
         let (_d, repo, marker) = hostile_repo();

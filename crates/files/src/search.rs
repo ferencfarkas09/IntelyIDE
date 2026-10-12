@@ -33,7 +33,7 @@ fn rg_path() -> Option<PathBuf> {
         }
         let extra = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin"].map(PathBuf::from);
         let from_path = std::env::var_os("PATH").map(|p| std::env::split_paths(&p).collect::<Vec<_>>()).unwrap_or_default();
-        from_path.into_iter().chain(extra).map(|d| d.join("rg")).find(|p| p.is_file())
+        from_path.into_iter().chain(extra).flat_map(|d| intely_core::sys::executable_names("rg").into_iter().map(move |n| d.join(n))).find(|p| p.is_file())
     })
     .clone()
 }

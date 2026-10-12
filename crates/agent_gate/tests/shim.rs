@@ -2,6 +2,7 @@
 //! on PATH, inside a fixture repo that has a bare remote. Every row also proves nothing changed that should not
 //! have: HEAD, all refs, the remote.
 
+#![cfg(unix)]
 mod common;
 
 use std::os::unix::fs::PermissionsExt;

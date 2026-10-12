@@ -3,6 +3,7 @@
 import { type ChildProcess, execFile, spawn } from 'node:child_process';
 import readline from 'node:readline';
 import { promisify } from 'node:util';
+import { killTree } from '../../killtree.js';
 import { redact } from '../../redact.js';
 import { RpcPeer, type RpcOptions } from './rpc.js';
 import { parseVersion } from './wire.js';
@@ -32,7 +33,7 @@ export function startServer(bin: string, args: string[], env: Record<string, str
   void exited.then(() => rpc.close(new Error('codex app-server exited')));
   if (child.pid !== undefined) onSpawn?.(child.pid);
   const alive = () => child.exitCode === null && child.signalCode === null;
-  const kill = (sig: NodeJS.Signals) => { if (child.pid === undefined) return; try { process.kill(-child.pid, sig); } catch { try { child.kill(sig); } catch { /* gone */ } } };
+  const kill = (sig: NodeJS.Signals) => { if (child.pid === undefined) return; if (!killTree(child.pid, sig)) { try { child.kill(sig); } catch { /* gone */ } } };
   return {
     child, rpc, stderr, exited,
     async stop(graceMs = 3000) {

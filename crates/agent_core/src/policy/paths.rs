@@ -233,6 +233,10 @@ fn follow_links(path: &Path) -> PathBuf {
 /// (case, `/tmp` -> `/private/tmp`) and re-appends the rest. A remote file system view may answer the whole thing in one go
 /// ([`fsview::FsView::canonical_lossy`]); otherwise it is built from the view's `read_link` and `canonicalize`.
 pub fn canonical_lossy(path: &Path) -> PathBuf {
+    host_path(&canonical_lossy_raw(&host_path(path)))
+}
+
+fn canonical_lossy_raw(path: &Path) -> PathBuf {
     if path.is_absolute() {
         if let Some(done) = fsview::canonical_lossy_shortcut(path) {
             return done;
@@ -257,6 +261,8 @@ pub fn canonical_lossy(path: &Path) -> PathBuf {
 }
 
 fn abs_or_lexical(p: &Path) -> PathBuf {
+    let fixed = host_path(p);
+    let p = fixed.as_path();
     if p.is_absolute() { p.to_path_buf() } else { normalize_lexical(p) }
 }
 
@@ -265,21 +271,195 @@ fn abs_or_lexical(p: &Path) -> PathBuf {
 /// directory, the previous one, an entry of the directory stack): it is put under the root of the file system, outside every run
 /// folder, so it is judged as outside and never read as a folder of the working directory.
 pub fn tilde_expanded(raw: &str, home: Option<&Path>) -> PathBuf {
-    let Some(rest) = raw.strip_prefix('~') else { return PathBuf::from(raw) };
+    let Some(rest) = raw.strip_prefix('~') else { return host_path(Path::new(raw)) };
     match (rest.strip_prefix('/').or(rest.is_empty().then_some("")), home) {
         (Some(rest), Some(h)) => h.join(rest),
-        _ => Path::new("/").join(raw),
+        _ => host_path(&Path::new("/").join(raw)),
     }
+}
+
+/// Spells `text` (a path as an agent or a fixture writes it) the way Windows names it, given the drive of the working directory: the
+/// verbatim prefix `\\?\` is dropped, a Git Bash / Cygwin drive (`/c/Users/x`, `/cygdrive/c/x`) becomes `C:/Users/x`, and a path with
+/// a root but no drive (`/x`, `\x`) gets `drive`. Anything else is returned as it is. Pure, so it is tested on every OS;
+/// [`host_path`] applies it on Windows only.
+fn windows_spelling_inner(text: &str, drive: &str) -> String {
+    let t = text.replace('\\', "/");
+    let t = if let Some(rest) = t.strip_prefix("//?/UNC/") {
+        return format!("//{rest}");
+    } else if let Some(rest) = t.strip_prefix("//?/").or_else(|| t.strip_prefix("//./")) {
+        rest.to_owned()
+    } else {
+        t
+    };
+    let bytes = t.as_bytes();
+    if bytes.len() >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':' {
+        return t;
+    }
+    if t.starts_with("//") && !t.starts_with("///") {
+        return t; // \\server\share
+    }
+    if !t.starts_with('/') {
+        return t;
+    }
+    let msys = t.strip_prefix("/cygdrive").unwrap_or(&t);
+    let b = msys.as_bytes();
+    if b.len() >= 2 && b[0] == b'/' && b[1].is_ascii_alphabetic() && (b.len() == 2 || b[2] == b'/') {
+        let rest = &msys[2..];
+        return format!("{}:{}", (b[1] as char).to_ascii_uppercase(), if rest.is_empty() { "/" } else { rest });
+    }
+    format!("{drive}{t}")
+}
+
+pub fn windows_spelling(text: &str, drive: &str) -> String {
+    let spelled = windows_spelling_inner(text, drive);
+    // Windows ignores trailing dots and spaces in a name (`.git.` is `.git`) and an alternate data stream (`f.txt:s`, `f.txt::$DATA`)
+    // is the file itself: judge the name the file system will use.
+    let (prefix, rest) = if spelled.len() >= 2 && spelled.as_bytes()[1] == b':' && spelled.as_bytes()[0].is_ascii_alphabetic() {
+        spelled.split_at(2)
+    } else {
+        ("", spelled.as_str())
+    };
+    let cleaned: Vec<String> = rest
+        .split('/')
+        .map(|c| {
+            if c == "." || c == ".." {
+                return c.to_owned();
+            }
+            let name = c.split(':').next().unwrap_or("");
+            let trimmed = name.trim_end_matches(['.', ' ']);
+            if trimmed.is_empty() && !c.is_empty() { name.to_owned() } else { trimmed.to_owned() }
+        })
+        .collect();
+    format!("{prefix}{}", cleaned.join("/"))
+}
+
+/// A Windows device name (`CON`, `NUL`, `COM1`, `LPT3`, also with an extension: `nul.txt`): opening it does not open a file.
+pub fn is_windows_device_name(name: &str) -> bool {
+    let stem = name.split(['.', ':']).next().unwrap_or("").trim_end().to_ascii_uppercase();
+    matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL" | "CONIN$" | "CONOUT$")
+        || ((stem.starts_with("COM") || stem.starts_with("LPT")) && stem.len() == 4 && stem.as_bytes()[3].is_ascii_digit() && stem.as_bytes()[3] != b'0')
+}
+
+/// A fixture path written the Unix way, spelled for this machine (test helper).
+#[cfg(test)]
+pub(crate) fn tp(s: &str) -> PathBuf {
+    host_path(Path::new(s))
+}
+
+/// [`windows_spelling`] for a path of this machine; unchanged on other systems and for the paths of a remote machine.
+pub fn host_path(p: &Path) -> PathBuf {
+    #[cfg(windows)]
+    if fsview::is_local_view() {
+        let drive = std::env::current_dir().ok().and_then(|d| d.to_str().map(|s| s.trim_start_matches(r"\\?\").chars().take(2).collect::<String>())).filter(|d| d.ends_with(':')).unwrap_or_else(|| "C:".to_owned());
+        return PathBuf::from(windows_spelling(&p.to_string_lossy(), &drive));
+    }
+    p.to_path_buf()
 }
 
 /// `~`, relative-to-`base`, `.`/`..`, symlinks.
 pub fn resolve(base: &Path, raw: &str, home: Option<&Path>) -> PathBuf {
     let expanded = tilde_expanded(raw, home);
-    let abs = if expanded.is_absolute() { expanded } else { base.join(expanded) };
+    let abs = if expanded.is_absolute() { expanded } else { host_path(&base.join(expanded)) };
     if abs.is_absolute() {
         canonical_lossy(&abs)
     } else {
         canonical_lossy(&normalize_lexical(&abs))
+    }
+}
+
+/// How paths of an OS spell and compare: Windows writes `\\` and `C:` in either case and compares names without regard to case, and the
+/// default macOS volume (APFS) does the same. A pure value so the rules can be tested for every OS on every OS.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PathStyle {
+    pub backslash: bool,
+    pub fold_case: bool,
+}
+
+impl PathStyle {
+    pub const UNIX: PathStyle = PathStyle { backslash: false, fold_case: false };
+    pub const MACOS: PathStyle = PathStyle { backslash: false, fold_case: true };
+    pub const WINDOWS: PathStyle = PathStyle { backslash: true, fold_case: true };
+
+    pub fn host() -> PathStyle {
+        if cfg!(windows) {
+            Self::WINDOWS
+        } else if cfg!(target_os = "macos") {
+            Self::MACOS
+        } else {
+            Self::UNIX
+        }
+    }
+}
+
+fn style_parts(path: &str, style: PathStyle) -> Vec<String> {
+    let text = if style.backslash { path.replace('\\', "/") } else { path.to_owned() };
+    // `\\?\C:\x` (the verbatim prefix Windows canonicalisation adds) is the same place as `C:\x`
+    let text = text.strip_prefix("//?/").map(str::to_owned).unwrap_or(text);
+    text.split('/').filter(|p| !p.is_empty() && *p != ".").map(|p| p.to_lowercase()).collect()
+}
+
+/// The components of `path` below `home` (lower-cased, for the lists below), or `None` when the path is not inside it.
+/// `home` is compared exactly on a case-sensitive system and without regard to case where `style.fold_case` is set.
+pub fn rel_to_home(home: &str, path: &str, style: PathStyle) -> Option<Vec<String>> {
+    let (h, p) = (style_parts(home, style), style_parts(path, style));
+    // lower-casing is only a fold for the comparison on a case-sensitive system: compare the original spelling there
+    if !style.fold_case {
+        let strip = |t: &str| -> Vec<String> { t.split('/').filter(|x| !x.is_empty() && *x != ".").map(str::to_owned).collect() };
+        let (ho, po) = (strip(home), strip(path));
+        if po.len() < ho.len() || po[..ho.len()] != ho[..] {
+            return None;
+        }
+        return Some(po[ho.len()..].iter().map(|x| x.to_lowercase()).collect());
+    }
+    (p.len() >= h.len() && p[..h.len()] == h[..]).then(|| p[h.len()..].to_vec())
+}
+
+/// Credential, browser-profile and password-manager locations directly below the home directory, for every supported OS (the
+/// lists are cheap, and a Windows-style or Linux-style path may be named on any host). `c` is the lower-cased path below home.
+pub fn home_secret_reason(c: &[String]) -> Option<&'static str> {
+    let at = |i: usize| c.get(i).map(String::as_str);
+    const BROWSER: &str = "a browser profile, cookie store or password manager";
+    match at(0)? {
+        ".claude.json" => Some("the Claude Code user configuration (MCP environments and OAuth state)"),
+        ".claude" if at(1) != Some("agents") => Some("the Claude Code user data (transcripts, plans, settings, credentials)"),
+        // macOS
+        "library" => match (at(1)?, at(2)) {
+            ("application support", Some(app)) if APP_SUPPORT_SECRET_DIRS.contains(&app) || (app == "google" && at(3) == Some("chrome")) => Some(BROWSER),
+            ("group containers", Some(g)) if g.contains("1password") => Some("a password manager data directory"),
+            ("safari" | "cookies", _) => Some("the Safari profile or cookie store"),
+            ("containers", Some("com.apple.safari")) => Some("the Safari profile or cookie store"),
+            ("caches", Some("claude-cli-nodejs")) => Some("the Claude CLI cache (MCP logs)"),
+            _ => None,
+        },
+        // Linux
+        ".mozilla" | ".thunderbird" | ".gnupg" | ".pki" | ".password-store" => Some(BROWSER),
+        ".config" => match at(1)? {
+            "google-chrome" | "google-chrome-beta" | "google-chrome-unstable" | "chromium" | "microsoft-edge" | "brave-browser" | "bravesoftware" | "vivaldi" | "opera" | "firefox" | "1password" | "bitwarden" | "keepassxc" | "claude" => Some(BROWSER),
+            _ => None,
+        },
+        ".local" => match (at(1)?, at(2)) {
+            ("share", Some("keyrings" | "gnome-keyring" | "kwalletd" | "kwallet" | "keepassxc")) => Some("the desktop keyring (stored passwords)"),
+            _ => None,
+        },
+        ".var" if at(1) == Some("app") => match at(2) {
+            Some(app) if app.contains("firefox") || app.contains("chrome") || app.contains("chromium") || app.contains("brave") || app.contains("1password") || app.contains("bitwarden") || app.contains("keepass") => Some(BROWSER),
+            _ => None,
+        },
+        "snap" => match at(1) {
+            Some("firefox" | "chromium" | "brave" | "1password" | "bitwarden") => Some(BROWSER),
+            _ => None,
+        },
+        // Windows (%APPDATA% is AppData\Roaming, %LOCALAPPDATA% is AppData\Local)
+        "appdata" => match (at(1)?, at(2), at(3)) {
+            ("roaming", Some("microsoft"), Some("credentials" | "protect" | "vault" | "crypto" | "systemcertificates")) => Some("the Windows credential store (DPAPI master keys, saved credentials)"),
+            ("local", Some("microsoft"), Some("credentials" | "vault" | "edge")) => Some("the Windows credential store or an Edge profile"),
+            ("local", Some("google"), Some("chrome" | "chrome beta")) => Some(BROWSER),
+            ("local", Some("bravesoftware" | "chromium" | "vivaldi" | "opera software"), _) => Some(BROWSER),
+            ("roaming", Some("mozilla" | "thunderbird" | "1password" | "bitwarden" | "keepassxc" | "claude" | "opera software"), _) => Some(BROWSER),
+            ("local", Some("1password" | "packages"), Some(p)) if p.contains("1password") => Some(BROWSER),
+            _ => None,
+        },
+        _ => None,
     }
 }
 
@@ -365,10 +545,18 @@ pub fn exec_surface_flags(paths: &[String]) -> Vec<bool> {
 
 /// Why an agent must not read this file (the guard's secret list plus credential directories).
 pub fn never_read_reason(path: &Path) -> Option<&'static str> {
+    never_read_reason_styled(path, PathStyle::host())
+}
+
+/// [`never_read_reason`] under the naming rules of `style`: the device names of Windows (`aux`, `con`, `nul.txt`) are ordinary names elsewhere.
+pub fn never_read_reason_styled(path: &Path, style: PathStyle) -> Option<&'static str> {
     if let Some(why) = wrangler_secret_reason(path).or_else(|| tunnel_dir_reason(path)).or_else(|| mcp_temp_dir_reason(path)) {
         return Some(why);
     }
     let names: Vec<String> = path.components().filter_map(name_of).map(|n| n.to_ascii_lowercase()).collect();
+    if style.backslash && names.iter().any(|n| is_windows_device_name(n)) {
+        return Some("a Windows device name");
+    }
     if names.iter().any(|n| SECRET_DIRS.iter().any(|d| n.eq_ignore_ascii_case(d))) {
         return Some("credential directory");
     }
@@ -498,22 +686,9 @@ impl Jail {
     /// own `.claude` directory stays readable, `~/.claude` (transcripts, plans, settings, credentials) does not, except
     /// `~/.claude/agents/**` (the global role files the IDE manages).
     fn home_never_read_reason(&self, resolved: &Path) -> Option<&'static str> {
-        let rel = resolved.strip_prefix(self.home_real.as_deref()?).ok()?;
-        let c: Vec<String> = rel.components().filter_map(name_of).map(|n| n.to_ascii_lowercase()).collect();
-        let at = |i: usize| c.get(i).map(String::as_str);
-        match at(0)? {
-            ".claude.json" => Some("the Claude Code user configuration (MCP environments and OAuth state)"),
-            ".claude" if at(1) != Some("agents") => Some("the Claude Code user data (transcripts, plans, settings, credentials)"),
-            "library" => match (at(1)?, at(2)) {
-                ("application support", Some(app)) if APP_SUPPORT_SECRET_DIRS.contains(&app) || (app == "google" && at(3) == Some("chrome")) => Some("a browser profile, cookie store or password manager"),
-                ("group containers", Some(g)) if g.contains("1password") => Some("a password manager data directory"),
-                ("safari" | "cookies", _) => Some("the Safari profile or cookie store"),
-                ("containers", Some("com.apple.safari")) => Some("the Safari profile or cookie store"),
-                ("caches", Some("claude-cli-nodejs")) => Some("the Claude CLI cache (MCP logs)"),
-                _ => None,
-            },
-            _ => None,
-        }
+        let home = self.home_real.as_deref()?;
+        let c = rel_to_home(&home.to_string_lossy(), &resolved.to_string_lossy(), PathStyle::host())?;
+        home_secret_reason(&c)
     }
 
     /// [`wrangler_secret_reason`] plus `<IDE state>/relay-deploy`, wherever the state directory is.
@@ -684,6 +859,98 @@ fn user_persistence_reason(path: &Path) -> Option<&'static str> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn windows_device_names_are_ordinary_names_on_unix_and_macos() {
+        for p in ["/repo/aux", "/repo/con", "/repo/nul.txt", "/repo/COM1", "/usr/bin/ps"] {
+            assert!(never_read_reason_styled(Path::new(p), PathStyle::UNIX).is_none(), "{p}");
+            assert!(never_read_reason_styled(Path::new(p), PathStyle::MACOS).is_none(), "{p}");
+        }
+        for p in ["C:/repo/aux", "C:/repo/CON", "C:/repo/nul.txt", "C:/repo/com1"] {
+            assert_eq!(never_read_reason_styled(Path::new(p), PathStyle::WINDOWS), Some("a Windows device name"), "{p}");
+        }
+        assert!(never_read_reason_styled(Path::new("C:/repo/main.rs"), PathStyle::WINDOWS).is_none());
+    }
+
+    #[test]
+    fn the_host_functions_do_not_rewrite_unix_paths() {
+        if cfg!(windows) {
+            return;
+        }
+        for p in ["/c/Users/me", "/x", "a.", "x:y", "/r/f.txt::$DATA", "/r/.git."] {
+            assert_eq!(host_path(Path::new(p)), Path::new(p), "{p}");
+        }
+        assert_eq!(tilde_expanded("/c/Users", None), Path::new("/c/Users"));
+    }
+
+    #[test]
+    fn windows_spelling_handles_drives_msys_verbatim_and_tricks() {
+        let w = |s: &str| windows_spelling(s, "C:");
+        assert_eq!(w("/Users/me"), "C:/Users/me");
+        assert_eq!(w(r"\Users\me"), "C:/Users/me");
+        assert_eq!(w("/c/Users/me"), "C:/Users/me");
+        assert_eq!(w("/D/work"), "D:/work");
+        assert_eq!(w("/cygdrive/d/work"), "D:/work");
+        assert_eq!(w("/c"), "C:/");
+        assert_eq!(w(r"\\?\D:\a\b"), "D:/a/b");
+        assert_eq!(w(r"\\?\UNC\srv\share\x"), "//srv/share/x");
+        assert_eq!(w(r"C:\Users\me\.git."), "C:/Users/me/.git");
+        assert_eq!(w(r"C:\Users\me\.git "), "C:/Users/me/.git");
+        assert_eq!(w(r"C:\r\file.txt::$DATA"), "C:/r/file.txt");
+        assert_eq!(w(r"C:\r\.env:x"), "C:/r/.env");
+        assert_eq!(w(r"C:\r\..\x"), "C:/r/../x");
+        assert_eq!(w("rel/ative"), "rel/ative");
+        assert_eq!(w("/etc/passwd"), "C:/etc/passwd", "a rooted path is on the drive of the working directory");
+    }
+
+    #[test]
+    fn windows_device_names_are_recognised() {
+        for n in ["CON", "nul", "NUL.txt", "com1", "LPT9", "aux.log", "CONOUT$"] {
+            assert!(is_windows_device_name(n), "{n}");
+        }
+        for n in ["console", "com0", "COM10", "null", "main.rs", ""] {
+            assert!(!is_windows_device_name(n), "{n}");
+        }
+    }
+
+    fn reason(home: &str, path: &str, style: PathStyle) -> Option<&'static str> {
+        rel_to_home(home, path, style).and_then(|c| home_secret_reason(&c))
+    }
+
+    #[test]
+    fn windows_credential_and_browser_locations_are_never_read_in_any_spelling() {
+        for p in [
+            r"C:\Users\Me\AppData\Roaming\Microsoft\Credentials\ABC",
+            r"c:\users\me\appdata\roaming\microsoft\protect\S-1-5\key",
+            r"C:\Users\Me\AppData\Local\Microsoft\Edge\User Data\Default\Cookies",
+            r"C:\Users\Me\AppData\Local\Google\Chrome\User Data\Default\Login Data",
+            r"C:/Users/Me/AppData/Roaming/Mozilla/Firefox/Profiles/x/logins.json",
+            r"\\?\C:\Users\Me\AppData\Local\BraveSoftware\Brave-Browser\User Data",
+            r"C:\USERS\ME\APPDATA\ROAMING\MICROSOFT\VAULT\x",
+        ] {
+            assert!(reason(r"C:\Users\Me", p, PathStyle::WINDOWS).is_some(), "{p}");
+        }
+        assert!(reason(r"C:\Users\Me", r"C:\Users\Me\AppData\Local\Programs\app\x.txt", PathStyle::WINDOWS).is_none());
+        assert!(reason(r"C:\Users\Me", r"D:\Users\Me\AppData\Roaming\Mozilla", PathStyle::WINDOWS).is_none(), "another drive is another place");
+        assert!(reason(r"C:\Users\Me", r"C:\Users\Me2\AppData\Roaming\Mozilla", PathStyle::WINDOWS).is_none());
+    }
+
+    #[test]
+    fn linux_credential_and_browser_locations_are_never_read() {
+        for p in ["/home/me/.mozilla/firefox/x/logins.json", "/home/me/.config/google-chrome/Default/Cookies", "/home/me/.config/chromium/Default/Login Data", "/home/me/.local/share/keyrings/login.keyring", "/home/me/.gnupg/private-keys-v1.d/k", "/home/me/snap/firefox/common/.mozilla/x"] {
+            assert!(reason("/home/me", p, PathStyle::UNIX).is_some(), "{p}");
+        }
+        assert!(reason("/home/me", "/home/me/.local/share/applications/x.desktop", PathStyle::UNIX).is_none());
+        assert!(reason("/home/me", "/home/me/.config/nvim/init.lua", PathStyle::UNIX).is_none());
+    }
+
+    #[test]
+    fn case_is_folded_only_where_the_system_folds_it() {
+        assert!(reason("/Users/me", "/users/ME/library/application support/google/chrome/x", PathStyle::MACOS).is_some());
+        assert!(reason("/home/me", "/home/ME/.mozilla/x", PathStyle::UNIX).is_none(), "a case-sensitive system: another user's folder");
+        assert!(reason("/home/me", "/home/me/.Mozilla/x", PathStyle::UNIX).is_some(), "names below home are still judged in lower case");
+        assert_eq!(rel_to_home("C:\\Users\\Me", "c:/users/me/x//./y", PathStyle::WINDOWS), Some(vec!["x".to_owned(), "y".to_owned()]));
+    }
+
     use super::*;
 
     #[test]
@@ -704,8 +971,8 @@ mod tests {
 
     #[test]
     fn lexical_normalization() {
-        assert_eq!(normalize_lexical(Path::new("/a/b/../c/./d")), PathBuf::from("/a/c/d"));
-        assert_eq!(normalize_lexical(Path::new("/../..")), PathBuf::from("/"));
+        assert_eq!(normalize_lexical(tp("/a/b/../c/./d").as_path()), tp("/a/c/d"));
+        assert_eq!(normalize_lexical(tp("/../..").as_path()), tp("/"));
         assert_eq!(normalize_lexical(Path::new("../x")), PathBuf::from("../x"));
     }
 
@@ -732,13 +999,13 @@ mod tests {
 
     #[test]
     fn user_level_git_and_ssh_files_are_protected_only_outside_the_repo() {
-        let jail = Jail::new(Path::new("/work/repo"), &[], Some(Path::new("/Users/me")));
+        let jail = Jail::new(tp("/work/repo").as_path(), &[], Some(tp("/Users/me").as_path()));
         for p in ["/Users/me/.gitconfig", "/Users/me/.config/git/config", "/Users/me/.config/git/hooks/pre-push", "/Users/me/.ssh/config", "/Users/me/.git-credentials", "/Users/me/.netrc", "/Users/me/.config/gh/hosts.yml", "/etc/gitconfig", "/Users/me/.GITCONFIG"] {
             assert!(jail.protected_reason(Path::new(p)).is_some(), "{p}");
         }
         // inside the working directory these names are ordinary files (a dotfiles repo)
-        assert_eq!(jail.protected_reason(Path::new("/work/repo/dotfiles/.gitconfig")), None);
-        assert_eq!(jail.protected_reason(Path::new("/Users/me/notes.md")), None);
+        assert_eq!(jail.protected_reason(tp("/work/repo/dotfiles/.gitconfig").as_path()), None);
+        assert_eq!(jail.protected_reason(tp("/Users/me/notes.md").as_path()), None);
     }
 
     #[test]
@@ -772,11 +1039,12 @@ mod tests {
         for p in ["/r/remote-relay/.dev.vars.example", "/r/remote-relay/wrangler.jsonc", "/r/remote-relay/README.md", "/r/remote-relay/src/index.ts", "/r/docs/wrangler.md", "/r/x.dev.vars"] {
             assert!(wrangler_secret_reason(Path::new(p)).is_none(), "{p}");
         }
-        let jail = Jail::new(Path::new("/work/repo"), &[], Some(Path::new("/Users/me"))).with_state_dir(Some(Path::new("/state")));
-        assert!(jail.wrangler_secret_reason(Path::new("/state/relay-deploy/x")).is_some());
-        assert!(jail.wrangler_secret_reason(Path::new("/state/runs/x")).is_none());
+        let jail = Jail::new(tp("/work/repo").as_path(), &[], Some(tp("/Users/me").as_path())).with_state_dir(Some(tp("/state").as_path()));
+        assert!(jail.wrangler_secret_reason(tp("/state/relay-deploy/x").as_path()).is_some());
+        assert!(jail.wrangler_secret_reason(tp("/state/runs/x").as_path()).is_none());
     }
 
+    #[cfg(unix)]
     #[test]
     fn symlinks_are_judged_by_their_target() {
         let dir = tempfile::tempdir().unwrap();
@@ -794,8 +1062,10 @@ mod tests {
         assert!(!jail.contains(&jail.resolve("../elsewhere")));
     }
 
+    #[cfg(unix)]
     #[test]
     fn dangling_symlinks_and_dotdot_through_linked_dirs_are_judged_by_their_real_destination() {
+        #[cfg(unix)]
         use std::os::unix::fs::symlink;
         let dir = tempfile::tempdir().unwrap();
         let repo = std::fs::canonicalize(dir.path()).unwrap();
@@ -826,6 +1096,7 @@ mod tests {
         assert!(jail.contains(&jail.resolve("src/../ordinary.txt")));
     }
 
+    #[cfg(unix)]
     #[test]
     fn a_symlink_loop_does_not_hang_or_panic() {
         let dir = tempfile::tempdir().unwrap();
@@ -838,7 +1109,7 @@ mod tests {
 
     #[test]
     fn a_repo_below_a_protected_directory_name_stays_writable() {
-        let jail = Jail::new(Path::new("/home/u/.claude/worktrees/x"), &[], None);
+        let jail = Jail::new(tp("/home/u/.claude/worktrees/x").as_path(), &[], None);
         assert_eq!(jail.protected_reason(&jail.resolve("src/a.ts")), None);
         assert_eq!(jail.protected_reason(&jail.resolve(".husky/pre-commit")), Some(".husky/**"));
         assert_eq!(jail.protected_reason(&jail.resolve("/home/u/.claude/settings.json")), Some(".claude/**"));
@@ -846,9 +1117,9 @@ mod tests {
 
     #[test]
     fn tilde_uses_the_injected_home() {
-        let jail = Jail::new(Path::new("/r"), &[], Some(Path::new("/home/u")));
-        assert_eq!(jail.resolve("~/.ssh/id_rsa"), canonical_lossy(Path::new("/home/u/.ssh/id_rsa")));
-        assert_eq!(jail.resolve("~"), canonical_lossy(Path::new("/home/u")));
+        let jail = Jail::new(tp("/r").as_path(), &[], Some(tp("/home/u").as_path()));
+        assert_eq!(jail.resolve("~/.ssh/id_rsa"), canonical_lossy(tp("/home/u/.ssh/id_rsa").as_path()));
+        assert_eq!(jail.resolve("~"), canonical_lossy(tp("/home/u").as_path()));
     }
 
     const SOCK: &str = "/var/folders/ab/xyz/T/intely-ssh-501-0123456789abcdef";
@@ -864,15 +1135,15 @@ mod tests {
             assert!(tunnel_dir_reason(Path::new(p)).is_none(), "{p}");
         }
         // inside a working directory the name still counts (a copy of the directory is the same secret)
-        let jail = Jail::new(Path::new("/work/repo"), &[], Some(Path::new("/home/u")));
-        assert!(jail.protected_reason(Path::new("/work/repo/intely-ssh-1-aa/c")).is_some());
+        let jail = Jail::new(tp("/work/repo").as_path(), &[], Some(tp("/home/u").as_path()));
+        assert!(jail.protected_reason(tp("/work/repo/intely-ssh-1-aa/c").as_path()).is_some());
         assert!(jail.never_read_reason(Path::new(&format!("{SOCK}/s"))).is_some());
     }
 
     #[test]
     fn an_agent_command_naming_a_tunnel_directory_is_a_hard_stop() {
         use crate::policy::hardstop::analyze;
-        let jail = Jail::new(Path::new("/work/repo"), &[], Some(Path::new("/home/u")));
+        let jail = Jail::new(tp("/work/repo").as_path(), &[], Some(tp("/home/u").as_path()));
         let stop = |cmd: &str| analyze(cmd, &jail).hard_stop.map(|h| h.rule);
         for cmd in [
             format!("nc -U {SOCK}/c"),
@@ -896,6 +1167,7 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
     #[test]
     fn an_mcp_temp_directory_is_never_read_and_never_written_whatever_the_spelling() {
         let dir = tempfile::tempdir().unwrap();
@@ -903,8 +1175,8 @@ mod tests {
         let real = base.join("intely-mcp-abc123");
         std::fs::create_dir_all(&real).unwrap();
         std::os::unix::fs::symlink(&real, base.join("innocent")).unwrap();
-        let jail = Jail::new(Path::new("/work/repo"), &[], Some(Path::new("/home/u")));
-        for p in [real.join("mcp.json"), jail.resolve(&format!("{}/innocent/mcp.json", base.display())), PathBuf::from("/private/tmp/intely-mcp-x/mcp.json"), jail.resolve("/tmp/intely-mcp-x/mcp.json"), PathBuf::from("/tmp/INTELY-MCP-*/x")] {
+        let jail = Jail::new(tp("/work/repo").as_path(), &[], Some(tp("/home/u").as_path()));
+        for p in [real.join("mcp.json"), jail.resolve(&format!("{}/innocent/mcp.json", base.display())), tp("/private/tmp/intely-mcp-x/mcp.json"), jail.resolve("/tmp/intely-mcp-x/mcp.json"), tp("/tmp/INTELY-MCP-*/x")] {
             assert!(never_read_reason(&p).is_some(), "read {}", p.display());
             assert!(protected_reason(&p).is_some(), "write {}", p.display());
             assert!(mcp_temp_dir_reason(&p).is_some(), "{}", p.display());
@@ -914,6 +1186,7 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
     #[test]
     fn the_code_of_an_enabled_mcp_server_is_write_protected_by_name_only() {
         let dir = tempfile::tempdir().unwrap();
@@ -931,7 +1204,7 @@ mod tests {
 
     #[test]
     fn the_never_read_extension_is_anchored_at_the_home_directory() {
-        let jail = Jail::new(Path::new("/work/repo"), &[], Some(Path::new("/Users/me")));
+        let jail = Jail::new(tp("/work/repo").as_path(), &[], Some(tp("/Users/me").as_path()));
         for p in [
             "/Users/me/.claude.json", "/Users/me/.claude/projects/x/y.jsonl", "/Users/me/.claude/settings.json", "/Users/me/Library/Application Support/Claude/x", "/Users/me/Library/Application Support/Google/Chrome/Default/Cookies",
             "/Users/me/Library/Application Support/Firefox/Profiles/x/cookies.sqlite", "/Users/me/Library/Application Support/1Password/x", "/Users/me/Library/Group Containers/2BUA8C4S2C.com.1password/x",
@@ -947,7 +1220,7 @@ mod tests {
 
     #[test]
     fn the_persistence_list_covers_startup_files_launch_agents_cron_and_path_directories() {
-        let jail = Jail::new(Path::new("/work/repo"), &[], Some(Path::new("/Users/me")));
+        let jail = Jail::new(tp("/work/repo").as_path(), &[], Some(tp("/Users/me").as_path()));
         for p in [
             "/Users/me/.zshrc", "/Users/me/.zshenv", "/Users/me/.zprofile", "/Users/me/.bash_profile", "/Users/me/.bashrc", "/Users/me/.profile", "/Users/me/.config/fish/config.fish", "/Users/me/Library/LaunchAgents/x.plist",
             "/Library/LaunchDaemons/x.plist", "/Users/me/.npmrc", "/Users/me/.claude.json", "/Users/me/Library/Application Support/Claude/x", "/Users/me/Library/Keychains/login.keychain-db", "/usr/local/bin/git",
@@ -960,21 +1233,21 @@ mod tests {
             assert_eq!(jail.protected_reason(Path::new(p)), None, "{p}");
         }
         // a mention in program text (a shebang) is not a write
-        assert_eq!(jail.mention_protected_reason(Path::new("/usr/bin/env")), None);
-        assert!(jail.mention_protected_reason(Path::new("/Users/me/.ssh/config")).is_some());
+        assert_eq!(jail.mention_protected_reason(tp("/usr/bin/env").as_path()), None);
+        assert!(jail.mention_protected_reason(tp("/Users/me/.ssh/config").as_path()).is_some());
     }
 
     #[test]
     fn the_run_root_and_its_ancestors_are_told_apart() {
-        let jail = Jail::new(Path::new("/Users/me/work/repo"), &[PathBuf::from("/Users/me/other")], Some(Path::new("/Users/me")));
-        assert!(jail.is_run_root(Path::new("/Users/me/work/repo")) && jail.is_run_root(Path::new("/Users/me/other")));
-        assert!(!jail.is_run_root(Path::new("/Users/me/work/repo/src")));
+        let jail = Jail::new(tp("/Users/me/work/repo").as_path(), &[tp("/Users/me/other")], Some(tp("/Users/me").as_path()));
+        assert!(jail.is_run_root(tp("/Users/me/work/repo").as_path()) && jail.is_run_root(tp("/Users/me/other").as_path()));
+        assert!(!jail.is_run_root(tp("/Users/me/work/repo/src").as_path()));
         for p in ["/", "/Users", "/Users/me", "/Users/me/work"] {
             assert!(jail.is_ancestor_of_root(Path::new(p)), "{p}");
         }
         for p in ["/Users/me/work/repo", "/Users/me/work/repo/src", "/Users/me/work2", "/tmp"] {
             assert!(!jail.is_ancestor_of_root(Path::new(p)), "{p}");
         }
-        assert_eq!(jail.home_dir(), Some(Path::new("/Users/me")));
+        assert_eq!(jail.home_dir(), Some(tp("/Users/me").as_path()));
     }
 }

@@ -207,7 +207,7 @@ const STREAM_COPIERS: &[&str] = &["cat", "head", "tail", "pv", "gzcat", "zcat", 
 /// Longest command string analysed; the walker is quadratic on some pathological nestings.
 const MAX_COMMAND_LEN: usize = 64 * 1024;
 /// Real git binaries on this machine, for recognising a renamed copy by content.
-const GIT_BINARIES: &[&str] = &["/usr/bin/git", "/usr/local/bin/git", "/opt/homebrew/bin/git", "/Library/Developer/CommandLineTools/usr/bin/git"];
+const GIT_BINARIES: &[&str] = &["/usr/bin/git", "/usr/local/bin/git", "/opt/homebrew/bin/git", "/Library/Developer/CommandLineTools/usr/bin/git", "C:/Program Files/Git/cmd/git.exe", "C:/Program Files/Git/bin/git.exe", "C:/Program Files (x86)/Git/cmd/git.exe"];
 /// Programs that run another command line somewhere else (remote shell, container, multiplexer).
 const REMOTE_RUNNERS: &[&str] = &["ssh", "docker", "podman", "kubectl", "tmux", "screen", "script", "watch", "at", "batch", "crontab", "limactl", "orb", "multipass", "lldb", "gdb"];
 /// Package and version managers that run `<tool> exec|run|x [--] <command>`.
@@ -482,6 +482,8 @@ impl<'a> Walker<'a> {
         }
         match base.as_str() {
             b if SHELLS.contains(&b) => self.shell(b == "su", words, depth, ctx),
+            "cmd" if cfg!(windows) => self.windows_shell(&base, words, depth, ctx),
+            "powershell" | "pwsh" => self.windows_shell(&base, words, depth, ctx),
             "eval" => {
                 self.issue("eval");
                 let joined = words[1..].iter().map(|w| w.text.as_str()).collect::<Vec<_>>().join(" ");
@@ -731,6 +733,42 @@ impl<'a> Walker<'a> {
             }
             _ => return None,
         })
+    }
+
+    /// `cmd /c <command line>` and `powershell -Command <script>`: the text after the flag is a command line of its own and is judged like
+    /// a `sh -c` script. An encoded or file-based script cannot be read here, so it needs the human (an issue, not a hard stop).
+    fn windows_shell(&mut self, base: &str, words: &[Word], depth: usize, ctx: &Ctx) {
+        if ctx.xargs {
+            self.issue("command text may come from stdin");
+        }
+        let lower = |w: &Word| w.text.to_ascii_lowercase();
+        let at = if base == "cmd" {
+            words.iter().skip(1).position(|w| matches!(lower(w).as_str(), "/c" | "/k" | "/r" | "-c")).map(|p| p + 2)
+        } else {
+            words.iter().skip(1).position(|w| {
+                let t = lower(w);
+                t.len() >= 2 && t.starts_with(['-', '/']) && "-command".starts_with(&format!("-{}", &t[1..])) && !t[1..].is_empty()
+            }).map(|p| p + 2)
+        };
+        if base != "cmd" && words.iter().skip(1).any(|w| {
+            let t = lower(w);
+            (t.len() >= 3 && t.starts_with(['-', '/']) && "-encodedcommand".starts_with(&format!("-{}", &t[1..]))) || (t.len() >= 2 && t.starts_with(['-', '/']) && "-file".starts_with(&format!("-{}", &t[1..])) && t.len() >= 3)
+        }) {
+            self.issue("a PowerShell script that is encoded or in a file");
+            return;
+        }
+        let Some(at) = at else { return };
+        if words[at..].iter().any(|w| w.dynamic) {
+            self.issue("shell -c script is not known statically");
+            return;
+        }
+        // cmd and PowerShell take the whole rest of the line as the command
+        let text = words[at..].iter().map(|w| w.text.as_str()).collect::<Vec<_>>().join(" ");
+        // (a backslash is a path separator on Windows, not an escape: `sh` parsing would swallow it)
+        let text = if cfg!(windows) { text.replace('\\', "/") } else { text };
+        let saved = (self.cwd.clone(), self.cwd_known);
+        self.script(&text, depth + 1);
+        (self.cwd, self.cwd_known) = saved;
     }
 
     fn shell(&mut self, is_su: bool, words: &[Word], depth: usize, ctx: &Ctx) {
@@ -1343,9 +1381,26 @@ fn env_option_overrides_path(t: &str, next: Option<&str>) -> bool {
     false
 }
 
-/// Last path component, lowercased (APFS is case-insensitive, so `GIT` runs git).
+/// Last path component, lowercased (APFS is case-insensitive, so `GIT` runs git). On Windows either separator ends a component and an
+/// executable suffix is dropped, so `C:\Program Files\Git\cmd\git.exe` is `git`; on other systems `\` and `.exe` are ordinary name characters.
 pub(super) fn base_name(text: &str) -> String {
-    Path::new(text).file_name().map(|n| n.to_string_lossy().to_ascii_lowercase()).unwrap_or_default()
+    base_name_for(text, cfg!(windows))
+}
+
+pub(super) fn base_name_for(text: &str, windows: bool) -> String {
+    if !windows {
+        return Path::new(text).file_name().map(|n| n.to_string_lossy().to_ascii_lowercase()).unwrap_or_default();
+    }
+    let last = text.trim_end_matches(['/', '\\']).rsplit(['/', '\\']).next().unwrap_or("");
+    let lower = last.to_ascii_lowercase();
+    for ext in [".exe", ".cmd", ".bat", ".com"] {
+        if let Some(stem) = lower.strip_suffix(ext) {
+            if !stem.is_empty() {
+                return stem.to_owned();
+            }
+        }
+    }
+    lower
 }
 
 /// The read-only forms of `tag`, `notes` and `replace` (they list, they do not write).
@@ -2347,10 +2402,11 @@ mod wrangler {
 
 #[cfg(test)]
 mod tests {
+    use crate::policy::paths::tp;
     use super::*;
 
     fn jail() -> Jail {
-        Jail::new(Path::new("/work/repo"), &[], Some(Path::new("/home/u")))
+        Jail::new(tp("/work/repo").as_path(), &[], Some(tp("/home/u").as_path()))
     }
 
     fn rule(cmd: &str) -> Option<String> {
@@ -2432,5 +2488,54 @@ mod tests {
         assert!(analyze_argv(&argv(&["/usr/bin/git", "push"]), &j).hard_stop.is_some());
         assert!(analyze_argv(&argv(&["sh", "-c", "git commit"]), &j).hard_stop.is_some());
         assert!(analyze_argv(&argv(&["git", "status"]), &j).hard_stop.is_none());
+    }
+
+    #[test]
+    fn base_names_follow_the_naming_rules_of_the_host() {
+        assert_eq!(base_name_for(r"C:\Program Files\Git\cmd\git.exe", true), "git");
+        assert_eq!(base_name_for("C:/Git/bin/GIT.EXE", true), "git");
+        assert_eq!(base_name_for("/usr/bin/git", true), "git");
+        assert_eq!(base_name_for(r"C:\Program Files\Git\cmd\git.exe", false), r"c:\program files\git\cmd\git.exe", "on Unix a backslash is a name character");
+        assert_eq!(base_name_for("/usr/bin/GIT", false), "git");
+        assert_eq!(base_name_for("tool.exe", false), "tool.exe");
+        assert_eq!(base_name_for("aux", false), "aux");
+    }
+
+    #[test]
+    fn unix_hosts_still_allow_ps_aux() {
+        let j = jail();
+        let a = analyze_argv(&["ps".to_string(), "aux".to_string()], &j);
+        assert!(a.hard_stop.is_none());
+    }
+
+    #[test]
+    fn powershell_scripts_are_judged_like_shell_scripts_and_windows_spellings_on_windows() {
+        let j = jail();
+        let argv = |a: &[&str]| a.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        let mut stops = vec![argv(&["powershell", "-c", "git push"])];
+        let mut ok = vec![argv(&["powershell", "-c", "git log"])];
+        if cfg!(windows) {
+            stops.extend([
+                argv(&["powershell.exe", "-NoProfile", "-Command", "git", "commit", "-m", "x"]),
+                argv(&[r"C:\Program Files\Git\cmd\git.exe", "push"]),
+                argv(&["C:/Program Files/Git/cmd/git.exe", "commit", "-m", "x"]),
+                argv(&["GIT.EXE", "push"]),
+                argv(&["cmd", "/c", "git push"]),
+                argv(&["cmd.exe", "/d", "/s", "/c", "git", "push"]),
+                argv(&["CMD", "/C", r#""C:\Program Files\Git\cmd\git.exe" commit -m x"#]),
+                argv(&["pwsh", "-Command", "& 'C:\\Program Files\\Git\\cmd\\git.exe' push"]),
+            ]);
+            ok.extend([argv(&["cmd", "/c", "git status"]), argv(&[r"C:\Git\git.exe", "diff"])]);
+        }
+        for a in &stops {
+            assert!(analyze_argv(a, &j).hard_stop.is_some(), "{a:?}");
+        }
+        for a in &ok {
+            assert!(analyze_argv(a, &j).hard_stop.is_none(), "{a:?}");
+        }
+        let enc = analyze_argv(&argv(&["powershell", "-EncodedCommand", "Zm9v"]), &j);
+        assert!(enc.hard_stop.is_none() && !enc.issues.is_empty(), "an encoded script needs the human");
+        let file = analyze_argv(&argv(&["powershell", "-File", "x.ps1"]), &j);
+        assert!(file.hard_stop.is_none() && !file.issues.is_empty());
     }
 }

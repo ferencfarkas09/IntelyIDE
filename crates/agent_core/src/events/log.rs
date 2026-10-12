@@ -5,7 +5,6 @@
 use std::collections::HashMap;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
-use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{Duration, SystemTime};
@@ -69,7 +68,14 @@ impl JsonlEventLog {
 
     /// `~/Library/Application Support/IntelySwitchIDE`
     pub fn default_base_dir() -> Option<PathBuf> {
-        std::env::var_os("HOME").map(|h| PathBuf::from(h).join("Library/Application Support/IntelySwitchIDE"))
+        let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")).map(PathBuf::from)?;
+        Some(if cfg!(target_os = "macos") {
+            home.join("Library/Application Support/IntelySwitchIDE")
+        } else if cfg!(windows) {
+            home.join("AppData/Roaming/IntelySwitchIDE")
+        } else {
+            home.join(".local/share/IntelySwitchIDE")
+        })
     }
 
     fn path(&self, agent_id: &str) -> Result<PathBuf, LogError> {
@@ -135,7 +141,21 @@ fn scan_tail(path: &Path, agent: &str) -> Result<(Option<u64>, Option<u64>), Log
 /// Creates `dir` (and parents) and makes `dir` itself owner-only: run logs and metadata live below it.
 pub fn create_private_dir_all(dir: &Path) -> std::io::Result<()> {
     fs::create_dir_all(dir)?;
-    fs::set_permissions(dir, fs::Permissions::from_mode(0o700))
+    set_owner_only(dir, 0o700)
+}
+
+/// `chmod mode` on Unix; Windows has no modes (the per-user profile directory is already private).
+fn set_owner_only(path: &Path, mode: u32) -> io::Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(path, fs::Permissions::from_mode(mode))
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = (path, mode);
+        Ok(())
+    }
 }
 
 impl EventLog for JsonlEventLog {
@@ -145,9 +165,13 @@ impl EventLog for JsonlEventLog {
         if !open.contains_key(&event.agent_id) {
             create_private_dir_all(&self.dir)?;
             let (last, cut) = scan_tail(&path, &event.agent_id)?;
-            let file = OpenOptions::new().create(true).append(true).mode(0o600).open(&path)?;
+            let mut options = OpenOptions::new();
+            options.create(true).append(true);
+            #[cfg(unix)]
+            std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+            let file = options.open(&path)?;
             // logs hold tool output and home paths: owner only, also for files an older build created world-readable
-            file.set_permissions(fs::Permissions::from_mode(0o600))?;
+            set_owner_only(&path, 0o600)?;
             if let Some(len) = cut {
                 // a crash cut the last line: drop the fragment so only that event is lost
                 file.set_len(len)?;

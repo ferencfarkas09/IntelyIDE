@@ -1,6 +1,7 @@
 //! Engine generations and `switch_workspace` ((design notes: workspaces-spec) 4.8, 9.1): A -> B -> detached -> A, busy
 //! refusals, the gate during a switch, late events of a retired generation, protection from another workspace.
 
+#![cfg(unix)]
 mod common;
 
 use std::path::{Path, PathBuf};

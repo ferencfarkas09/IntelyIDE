@@ -1,4 +1,4 @@
-//! Read-only probe: `cargo run -p intely-l10n --example probe -- <repo> [release]` prints a compact summary.
+//! Read-only probe: `cargo run -p intely-l10n --example l10n_probe -- <repo> [release]` prints a compact summary.
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     let root = std::path::PathBuf::from(args.get(1).expect("repo path"));

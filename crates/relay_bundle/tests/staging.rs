@@ -1,8 +1,10 @@
 //! Stage rules (spec 4.12.2), seq rules (4.5) and the "no key on disk" guarantee, all on throwaway directories.
 
+#![cfg(unix)]
 mod common;
 
 use std::fs;
+#[cfg(unix)]
 use std::os::unix::fs::symlink;
 use std::path::{Path, PathBuf};
 

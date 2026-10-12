@@ -13,7 +13,6 @@ pub mod types;
 
 pub use error::{code, SettingsError};
 pub use providers::ProviderRegistry;
-#[cfg(target_os = "macos")]
 pub use secrets::{KeychainSecretStore, ScopedKeychainStore};
 pub use secrets::{name_looks_secret, FallbackSecretStore, LegacyFallbackStore, MemorySecretStore, VaultStore, LEGACY_MONGO_SERVICE, LEGACY_SERVICE, MONGO_SERVICE, VAULT_ACCOUNT, Secret, SecretStore, SecretsHealth};
 pub use store::{Change, Object, SettingsStore};

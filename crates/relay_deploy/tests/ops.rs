@@ -1,6 +1,7 @@
 //! Sign-in, whoami, Prepare, rollback, remove, the VAPID secrets and the jail matrix at the Deployer level (spec 4.9, 11.1, 11.4b).
 //! Everything is scripted: no process starts, no network.
 
+#![cfg(unix)]
 mod common;
 
 use std::fs;

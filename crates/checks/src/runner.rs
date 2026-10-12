@@ -4,7 +4,6 @@
 
 use std::collections::{HashMap, VecDeque};
 use std::io::{BufRead, BufReader, Read};
-use std::os::unix::process::CommandExt;
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -149,8 +148,9 @@ impl CheckRunner {
 
     /// One command; returns its exit code (127 when it could not start, 143 when signalled).
     fn one(&self, slot: &Arc<Slot>, repo: &std::path::Path, argv: &[String], env: &HashMap<String, String>) -> i32 {
-        let mut cmd = Command::new(&argv[0]);
-        cmd.args(&argv[1..]).current_dir(repo).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).process_group(0);
+        let mut cmd = Command::new(intely_core::sys::program(&argv[0]));
+        cmd.args(&argv[1..]).current_dir(repo).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
+        intely_core::sys::NewGroup::new_group(&mut cmd);
         for key in std::env::vars_os().filter_map(|(k, _)| k.into_string().ok()).filter(|k| k.starts_with("INTELY_") || k == "CI") {
             cmd.env_remove(key);
         }
@@ -232,11 +232,11 @@ impl CheckRunner {
         slot.stop.store(true, Ordering::SeqCst);
         let pg = slot.pgid.load(Ordering::SeqCst);
         if pg > 0 {
-            unsafe { libc::killpg(pg, libc::SIGTERM) };
+            intely_core::sys::kill_group(pg, false);
             std::thread::spawn(move || {
                 std::thread::sleep(KILL_GRACE);
                 if slot.pgid.load(Ordering::SeqCst) == pg {
-                    unsafe { libc::killpg(pg, libc::SIGKILL) };
+                    intely_core::sys::kill_group(pg, true);
                 }
             });
         }
