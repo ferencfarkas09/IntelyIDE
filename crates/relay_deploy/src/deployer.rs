@@ -325,7 +325,9 @@ impl Deployer {
         let env = self.env(&AuthCtx { mode: AuthMode::Oauth, account_id: None }, false)?;
         let steps: [(&Path, &[&str]); 3] =
             [(&self.d.kit.relay_dir, &["install", "--frozen-lockfile"]), (&self.d.kit.web_dir, &["install", "--frozen-lockfile"]), (&self.d.kit.web_dir, &["build"])];
-        for (dir, args) in steps {
+        // The kit copied out of the app carries the built web bundle, not its sources: only wrangler is installed.
+        let steps = if self.d.kit.web_is_prebuilt() { &steps[..1] } else { &steps[..] };
+        for &(dir, args) in steps {
             let r = self.exec(&guard, pnpm(&pnpm_bin, dir, args, &env), &OpMeta { worker: "", account_tail: "" }, emit, None)?;
             if !r.ok() {
                 return Err(r.failure());

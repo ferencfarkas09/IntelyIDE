@@ -306,6 +306,17 @@ export default {
       'Az IntelyIDE független projekt, nem áll kapcsolatban az Anthropickal, és az nem támogatja. A Claude az Anthropic védjegye. A macOS az Apple Inc. védjegye. Az egyéb termék- és cégnevek és logóik tulajdonosaikéi, és csak a csatlakoztatható eszközök megnevezésére szerepelnek. Kapcsolatot vagy támogatást nem jelentenek.',
     links: { repo: 'Repó', issues: 'Hibajegyek', discussions: 'Discussions', pulls: 'Pull requestek', security: 'Sebezhetőség bejelentése', download: 'Letöltés' },
   },
+  consent: {
+    label: 'Süti-hozzájárulás',
+    text: 'A hozzájárulásoddal a Google Analytics segítségével számoljuk a látogatásokat és a kattintásokat ezen a weboldalon. Amíg el nem fogadod, semmi sem töltődik be.',
+    more: 'Részletek',
+    accept: 'Elfogadom',
+    decline: 'Elutasítom',
+    settings: 'Süti beállítások',
+    privacyH: 'Weboldal-elemzés',
+    privacyP:
+      'Ez a weboldal (nem az IntelyIDE alkalmazás, amely nem küld telemetriát) a Google Analytics 4-gyel számolja az oldalmegtekintéseket, valamint a letöltés, a menü és egyéb gombok kattintásait. Csak az Elfogadom gomb után fut: addig nem töltődik be Google-szkript, és semmi nem kerül elküldésre. A Google adatfeldolgozóként működik, böngészőt azonosító sütiket (<code>_ga</code>) állít be, és az adatokat az EU-n kívül is feldolgozhatja. A hirdetési funkciók és a személyre szabott hirdetések ki vannak kapcsolva. A választásod a böngésződben tárolódik. Bármikor módosíthatod az oldal alján, a lábléc Süti beállítások linkjével: az Elutasítom leállítja a mérést, és törli a <code>_ga</code> sütiket.',
+  },
   page: {
     dlTitle: 'Az IntelyIDE letöltése',
     dlLead: 'Az aktuális kiadás minden adata egy helyen.',

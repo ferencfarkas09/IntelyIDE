@@ -198,5 +198,10 @@
   "team.mem.diffTheirs": "Their version",
   "team.mem.pendingBanner": "{name} changed CLAUDE.md in {project}",
   "team.mem.pendingBannerBody": "Open Shared memory to view the difference and apply or ignore it.",
-  "team.mem.pendingList": "CLAUDE.md changes waiting for you"
+  "team.mem.pendingList": "CLAUDE.md changes waiting for you",
+  "team.err.relayOld": "Your relay does not support teams yet. Update it in Settings > Remote → Update relay.",
+  "team.err.openRemote": "Open Settings > Remote",
+  "team.err.relayHttp": "The relay answered with an unexpected error (HTTP {status}). Try again in a moment.",
+  "team.err.timeout": "The relay did not answer in time. Check your connection and try again.",
+  "team.err.unreachable": "The relay could not be reached. Check the relay address in Settings > Remote and your connection."
 }

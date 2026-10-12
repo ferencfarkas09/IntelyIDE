@@ -199,6 +199,36 @@ impl RelayKit {
         Err(miss("this build is not running from a source checkout, so it cannot deploy a relay"))
     }
 
+    /// Makes the kit that ships inside the app (`src`, the read-only `Resources/relay-kit`) usable: copies it to the writable `dest`
+    /// (Prepare installs wrangler into it, which must not touch the signed bundle) and returns `dest`. Only regular files are copied;
+    /// the Worker source and the built web bundle are replaced, anything else there (`node_modules`) is kept. A marker file holding
+    /// `version` makes the copy happen once per app version.
+    pub fn install_packaged(src: &Path, dest: &Path, version: &str) -> Result<PathBuf> {
+        if !src.join("remote-relay/package.json").is_file() || !src.join("remote-web/dist/index.html").is_file() {
+            return Err(miss("this app does not contain the relay kit"));
+        }
+        // The marker is the app version plus a fingerprint of the bundled files, so a rebuild with the same version recopies.
+        let stamp = format!("{version}\n{}", tree_fingerprint(src)?);
+        let marker = dest.join(".kit-version");
+        if fs::read_to_string(&marker).is_ok_and(|v| v == stamp) && dest.join("remote-relay/package.json").is_file() {
+            return Ok(dest.to_path_buf());
+        }
+        // Removed first: a copy that stops half way must not look complete.
+        let _ = fs::remove_file(&marker);
+        private_dir(dest)?;
+        for stale in ["remote-relay/src", "remote-web/dist"] {
+            let _ = fs::remove_dir_all(dest.join(stale));
+        }
+        copy_regular_tree(src, dest, 0)?;
+        fs::write(&marker, stamp)?;
+        Ok(dest.to_path_buf())
+    }
+
+    /// True for the kit copied out of the app (it has the version marker): it holds the built web bundle but not the web sources, so Prepare must not build it.
+    pub fn web_is_prebuilt(&self) -> bool {
+        self.root.join(".kit-version").is_file()
+    }
+
     /// A kit at `root` (canonicalised). Reads the pinned wrangler version; spawns nothing.
     pub fn at(root: &Path) -> Result<Self> {
         let root = fs::canonicalize(root).map_err(|_| miss("the relay kit directory does not exist"))?;
@@ -397,6 +427,50 @@ fn walk_src(root: &Path, dir: &Path, out: &mut Vec<(String, PathBuf)>) -> Result
 }
 
 /// Creates `path` (and parents) with mode 0700.
+/// sha256 over the sorted `(relative path, sha256, size)` list of every regular file under `root`.
+fn tree_fingerprint(root: &Path) -> Result<String> {
+    fn walk(dir: &Path, root: &Path, out: &mut Vec<(String, String, u64)>, depth: usize) -> Result<()> {
+        if depth > 12 {
+            return Err(miss("the packaged relay kit is nested too deeply"));
+        }
+        for entry in fs::read_dir(dir)? {
+            let entry = entry?;
+            let kind = entry.file_type()?;
+            let path = entry.path();
+            if kind.is_dir() {
+                walk(&path, root, out, depth + 1)?;
+            } else if kind.is_file() {
+                let rel = path.strip_prefix(root).map_or_else(|_| String::new(), |r| r.to_string_lossy().into_owned());
+                out.push((rel, sha256_file(&path, MAX_ENTRY_BYTES)?, fs::metadata(&path)?.len()));
+            }
+        }
+        Ok(())
+    }
+    let mut files = Vec::new();
+    walk(root, root, &mut files, 0)?;
+    files.sort();
+    Ok(hash_files(&files))
+}
+
+fn copy_regular_tree(from: &Path, to: &Path, depth: usize) -> Result<()> {
+    if depth > 12 {
+        return Err(miss("the packaged relay kit is nested too deeply"));
+    }
+    private_dir(to)?;
+    for entry in fs::read_dir(from)? {
+        let entry = entry?;
+        let (src, dst) = (entry.path(), to.join(entry.file_name()));
+        let kind = entry.file_type()?;
+        if kind.is_dir() {
+            copy_regular_tree(&src, &dst, depth + 1)?;
+        } else if kind.is_file() {
+            fs::copy(&src, &dst)?;
+            fs::set_permissions(&dst, fs::Permissions::from_mode(0o600))?;
+        }
+    }
+    Ok(())
+}
+
 pub fn private_dir(path: &Path) -> Result<()> {
     fs::DirBuilder::new().recursive(true).mode(0o700).create(path)?;
     Ok(())
@@ -687,5 +761,31 @@ mod tests {
         assert_eq!(parse_jsonc("/* a */ {\"k\": [1,],}").unwrap(), serde_json::json!({"k":[1]}));
         assert_eq!(parse_jsonc("{\"url\": \"http://x/y\"}").unwrap()["url"], "http://x/y");
         assert!(parse_jsonc("{ unterminated").is_err());
+    }
+
+    #[test]
+    fn the_packaged_kit_is_copied_once_per_version_and_keeps_installed_tools() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (src, dest) = (tmp.path().join("res"), tmp.path().join("data/relay-kit"));
+        kit_dir(&src, "4.147.0", None);
+        assert!(RelayKit::install_packaged(&src, &dest, "1").is_err(), "no built web bundle yet");
+        fs::create_dir_all(src.join("remote-web/dist")).unwrap();
+        fs::write(src.join("remote-web/dist/index.html"), "<html>").unwrap();
+        fs::write(src.join("remote-relay/src/index.ts"), "v1").unwrap();
+        let at = RelayKit::install_packaged(&src, &dest, "1").unwrap();
+        let kit = RelayKit::at(&at).unwrap();
+        assert!(kit.web_is_prebuilt() && kit.dist_index().is_file());
+        // an installed tool survives an update; stale sources do not
+        fs::write(dest.join("remote-relay/src/old.ts"), "stale").unwrap();
+        RelayKit::install_packaged(&src, &dest, "1").unwrap();
+        assert!(dest.join("remote-relay/src/old.ts").exists(), "same version and content: not copied again");
+        fs::write(src.join("remote-relay/src/index.ts"), "v2").unwrap();
+        RelayKit::install_packaged(&src, &dest, "2").unwrap();
+        assert_eq!(fs::read_to_string(dest.join("remote-relay/src/index.ts")).unwrap(), "v2");
+        // the same version with different content is copied again
+        fs::write(src.join("remote-relay/src/index.ts"), "v3").unwrap();
+        RelayKit::install_packaged(&src, &dest, "2").unwrap();
+        assert_eq!(fs::read_to_string(dest.join("remote-relay/src/index.ts")).unwrap(), "v3");
+        assert!(!dest.join("remote-relay/src/old.ts").exists() && dest.join("remote-relay/node_modules").is_dir());
     }
 }

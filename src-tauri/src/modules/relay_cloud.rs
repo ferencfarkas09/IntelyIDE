@@ -176,6 +176,21 @@ fn relay_kit_hint(jail: &Jail) -> Option<String> {
     (checkout.join("remote-relay/package.json").is_file() && checkout.join("remote-web/package.json").is_file()).then(|| checkout.to_string_lossy().into_owned())
 }
 
+/// The kit of a packaged app: `Resources/relay-kit` is read-only and part of the signed bundle, so it is copied to the app's data
+/// directory (once per app version) and used from there; Prepare installs wrangler into the copy. `None` outside a packaged build.
+fn packaged_kit(app: &AppHandle, jail: &Jail) -> Option<String> {
+    if jail.mode() == Mode::E2e {
+        return None;
+    }
+    let resources = app.path().resource_dir().ok()?.join("relay-kit");
+    let dest = app.try_state::<crate::agents::AgentSlot>()?.data_dir().join("relay-kit");
+    RelayKit::install_packaged(&resources, &dest, &app.package_info().version.to_string()).ok().map(|p| p.to_string_lossy().into_owned())
+}
+
+fn kit_hint(app: &AppHandle, jail: &Jail) -> Option<String> {
+    relay_kit_hint(jail).or_else(|| packaged_kit(app, jail))
+}
+
 /// The PATH the relay tools (node, pnpm, and wrangler's `#!/usr/bin/env node`) are looked up in and run with. A Finder-launched app has
 /// launchd's bare PATH, so an nvm or pnpm install is invisible to it (the wizard then showed "node and pnpm" as needing attention and
 /// Prepare failed): the login shell's PATH the engine cached (`env.json`) and the usual install directories are added. The test jail
@@ -808,7 +823,7 @@ impl Shared {
         let data_dir = agents.data_dir().to_path_buf();
         let jail = Jail::global();
         let cloud = cloud_flag();
-        let kit = RelayKit::locate(&jail, relay_kit_hint(&jail).as_deref(), None, std::env::current_exe().ok().as_deref())?;
+        let kit = RelayKit::locate(&jail, kit_hint(app, &jail).as_deref(), None, std::env::current_exe().ok().as_deref())?;
         let install_id = self.install_id()?;
         let eff = effective_jail(&jail, cloud);
         // The only place a LiveGesture is minted (spec 4.12.3): inside a command call of this module.
@@ -960,12 +975,12 @@ fn expected_of(bundle: &Obj, pubkey: Option<String>, hash: Option<String>) -> Ex
 // ---------------------------------------------------------------- commands
 
 #[tauri::command]
-pub fn relay_cloud_status(state: State<'_, CloudState>) -> Res<CloudView> {
+pub fn relay_cloud_status(app: AppHandle, state: State<'_, CloudState>) -> Res<CloudView> {
     guard("relay_cloud_status")?;
     let s = &state.shared;
     let remote = s.remote();
     let jail = Jail::global();
-    let kit = match RelayKit::locate(&jail, relay_kit_hint(&jail).as_deref(), None, std::env::current_exe().ok().as_deref()) {
+    let kit = match RelayKit::locate(&jail, kit_hint(&app, &jail).as_deref(), None, std::env::current_exe().ok().as_deref()) {
         Ok(k) => k.check(&tool_path_for(&jail)),
         Err(_) => KitReport::missing(),
     };

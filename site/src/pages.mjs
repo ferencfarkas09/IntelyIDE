@@ -6,10 +6,12 @@ import { esc, icons, picture, preloadHero, relUrl } from './lib.mjs';
 const THEME_INIT =
   "try{var t=localStorage.getItem('theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}document.documentElement.classList.add('js');";
 const THEME_HASH = `sha256-${createHash('sha256').update(THEME_INIT).digest('base64')}`;
-const CSP = `default-src 'none'; script-src 'self' '${THEME_HASH}'; style-src 'self'; img-src 'self' data:; font-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'`;
+const CSP = `default-src 'none'; script-src 'self' '${THEME_HASH}' https://www.googletagmanager.com; style-src 'self'; img-src 'self' data: https://*.google-analytics.com https://www.googletagmanager.com; font-src 'self'; manifest-src 'self'; connect-src https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com; base-uri 'none'; form-action 'none'`;
 
 /** ctx = { cfg, t, rel (prepared release), lang, path, root, abs(path) } */
 const href = (ctx, to) => (ctx.absoluteLinks ? ctx.cfg.basePath + to : relUrl(ctx.path, to));
+// Analytics markers read by assets/analytics.js (event delegation, no per-element handlers).
+const ga = (kind, label) => ` data-ga="${kind}" data-ga-label="${label}"`;
 const homePath = (lang) => (lang === 'hu' ? '/hu/' : '/');
 const dlPath = (lang) => (lang === 'hu' ? '/hu/download/' : '/download/');
 const releasesUrl = (cfg) => `${cfg.repoUrl}/releases/latest`;
@@ -58,16 +60,18 @@ ${preload}
 <link rel="stylesheet" href="${root}assets/style.css">
 <script>${THEME_INIT}</script>
 <script src="${root}assets/site.js" defer></script>
+<script src="${root}assets/analytics.js" defer></script>
 ${scripts}
 ${ld}
 </head>
-<body>
+<body data-version="${esc(ctx.rel.version)}">
 <a class="skip" href="#main">${t.ui.skip}</a>
 ${header(ctx, path)}
 <main id="main">
 ${body}
 </main>
 ${footer(ctx)}
+${consent(ctx)}
 </body>
 </html>
 `;
@@ -86,7 +90,7 @@ function header(ctx, path) {
   const home = homePath(lang);
   const anchor = (id) => (ctx.path === home ? `#${id}` : `${href(ctx, home)}#${id}`);
   const nav = ['features', 'trust', 'open', 'install', 'faq']
-    .map((id) => `<li><a href="${anchor(id === 'open' ? 'open-source' : id)}">${t.nav[id]}</a></li>`)
+    .map((id) => `<li><a href="${anchor(id === 'open' ? 'open-source' : id)}"${ga('nav', id)}>${t.nav[id]}</a></li>`)
     .join('');
   const dl = rel.primary?.url ?? releasesUrl(ctx.cfg);
   return `<header class="site-header" id="top">
@@ -94,13 +98,13 @@ function header(ctx, path) {
 <a class="brand" href="${href(ctx, home)}" aria-label="${t.ui.home}">${logo(ctx)}</a>
 <nav class="nav" id="site-nav" aria-label="${t.ui.primaryNav}">
 <ul>${nav}
-<li><a href="${ctx.cfg.repoUrl}" class="nav-gh">${icons.github(18)}<span>${t.nav.github}</span></a></li>
-${ctx.noLang ? '' : `<li><a href="${href(ctx, switchPath)}" hreflang="${otherLang}" lang="${otherLang}" class="nav-lang">${t.ui.langName}</a></li>`}
+<li><a href="${ctx.cfg.repoUrl}" class="nav-gh"${ga('cta', 'nav-github')}>${icons.github(18)}<span>${t.nav.github}</span></a></li>
+${ctx.noLang ? '' : `<li><a href="${href(ctx, switchPath)}" hreflang="${otherLang}" lang="${otherLang}" class="nav-lang"${ga('lang', otherLang)}>${t.ui.langName}</a></li>`}
 </ul>
 </nav>
 <div class="bar-actions">
-${ctx.sticky ? `<a class="btn btn-sm hdr-dl" href="${esc(dl)}">${icons.download('sm')}<span>${t.dl.button}</span></a>` : ''}
-<button type="button" class="icon-btn js-only" id="theme-toggle" aria-pressed="false" aria-label="${t.ui.theme}">${icons.theme()}</button>
+${ctx.sticky ? `<a class="btn btn-sm hdr-dl" href="${esc(dl)}"${ga('download', 'header')}>${icons.download('sm')}<span>${t.dl.button}</span></a>` : ''}
+<button type="button" class="icon-btn js-only" id="theme-toggle"${ga('theme', 'header')} aria-pressed="false" aria-label="${t.ui.theme}">${icons.theme()}</button>
 <button type="button" class="icon-btn js-only menu-btn" aria-expanded="false" aria-controls="site-nav" aria-label="${t.ui.menu}">${icons.menu()}</button>
 </div>
 </div>
@@ -120,16 +124,16 @@ function downloadBlock(ctx, { id = 'download' } = {}) {
   const btnSub = p ? sub(p) : `${t.dl.version} ${esc(rel.version)}${rel.statusLabel ? ` ${rel.statusLabel}` : ''}`;
   const btnAttrs = p ? ` data-arch="${p.arch}" data-sub="${esc(sub(p))}" data-alt="${esc(altText(p))}"` : '';
   return `<div class="dl-block" id="${id}" data-dl-block${rel.swap ? ' data-swap' : ''}>
-<a class="dl-btn" href="${esc(p?.url ?? releasesUrl(cfg))}"${btnAttrs}>
+<a class="dl-btn" href="${esc(p?.url ?? releasesUrl(cfg))}"${btnAttrs}${ga('download', id)}>
 ${icons.download()}
 <span class="dl-text"><span class="dl-main">${t.dl.button}</span><span class="dl-sub">${btnSub}</span></span>
 </a>
-${alt ? `<p class="dl-alt-wrap"><a class="dl-alt" href="${esc(alt.url)}" data-arch="${alt.arch}" data-sub="${esc(sub(alt))}" data-alt="${esc(altText(alt))}">${altText(alt)}</a></p>` : ''}
+${alt ? `<p class="dl-alt-wrap"><a class="dl-alt"${ga('download', id + '-alt')} href="${esc(alt.url)}" data-arch="${alt.arch}" data-sub="${esc(sub(alt))}" data-alt="${esc(altText(alt))}">${altText(alt)}</a></p>` : ''}
 <p class="dl-meta">${t.dl.minMac} ${esc(rel.minMac)} ${t.dl.orLater}. ${rel.archNote}</p>
 <ul class="dl-links">
-<li><a href="${esc(rel.notesUrl)}">${t.dl.notes}</a></li>
-${rel.sumsUrl ? `<li><a href="${esc(rel.sumsUrl)}">${t.dl.sums}</a></li>` : ''}
-<li><a href="${cfg.repoUrl}">${icons.github(16)} ${t.dl.github}</a></li>
+<li><a href="${esc(rel.notesUrl)}"${ga('cta', 'release-notes')}>${t.dl.notes}</a></li>
+${rel.sumsUrl ? `<li><a href="${esc(rel.sumsUrl)}"${ga('cta', 'checksums')}>${t.dl.sums}</a></li>` : ''}
+<li><a href="${cfg.repoUrl}"${ga('cta', 'github-repo')}>${icons.github(16)} ${t.dl.github}</a></li>
 </ul>
 </div>`;
 }
@@ -140,7 +144,7 @@ function assetTable(ctx) {
   const rows = rel.assets
     .map(
       (a) => `<tr>
-<td data-label="${t.dl.colFile}"><a href="${esc(a.url)}">${esc(a.name)}</a></td>
+<td data-label="${t.dl.colFile}"><a href="${esc(a.url)}"${ga('download', 'table')}>${esc(a.name)}</a></td>
 <td data-label="${t.dl.colArch}">${esc(a.archLabel)}</td>
 <td data-label="${t.dl.colSize}">${esc(a.sizeLabel)}</td>
 <td data-label="${t.dl.colSha}"><code class="sha">${esc(a.sha256)}</code> <button type="button" class="copy js-only" data-copy="${esc(a.sha256)}" data-done="${t.ui.copied}" aria-label="${t.ui.copyLabel}: ${esc(a.name)}">${t.ui.copy}</button></td>
@@ -177,18 +181,28 @@ function footer(ctx) {
     [cfg.siteUrl, 'intelyhome.com'],
     [href(ctx, dlPath(ctx.lang)), l.download],
   ]
-    .map(([u, label]) => `<li><a href="${u}">${label}</a></li>`)
+    .map(([u, label], i) => `<li><a href="${u}"${ga('cta', `footer-${i}`)}>${label}</a></li>`)
     .join('');
   // The project publishes no personal contact details: people reach it through GitHub and intelyhome.com.
   return `<footer class="site-footer">
 <div class="wrap">
 <div class="foot-grid">
 <div><p class="brand-line">${logo(ctx, 28)}</p><p>${t.footer.credit}</p><p>${t.footer.license}</p></div>
-<ul class="link-list">${links}</ul>
+<ul class="link-list">${links}<li><button type="button" class="linkbtn js-only" data-consent-open>${t.consent.settings}</button></li></ul>
 </div>
+<section class="web-privacy" id="web-privacy" aria-labelledby="web-privacy-h"><h2 id="web-privacy-h">${t.consent.privacyH}</h2><p>${t.consent.privacyP}</p></section>
 <p class="legal">${t.footer.trademarks}</p>
 </div>
 </footer>`;
+}
+
+// Cookie banner. Hidden until analytics.js decides to show it; fixed position, so it never shifts the layout.
+function consent(ctx) {
+  const c = ctx.t.consent;
+  return `<div class="consent" id="consent" role="region" aria-label="${c.label}" hidden>
+<p>${c.text} <a href="${href(ctx, ctx.lang === 'hu' ? '/hu/' : '/')}#web-privacy">${c.more}</a></p>
+<div class="consent-actions"><button type="button" class="btn btn-sm" data-consent="granted">${c.accept}</button><button type="button" class="btn btn-sm btn-ghost" data-consent="denied">${c.decline}</button></div>
+</div>`;
 }
 
 const frame = (inner) => `<figure class="win">${inner}</figure>`;
@@ -263,7 +277,7 @@ ${f.note ? `<p class="note">${f.note}</p>` : ''}
 ${downloadBlock(ctx, { id: 'hero-dl' })}
 <details class="dl-more"><summary>${t.dl.more}</summary>
 ${assetTable(ctx)}
-<p><a href="${dlHome}">${t.dl.allDownloads}</a></p>
+<p><a href="${dlHome}"${ga('cta', 'all-downloads')}>${t.dl.allDownloads}</a></p>
 </details>
 ${rel.notice ? `<p class="notice">${rel.notice}</p>` : ''}
 <div class="hero-shot">${frame(picture(ctx.root, 'hero', t.hero.shotAlt, { eager: true, sizes: '(min-width: 1000px) 1040px, 92vw' }))}</div>
@@ -334,7 +348,7 @@ ${icons.arrow()}
 <span class="drag-tile">${icons.folder()}<span>${t.install.dragFolder}</span></span>
 </div>
 ${gatekeeper(ctx)}
-<p class="center"><a class="btn" href="${esc(rel.primary?.url ?? releasesUrl(cfg))}">${icons.download('sm')}<span>${t.dl.button}</span></a></p>
+<p class="center"><a class="btn" href="${esc(rel.primary?.url ?? releasesUrl(cfg))}"${ga('download', 'install')}>${icons.download('sm')}<span>${t.dl.button}</span></a></p>
 </div>
 </section>
 

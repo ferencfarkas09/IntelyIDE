@@ -1,13 +1,13 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "IntelyIDE",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "identifier": "com.intelyhome.intelyide",
   "build": {
     "frontendDist": "../ui/dist",
     "devUrl": "http://localhost:1420",
     "beforeDevCommand": "pnpm --filter @intely/ui dev",
-    "beforeBuildCommand": "pnpm --filter @intely/sidecar build && pnpm --filter @intely/ui build"
+    "beforeBuildCommand": "pnpm --filter @intely/sidecar build && pnpm --filter @intely/ui build && pnpm -w run build:relay-kit"
   },
   "app": {
     "withGlobalTauri": false,
@@ -47,7 +47,14 @@
       "../sidecar/sdk-pin/package.json": "sdk-pin/package.json",
       "../sidecar/sdk-pin/package-lock.json": "sdk-pin/package-lock.json",
       "../sidecar/sdk-pin/tree.sha256": "sdk-pin/tree.sha256",
-      "../sidecar/sdk-pin/hash-tree.mjs": "sdk-pin/hash-tree.mjs"
+      "../sidecar/sdk-pin/hash-tree.mjs": "sdk-pin/hash-tree.mjs",
+      "../remote-relay/src": "relay-kit/remote-relay/src",
+      "../remote-relay/package.json": "relay-kit/remote-relay/package.json",
+      "../remote-relay/pnpm-lock.yaml": "relay-kit/remote-relay/pnpm-lock.yaml",
+      "../remote-relay/pnpm-workspace.yaml": "relay-kit/remote-relay/pnpm-workspace.yaml",
+      "../remote-relay/wrangler.jsonc": "relay-kit/remote-relay/wrangler.jsonc",
+      "../remote-web/package.json": "relay-kit/remote-web/package.json",
+      "../remote-web/dist": "relay-kit/remote-web/dist"
     },
     "macOS": { "minimumSystemVersion": "13.5" }
   }

@@ -1,6 +1,6 @@
 # FAQ and troubleshooting
 
-This page answers the questions people ask first and lists the fixes for the problems they hit first. Applies to version 1.3.0. Statements about files and behaviour were checked against the source; where something is not verified, the text says so.
+This page answers the questions people ask first and lists the fixes for the problems they hit first. Applies to version 1.3.1. Statements about files and behaviour were checked against the source; where something is not verified, the text says so.
 
 ## About the project
 
@@ -30,7 +30,7 @@ Team (Settings > Team, Beta) lets colleagues follow each other's runs read-only 
 
 ### Team cannot be created or joined on my relay
 
-The relay needs the `Team` Durable Object that came with version 1.3.0. Update it once in Settings > Remote (update relay), then try again.
+The relay needs the `Team` Durable Object that came with version 1.3.0. Update it once in Settings > Remote (update relay), then try again. Settings > Team shows this as "Your relay does not support teams yet" with a button that opens Settings > Remote.
 
 ### A teammate cannot join with my invite code
 
@@ -68,7 +68,7 @@ Work in a disposable clone first. Clone the repository to a scratch folder, add 
 
 ### macOS asks for Keychain access, or I see error -34018
 
-Secrets such as provider keys are kept in the macOS Keychain when the app runs writable. A development build is signed ad hoc without the Keychain entitlement, so macOS refuses it with status -34018. The app then keeps secrets in memory for the session and says so under Settings > Safety > Secret store; they are gone after a restart. Choose "Always Allow" in the dialog, unlock the login keychain if it is locked, and press "Try the Keychain again". A read-only start always uses memory only. The services are named `com.intelyhome.intelyide` and `com.intelyhome.intelyide.mongo`; secrets stored by earlier versions under the old names are read once and copied, and the old items are left in place (delete them in Keychain Access by searching `intelyswitchide`).
+Secrets such as provider keys are kept in the macOS Keychain when the app runs writable. A development build is signed ad hoc without the Keychain entitlement, so macOS refuses it with status -34018. The app then keeps secrets in memory for the session and says so under Settings > Safety > Secret store; they are gone after a restart. Choose "Always Allow" in the dialog, unlock the login keychain if it is locked, and press "Try the Keychain again". A read-only start always uses memory only. The services are named `com.intelyhome.intelyide` and `com.intelyhome.intelyide.mongo`; all secrets are kept in ONE Keychain item (service `com.intelyhome.intelyide`, account `vault`), read once per start, so macOS asks at most once and not at all after "Always Allow". The separate items of earlier versions (including the old names and the Mongo service) are read once and copied into it, and the vault records which were taken over so they are not read again; the old items are left in place (not deleted, so no second dialog) and a later cleanup may remove them. If a read is denied, the app treats the Keychain as unavailable for that session (secrets show the memory-only notice and nothing new is created in their place) and asks again at the next start.
 
 ### The Git version is too old
 

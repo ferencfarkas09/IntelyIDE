@@ -198,5 +198,10 @@
   "team.mem.diffTheirs": "Az ő verziója",
   "team.mem.pendingBanner": "{name} módosította a CLAUDE.md-t itt: {project}",
   "team.mem.pendingBannerBody": "Nyisd meg a Közös memóriát a különbség megtekintéséhez, majd alkalmazd vagy mellőzd.",
-  "team.mem.pendingList": "Rád váró CLAUDE.md-változások"
+  "team.mem.pendingList": "Rád váró CLAUDE.md-változások",
+  "team.err.relayOld": "A relay még nem támogatja a csapatokat. Frissítsd a Beállítások > Remote → Relay frissítése alatt.",
+  "team.err.openRemote": "Beállítások > Remote megnyitása",
+  "team.err.relayHttp": "A relay váratlan hibát adott (HTTP {status}). Próbáld újra egy pillanat múlva.",
+  "team.err.timeout": "A relay nem válaszolt időben. Ellenőrizd a kapcsolatot, és próbáld újra.",
+  "team.err.unreachable": "A relay nem érhető el. Ellenőrizd a relay címét a Beállítások > Remote alatt, és a kapcsolatot."
 }

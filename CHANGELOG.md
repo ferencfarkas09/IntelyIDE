@@ -4,6 +4,14 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-10-12
+
+### Fixed
+
+- The app asked for the Keychain password many times after the update to 1.3.0. All secrets (provider keys, Remote, Team, relay deploy, Servers, Mongo) now live in one Keychain item that is read once per start; the old per-secret items that exist are copied into it on first use and recorded as taken over, so they are never read again (they are not deleted, which could cause a second dialog). Expect one question per old item the first time (choose Always Allow), then at most one per start and none after Always Allow.
+- Deploying or updating the Remote relay from the installed app failed with "relay kit not found". The disk image now carries the Worker source and the built web bundle; the app copies them to its data folder, and Prepare installs the pinned wrangler there (it still needs Node.js and pnpm on your computer).
+- Creating or joining a team on a relay deployed before 1.3.0 ended in a bare HTTP error. The relay now reports its features in `/api/status`, and Settings > Team says "Your relay does not support teams yet", with a button to Settings > Remote. Other relay failures are shown as sentences.
+
 ## [1.3.0] - 2026-10-11
 
 It contains everything of the 1.2.0 that was prepared but never published, and the changes below.
@@ -153,7 +161,8 @@ First public release. This is alpha software.
 - Providers other than Claude, Happy, MongoDB Studio and Remote are proven only against mocks or on a local machine.
 - Version 0.1.0 still stores its state in the folder `IntelySwitchIDE` and uses Keychain services named after the earlier bundle identifier; a switch to `com.intelyhome.intelyide` with a migration is planned.
 
-[Unreleased]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.3.1...HEAD
+[1.3.1]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.1.1...v1.3.0
 [1.1.1]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.0.1...v1.1.0

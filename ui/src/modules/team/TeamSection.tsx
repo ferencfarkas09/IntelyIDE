@@ -4,8 +4,9 @@ import type { TeamInvite, TeamMember } from "../../ipc/team";
 import { ipc } from "../../ipc";
 import type { TeamProject } from "../../ipc/team";
 import { Badge, Button, Copy, Dialog, Input, LogOut, ShieldCheck, Spinner, StatusDot, Switch, TextArea, toast, TriangleAlert, UserMinus, UserPlus, Users } from "../../ui-kit";
+import { openSettings } from "../../platform/settings";
 import { encodeQr, qrPath } from "../remote/qr";
-import { confirmJoin, createTeam, decideJoin, forgetTeam, joinTeam, leaveTeam, loadError, loaded, loadTeam, messageOf, openInvite, revokeMember, view } from "./store";
+import { confirmJoin, createTeam, decideJoin, forgetTeam, joinTeam, isRelayOld, leaveTeam, loadError, loaded, loadTeam, messageOf, openInvite, revokeMember, view } from "./store";
 import "./team.css";
 
 const sasText = (s: string) => `${s.slice(0, 3)} ${s.slice(3)}`;
@@ -38,20 +39,23 @@ export default function TeamSection() {
 function useAction() {
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal<string | undefined>(undefined);
+  const [relayOld, setRelayOld] = createSignal(false);
   const run = async (f: () => Promise<unknown>): Promise<boolean> => {
     setBusy(true);
     setError(undefined);
+    setRelayOld(false);
     try {
       await f();
       return true;
     } catch (e) {
       setError(messageOf(e));
+      setRelayOld(isRelayOld(e));
       return false;
     } finally {
       setBusy(false);
     }
   };
-  return { busy, error, run, setError };
+  return { busy, error, relayOld, run, setError };
 }
 
 function Start() {
@@ -71,6 +75,7 @@ function Start() {
           </Button>
         </div>
         <Show when={create.error()}>{(m) => <p class="team-error" role="alert">{m()}</p>}</Show>
+        <Show when={create.relayOld()}><Button size="sm" variant="secondary" onClick={() => openSettings("remote")}>{t("team.err.openRemote")}</Button></Show>
       </div>
       <div class="team-card">
         <h5 class="team-card__title">{t("team.join.title")}</h5>
@@ -83,6 +88,7 @@ function Start() {
           </Button>
         </div>
         <Show when={join.error()}>{(m) => <p class="team-error" role="alert">{m()}</p>}</Show>
+        <Show when={join.relayOld()}><Button size="sm" variant="secondary" onClick={() => openSettings("remote")}>{t("team.err.openRemote")}</Button></Show>
       </div>
     </div>
   );

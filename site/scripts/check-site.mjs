@@ -18,10 +18,10 @@ const cfg = JSON.parse(readFileSync(join(root, 'site.config.json'), 'utf8'));
 const siteUrl = (process.env.SITE_URL ?? cfg.siteUrl).replace(/\/$/, '');
 
 // Allowed external URL prefixes: the project's GitHub repository, the IntelyHome site, the site itself,
-// and XML/JSON-LD namespace identifiers that are never fetched.
+// the Google Analytics hosts (loaded only after consent, see assets/analytics.js), and XML/JSON-LD namespace identifiers that are never fetched.
 const allowed = [
   cfg.repoUrl, cfg.orgUrl, siteUrl,
-  'https://schema.org', 'http://www.w3.org/2000/svg', 'http://www.sitemaps.org/schemas/sitemap/0.9',
+  'https://www.googletagmanager.com', 'https://*.google-analytics.com', 'https://*.analytics.google.com', 'https://schema.org', 'http://www.w3.org/2000/svg', 'http://www.sitemaps.org/schemas/sitemap/0.9',
 ];
 const textExt = new Set(['.html', '.css', '.js', '.svg', '.xml', '.webmanifest', '.txt']);
 

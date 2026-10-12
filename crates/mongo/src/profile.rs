@@ -22,9 +22,9 @@ use crate::types::{EffectiveLevel, DEFAULT_MAX_TIME_MS, MAX_TIME_CEILING_MS};
 
 pub const NS: &str = "mongo";
 /// Keychain service of the Mongo secrets (the account is `uri.<profile id>` and `tamper-key`).
-pub const KEYCHAIN_SERVICE: &str = "com.intelyhome.intelyide.mongo";
+pub const KEYCHAIN_SERVICE: &str = intely_settings::MONGO_SERVICE;
 /// The service name of versions before 1.0. Its items are read once, copied to [`KEYCHAIN_SERVICE`] and never deleted.
-pub const LEGACY_KEYCHAIN_SERVICE: &str = "hu.happygastro.intelyswitchide.mongo";
+pub const LEGACY_KEYCHAIN_SERVICE: &str = intely_settings::LEGACY_MONGO_SERVICE;
 const TAMPER_KEY: &str = "tamper-key";
 
 /// The fields a tampering user would flip. Signed.

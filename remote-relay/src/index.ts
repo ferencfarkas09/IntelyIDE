@@ -92,7 +92,7 @@ async function status(request: Request, env: StatusEnv, url: URL): Promise<Respo
     {
       ok: true,
       auth,
-      relay: { version: pkg.version, protocol: PROTOCOL, codeHash: echo(env.RELAY_CODE_HASH), stamp: echo(env.RELAY_STAMP) },
+      relay: { version: pkg.version, protocol: PROTOCOL, features: ["team"], codeHash: echo(env.RELAY_CODE_HASH), stamp: echo(env.RELAY_STAMP) },
       bundle: { hash: await bundleHash(env, url) },
       push: { configured: pushConfig(env) !== null },
       ...(auth ? { do: { ok: await durableObjectsOk(env) } } : {}),

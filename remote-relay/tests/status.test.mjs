@@ -44,7 +44,7 @@ describe("/api/status without a Mac credential (handler, fake bindings)", () => 
     assert.deepEqual(Object.keys(j).sort(), ["auth", "bundle", "now", "ok", "push", "relay"]);
     assert.equal(j.ok, true);
     assert.equal(j.auth, false);
-    assert.deepEqual(j.relay, { version: pkg.version, protocol: "intely.v1", codeHash: "abc123", stamp: "stamp-1" });
+    assert.deepEqual(j.relay, { version: pkg.version, protocol: "intely.v1", features: ["team"], codeHash: "abc123", stamp: "stamp-1" });
     assert.deepEqual(j.bundle, { hash: HASH });
     assert.deepEqual(j.push, { configured: false });
     assert.ok(Math.abs(j.now - Date.now()) < 5000);

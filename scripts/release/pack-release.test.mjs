@@ -27,6 +27,12 @@ const SOURCES = {
   "Contents/Resources/sdk-pin/tree.sha256": "sidecar/sdk-pin/tree.sha256",
   "Contents/Resources/sdk-pin/hash-tree.mjs": "sidecar/sdk-pin/hash-tree.mjs",
   "Contents/Resources/legal/LICENSE": "LICENSE",
+  "Contents/Resources/relay-kit/remote-relay/package.json": "remote-relay/package.json",
+  "Contents/Resources/relay-kit/remote-relay/pnpm-lock.yaml": "remote-relay/pnpm-lock.yaml",
+  "Contents/Resources/relay-kit/remote-relay/wrangler.jsonc": "remote-relay/wrangler.jsonc",
+  "Contents/Resources/relay-kit/remote-relay/src/index.ts": "remote-relay/src/index.ts",
+  "Contents/Resources/relay-kit/remote-web/package.json": "remote-web/package.json",
+  "Contents/Resources/relay-kit/remote-web/dist/index.html": "remote-web/dist/index.html",
 };
 const plist = (v) => `<?xml version="1.0"?><plist><dict><key>CFBundleShortVersionString</key><string>${v}</string></dict></plist>`;
 
@@ -82,12 +88,14 @@ describe("check-app", () => {
     const f = fixture({ exe: "build at /Users/alice/Documents/x" });
     writeFileSync(join(f.app, "Contents/Resources/sidecar/index.js"), "changed\n");
     rmSync(join(f.app, "Contents/Resources/sdk-pin/tree.sha256"));
+    rmSync(join(f.app, "Contents/Resources/relay-kit/remote-web/dist/index.html"));
     writeFileSync(join(f.app, "Contents/Resources/sidecar/testkit.js"), "x");
     const problems = checkApp({ app: f.app, version: "1.0.0", home: "/Users/alice", root: f.root, run: f.lipo });
     const text = problems.join("\n");
     assert.match(text, /Info\.plist says version 9\.9\.9, expected 1\.0\.0/);
     assert.match(text, /sidecar\/index\.js differs from sidecar\/dist\/index\.js/);
     assert.match(text, /missing in the bundle: Contents\/Resources\/sdk-pin\/tree\.sha256/);
+    assert.match(text, /missing in the bundle: Contents\/Resources\/relay-kit\/remote-web\/dist\/index\.html/);
     assert.match(text, /must not ship: Contents\/Resources\/sidecar\/testkit\.js/);
     assert.match(text, /MacOS\/intely-switch-ide contains the builder's path/);
   });

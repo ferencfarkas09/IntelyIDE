@@ -1,4 +1,5 @@
 import { createSignal } from "solid-js";
+import { t } from "../../i18n";
 import { ipc } from "../../ipc";
 import type { TeamInvite, TeamPresence, TeamView } from "../../ipc/team";
 
@@ -10,7 +11,21 @@ const [loadError, setLoadError] = createSignal<string | undefined>(undefined);
 
 export { view, loaded, loadError };
 
-export const messageOf = (e: unknown): string => (e as { message?: string } | null)?.message ?? String(e);
+const codeOf = (e: unknown): string | undefined => (e as { code?: string } | null)?.code;
+
+/** The relay answered but has no Team routes: it was deployed before teams existed. */
+export const isRelayOld = (e: unknown): boolean => codeOf(e) === "relayOld";
+
+/** Text for a failure: the relay's raw transport codes (`create:500`, `timeout`) become sentences, anything else keeps its message. */
+export function messageOf(e: unknown): string {
+  const raw = (e as { message?: string } | null)?.message ?? String(e);
+  if (isRelayOld(e)) return t("team.err.relayOld");
+  if (codeOf(e) !== "relay") return raw;
+  const http = /^(?:create|join):(\d{3})$/.exec(raw);
+  if (http) return t("team.err.relayHttp", { status: http[1] });
+  if (raw === "timeout" || raw === "offline") return t("team.err.timeout");
+  return t("team.err.unreachable");
+}
 
 let watching: (() => void) | undefined;
 

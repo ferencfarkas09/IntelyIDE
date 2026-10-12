@@ -4,8 +4,9 @@
 //! Tests and the E2E/READONLY jails use [`MemorySecretStore`]; [`KeychainSecretStore`] talks to the macOS Keychain and is
 //! only constructed on an explicit user action path (dev builds can trigger Keychain permission dialogs).
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc, Mutex, PoisonError};
 use std::time::Duration;
 
@@ -50,6 +51,14 @@ pub trait SecretStore: Send + Sync {
     }
     /// Forgets a remembered failure so the preferred backend is tried again (the user fixed the Keychain access).
     fn retry(&self) {}
+    /// False while a first, slow call (the vault load with its dialogs) is still ahead; [`FallbackSecretStore`] then waits longer.
+    fn is_warm(&self) -> bool {
+        true
+    }
+    /// The keys that exist, from attributes only: no secret is read, so no Keychain prompt. Stores that cannot list say none.
+    fn keys(&self) -> Result<Vec<String>> {
+        Ok(Vec::new())
+    }
 }
 
 /// What the Settings UI shows next to the secret fields.
@@ -119,6 +128,10 @@ impl SecretStore for MemorySecretStore {
         validate_key(key)?;
         Ok(self.items.lock().unwrap_or_else(PoisonError::into_inner).get(key).cloned())
     }
+
+    fn keys(&self) -> Result<Vec<String>> {
+        Ok(self.items.lock().unwrap_or_else(PoisonError::into_inner).keys().cloned().collect())
+    }
 }
 
 /// Keychain service name used by versions before 1.0 (the development-era bundle identifier). Read only: items found
@@ -182,17 +195,180 @@ impl SecretStore for LegacyFallbackStore {
     }
 }
 
+/// Keychain account of the single item that holds every secret (see [`VaultStore`]).
+pub const VAULT_ACCOUNT: &str = "vault";
+/// Entry of the vault that lists the keys taken over from legacy items. It starts with `_`, which no secret key may.
+const MIGRATED: &str = "_migrated";
+
+#[derive(Default)]
+struct VaultState {
+    map: BTreeMap<String, String>,
+    /// Keys whose legacy item was read once (or whose secret was removed): that item is never read again.
+    migrated: BTreeSet<String>,
+}
+
+/// All secrets in ONE backend item (a JSON map key -> value), loaded once per process into memory and written back as a
+/// whole on every change. macOS asks for permission per Keychain item, so one item means at most one prompt per launch
+/// (none after "Always Allow"), instead of one per secret.
+///
+/// The first load also migrates: the keys the `legacy` stores list (attributes only, no prompt, so only items that exist
+/// are asked about) are read once, merged into the vault, and recorded in the vault's `_migrated` list so the legacy item
+/// is never read again. The vault is written after EACH item, so quitting half way keeps the progress. Legacy items are NOT
+/// deleted (a delete could prompt a second time); a later, explicit cleanup may remove them. A key already in the vault or
+/// in the list is not read. The first store listing a key wins.
+///
+/// If reading an existing legacy item fails (denied, locked), the whole load fails and nothing is cached: callers see
+/// "Keychain unavailable", never "secret missing", so no caller can create a replacement that would shadow the old secret.
+/// The next launch asks again.
+///
+/// Every write re-reads the vault item and applies only its own change to it, so two processes (or instances) do not
+/// overwrite each other's keys.
+pub struct VaultStore {
+    vault: Arc<dyn SecretStore>,
+    legacy: Vec<Arc<dyn SecretStore>>,
+    cache: Mutex<Option<VaultState>>,
+    loaded: AtomicBool,
+}
+
+impl VaultStore {
+    /// `vault` holds the one item under [`VAULT_ACCOUNT`]; `legacy` are searched newest first.
+    pub fn new(vault: Arc<dyn SecretStore>, legacy: Vec<Arc<dyn SecretStore>>) -> Self {
+        Self { vault, legacy, cache: Mutex::new(None), loaded: AtomicBool::new(false) }
+    }
+
+    fn read_stored(&self) -> Result<VaultState> {
+        let mut map: BTreeMap<String, String> = match self.vault.get(VAULT_ACCOUNT)? {
+            Some(s) => serde_json::from_str(s.expose()).map_err(|_| SettingsError::new(code::KEYCHAIN, "the stored secrets are not readable; they were left untouched"))?,
+            None => BTreeMap::new(),
+        };
+        let migrated = map.remove(MIGRATED).and_then(|v| serde_json::from_str(&v).ok()).unwrap_or_default();
+        Ok(VaultState { map, migrated })
+    }
+
+    /// Re-reads the vault item, applies the one change (`value` None removes the key; `mark` records the key as migrated),
+    /// writes it, and only then replaces the cache.
+    fn commit(&self, st: &mut VaultState, key: &str, value: Option<String>, mark: bool) -> Result<()> {
+        let mut next = self.read_stored()?;
+        next.migrated.extend(st.migrated.iter().cloned());
+        if mark {
+            next.migrated.insert(key.to_owned());
+        }
+        match value {
+            Some(v) => next.map.insert(key.to_owned(), v),
+            None => next.map.remove(key),
+        };
+        let mut all = next.map.clone();
+        if !next.migrated.is_empty() {
+            all.insert(MIGRATED.to_owned(), serde_json::to_string(&next.migrated).unwrap_or_default());
+        }
+        let json = serde_json::to_string(&all).map_err(|_| SettingsError::new(code::KEYCHAIN, "the secrets could not be serialised"))?;
+        self.vault.set(VAULT_ACCOUNT, Secret::new(json))?;
+        *st = next;
+        Ok(())
+    }
+
+    /// Reads the vault item and merges in the legacy items. Called once per process (until it succeeds).
+    fn load(&self) -> Result<VaultState> {
+        let mut st = self.read_stored()?;
+        for store in &self.legacy {
+            for key in store.keys()?.into_iter().filter(|k| k != VAULT_ACCOUNT && validate_key(k).is_ok()) {
+                if st.map.contains_key(&key) || st.migrated.contains(&key) {
+                    continue;
+                }
+                // A failing read of an item that exists ends the load (see the type docs).
+                if let Some(found) = store.get(&key)? {
+                    let value = found.expose().to_owned();
+                    // If the write fails the value still serves from memory; it is not recorded, so the next launch asks again.
+                    if self.commit(&mut st, &key, Some(value.clone()), true).is_err() {
+                        st.map.insert(key, value);
+                    }
+                }
+            }
+        }
+        Ok(st)
+    }
+
+    fn with_state<T>(&self, f: impl FnOnce(&mut VaultState) -> Result<T>) -> Result<T> {
+        let mut guard = self.cache.lock().unwrap_or_else(PoisonError::into_inner);
+        if guard.is_none() {
+            *guard = Some(self.load()?);
+            self.loaded.store(true, Ordering::SeqCst);
+        }
+        f(guard.as_mut().expect("loaded above"))
+    }
+
+    /// Loads the vault now (the one prompt) instead of at the first secret read.
+    pub fn warm(&self) -> Result<()> {
+        self.with_state(|_| Ok(()))
+    }
+}
+
+impl fmt::Debug for VaultStore {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("VaultStore")
+    }
+}
+
+impl SecretStore for VaultStore {
+    /// From the cache once loaded. Before that, while no vault item exists yet, from the attribute listings of the legacy
+    /// stores (no secret is read, no prompt). Only when a vault item exists does it have to be read, which is the one prompt.
+    fn has(&self, key: &str) -> Result<bool> {
+        validate_key(key)?;
+        if !self.loaded.load(Ordering::SeqCst) && !self.vault.has(VAULT_ACCOUNT)? {
+            return Ok(self.legacy.iter().any(|s| s.keys().is_ok_and(|k| k.iter().any(|x| x == key))));
+        }
+        self.with_state(|s| Ok(s.map.contains_key(key)))
+    }
+
+    fn set(&self, key: &str, value: Secret) -> Result<()> {
+        validate_key(key)?;
+        self.with_state(|s| self.commit(s, key, Some(value.expose().to_owned()), false))
+    }
+
+    fn remove(&self, key: &str) -> Result<()> {
+        validate_key(key)?;
+        self.with_state(|s| {
+            // Also recorded as migrated, so a legacy item of this name cannot bring the secret back.
+            if !s.map.contains_key(key) && s.migrated.contains(key) {
+                return Ok(());
+            }
+            self.commit(s, key, None, true)
+        })
+    }
+
+    fn get(&self, key: &str) -> Result<Option<Secret>> {
+        validate_key(key)?;
+        self.with_state(|s| Ok(s.map.get(key).map(|v| Secret::new(v.as_str()))))
+    }
+
+    fn health(&self) -> SecretsHealth {
+        self.vault.health()
+    }
+
+    fn keys(&self) -> Result<Vec<String>> {
+        self.with_state(|s| Ok(s.map.keys().cloned().collect()))
+    }
+
+    fn is_warm(&self) -> bool {
+        self.loaded.load(Ordering::SeqCst)
+    }
+}
+
+/// Keychain services of the Mongo connections (current and 0.x name); their items are migrated into the vault too.
+pub const MONGO_SERVICE: &str = "com.intelyhome.intelyide.mongo";
+pub const LEGACY_MONGO_SERVICE: &str = "hu.happygastro.intelyswitchide.mongo";
+
 #[cfg(target_os = "macos")]
 pub use keychain::{KeychainSecretStore, ScopedKeychainStore, SERVICE};
 
 #[cfg(target_os = "macos")]
 mod keychain {
-    use security_framework::item::{ItemClass, ItemSearchOptions};
+    use security_framework::item::{ItemClass, ItemSearchOptions, Limit};
     use security_framework::passwords::{delete_generic_password, get_generic_password, set_generic_password};
 
-    use std::sync::Arc;
+    use std::sync::{Arc, OnceLock};
 
-    use super::{validate_key, LegacyFallbackStore, Secret, SecretStore, SecretsHealth, LEGACY_SERVICE};
+    use super::{validate_key, LegacyFallbackStore, Secret, SecretStore, SecretsHealth, VaultStore, LEGACY_MONGO_SERVICE, LEGACY_SERVICE, MONGO_SERVICE};
     use crate::error::{code, Result, SettingsError};
 
     /// One Keychain service for the whole IDE; one generic-password item per key (account = key).
@@ -270,6 +446,15 @@ mod keychain {
         }
     }
 
+    /// The accounts of a service from attributes only (no secret data is read, so no access prompt).
+    fn keys(service: &str) -> Result<Vec<String>> {
+        match ItemSearchOptions::new().class(ItemClass::generic_password()).service(service).load_attributes(true).limit(Limit::All).search() {
+            Ok(found) => Ok(found.iter().filter_map(|r| r.simplify_dict()).filter_map(|d| d.get("acct").cloned()).collect()),
+            Err(e) if e.code() == ERR_SEC_ITEM_NOT_FOUND => Ok(Vec::new()),
+            Err(e) => Err(keychain_error(e)),
+        }
+    }
+
     fn set(service: &str, key: &str, value: Secret) -> Result<()> {
         validate_key(key)?;
         set_generic_password(service, key, value.expose().as_bytes()).map_err(keychain_error)
@@ -316,6 +501,10 @@ mod keychain {
                 fn health(&self) -> SecretsHealth {
                     SecretsHealth { backend: "keychain", degraded: false, message: None }
                 }
+                fn keys(&self) -> Result<Vec<String>> {
+                    let $s = self;
+                    keys($svc)
+                }
             }
         };
     }
@@ -344,17 +533,33 @@ mod keychain {
                 fn health(&self) -> SecretsHealth {
                     SecretsHealth { backend: "keychain", degraded: false, message: None }
                 }
+                fn is_warm(&self) -> bool {
+                    let $s = self;
+                    $inner.is_warm()
+                }
             }
         };
     }
 
-    delegating_store!(KeychainSecretStore, |_store| LegacyFallbackStore::new(raw(SERVICE), raw(LEGACY_SERVICE)));
+    /// The one vault of the process: item `vault` of [`SERVICE`]. The per-secret items of earlier versions (ad-hoc builds,
+    /// the 0.x names, the Mongo services) are copied into it on the first load and left in place.
+    fn shared_vault() -> &'static VaultStore {
+        static VAULT: OnceLock<VaultStore> = OnceLock::new();
+        VAULT.get_or_init(|| {
+            VaultStore::new(raw(SERVICE), vec![raw(SERVICE), raw(LEGACY_SERVICE), raw(MONGO_SERVICE), raw(LEGACY_MONGO_SERVICE)])
+        })
+    }
+
+    delegating_store!(KeychainSecretStore, |_store| shared_vault());
     delegating_store!(ScopedKeychainStore, |store| store.store());
 }
 
 /// How long a Keychain call may take before the in-memory store takes over. A macOS permission dialog that nobody
 /// answers (or one hidden behind another window) blocks the call, and the settings screen must not hang with it.
 pub const KEYCHAIN_TIMEOUT: Duration = Duration::from_secs(20);
+
+/// The first call into a store that is not warm yet (the vault load, which may show a dialog per old item) may take this long.
+pub const WARM_TIMEOUT: Duration = Duration::from_secs(600);
 
 /// The preferred store (the Keychain) with an in-memory store behind it. The first failure of the preferred store
 /// (access denied, a dev build the OS does not trust, a dialog nobody answered, a locked keychain) is remembered: from
@@ -394,11 +599,12 @@ impl FallbackSecretStore {
             return None;
         }
         let (tx, rx) = mpsc::channel();
+        let wait = if self.primary.is_warm() { self.timeout } else { self.timeout.max(WARM_TIMEOUT) };
         let primary = Arc::clone(&self.primary);
         std::thread::spawn(move || {
             let _ = tx.send(f(&*primary));
         });
-        match rx.recv_timeout(self.timeout) {
+        match rx.recv_timeout(wait) {
             Ok(Ok(v)) => Some(v),
             Ok(Err(e)) => {
                 let detail = e.detail.as_deref().map(|d| format!(" ({d})")).unwrap_or_default();
@@ -408,7 +614,7 @@ impl FallbackSecretStore {
             Err(mpsc::RecvTimeoutError::Timeout) => {
                 self.latch(format!(
                     "The Keychain did not answer within {} seconds; a macOS permission dialog may be waiting behind another window. Secrets are kept in memory until you quit.",
-                    self.timeout.as_secs()
+                    wait.as_secs()
                 ));
                 None
             }
@@ -805,5 +1011,218 @@ mod tests {
     #[test]
     fn provider_keys_are_valid_keys() {
         assert!(validate_key(&provider_key("openai")).is_ok());
+    }
+
+    // ---- the vault ----------------------------------------------------------------------------------------------------
+
+    /// A memory store that counts reads and writes and can be told to fail writes.
+    #[derive(Default)]
+    struct Counting {
+        inner: MemorySecretStore,
+        gets: std::sync::atomic::AtomicUsize,
+        fail_set: std::sync::atomic::AtomicBool,
+    }
+
+    impl SecretStore for Counting {
+        fn has(&self, key: &str) -> Result<bool> {
+            self.inner.has(key)
+        }
+        fn set(&self, key: &str, value: Secret) -> Result<()> {
+            if self.fail_set.load(std::sync::atomic::Ordering::SeqCst) {
+                return Err(SettingsError::new(code::KEYCHAIN, "denied"));
+            }
+            self.inner.set(key, value)
+        }
+        fn remove(&self, key: &str) -> Result<()> {
+            self.inner.remove(key)
+        }
+        fn get(&self, key: &str) -> Result<Option<Secret>> {
+            self.gets.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            self.inner.get(key)
+        }
+        fn keys(&self) -> Result<Vec<String>> {
+            self.inner.keys()
+        }
+    }
+
+    fn n(c: &std::sync::atomic::AtomicUsize) -> usize {
+        c.load(std::sync::atomic::Ordering::SeqCst)
+    }
+
+    #[test]
+    fn the_vault_reads_its_item_once_and_serves_every_later_call_from_memory() {
+        let backend = Arc::new(Counting::default());
+        let vault = VaultStore::new(backend.clone(), vec![]);
+        vault.set("a.one", Secret::new("1")).unwrap();
+        vault.set("a.two", Secret::new("2")).unwrap();
+        for _ in 0..5 {
+            assert_eq!(vault.get("a.one").unwrap().unwrap().expose(), "1");
+            assert!(vault.has("a.two").unwrap());
+        }
+        // one read to load, one per write (to merge with what another instance wrote); reads never touch the Keychain
+        assert_eq!(n(&backend.gets), 3, "the load, and the two writes each re-read once");
+        let before = n(&backend.gets);
+        for _ in 0..5 {
+            vault.get("a.one").unwrap();
+        }
+        assert_eq!(n(&backend.gets), before);
+        // a second process sees both values in the one item
+        let again = VaultStore::new(backend.clone(), vec![]);
+        assert_eq!(again.get("a.two").unwrap().unwrap().expose(), "2");
+        assert_eq!(backend.inner.keys().unwrap(), vec![VAULT_ACCOUNT.to_owned()]);
+    }
+
+    #[test]
+    fn a_failed_write_is_rolled_back_in_the_cache() {
+        let backend = Arc::new(Counting::default());
+        let vault = VaultStore::new(backend.clone(), vec![]);
+        vault.set("a.one", Secret::new("1")).unwrap();
+        backend.fail_set.store(true, std::sync::atomic::Ordering::SeqCst);
+        assert!(vault.set("a.one", Secret::new("changed")).is_err());
+        assert!(vault.set("a.new", Secret::new("x")).is_err());
+        assert!(vault.remove("a.one").is_err());
+        assert_eq!(vault.get("a.one").unwrap().unwrap().expose(), "1");
+        assert!(!vault.has("a.new").unwrap());
+    }
+
+    #[test]
+    fn legacy_items_are_moved_into_the_vault_read_once_and_never_deleted() {
+        let backend = Arc::new(MemorySecretStore::new());
+        let (old_a, old_b) = (Arc::new(Counting::default()), Arc::new(Counting::default()));
+        old_a.inner.set("remote.mac.key", Secret::new("k1")).unwrap();
+        old_a.inner.set("team.keys", Secret::new("k2")).unwrap();
+        old_b.inner.set("remote.mac.key", Secret::new("older")).unwrap();
+        old_b.inner.set("uri.c1", Secret::new("mongodb://x")).unwrap();
+        let vault = VaultStore::new(backend.clone(), vec![old_a.clone(), old_b.clone()]);
+        assert_eq!(vault.get("remote.mac.key").unwrap().unwrap().expose(), "k1", "the newer store wins");
+        assert_eq!(vault.get("uri.c1").unwrap().unwrap().expose(), "mongodb://x");
+        assert_eq!((n(&old_a.gets), n(&old_b.gets)), (2, 1), "only items that exist, each read once; a shadowed duplicate is not read");
+        assert_eq!(old_a.inner.keys().unwrap().len(), 2, "legacy items are left in place");
+        // a later process: the vault knows the keys were taken over, so the legacy stores are not read at all
+        let fresh = VaultStore::new(backend, vec![old_a.clone(), old_b.clone()]);
+        assert_eq!(fresh.get("team.keys").unwrap().unwrap().expose(), "k2");
+        assert_eq!(fresh.keys().unwrap().len(), 3, "the marker is not a secret");
+        assert_eq!((n(&old_a.gets), n(&old_b.gets)), (2, 1));
+    }
+
+    /// A legacy store whose read of one key can be made to fail.
+    struct Denies(Arc<MemorySecretStore>, std::sync::atomic::AtomicBool);
+    impl SecretStore for Denies {
+        fn has(&self, k: &str) -> Result<bool> { self.0.has(k) }
+        fn set(&self, k: &str, v: Secret) -> Result<()> { self.0.set(k, v) }
+        fn remove(&self, k: &str) -> Result<()> { self.0.remove(k) }
+        fn get(&self, k: &str) -> Result<Option<Secret>> {
+            if k == "tamper-key" && self.1.load(std::sync::atomic::Ordering::SeqCst) {
+                return Err(SettingsError::new(code::KEYCHAIN, "denied"));
+            }
+            self.0.get(k)
+        }
+        fn keys(&self) -> Result<Vec<String>> { self.0.keys() }
+    }
+
+    #[test]
+    fn a_denied_legacy_read_fails_the_load_so_no_replacement_secret_can_shadow_it() {
+        let backend = Arc::new(MemorySecretStore::new());
+        let old = Arc::new(MemorySecretStore::new());
+        old.set("tamper-key", Secret::new("t")).unwrap();
+        old.set("happy.token", Secret::new("h")).unwrap();
+        let legacy = Arc::new(Denies(old, std::sync::atomic::AtomicBool::new(true)));
+        let first = VaultStore::new(backend.clone(), vec![legacy.clone()]);
+        // every operation is an error, never "missing": a caller that creates on None cannot get there
+        assert!(first.get("tamper-key").is_err() && first.set("tamper-key", Secret::new("new")).is_err()); // (`has` answers from the listing before the vault exists, without reading)
+        assert!(!first.is_warm());
+        // progress made before the failure is kept; the denied item is asked again and now succeeds
+        legacy.1.store(false, std::sync::atomic::Ordering::SeqCst);
+        let second = VaultStore::new(backend.clone(), vec![legacy.clone()]);
+        assert_eq!(second.get("tamper-key").unwrap().unwrap().expose(), "t");
+        second.remove("happy.token").unwrap();
+        let third = VaultStore::new(backend, vec![legacy]);
+        assert!(!third.has("happy.token").unwrap(), "the legacy item is still there but is not read again");
+    }
+
+    #[test]
+    fn migration_is_saved_after_each_item() {
+        let backend = Arc::new(MemorySecretStore::new());
+        let old = Arc::new(MemorySecretStore::new());
+        old.set("a.first", Secret::new("1")).unwrap();
+        old.set("tamper-key", Secret::new("t")).unwrap();
+        let legacy = Arc::new(Denies(old, std::sync::atomic::AtomicBool::new(true)));
+        assert!(VaultStore::new(backend.clone(), vec![legacy]).get("a.first").is_err());
+        // whichever item came first before the denied one is already in the vault item
+        let stored = backend.get(VAULT_ACCOUNT).unwrap();
+        assert!(stored.is_none_or(|s| s.expose().contains("a.first") || !s.expose().contains("tamper-key")));
+    }
+
+    #[test]
+    fn has_does_not_read_the_vault_before_it_exists_and_two_instances_do_not_lose_each_others_keys() {
+        let backend = Arc::new(Counting::default());
+        let old = Arc::new(MemorySecretStore::new());
+        old.set("sentry.token", Secret::new("t")).unwrap();
+        let a = VaultStore::new(backend.clone(), vec![old]);
+        assert!(a.has("sentry.token").unwrap() && !a.has("nope.key").unwrap());
+        assert_eq!(n(&backend.gets), 0, "no data was read");
+        assert!(!a.is_warm());
+        let b = VaultStore::new(backend.clone(), vec![]);
+        a.set("k.a", Secret::new("A")).unwrap();
+        b.set("k.b", Secret::new("B")).unwrap();
+        a.set("k.c", Secret::new("C")).unwrap();
+        let fresh = VaultStore::new(backend, vec![]);
+        for k in ["k.a", "k.b", "k.c"] {
+            assert!(fresh.has(k).unwrap(), "{k}");
+        }
+    }
+
+    #[test]
+    fn the_fallback_waits_for_the_vault_load_instead_of_dropping_to_memory() {
+        struct Slow(MemorySecretStore, AtomicBool);
+        impl SecretStore for Slow {
+            fn has(&self, k: &str) -> Result<bool> { self.0.has(k) }
+            fn set(&self, k: &str, v: Secret) -> Result<()> { std::thread::sleep(Duration::from_millis(300)); self.1.store(true, Ordering::SeqCst); self.0.set(k, v) }
+            fn remove(&self, k: &str) -> Result<()> { self.0.remove(k) }
+            fn get(&self, k: &str) -> Result<Option<Secret>> { self.0.get(k) }
+            fn is_warm(&self) -> bool { self.1.load(Ordering::SeqCst) }
+        }
+        let slow = Arc::new(Slow(MemorySecretStore::new(), AtomicBool::new(false)));
+        let store = FallbackSecretStore::with_timeout(slow.clone(), Duration::from_millis(50));
+        store.set("a.b", Secret::new("v")).unwrap();
+        assert!(!store.health().degraded, "a cold store gets the long timeout");
+        assert!(slow.0.has("a.b").unwrap());
+    }
+
+    #[test]
+    fn a_legacy_item_is_served_even_when_the_vault_could_not_be_written() {
+        let backend = Arc::new(Counting::default());
+        backend.fail_set.store(true, std::sync::atomic::Ordering::SeqCst);
+        let old = Arc::new(MemorySecretStore::new());
+        old.set("sentry.token", Secret::new("t")).unwrap();
+        let vault = VaultStore::new(backend, vec![old.clone()]);
+        assert_eq!(vault.get("sentry.token").unwrap().unwrap().expose(), "t");
+        assert!(old.has("sentry.token").unwrap());
+    }
+
+    #[test]
+    fn an_unreadable_vault_is_an_error_and_is_never_overwritten() {
+        let backend = Arc::new(MemorySecretStore::new());
+        backend.set(VAULT_ACCOUNT, Secret::new("not json")).unwrap();
+        let vault = VaultStore::new(backend.clone(), vec![]);
+        assert!(vault.get("a.one").is_err());
+        assert!(vault.set("a.one", Secret::new("1")).is_err());
+        assert_eq!(backend.get(VAULT_ACCOUNT).unwrap().unwrap().expose(), "not json");
+    }
+
+    #[test]
+    fn the_vault_is_safe_to_use_from_many_threads_and_never_prints_a_value() {
+        let backend = Arc::new(Counting::default());
+        let vault = Arc::new(VaultStore::new(backend.clone(), vec![]));
+        let handles: Vec<_> = (0..8)
+            .map(|i| {
+                let v = Arc::clone(&vault);
+                std::thread::spawn(move || v.set(&format!("k.{i}"), Secret::new(format!("canary-{i}"))).unwrap())
+            })
+            .collect();
+        handles.into_iter().for_each(|h| h.join().unwrap());
+        assert_eq!(vault.keys().unwrap().len(), 8);
+        assert_eq!(n(&backend.gets), 1 + 8, "one load, one merge read per write");
+        assert!(!format!("{vault:?}").contains("canary"));
     }
 }

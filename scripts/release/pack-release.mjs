@@ -7,7 +7,7 @@
 //                                                     [--site-data <release.json>] [--repo OWNER/REPO]
 //   node scripts/release/pack-release.mjs verify      --version <X.Y.Z> --out <dir> [--commit <sha>] [--site-data <release.json>]
 //
-// check-app    the bundle has the version, the sidecar, the SDK installer and the SDK pin files (equal to their sources), no
+// check-app    the bundle has the version, the sidecar, the SDK installer and the SDK pin files and the relay kit (equal to their sources), no
 //              path of the builder's home in any file, and an x86_64 main executable.
 // patch-paths  the build bakes the builder's checkout path into the executable (CARGO_MANIFEST_DIR fallbacks, never used in a bundle).
 //              Every `<home>/` is replaced by a neutral string of the same length, so nothing shifts and no personal path ships.
@@ -99,6 +99,13 @@ const RESOURCE_SOURCES = [
   ["Contents/Resources/sdk-pin/tree.sha256", "sidecar/sdk-pin/tree.sha256"],
   ["Contents/Resources/sdk-pin/hash-tree.mjs", "sidecar/sdk-pin/hash-tree.mjs"],
   ["Contents/Resources/legal/LICENSE", "LICENSE"],
+  // the relay kit (Settings > Remote > Cloudflare): the Worker source, its pin and the built web bundle
+  ["Contents/Resources/relay-kit/remote-relay/package.json", "remote-relay/package.json"],
+  ["Contents/Resources/relay-kit/remote-relay/pnpm-lock.yaml", "remote-relay/pnpm-lock.yaml"],
+  ["Contents/Resources/relay-kit/remote-relay/wrangler.jsonc", "remote-relay/wrangler.jsonc"],
+  ["Contents/Resources/relay-kit/remote-relay/src/index.ts", "remote-relay/src/index.ts"],
+  ["Contents/Resources/relay-kit/remote-web/package.json", "remote-web/package.json"],
+  ["Contents/Resources/relay-kit/remote-web/dist/index.html", "remote-web/dist/index.html"],
 ];
 
 /** The problems of a built bundle (an empty list is a pass). `forbid` strings must not occur in any file. */

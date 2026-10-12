@@ -227,24 +227,44 @@ impl TeamWs {
         b.build().map_err(|_| TeamError::Transport("tls".into()))
     }
 
+    /// A relay deployed before Team collaboration has no `/t/*` routes (it answers 403, 404 or 405 there). `GET /api/status` lists the
+    /// relay's `features`; no `team` in it, or no such answer, is `Transport("relayOld")` before anything is sent to `/t/`.
+    async fn require_team_support(&self) -> Result<()> {
+        let r = self.http().await?.get(format!("{}/api/status", self.relay.http_base())).header("accept", "application/json").send().await.map_err(net_err)?;
+        if !r.status().is_success() {
+            return Err(relay_old());
+        }
+        let body = r.bytes().await.map_err(net_err)?;
+        let v: Value = serde_json::from_slice(&body[..body.len().min(64 * 1024)]).map_err(|_| relay_old())?;
+        if v["relay"]["features"].as_array().is_some_and(|f| f.iter().any(|x| x == "team")) {
+            Ok(())
+        } else {
+            Err(relay_old())
+        }
+    }
+
     /// `PUT /t/<team>/create`: the founder's credentials. `Ok(true)` when created, `Ok(false)` when it already existed with these.
     pub async fn create_team(&self, team_id: &str, me: &Identity) -> Result<bool> {
+        self.require_team_support().await?;
         let r = self.http().await?.put(self.http_url(team_id, "/create")).bearer_auth(&me.token).header("x-intely-member", &me.member_id).send().await.map_err(net_err)?;
         match r.status().as_u16() {
             201 => Ok(true),
             200 => Ok(false),
+            403..=405 => Err(relay_old()),
             s => Err(TeamError::Transport(format!("create:{s}"))),
         }
     }
 
     /// `POST /t/<team>/join` with the invite token: enrolls this member as pending.
     pub async fn redeem_invite(&self, team_id: &str, invite_token: &str, me: &Identity) -> Result<()> {
+        self.require_team_support().await?;
         let body = json!({"id": me.member_id, "hash": sha256_hex(me.token.as_bytes())}).to_string();
         let r = self.http().await?.post(self.http_url(team_id, "/join")).bearer_auth(invite_token).body(body).send().await.map_err(net_err)?;
         match r.status().as_u16() {
             201 => Ok(()),
             401 => Err(TeamError::InviteSpent),
             429 => Err(TeamError::Full),
+            403 | 404 | 405 => Err(relay_old()),
             s => Err(TeamError::Transport(format!("join:{s}"))),
         }
     }
@@ -257,6 +277,13 @@ impl TeamWs {
         let task = tokio::spawn(async move { run(self, url, protocol, out_rx, in_tx).await });
         LinkHandle { tx: out_tx, rx: in_rx, task: Some(task) }
     }
+}
+
+/// The relay answers, but has no Team routes: it was deployed before Team collaboration. The UI says "update the relay".
+pub const RELAY_OLD: &str = "relayOld";
+
+fn relay_old() -> TeamError {
+    TeamError::Transport(RELAY_OLD.into())
 }
 
 fn net_err(e: reqwest::Error) -> TeamError {

@@ -58,6 +58,7 @@ fn team_err(e: TeamError) -> EngineError {
         TeamError::InviteSpent => err("inviteSpent", "the invite is expired or already used"),
         TeamError::Full => err("full", "the team is full"),
         TeamError::NotAdmin => err("notAdmin", "only an admin can do this"),
+        TeamError::Transport(c) if c == intely_team::client::RELAY_OLD => err("relayOld", "the relay does not support teams yet; update it in Settings > Remote"),
         TeamError::Transport(c) => err("relay", c),
         // the relay refusal codes of the Remote link (`hostNotAllowed`, `readOnly`, ...) arrive as `code: message`
         TeamError::Crypto(m) | TeamError::Invalid(m) => match m.split_once(": ") {

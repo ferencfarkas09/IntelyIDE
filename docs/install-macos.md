@@ -1,6 +1,6 @@
 # Install on macOS
 
-This page explains how to install the IntelyIDE disk image on a Mac, what to expect on the first launch, where the app keeps its data, how to remove it and how to report problems. Applies to version 1.3.0.
+This page explains how to install the IntelyIDE disk image on a Mac, what to expect on the first launch, where the app keeps its data, how to remove it and how to report problems. Applies to version 1.3.1.
 
 The installed app starts in normal (writable) mode, so read the [safety model](safety.md) and use it on repositories you can restore.
 
@@ -48,7 +48,7 @@ spctl --assess --type execute --verbose /Applications/IntelyIDE.app
 
 It should print `accepted` and `source=Notarized Developer ID`.
 
-After you update from 1.1.1 or earlier, macOS may ask once for Keychain access to items that the earlier version saved. Choose Always Allow. After that the signing identity stays the same across releases, so the question does not come back.
+After you update from 1.1.1 or earlier, macOS may ask for Keychain access to the items that the earlier version saved, once for each item (about a dozen if you use Remote, Team, Servers and Mongo). Choose Always Allow every time. The app copies them into one single Keychain item and never reads the old ones again (it does not delete them, because a delete could ask a second time), so from the next start there is at most one question, and with Always Allow none. After that the signing identity stays the same across releases, so the question does not come back.
 
 Builds older than 1.3.0 are signed ad hoc and are not notarized, so macOS refuses to open them the first time and says it cannot verify the app. For those builds, confirm once, and only for a file you downloaded from this repository's Releases page:
 

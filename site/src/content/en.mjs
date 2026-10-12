@@ -307,6 +307,17 @@ export default {
       'IntelyIDE is an independent project and is not affiliated with or endorsed by Anthropic. Claude is a trademark of Anthropic. macOS is a trademark of Apple Inc. Other product and company names, and their logos, belong to their owners and are shown only to name tools you can connect. No affiliation or endorsement is implied.',
     links: { repo: 'Repository', issues: 'Issues', discussions: 'Discussions', pulls: 'Pull requests', security: 'Report a vulnerability', download: 'Download' },
   },
+  consent: {
+    label: 'Cookie consent',
+    text: 'With your permission we use Google Analytics to count visits and clicks on this website. Nothing is loaded until you accept.',
+    more: 'Details',
+    accept: 'Accept',
+    decline: 'Decline',
+    settings: 'Cookie settings',
+    privacyH: 'Website analytics',
+    privacyP:
+      'This website (not the IntelyIDE app, which has no telemetry) uses Google Analytics 4 to count page views and clicks on download, menu and other buttons. It runs only after you press Accept: until then no Google script is loaded and nothing is sent. Google acts as our processor, sets cookies (<code>_ga</code>) that recognise a browser, and may process the data outside the EU. Advertising features and personalised ads are switched off. Your choice is stored in your browser. You can change it at any time with the Cookie settings link in the footer: Decline stops the measurement and deletes the <code>_ga</code> cookies.',
+  },
   page: {
     dlTitle: 'Download IntelyIDE',
     dlLead: 'Everything about the current release in one place.',
