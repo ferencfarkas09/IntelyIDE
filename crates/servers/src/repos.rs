@@ -1,21 +1,28 @@
-//! Repositories on the server under `<root>/<name>`: state check and clone.
+//! Repositories on the server, at `<root>/<name>` or at the folder mapped for them (`ServerCfg::repo_paths`): state check and clone.
 
-use crate::cfg::{valid_repo_dir_name, ServerCfg};
+use crate::cfg::{valid_repo_dir_name, validate_repo_path, ServerCfg};
+use crate::paths::default_path;
 use crate::quote::{sh_quote, sh_quote_path_for_remote};
 use crate::ssh::{tail, Ssh, SshError};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
-/// What is at `<root>/<name>` on the server.
+/// What is at the folder of a repository on the server.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RepoState {
     /// Repository directory name.
     pub name: String,
-    /// Full path on the server.
+    /// Full path on the server (`~/...` or absolute, as configured).
     pub path: String,
+    /// The path comes from the server's `repoPaths`, not from `<root>/<name>`.
+    #[serde(default)]
+    pub mapped: bool,
     /// The directory exists.
     pub exists: bool,
+    /// Where `path` really is (links followed, `cd -P; pwd -P`); `None` when it does not exist or the server did not say.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub physical: Option<String>,
     /// It has a `.git`.
     pub is_git: bool,
     /// Current branch (or a short commit id when detached).
@@ -46,7 +53,7 @@ fn redact_url(u: &str) -> String {
 /// (`git@gh-work:org/repo`), another port of the same service (`ssh.example.com:443`) and the plain address are one place that this
 /// program cannot tell apart, and refusing a run for the spelling of an address is worse than accepting two hosts that happen to serve
 /// the same `owner/repo`. A fork has another owner, a different project another path: those are told apart.
-fn normalize_origin(url: &str) -> String {
+pub(crate) fn normalize_origin(url: &str) -> String {
     let u = url.trim();
     let path = if let Some((_, rest)) = u.split_once("://") {
         // the scheme, then optionally credentials, the host, optionally a port, and the path
@@ -68,16 +75,36 @@ pub fn same_origin(a: &str, b: &str) -> bool {
     !a.is_empty() && a == b
 }
 
-fn states_script(root: &str, names: &[String]) -> String {
-    let list: Vec<String> = names.iter().map(|n| sh_quote(n)).collect();
+/// One repository to look at: its display name and its folder on the server (`~/...` or absolute).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RepoSpec {
+    pub name: String,
+    pub path: String,
+    pub mapped: bool,
+}
+
+impl RepoSpec {
+    /// The default place, `<root>/<name>`; `None` for a name that may not be put on the server's disk.
+    pub fn at_root(cfg: &ServerCfg, name: &str) -> Option<Self> {
+        Some(Self { name: name.to_string(), path: default_path(&cfg.root, name)?, mapped: false })
+    }
+}
+
+fn states_script(specs: &[RepoSpec]) -> String {
+    let mut calls = String::new();
+    for (i, s) in specs.iter().enumerate() {
+        calls.push_str(&format!("check {i} {}\n", sh_quote_path_for_remote(&s.path)));
+    }
     format!(
-        r#"root={root}
-GIT_OPTIONAL_LOCKS=0; export GIT_OPTIONAL_LOCKS
-for n in {names}; do
-  printf 'repo=%s\n' "$n"
-  d="$root/$n"
+        r#"GIT_OPTIONAL_LOCKS=0; export GIT_OPTIONAL_LOCKS
+check() {{
+  printf 'repo=%s\n' "$1"
+  d="$2"
   if [ -d "$d" ]; then
     printf 'exists=yes\n'
+    p=$(cd -P -- "$d" 2>/dev/null && pwd -P)
+    case "$p" in *[[:cntrl:]]*) p=;; esac
+    printf 'physical=%s\n' "$p"
     if [ -e "$d/.git" ]; then
       printf 'git=yes\n'
       b=$(git -c core.fsmonitor=false -C "$d" symbolic-ref --short -q HEAD </dev/null 2>/dev/null || git -C "$d" rev-parse --short HEAD </dev/null 2>/dev/null)
@@ -86,28 +113,32 @@ for n in {names}; do
       printf 'origin=%s\n' "$(git -C "$d" remote get-url origin </dev/null 2>/dev/null | head -n 1)"
     fi
   fi
-done
-"#,
-        root = sh_quote_path_for_remote(root),
-        names = list.join(" ")
+}}
+{calls}"#
     )
 }
 
-fn parse_states(root: &str, names: &[String], text: &str) -> Vec<RepoState> {
-    let base = root.trim_end_matches('/');
-    let mut out: Vec<RepoState> = Vec::new();
+fn blank(s: &RepoSpec) -> RepoState {
+    RepoState { name: s.name.clone(), path: s.path.clone(), mapped: s.mapped, ..RepoState::default() }
+}
+
+fn parse_states(specs: &[RepoSpec], text: &str) -> Vec<RepoState> {
+    let mut out: Vec<Option<RepoState>> = vec![None; specs.len()];
+    let mut cur: Option<usize> = None;
     for line in text.lines().map(|l| l.trim_end_matches('\r')) {
         let Some((k, v)) = line.split_once('=') else { continue };
         if k == "repo" {
-            if let Some(n) = names.iter().find(|n| n.as_str() == v) {
-                out.push(RepoState { name: n.clone(), path: format!("{base}/{n}"), ..RepoState::default() });
+            cur = v.trim().parse::<usize>().ok().filter(|i| *i < specs.len());
+            if let Some(i) = cur {
+                out[i] = Some(blank(&specs[i]));
             }
             continue;
         }
-        let Some(cur) = out.last_mut() else { continue };
+        let Some(cur) = cur.and_then(|i| out[i].as_mut()) else { continue };
         let v = v.trim();
         match k {
             "exists" => cur.exists = v == "yes",
+            "physical" => cur.physical = (v.starts_with('/') && !v.chars().any(char::is_control)).then(|| v.to_string()),
             "git" => cur.is_git = v == "yes",
             "branch" => cur.branch = (!v.is_empty()).then(|| v.to_string()),
             "dirty" => cur.dirty = Some(v == "yes"),
@@ -115,33 +146,39 @@ fn parse_states(root: &str, names: &[String], text: &str) -> Vec<RepoState> {
             _ => {}
         }
     }
-    // Names the script did not answer for are reported as missing.
-    names
-        .iter()
-        .map(|n| {
-            out.iter()
-                .find(|s| &s.name == n)
-                .cloned()
-                .unwrap_or_else(|| RepoState { name: n.clone(), path: format!("{base}/{n}"), ..RepoState::default() })
-        })
-        .collect()
+    // Repositories the script did not answer for are reported as missing.
+    out.into_iter().zip(specs).map(|(o, s)| o.unwrap_or_else(|| blank(s))).collect()
 }
 
-/// State of each repo under the server's root, with one ssh call. Names must match `[A-Za-z0-9._-]{1,100}`, not start
-/// with `-` and not be `.` or `..`.
-pub fn repo_states(ssh: &Ssh, cfg: &ServerCfg, names: &[String]) -> Result<Vec<RepoState>, SshError> {
-    cfg.validate().map_err(|e| SshError::invalid(e.to_string()))?;
-    if names.iter().any(|n| !valid_repo_dir_name(n)) {
+fn check_spec(s: &RepoSpec) -> Result<(), SshError> {
+    if s.name.is_empty() || s.name.chars().any(char::is_control) {
         return Err(invalid("repository name"));
     }
-    if names.is_empty() {
+    validate_repo_path(&s.path).map_err(|e| SshError::invalid(format!("repository folder: {}", e.reason)))
+}
+
+/// State of each repository at its folder on the server, with one ssh call. Every folder is validated and quoted for the shell.
+pub fn repo_states_at(ssh: &Ssh, cfg: &ServerCfg, specs: &[RepoSpec]) -> Result<Vec<RepoState>, SshError> {
+    cfg.validate().map_err(|e| SshError::invalid(e.to_string()))?;
+    for s in specs {
+        check_spec(s)?;
+    }
+    if specs.is_empty() {
         return Ok(Vec::new());
     }
-    let out = ssh.exec(cfg, &states_script(&cfg.root, names), Duration::from_secs(90))?;
+    let out = ssh.exec(cfg, &states_script(specs), Duration::from_secs(90))?;
     if !out.success() {
         return Err(SshError::other(out.stderr));
     }
-    Ok(parse_states(&cfg.root, names, &out.stdout_text()))
+    Ok(parse_states(specs, &out.stdout_text()))
+}
+
+/// State of each repo under the server's root (`<root>/<name>`), with one ssh call. Names must match `[A-Za-z0-9._-]{1,100}`, not
+/// start with `-` or `.`.
+pub fn repo_states(ssh: &Ssh, cfg: &ServerCfg, names: &[String]) -> Result<Vec<RepoState>, SshError> {
+    cfg.validate().map_err(|e| SshError::invalid(e.to_string()))?;
+    let specs: Option<Vec<RepoSpec>> = names.iter().map(|n| if valid_repo_dir_name(n) { RepoSpec::at_root(cfg, n) } else { None }).collect();
+    repo_states_at(ssh, cfg, &specs.ok_or_else(|| invalid("repository name"))?)
 }
 
 /// Clones `url` into `<root>/<name>` on the server, with the server's own git credentials.
@@ -150,19 +187,26 @@ pub fn clone_repo(ssh: &Ssh, cfg: &ServerCfg, name: &str, url: &str) -> Result<(
     if !valid_repo_dir_name(name) {
         return Err(invalid("repository name"));
     }
+    let dest = default_path(&cfg.root, name).ok_or_else(|| invalid("repository name"))?;
+    clone_repo_at(ssh, cfg, name, &dest, url)
+}
+
+/// Clones `url` into the folder `dest` (`~/...` or absolute; its parent is created) on the server. `label` names it in messages.
+pub fn clone_repo_at(ssh: &Ssh, cfg: &ServerCfg, label: &str, dest: &str, url: &str) -> Result<(), SshError> {
+    cfg.validate().map_err(|e| SshError::invalid(e.to_string()))?;
+    validate_repo_path(dest).map_err(|e| SshError::invalid(format!("repository folder: {}", e.reason)))?;
     validate_git_url(url).map_err(|m| invalid(&format!("git url: {m}")))?;
+    let label: String = label.chars().filter(|c| c.is_ascii_alphanumeric() || "._- ".contains(*c)).collect();
     let script = format!(
         r#"set -eu
-root={root}
-mkdir -p "$root"
-if [ -e "$root"/{name} ]; then echo "{name_plain} already exists on the server" >&2; exit 17; fi
+dest={dest}
+mkdir -p -- "$(dirname -- "$dest")"
+if [ -e "$dest" ]; then echo "{label} already exists on the server" >&2; exit 17; fi
 GIT_TERMINAL_PROMPT=0; export GIT_TERMINAL_PROMPT
 GIT_SSH_COMMAND='ssh -o BatchMode=yes'; export GIT_SSH_COMMAND
-git clone -c protocol.ext.allow=never -c protocol.file.allow=never -- {url} "$root"/{name} </dev/null
+git clone -c protocol.ext.allow=never -c protocol.file.allow=never -- {url} "$dest" </dev/null
 "#,
-        root = sh_quote_path_for_remote(&cfg.root),
-        name = sh_quote(name),
-        name_plain = name,
+        dest = sh_quote_path_for_remote(dest),
         url = sh_quote(url),
     );
     let out = ssh.exec(cfg, &script, Duration::from_secs(900))?;
@@ -327,9 +371,10 @@ mod tests {
 
     #[test]
     fn script_quotes_names_and_root() {
-        let s = states_script("~/my work", &["a".into(), "b.c".into()]);
-        assert!(s.contains("root=\"$HOME\"/'my work'"));
-        assert!(s.contains("for n in 'a' 'b.c'; do"));
+        let spec = |p: &str| RepoSpec { name: "x".into(), path: p.into(), mapped: true };
+        let s = states_script(&[spec("~/my work/a"), spec("/srv/it's here/b")]);
+        assert!(s.contains("check 0 \"$HOME\"/'my work/a'\n"));
+        assert!(s.contains("check 1 '/srv/it'\\''s here/b'\n"));
     }
 
     fn git(dir: &std::path::Path, args: &[&str]) {
@@ -374,7 +419,7 @@ mod tests {
     #[test]
     fn a_hidden_folder_is_not_a_repository_name() {
         let ssh = Ssh::from_bin(Some("/nonexistent/ssh".into()), std::path::PathBuf::new());
-        let cfg = ServerCfg { id: "s".into(), name: "S".into(), destination: "dev@host".into(), port: None, root: "~".into(), max_agents: 1, enabled: true };
+        let cfg = ServerCfg { id: "s".into(), name: "S".into(), destination: "dev@host".into(), port: None, root: "~".into(), max_agents: 1, enabled: true, repo_paths: Default::default() };
         assert!(repo_states(&ssh, &cfg, &[".ssh".to_string()]).is_err());
         assert!(clone_repo(&ssh, &cfg, ".aws", "https://example.com/o/r.git").is_err());
     }
@@ -472,6 +517,54 @@ mod tests {
         for (n, u) in [("-x", "https://h/x"), ("a/b", "https://h/x"), ("ok", "ext::sh -c id"), ("ok", "file:///x"), ("ok", "-u")] {
             let e = clone_repo(&f.ssh, &cfg, n, u).unwrap_err();
             assert!(e.detail.starts_with("invalid input"), "{n} {u}: {e}");
+        }
+    }
+
+    #[test]
+    fn the_physical_folder_is_reported_for_a_link() {
+        let f = Fake::new();
+        let real = f.home.join("data/real app");
+        std::fs::create_dir_all(real.join(".git")).unwrap();
+        std::os::unix::fs::symlink(&real, f.home.join("link")).unwrap();
+        std::os::unix::fs::symlink("/", f.home.join("rootlink")).unwrap();
+        let specs = ["~/link", "~/rootlink", "~/absent"].map(|p| RepoSpec { name: "x".into(), path: p.into(), mapped: true });
+        let st = repo_states_at(&f.ssh, &f.cfg, &specs).unwrap();
+        assert_eq!(st[0].physical.as_deref(), Some(real.to_str().unwrap()));
+        assert_eq!(st[1].physical.as_deref(), Some("/"));
+        assert_eq!(st[2].physical, None);
+        // the rules for a folder apply to where the link really leads
+        assert!(crate::cfg::forbidden_repo_dir("/", Some(f.home.to_str().unwrap())).is_some());
+    }
+
+    #[test]
+    fn mapped_folders_with_spaces_and_quotes_are_looked_at_and_cloned_into() {
+        let f = Fake::new();
+        f.stub("git", "printf '%s\\n' \"$@\" > \"$HOME/git-args\"\nfor last; do :; done\nmkdir -p \"$last/.git\"");
+        let odd = f.home.join("code/it's mine/orders api");
+        std::fs::create_dir_all(odd.join(".git")).unwrap();
+        let specs = vec![
+            RepoSpec { name: "orders-api".into(), path: "~/code/it's mine/orders api".into(), mapped: true },
+            RepoSpec { name: "gone".into(), path: "/srv/$(id)/`x`".into(), mapped: true },
+        ];
+        let st = repo_states_at(&f.ssh, &f.cfg, &specs).unwrap();
+        assert!(st[0].exists && st[0].is_git && st[0].mapped);
+        assert_eq!(st[0].path, "~/code/it's mine/orders api");
+        assert!(!st[1].exists);
+        clone_repo_at(&f.ssh, &f.cfg, "web-shop", "~/new place/'q'/web shop", "https://git.example.com/o/r.git").unwrap();
+        assert!(f.home.join("new place/'q'/web shop/.git").is_dir());
+        let e = clone_repo_at(&f.ssh, &f.cfg, "orders-api", "~/code/it's mine/orders api", "https://git.example.com/o/r.git").unwrap_err();
+        assert!(e.detail.contains("already exists"), "{e}");
+    }
+
+    #[test]
+    fn hostile_folders_are_refused_before_ssh() {
+        let f = Fake::new();
+        let cfg = ServerCfg { destination: "refused.test".into(), ..f.cfg.clone() };
+        for bad in ["", "rel/x", "/a\nb", "/a/../b", "~", "/", "~/x\u{0}"] {
+            let s = [RepoSpec { name: "x".into(), path: bad.into(), mapped: true }];
+            let e = repo_states_at(&f.ssh, &cfg, &s).unwrap_err();
+            assert!(e.detail.starts_with("invalid input"), "{bad:?}: {e}");
+            assert!(clone_repo_at(&f.ssh, &cfg, "x", bad, "https://h.example/x.git").is_err(), "{bad:?}");
         }
     }
 }

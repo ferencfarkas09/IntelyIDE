@@ -12,6 +12,8 @@ export interface ServerCfg {
   root: string;
   maxAgents: number;
   enabled: boolean;
+  /** Where a repository lives on this server when it is not `<root>/<folder name>`: repository key to an absolute or `~/` path. */
+  repoPaths?: Record<string, string>;
 }
 
 export interface ServerStatusError {
@@ -62,12 +64,30 @@ export interface SetupOptions {
 
 export interface RepoState {
   name: string;
+  /** Where it is looked for on the server (`~/...` or absolute); empty when the folder name cannot be used there. */
   path: string;
+  /** The path comes from the server's mapping, not from `<root>/<folder name>`. */
+  mapped?: boolean;
   exists: boolean;
   isGit: boolean;
   branch?: string;
   dirty?: boolean;
   origin?: string;
+}
+
+/** A workspace repository on a server: its state there and the key its folder is saved under. */
+export interface RepoRow extends RepoState {
+  repoId: string;
+  key: string;
+  /** `<root>/<folder name>`; absent when the folder name cannot be used there. */
+  defaultPath?: string;
+}
+
+/** What a search of the server found for one workspace repository (nothing is saved by a search). */
+export interface FoundRow {
+  repoId: string;
+  key: string;
+  candidates: { path: string; origin?: string }[];
 }
 
 export type ServerDraft = Omit<ServerCfg, "id"> & { id?: string };
@@ -83,7 +103,11 @@ export interface ServersIpc {
   /** Progress arrives through `onSetup`; this resolves when the setup ended (a "failed" event carries the reason) and `onStatus` fires at the end. */
   setup(id: string, options: SetupOptions): Promise<void>;
   /** One state per workspace repository id, in the order given. */
-  repos(id: string, repoIds: string[]): Promise<RepoState[]>;
+  repos(id: string, repoIds: string[]): Promise<RepoRow[]>;
+  /** One bounded read-only search of the server for git repositories, matched to the workspace repositories by origin. */
+  findRepos(id: string, repoIds: string[]): Promise<FoundRow[]>;
+  /** Saves the folder of one repository on the server (`null` = back to the default) and returns the server's entry. */
+  setRepoPath(id: string, key: string, path: string | null): Promise<ServerCfg>;
   /** Clones the repository's origin on the server, with the server's own git credentials. */
   clone(id: string, repoId: string): Promise<void>;
   /** The command line for a terminal, e.g. `ssh -p 2222 dev@build1`. */
@@ -100,6 +124,8 @@ export function createTauriServers(): ServersIpc {
     probe: (id) => call("servers_probe", { id }),
     setup: (id, options) => call("servers_setup", { id, options }),
     repos: (id, repoIds) => call("servers_repos", { id, repoIds }),
+    findRepos: (id, repoIds) => call("servers_find_repos", { id, repoIds }),
+    setRepoPath: (id, key, path) => call("servers_set_repo_path", { id, key, path }),
     clone: (id, repoId) => call("servers_clone", { id, repoId }),
     sshCommand: (id) => call("servers_ssh_command", { id }),
     onSetup: (cb) => subscribe<SetupEvent>("servers:setup", cb),

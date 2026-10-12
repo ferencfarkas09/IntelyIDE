@@ -9,9 +9,9 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use intely_agent_core::api::RunStatus;
-use intely_agent_host::{ServerRegistry, ServersSupplier};
+use intely_agent_host::{local_origin, ServerRegistry, ServersSupplier};
 use intely_core::EngineError;
-use intely_servers::{clone_repo, probe, repo_states, setup, slug_from_name, validate_git_url, RepoState, ServerCfg, ServerStatus, SetupEvent, SetupOptions, Ssh};
+use intely_servers::{candidates_for, clone_repo_at, default_path, find_repos, probe, repo_states_at, resolve_repo_path, setup, slug_from_name, validate_git_url, FoundRepo, RepoSpec, RepoState, ServerCfg, ServerStatus, SetupEvent, SetupOptions, Ssh, Wanted};
 use intely_settings::SettingsStore;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -142,7 +142,8 @@ pub async fn servers_save(state: State<'_, ServersState>, agents: State<'_, Agen
     // (Before the list lock: closing a connection can take seconds. The host also binds each connection to the address it was started
     // for, so a run that starts in between cannot end up on the old machine under the new address.)
     if let Some(id) = cfg.id.as_deref().filter(|i| !i.is_empty()) {
-        let wanted = ServerCfg { id: id.to_string(), name: cfg.name.trim().to_string(), destination: cfg.destination.trim().to_string(), port: cfg.port, root: cfg.root.trim().to_string(), max_agents: cfg.max_agents, enabled: cfg.enabled };
+        let kept = read_list(&store).into_iter().find(|s| s.id == id).map(|s| s.repo_paths).unwrap_or_default();
+        let wanted = ServerCfg { id: id.to_string(), name: cfg.name.trim().to_string(), destination: cfg.destination.trim().to_string(), port: cfg.port, root: cfg.root.trim().to_string(), max_agents: cfg.max_agents, enabled: cfg.enabled, repo_paths: kept };
         wanted.validate().map_err(|e| err("invalidServer", e.to_string()))?;
         let moved = read_list(&store).into_iter().find(|s| s.id == id).is_some_and(|old| old.destination != wanted.destination || old.port != wanted.port);
         if moved {
@@ -173,7 +174,9 @@ pub async fn servers_save(state: State<'_, ServersState>, agents: State<'_, Agen
             id
         }
     };
-    let entry = ServerCfg { id: id.clone(), name: cfg.name.trim().to_string(), destination: cfg.destination.trim().to_string(), port: cfg.port, root: cfg.root.trim().to_string(), max_agents: cfg.max_agents, enabled: cfg.enabled };
+    // (the folders mapped for repositories are edited in Settings > Servers > Repositories, not by this form)
+    let kept = list.iter().find(|s| s.id == id).map(|s| s.repo_paths.clone()).unwrap_or_default();
+    let entry = ServerCfg { id: id.clone(), name: cfg.name.trim().to_string(), destination: cfg.destination.trim().to_string(), port: cfg.port, root: cfg.root.trim().to_string(), max_agents: cfg.max_agents, enabled: cfg.enabled, repo_paths: kept };
     entry.validate().map_err(|e| err("invalidServer", e.to_string()))?;
     if let Some(slot) = list.iter_mut().find(|s| s.id == id) {
         // another destination is another machine: what was learned about the old one does not apply
@@ -292,25 +295,130 @@ pub async fn servers_setup(app: AppHandle, state: State<'_, ServersState>, agent
 }
 
 /// The names of the workspace repos that were asked for.
-async fn repo_names(app: &AppHandle, repo_ids: &[String]) -> Res<Vec<(String, PathBuf)>> {
+/// A repository of the workspace as the server pages need it: its folder name and origin (without credentials, `None` when it has none).
+struct LocalRepo {
+    id: String,
+    folder: String,
+    origin: Option<String>,
+}
+
+async fn local_repos(app: &AppHandle, repo_ids: &[String]) -> Res<Vec<LocalRepo>> {
     let engine = app.state::<EngineSlot>();
     let all = repos(&engine).await?;
-    repo_ids
+    let git = intely_core::exec::pinned_git_path();
+    let picked: Vec<(String, PathBuf)> = repo_ids
         .iter()
         .map(|id| {
             let repo = all.iter().find(|r| &r.id == id).ok_or_else(|| err("unknownRepo", format!("unknown repository {id}")))?;
-            let name = repo.path.file_name().map(|n| n.to_string_lossy().into_owned()).ok_or_else(|| err("unknownRepo", "that repository has no folder name"))?;
-            Ok((name, repo.path.clone()))
+            Ok((id.clone(), repo.path.clone()))
         })
-        .collect()
+        .collect::<Res<_>>()?;
+    blocking(move || {
+        picked
+            .into_iter()
+            .map(|(id, path)| {
+                let folder = path.file_name().map(|n| n.to_string_lossy().into_owned()).ok_or_else(|| err("unknownRepo", "that repository has no folder name"))?;
+                Ok(LocalRepo { id, origin: local_origin(&git, &path), folder })
+            })
+            .collect()
+    })
+    .await
+}
+
+/// One workspace repository on a server: where it is looked for, how that was decided, and what is there.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RepoRow {
+    repo_id: String,
+    /// The key the folder is saved under (`servers.list[].repoPaths`).
+    key: String,
+    /// `<root>/<folder name>`; `None` when the folder name cannot be used there.
+    default_path: Option<String>,
+    #[serde(flatten)]
+    state: RepoState,
 }
 
 #[tauri::command]
-pub async fn servers_repos(app: AppHandle, state: State<'_, ServersState>, id: String, repo_ids: Vec<String>) -> Res<Vec<RepoState>> {
+pub async fn servers_repos(app: AppHandle, state: State<'_, ServersState>, id: String, repo_ids: Vec<String>) -> Res<Vec<RepoRow>> {
     let registry = state.registry();
     let cfg = registry.cfg(&id).ok_or_else(|| err("unknownServer", "this server is not in the list any more"))?;
-    let names: Vec<String> = repo_names(&app, &repo_ids).await?.into_iter().map(|(n, _)| n).collect();
-    blocking(move || repo_states(registry.ssh(), &cfg, &names).map_err(|e| err("ssh", e.to_string()))).await
+    let locals = local_repos(&app, &repo_ids).await?;
+    blocking(move || {
+        // a repository whose name cannot be used and has no mapping is shown as missing, with the reason in its path
+        let mut rows: Vec<(String, String, Option<String>, Option<RepoSpec>)> = Vec::new();
+        for l in &locals {
+            let resolved = resolve_repo_path(&cfg, l.origin.as_deref(), &l.folder);
+            let key = intely_servers::repo_key(l.origin.as_deref(), &l.folder);
+            let spec = resolved.map(|r| RepoSpec { name: l.folder.clone(), path: r.path, mapped: r.mapped });
+            rows.push((l.id.clone(), key, default_path(&cfg.root, &l.folder), spec));
+        }
+        let specs: Vec<RepoSpec> = rows.iter().filter_map(|r| r.3.clone()).collect();
+        let mut states = repo_states_at(registry.ssh(), &cfg, &specs).map_err(|e| err("ssh", e.to_string()))?.into_iter();
+        Ok(rows
+            .into_iter()
+            .zip(&locals)
+            .map(|((repo_id, key, default_path, spec), l)| {
+                let state = match spec {
+                    Some(_) => states.next().unwrap_or_default(),
+                    None => RepoState { name: l.folder.clone(), path: String::new(), ..RepoState::default() },
+                };
+                RepoRow { repo_id, key, default_path, state }
+            })
+            .collect())
+    })
+    .await
+}
+
+/// The candidates for one repository on the server (a search result; nothing is saved).
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FoundRow {
+    repo_id: String,
+    key: String,
+    candidates: Vec<FoundRepo>,
+}
+
+/// Looks for the repositories on the server (one bounded read-only command) and matches them to the workspace repositories by origin.
+#[tauri::command]
+pub async fn servers_find_repos(app: AppHandle, state: State<'_, ServersState>, id: String, repo_ids: Vec<String>) -> Res<Vec<FoundRow>> {
+    let registry = state.registry();
+    let cfg = registry.cfg(&id).ok_or_else(|| err("unknownServer", "this server is not in the list any more"))?;
+    let locals = local_repos(&app, &repo_ids).await?;
+    blocking(move || {
+        let found = find_repos(registry.ssh(), &cfg).map_err(|e| err("ssh", e.to_string()))?;
+        Ok(locals
+            .into_iter()
+            .map(|l| {
+                let candidates = candidates_for(&Wanted { id: l.id.clone(), folder: l.folder.clone(), origin: l.origin.clone() }, &found);
+                FoundRow { key: intely_servers::repo_key(l.origin.as_deref(), &l.folder), repo_id: l.id, candidates }
+            })
+            .collect())
+    })
+    .await
+}
+
+/// Saves (`path`) or removes (`None`) the folder of one repository on a server, after the person confirmed it.
+#[tauri::command]
+pub async fn servers_set_repo_path(state: State<'_, ServersState>, id: String, key: String, path: Option<String>) -> Res<ServerCfg> {
+    let store = state_store(&state)?.clone();
+    let _guard = lock(&state.list_lock);
+    let mut list = read_list(&store);
+    let slot = list.iter_mut().find(|s| s.id == id).ok_or_else(|| err("unknownServer", "this server is not in the list any more"))?;
+    let mut next = slot.clone();
+    match path.as_deref().map(str::trim) {
+        Some(p) if !p.is_empty() => {
+            // (checked first: the clean-up below only removes `.`, `//` and a trailing `/`)
+            intely_servers::cfg::validate_repo_path(p).map_err(|e| err("invalidServer", e.to_string()))?;
+            next.repo_paths.insert(key, intely_servers::canonical_path(p));
+        }
+        _ => {
+            next.repo_paths.remove(&key);
+        }
+    }
+    next.validate().map_err(|e| err("invalidServer", e.to_string()))?;
+    *slot = next.clone();
+    write_list(&store, &list)?;
+    Ok(next)
 }
 
 /// The URL a local repository was cloned from, without credentials in it; the server clones it with its own.
@@ -333,12 +441,21 @@ fn origin_of(git: &Path, repo: &Path) -> Res<String> {
 pub async fn servers_clone(app: AppHandle, state: State<'_, ServersState>, id: String, repo_id: String) -> Res<()> {
     let registry = state.registry();
     let cfg = registry.cfg(&id).ok_or_else(|| err("unknownServer", "this server is not in the list any more"))?;
-    let (name, path) = repo_names(&app, std::slice::from_ref(&repo_id)).await?.into_iter().next().ok_or_else(|| err("unknownRepo", "unknown repository"))?;
+    let local = local_repos(&app, std::slice::from_ref(&repo_id)).await?.into_iter().next().ok_or_else(|| err("unknownRepo", "unknown repository"))?;
+    let path = engine_repo_path(&app, &repo_id).await?;
+    // (into the folder mapped for it, otherwise `<root>/<folder name>`)
+    let dest = resolve_repo_path(&cfg, local.origin.as_deref(), &local.folder).ok_or_else(|| err("remoteRepoName", "that folder name cannot be used on a server; set a folder for it first"))?.path;
     blocking(move || {
         let url = origin_of(&intely_core::exec::pinned_git_path(), &path)?;
-        clone_repo(registry.ssh(), &cfg, &name, &url).map_err(|e| err("clone", e.to_string()))
+        clone_repo_at(registry.ssh(), &cfg, &local.folder, &dest, &url).map_err(|e| err("clone", e.to_string()))
     })
     .await
+}
+
+async fn engine_repo_path(app: &AppHandle, repo_id: &str) -> Res<PathBuf> {
+    let engine = app.state::<EngineSlot>();
+    let all = repos(&engine).await?;
+    all.iter().find(|r| r.id == repo_id).map(|r| r.path.clone()).ok_or_else(|| err("unknownRepo", format!("unknown repository {repo_id}")))
 }
 
 #[tauri::command]

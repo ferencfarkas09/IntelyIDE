@@ -1,4 +1,4 @@
-import type { RepoState, ServerCfg, ServerDraft, ServersIpc, ServerStatus, SetupEvent, SetupOptions, SetupStepName } from "../servers";
+import type { FoundRow, RepoRow, ServerCfg, ServerDraft, ServersIpc, ServerStatus, SetupEvent, SetupOptions, SetupStepName } from "../servers";
 
 export interface MockServersOptions {
   /** Start with the three demo servers (default) or with none. */
@@ -181,12 +181,36 @@ export function createMockServers(opts: MockServersOptions = {}): MockServersHan
       const s = find(id);
       if (!s) return missing(id);
       await pause(stepMs / 2);
-      return repoIds.map((rid): RepoState => {
+      return repoIds.map((rid): RepoRow => {
         const name = rid;
-        const path = `${s.root}/${name}`;
-        const there = (id === "build-server" && sum(rid) % 3 !== 0) || cloned.get(id)?.has(rid) === true;
-        return there ? { name, path, exists: true, isGit: true, branch: sum(rid) % 2 === 0 ? "main" : "develop", dirty: sum(rid) % 4 === 0, origin: `git@example.com:acme/${name}.git` } : { name, path, exists: false, isGit: false };
+        const key = `dir:${name}`;
+        const defaultPath = `${s.root}/${name}`;
+        const mapped = s.repoPaths?.[key];
+        const path = mapped ?? defaultPath;
+        const there = mapped !== undefined || (id === "build-server" && sum(rid) % 3 !== 0) || cloned.get(id)?.has(rid) === true;
+        const base = { repoId: rid, key, defaultPath, name, path, mapped: mapped !== undefined };
+        return there ? { ...base, exists: true, isGit: true, branch: sum(rid) % 2 === 0 ? "main" : "develop", dirty: sum(rid) % 4 === 0, origin: `git@example.com:acme/${name}.git` } : { ...base, exists: false, isGit: false };
       });
+    },
+    async findRepos(id, repoIds) {
+      const s = find(id);
+      if (!s) return missing(id);
+      await pause(stepMs);
+      return repoIds.map((rid, i): FoundRow => ({
+        repoId: rid,
+        key: `dir:${rid}`,
+        // the first is found once, the second twice, the others nowhere
+        candidates: i === 0 ? [{ path: `/srv/apps/${rid}`, origin: `git@example.com:acme/${rid}.git` }] : i === 1 ? [{ path: `/home/me/code/${rid}` }, { path: `/opt/${rid}` }] : [],
+      }));
+    },
+    async setRepoPath(id, key, path) {
+      const s = find(id);
+      if (!s) return missing(id);
+      const next = { ...(s.repoPaths ?? {}) };
+      if (path === null) delete next[key];
+      else next[key] = path;
+      s.repoPaths = next;
+      return { ...s };
     },
     async clone(id, repoId) {
       if (!find(id)) return missing(id);

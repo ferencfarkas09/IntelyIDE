@@ -6,7 +6,6 @@
 //! paths through the sidecar's `fs/query` ([`RemoteFs`]); a decision that could not look at the files is denied, never guessed.
 
 use std::collections::HashMap;
-use std::path::Path;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
@@ -156,20 +155,6 @@ pub fn valid_dir_name(name: &str) -> bool {
     intely_servers::valid_repo_dir_name(name)
 }
 
-/// Where a local repository lives on a server: `<root>/<its folder name>`, with `~` of the root taken as the server's home.
-pub fn remote_dir(cfg: &ServerCfg, home: &str, repo: &Path) -> Option<String> {
-    let name = repo.file_name()?.to_str().filter(|n| valid_dir_name(n))?;
-    let home = home.trim_end_matches('/');
-    let root = if cfg.root == "~" {
-        home.to_string()
-    } else if let Some(rest) = cfg.root.strip_prefix("~/") {
-        format!("{home}/{}", rest.trim_end_matches('/'))
-    } else {
-        cfg.root.trim_end_matches('/').to_string()
-    };
-    Some(format!("{root}/{name}"))
-}
-
 /// Sends `fs/query` down the sidecar of the server. A request that gets no usable answer (no sidecar, a timeout, an error reply, a
 /// result list of the wrong length) is `None`; the view on top ([`RpcFs`]) tells the decision that used it, and the decision is denied.
 pub struct SidecarFs {
@@ -199,19 +184,7 @@ mod tests {
     use std::path::PathBuf;
 
     fn cfg(root: &str) -> ServerCfg {
-        ServerCfg { id: "build".into(), name: "Build server".into(), destination: "dev@build1".into(), port: None, root: root.into(), max_agents: 4, enabled: true }
-    }
-
-    #[test]
-    fn a_repo_lives_under_the_root_of_the_server() {
-        let repo = PathBuf::from("/Users/me/Projects/orders-api");
-        assert_eq!(remote_dir(&cfg("~/work"), "/home/me", &repo).as_deref(), Some("/home/me/work/orders-api"));
-        assert_eq!(remote_dir(&cfg("~"), "/home/me/", &repo).as_deref(), Some("/home/me/orders-api"));
-        assert_eq!(remote_dir(&cfg("/srv/repos/"), "/home/me", &repo).as_deref(), Some("/srv/repos/orders-api"));
-        // a folder name the host would not put on a server's disk
-        for bad in ["/x/-rf", "/x/a b", "/x/a;b", "/x/..", "/", "/x/ä", "/x/.ssh", "/x/.aws", "/x/.hidden"] {
-            assert_eq!(remote_dir(&cfg("~/work"), "/home/me", Path::new(bad)), None, "{bad}");
-        }
+        ServerCfg { id: "build".into(), name: "Build server".into(), destination: "dev@build1".into(), port: None, root: root.into(), max_agents: 4, enabled: true, repo_paths: Default::default() }
     }
 
     #[test]

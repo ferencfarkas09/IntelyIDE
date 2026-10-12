@@ -255,11 +255,11 @@ describe("Repositories and Clone missing", () => {
     const clone = vi.spyOn(ipc.servers, "clone");
     fireEvent.click(card("GPU box").getByRole("button", { name: "Repositories" }));
     const panel = within(await screen.findByRole("region", { name: "Repositories on GPU box" }));
-    await waitFor(() => expect(panel.getAllByText("not cloned")).toHaveLength(ids.length));
+    await waitFor(() => expect(panel.getAllByText("not found")).toHaveLength(ids.length));
     fireEvent.click(panel.getByRole("button", { name: "Clone missing" }));
     await waitFor(() => expect(clone).toHaveBeenCalledTimes(ids.length));
     expect(clone.mock.calls.map((c) => c[1])).toEqual(ids);
-    await waitFor(() => expect(panel.queryAllByText("not cloned")).toHaveLength(0));
+    await waitFor(() => expect(panel.queryAllByText("not found")).toHaveLength(0));
     expect((panel.getByRole("button", { name: "Clone missing" }) as HTMLButtonElement).disabled).toBe(true);
   });
 
@@ -273,10 +273,58 @@ describe("Repositories and Clone missing", () => {
     });
     fireEvent.click(card("GPU box").getByRole("button", { name: "Repositories" }));
     const panel = within(await screen.findByRole("region", { name: "Repositories on GPU box" }));
-    await waitFor(() => expect(panel.getAllByText("not cloned").length).toBeGreaterThan(0));
+    await waitFor(() => expect(panel.getAllByText("not found").length).toBeGreaterThan(0));
     fireEvent.click(panel.getByRole("button", { name: "Clone missing" }));
     await waitFor(() => expect(error).toHaveBeenCalledTimes(1));
     expect(error.mock.calls[0][1]).toContain("Permission denied (publickey).");
+  });
+});
+
+describe("Folders of the repositories", () => {
+  const openRepos = async () => {
+    await loadWorkspace();
+    await open();
+    fireEvent.click(card("GPU box").getByRole("button", { name: "Repositories" }));
+    return within(await screen.findByRole("region", { name: "Repositories on GPU box" }));
+  };
+
+  it("shows the default badge and saves an edited folder as mapped, then resets it", async () => {
+    const set = vi.spyOn(ipc.servers, "setRepoPath");
+    const first = repos()[0];
+    const panel = await openRepos();
+    await waitFor(() => expect(panel.getAllByText("default").length).toBe(repos().length));
+    fireEvent.click(panel.getAllByRole("button", { name: /^Change the folder of/ })[0]);
+    const input = panel.getByRole("textbox") as HTMLInputElement;
+    fireEvent.input(input, { target: { value: "relative/x" } });
+    fireEvent.submit(input.closest("form")!);
+    expect(panel.getByRole("alert").textContent).toContain("absolute path");
+    expect(set).not.toHaveBeenCalled();
+    fireEvent.input(input, { target: { value: "/srv/apps/orders api/" } });
+    fireEvent.submit(input.closest("form")!);
+    await waitFor(() => expect(set).toHaveBeenCalledWith("gpu-box", `dir:${first.id}`, "/srv/apps/orders api"));
+    await waitFor(() => expect(panel.getByText("mapped")).toBeTruthy());
+    expect(panel.getByText("/srv/apps/orders api")).toBeTruthy();
+    fireEvent.click(panel.getByRole("button", { name: /^Reset the folder of/ }));
+    await waitFor(() => expect(set).toHaveBeenLastCalledWith("gpu-box", `dir:${first.id}`, null));
+    await waitFor(() => expect(panel.queryByText("mapped")).toBeNull());
+  });
+
+  it("saves nothing from a search until the person confirms, and only the chosen folders", async () => {
+    const set = vi.spyOn(ipc.servers, "setRepoPath");
+    const panel = await openRepos();
+    await waitFor(() => expect(panel.getAllByText("default").length).toBe(repos().length));
+    fireEvent.click(panel.getByRole("button", { name: "Find on server" }));
+    const found = within(await panel.findByRole("group", { name: "Found on the server" }));
+    expect(found.getByText("2 folders match, choose one")).toBeTruthy();
+    expect(set).not.toHaveBeenCalled();
+    // the single match is preselected; the one with two folders needs a choice
+    const save = found.getByRole("button", { name: "Save 1 folder" });
+    fireEvent.click(found.getAllByRole("radio")[2]);
+    fireEvent.click(found.getByRole("button", { name: "Save 2 folders" }));
+    await waitFor(() => expect(set).toHaveBeenCalledTimes(2));
+    expect(save).toBeTruthy();
+    expect(set.mock.calls.map((c) => c[2])).toEqual([`/srv/apps/${repos()[0].id}`, `/opt/${repos()[1].id}`]);
+    await waitFor(() => expect(panel.queryByRole("group", { name: "Found on the server" })).toBeNull());
   });
 });
 

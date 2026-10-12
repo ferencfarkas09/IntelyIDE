@@ -40,7 +40,7 @@ fn setup_and_a_scripted_run_on_a_real_linux_server() {
     let root = dir.path().canonicalize().unwrap();
     let ssh = Ssh::from_bin(Some(wrapper), PathBuf::from(format!("/tmp/intely-realssh-{}", std::process::id())));
     let _ = std::fs::create_dir_all(&ssh.control_dir);
-    let cfg = ServerCfg { id: "real".into(), name: "Container".into(), destination: "dev@127.0.0.1".into(), port: None, root: "~/work".into(), max_agents: 2, enabled: true };
+    let cfg = ServerCfg { id: "real".into(), name: "Container".into(), destination: "dev@127.0.0.1".into(), port: None, root: "~/work".into(), max_agents: 2, enabled: true, repo_paths: Default::default() };
     // start clean: nothing of an earlier run
     ssh.exec(&cfg, "rm -rf ~/.intely ~/.local/share/IntelyIDE ~/work\n", Duration::from_secs(60)).unwrap();
 

@@ -68,7 +68,7 @@ fn server(root: &Path, max_agents: u32, filter: &str) -> Server {
             dests = dest_log.display()
         ),
     );
-    let cfg = Arc::new(Mutex::new(ServerCfg { id: "srv".into(), name: "Test server".into(), destination: "dev@fake".into(), port: None, root: "~/work".into(), max_agents, enabled: true }));
+    let cfg = Arc::new(Mutex::new(ServerCfg { id: "srv".into(), name: "Test server".into(), destination: "dev@fake".into(), port: None, root: "~/work".into(), max_agents, enabled: true, repo_paths: Default::default() }));
     let supplied = cfg.clone();
     let registry = Arc::new(ServerRegistry::new(Arc::new(move || vec![supplied.lock().unwrap().clone()]), Ssh::from_bin(Some(ssh.into_os_string()), root.join("ctl")), VERSION));
     registry.set_status(
@@ -282,6 +282,130 @@ fn two_repositories_with_one_folder_name_do_not_share_a_folder_on_the_server() {
         .start_role_with(&def, AgentStartRequest { role: def.name.clone(), repo_ids: vec![a.id.clone(), b.id.clone()], prompt: "go".into(), mode: None, mcp_servers: None }, &both, StartOptions { location: Some("srv".into()), ..Default::default() })
         .unwrap_err();
     assert_eq!(e.code, "remoteRepoName", "{e:?}");
+    host.shutdown();
+}
+
+#[test]
+fn a_mapped_folder_is_where_the_run_works_and_the_default_still_applies_without_one() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().canonicalize().unwrap();
+    let srv = server(&root, 2, "cat");
+    // the copy on the server is not under the root but in ~/code/orders (a name with a space and a quote)
+    let repo = repos(&root, &srv, false);
+    let theirs = srv.home.join("code/it's orders");
+    std::fs::create_dir_all(theirs.parent().unwrap()).unwrap();
+    let out = std::process::Command::new("git").args(["clone", "-q"]).arg(&repo.path).arg(&theirs).output().unwrap();
+    assert!(out.status.success());
+    let (host, sink) = host(&root.join("data"), &srv);
+    // not mapped: the default folder is empty, and the error says where to set it
+    let e = start_on(&host, &repo, "mock-plain-reply", Some("srv")).unwrap_err();
+    assert_eq!(e.code, "repoMissingOnServer", "{e:?}");
+    assert!(e.message.contains("Settings > Servers > Test server > Repositories"), "{}", e.message);
+    srv.cfg.lock().unwrap().repo_paths.insert("dir:repo".into(), "~/code/it's orders".into());
+    let run = start_on(&host, &repo, "mock-plain-reply", Some("srv")).expect("mapped");
+    sink.wait_turn_end(&run.agent_id);
+    let start = wire(&srv).into_iter().find(|m| m["type"] == "session/start").unwrap();
+    assert_eq!(start["body"]["cwd"], theirs.display().to_string());
+    let meta: serde_json::Value = serde_json::from_slice(&std::fs::read(root.join("data/runs").join(format!("{}.meta.json", run.agent_id))).unwrap()).unwrap();
+    assert_eq!(meta["remote"]["dirs"][0], theirs.display().to_string());
+    host.shutdown();
+}
+
+#[test]
+fn two_repositories_with_one_folder_name_start_when_each_has_its_own_folder() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().canonicalize().unwrap();
+    let srv = server(&root, 2, "cat");
+    let a = repos(&root, &srv, true);
+    let other_parent = root.join("elsewhere");
+    std::fs::create_dir_all(&other_parent).unwrap();
+    let same_name = other_parent.join(a.path.file_name().unwrap());
+    std::fs::create_dir_all(&same_name).unwrap();
+    git(&same_name, &["init", "-q"]);
+    let b = RepoRef { id: "second".into(), path: same_name };
+    let second = srv.home.join("code/second");
+    std::fs::create_dir_all(&second).unwrap();
+    git(&second, &["init", "-q"]);
+    // both are called `repo`: unmapped they would share ~/work/repo and the start is refused
+    let (host, sink) = host(&root.join("data"), &srv);
+    let def = host.find_role("mock-plain-reply", std::slice::from_ref(&a)).expect("role");
+    let both = vec![a.clone(), b.clone()];
+    let req = || AgentStartRequest { role: def.name.clone(), repo_ids: vec![a.id.clone(), b.id.clone()], prompt: "go".into(), mode: None, mcp_servers: None };
+    let opts = || StartOptions { location: Some("srv".into()), ..Default::default() };
+    let e = host.start_role_with(&def, req(), &both, opts()).unwrap_err();
+    assert_eq!(e.code, "remoteRepoName", "{e:?}");
+    assert!(e.message.contains("Settings > Servers"), "{}", e.message);
+    // with their own origins the second one is mapped by origin to its own folder, and the run starts
+    git(&a.path, &["remote", "add", "origin", "https://example.com/org/first.git"]);
+    git(&srv.home.join("work/repo"), &["remote", "set-url", "origin", "https://example.com/org/first.git"]);
+    git(&b.path, &["remote", "add", "origin", "git@example.com:org/second.git"]);
+    git(&second, &["remote", "add", "origin", "https://example.com/org/second.git"]);
+    srv.cfg.lock().unwrap().repo_paths.insert("origin:org/second".into(), "~/code/second".into());
+    let run = host.start_role_with(&def, req(), &both, opts()).expect("two folders");
+    sink.wait_turn_end(&run.agent_id);
+    let start = wire(&srv).into_iter().find(|m| m["type"] == "session/start").unwrap();
+    assert_eq!(start["body"]["cwd"], srv.home.join("work/repo").display().to_string());
+    assert_eq!(start["body"]["addDirs"][0], second.display().to_string());
+    host.shutdown();
+}
+
+#[test]
+fn a_link_is_followed_to_the_real_folder_and_a_link_to_a_forbidden_place_is_refused() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().canonicalize().unwrap();
+    let srv = server(&root, 2, "cat");
+    let repo = repos(&root, &srv, false);
+    let real = srv.home.join("data/real orders");
+    std::fs::create_dir_all(real.parent().unwrap()).unwrap();
+    let out = std::process::Command::new("git").args(["clone", "-q"]).arg(&repo.path).arg(&real).output().unwrap();
+    assert!(out.status.success());
+    std::fs::create_dir_all(srv.home.join("code")).unwrap();
+    std::os::unix::fs::symlink(&real, srv.home.join("code/orders")).unwrap();
+    srv.cfg.lock().unwrap().repo_paths.insert("dir:repo".into(), "~/code/./orders/".into());
+    let (host, sink) = host(&root.join("data"), &srv);
+    // the run works in the physical folder: cwd, the folders of the run and the meta all name it
+    let run = start_on(&host, &repo, "mock-plain-reply", Some("srv")).expect("through the link");
+    sink.wait_turn_end(&run.agent_id);
+    let start = wire(&srv).into_iter().find(|m| m["type"] == "session/start").unwrap();
+    assert_eq!(start["body"]["cwd"], real.display().to_string());
+    let meta: serde_json::Value = serde_json::from_slice(&std::fs::read(root.join("data/runs").join(format!("{}.meta.json", run.agent_id))).unwrap()).unwrap();
+    assert_eq!(meta["remote"]["dirs"][0], real.display().to_string());
+    // a link that leads to the home folder of the server is refused
+    git(&srv.home, &["init", "-q"]);
+    std::os::unix::fs::symlink(&srv.home, srv.home.join("code/home")).unwrap();
+    srv.cfg.lock().unwrap().repo_paths.insert("dir:repo".into(), "~/code/home".into());
+    let e = start_on(&host, &repo, "mock-plain-reply", Some("srv")).unwrap_err();
+    assert_eq!(e.code, "remoteRepoName", "{e:?}");
+    assert!(e.message.contains("home folder"), "{}", e.message);
+    host.shutdown();
+}
+
+#[test]
+fn a_repository_inside_another_one_of_the_run_is_refused() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().canonicalize().unwrap();
+    let srv = server(&root, 2, "cat");
+    let a = repos(&root, &srv, true);
+    let other_parent = root.join("elsewhere");
+    std::fs::create_dir_all(&other_parent).unwrap();
+    let b_path = other_parent.join("inner");
+    std::fs::create_dir_all(&b_path).unwrap();
+    git(&b_path, &["init", "-q"]);
+    let b = RepoRef { id: "second".into(), path: b_path };
+    // `inner` lives inside the folder of the first repository on the server, reached through a link
+    let inner = srv.home.join("work/repo/inner");
+    std::fs::create_dir_all(&inner).unwrap();
+    git(&inner, &["init", "-q"]);
+    std::os::unix::fs::symlink(&inner, srv.home.join("alias")).unwrap();
+    srv.cfg.lock().unwrap().repo_paths.insert("dir:inner".into(), "~/alias".into());
+    let (host, _sink) = host(&root.join("data"), &srv);
+    let def = host.find_role("mock-plain-reply", std::slice::from_ref(&a)).expect("role");
+    let both = vec![a.clone(), b.clone()];
+    let e = host
+        .start_role_with(&def, AgentStartRequest { role: def.name.clone(), repo_ids: vec![a.id.clone(), b.id.clone()], prompt: "go".into(), mode: None, mcp_servers: None }, &both, StartOptions { location: Some("srv".into()), ..Default::default() })
+        .unwrap_err();
+    assert_eq!(e.code, "remoteRepoName", "{e:?}");
+    assert!(e.message.contains("inside the other"), "{}", e.message);
     host.shutdown();
 }
 

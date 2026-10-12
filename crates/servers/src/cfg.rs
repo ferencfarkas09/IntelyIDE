@@ -5,6 +5,7 @@
 //! after `--`.
 
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 /// A configured server, as stored in the settings and sent to the UI.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -28,6 +29,10 @@ pub struct ServerCfg {
     /// Disabled servers stay in the list but are never used.
     #[serde(default = "default_enabled")]
     pub enabled: bool,
+    /// Where a repository lives on this server when it is not `<root>/<its folder name>`: the key is [`crate::paths::repo_key`]
+    /// (the normalized origin, or the folder name of a repository without one), the value an absolute or `~/` path.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub repo_paths: BTreeMap<String, String>,
 }
 
 fn default_root() -> String {
@@ -66,6 +71,13 @@ impl ServerCfg {
         validate_remote_path("root", &self.root)?;
         if !(1..=64).contains(&self.max_agents) {
             return Err(err("maxAgents", "must be 1..64"));
+        }
+        if self.repo_paths.len() > 500 {
+            return Err(err("repoPaths", "at most 500 repositories"));
+        }
+        for (k, v) in &self.repo_paths {
+            validate_repo_key(k)?;
+            validate_repo_path(v)?;
         }
         Ok(())
     }
@@ -132,6 +144,86 @@ pub fn validate_remote_path(field: &'static str, p: &str) -> Result<(), CfgError
     Ok(())
 }
 
+/// A key of `repoPaths`: 1..300 characters, no control characters.
+pub fn validate_repo_key(k: &str) -> Result<(), CfgError> {
+    if k.is_empty() || k.chars().count() > 300 || k.chars().any(char::is_control) {
+        return Err(err("repoPaths", "a repository key must be 1..300 characters without control characters"));
+    }
+    Ok(())
+}
+
+/// Folders that are never a repository folder: system roots, and the places where the home folder keeps keys, settings and the IDE's own files.
+const SYSTEM_ROOTS: [&str; 8] = ["/etc", "/root", "/proc", "/sys", "/dev", "/boot", "/bin", "/sbin"];
+const HOME_PRIVATE: [&str; 4] = [".ssh", ".config", ".local", ".intely"];
+
+fn within(p: &str, root: &str) -> bool {
+    p == root || p.strip_prefix(root).is_some_and(|r| r.starts_with('/'))
+}
+
+/// A path with `.` components removed, `//` collapsed and no trailing `/` (`~` and `~/x` stay, `/` stays). Only text is looked at; links
+/// are not followed. `..` and control characters are refused by the callers.
+pub fn canonical_path(p: &str) -> String {
+    let (head, rest) = if p == "~" || p.starts_with("~/") { ("~", &p[1..]) } else { ("", p) };
+    let parts: Vec<&str> = rest.split('/').filter(|c| !c.is_empty() && *c != ".").collect();
+    let abs = rest.starts_with('/');
+    match (head, parts.is_empty()) {
+        ("~", true) => "~".to_string(),
+        ("~", false) => format!("~/{}", parts.join("/")),
+        (_, true) => if abs { "/".to_string() } else { String::new() },
+        _ => format!("{}{}", if abs { "/" } else { "" }, parts.join("/")),
+    }
+}
+
+/// The reason a canonical folder of the server may not be a repository folder: the home folder, `/`, a top-level folder (`/srv`, `/opt`,
+/// `/usr`, ...), a system root, or a private place of the home folder. `home` is the server's home when it is known (a physical path).
+pub fn forbidden_repo_dir(canonical: &str, home: Option<&str>) -> Option<&'static str> {
+    let home = home.map(|h| canonical_path(h)).filter(|h| h.starts_with('/') && h != "/");
+    let rel_home = |p: &str| -> Option<String> {
+        if p == "~" {
+            return Some(String::new());
+        }
+        if let Some(r) = p.strip_prefix("~/") {
+            return Some(r.to_string());
+        }
+        let h = home.as_deref()?;
+        if p == h {
+            return Some(String::new());
+        }
+        p.strip_prefix(h).and_then(|r| r.strip_prefix('/')).map(str::to_string)
+    };
+    if let Some(r) = rel_home(canonical) {
+        if r.is_empty() {
+            return Some("must be a folder inside the home folder, not the home folder itself");
+        }
+        let first = r.split('/').next().unwrap_or("");
+        if HOME_PRIVATE.contains(&first) {
+            return Some("must not be inside ~/.ssh, ~/.config, ~/.local or ~/.intely");
+        }
+        return None;
+    }
+    if canonical == "/" || canonical.trim_start_matches('/').split('/').count() < 2 {
+        return Some("must be at least two levels deep (a top-level folder such as /srv or /opt is too broad)");
+    }
+    if SYSTEM_ROOTS.iter().any(|r| within(canonical, r)) {
+        return Some("must not be inside a system folder such as /etc or /root");
+    }
+    None
+}
+
+/// The folder of one repository on the server: absolute or `~/...`, no control characters, no `..` and no empty or `.` result; after
+/// the lexical clean-up ([`canonical_path`]) not the home folder, `/`, a top-level folder, a system folder or a private place of the home folder.
+pub fn validate_repo_path(p: &str) -> Result<(), CfgError> {
+    validate_remote_path("repoPaths", p)?;
+    let c = canonical_path(p);
+    if c.is_empty() {
+        return Err(err("repoPaths", "must not be empty"));
+    }
+    match forbidden_repo_dir(&c, None) {
+        Some(reason) => Err(err("repoPaths", reason)),
+        None => Ok(()),
+    }
+}
+
 /// An app version that is safe as a directory name: `[A-Za-z0-9._+-]{1,64}`, not starting with `.` or `-`.
 pub fn valid_version(v: &str) -> bool {
     !v.is_empty()
@@ -189,6 +281,7 @@ mod tests {
             root: "~/work".into(),
             max_agents: 5,
             enabled: true,
+            repo_paths: BTreeMap::new(),
         }
     }
 
@@ -321,6 +414,52 @@ mod tests {
             assert!(validate_remote_path("root", r).is_ok(), "{r:?}");
         }
         assert!(validate_remote_path("root", &format!("/{}", "a".repeat(1023))).is_ok());
+    }
+
+    #[test]
+    fn repo_paths_are_validated() {
+        let mut c = good();
+        c.repo_paths.insert("acme/orders-api".into(), "/srv/apps/orders api".into());
+        c.repo_paths.insert("dir:web-shop".into(), "~/code/web-shop".into());
+        assert!(c.validate().is_ok());
+        for bad in ["", "~", "~/", "/", "//", "rel/x", "/a/../b", "/a\nb", "/a\u{0}b", "~user/x", "~/.", "~/./", "/srv", "/srv/", "/./srv", "//opt//", "/home", "/etc/x", "/root/app", "/proc/1", "~/.ssh", "~/.ssh/keys", "~/.config/x", "~/.local/share/x", "~/.intely/node", "/usr", "/var"] {
+            let mut c = good();
+            c.repo_paths.insert("k".into(), bad.into());
+            assert!(c.validate().is_err(), "{bad:?}");
+        }
+        let mut c = good();
+        c.repo_paths.insert("".into(), "/x".into());
+        assert!(c.validate().is_err());
+        let mut c = good();
+        c.repo_paths.insert("a\nb".into(), "/x".into());
+        assert!(c.validate().is_err());
+    }
+
+    #[test]
+    fn repo_paths_are_cleaned_up_lexically() {
+        for (raw, want) in [("/srv//apps/./x/", "/srv/apps/x"), ("~/./code//x/", "~/code/x"), ("~", "~"), ("~/", "~"), ("//", "/"), ("/a/b", "/a/b")] {
+            assert_eq!(canonical_path(raw), want, "{raw}");
+        }
+        let mut c = good();
+        c.repo_paths.insert("k".into(), "/srv//apps/./x/".into());
+        assert!(c.validate().is_ok());
+    }
+
+    #[test]
+    fn a_physical_path_is_judged_with_the_servers_home() {
+        for bad in ["/", "/home/me", "/home/me/", "/home", "/srv", "/home/me/.ssh", "/home/me/.config/a", "/home/me/.intely/x", "/etc/app", "/root/x"] {
+            assert!(forbidden_repo_dir(&canonical_path(bad), Some("/home/me")).is_some(), "{bad}");
+        }
+        for ok in ["/home/me/work/x", "/srv/apps/x", "/opt/x/y", "/home/alice/x"] {
+            assert!(forbidden_repo_dir(ok, Some("/home/me")).is_none(), "{ok}");
+        }
+    }
+
+    #[test]
+    fn repo_paths_default_to_empty_and_stay_out_of_the_json() {
+        let c: ServerCfg = serde_json::from_str(r#"{"id":"a","name":"A","destination":"h","repoPaths":{"k":"/x"}}"#).unwrap();
+        assert_eq!(c.repo_paths.get("k").map(String::as_str), Some("/x"));
+        assert!(serde_json::to_value(good()).unwrap().get("repoPaths").is_none());
     }
 
     #[test]

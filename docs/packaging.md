@@ -1,6 +1,6 @@
 # Packaging
 
-This page describes how the macOS app and its disk image are built today, by hand on one Mac, and which parts of a fuller release pipeline do not exist yet. Applies to version 1.3.2.
+This page describes how the macOS app and its disk image are built today, by hand on one Mac, and which parts of a fuller release pipeline do not exist yet. Applies to version 1.3.3.
 
 It is written for the maintainer. Users want [install-macos.md](install-macos.md).
 

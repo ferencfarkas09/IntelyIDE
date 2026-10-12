@@ -19,6 +19,7 @@ pub fn test_cfg() -> ServerCfg {
         root: "~/work".into(),
         max_agents: 4,
         enabled: true,
+        repo_paths: Default::default(),
     }
 }
 

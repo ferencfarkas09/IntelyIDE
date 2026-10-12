@@ -1,4 +1,4 @@
-import type { RepoState, ServerCfg, ServerDraft, ServerStatus, ServerView, SetupEvent, SetupOptions, SetupStepName } from "../../ipc/servers";
+import type { FoundRow, RepoRow, RepoState, ServerCfg, ServerDraft, ServerStatus, ServerView, SetupEvent, SetupOptions, SetupStepName } from "../../ipc/servers";
 
 export const MAX_AGENTS_LIMIT = 64;
 export const DEFAULT_ROOT = "~/work";
@@ -171,4 +171,43 @@ export const repoKind = (r: RepoState): RepoKind => (!r.exists ? "missing" : r.i
 /** Workspace repository ids whose folder is missing on the server, paired with the answers by position. */
 export function missingRepoIds(repoIds: readonly string[], states: readonly RepoState[]): string[] {
   return repoIds.filter((_, i) => states[i] && repoKind(states[i]) === "missing");
+}
+
+/** Where a repository's folder comes from, for its badge. */
+export type PathSource = "mapped" | "default";
+export const pathSource = (r: Pick<RepoState, "mapped">): PathSource => (r.mapped ? "mapped" : "default");
+
+/** Folders that are too broad or private to be a repository: the home folder, `/`, a top-level folder, system folders, `~/.ssh` and its kin. */
+const SYSTEM_ROOTS = ["/etc", "/root", "/proc", "/sys", "/dev", "/boot", "/bin", "/sbin"];
+const HOME_PRIVATE = [".ssh", ".config", ".local", ".intely"];
+
+/** `.` components, `//` and a trailing `/` removed (text only), like the backend's clean-up. */
+export function canonicalPath(raw: string): string {
+  const p = raw.trim();
+  const home = p === "~" || p.startsWith("~/");
+  const parts = (home ? p.slice(1) : p).split("/").filter((c) => c !== "" && c !== ".");
+  if (home) return parts.length ? `~/${parts.join("/")}` : "~";
+  return p.startsWith("/") ? `/${parts.join("/")}` : parts.join("/");
+}
+
+/** The same rules as the backend's check of a mapped folder, so the form refuses what the backend would. */
+export function validateRepoPath(raw: string): "servers.repos.pathInvalid" | undefined {
+  const p = raw.trim();
+  const bad = "servers.repos.pathInvalid";
+  if (p.length === 0 || p.length > 1024 || !(p.startsWith("/") || p.startsWith("~/")) || /[\u0000-\u001f\u007f]/.test(p) || p.split("/").includes("..")) return bad;
+  const c = canonicalPath(p);
+  if (c === "~" || c === "/") return bad;
+  if (c.startsWith("~/")) return HOME_PRIVATE.includes(c.slice(2).split("/")[0]) ? bad : undefined;
+  if (c.split("/").filter(Boolean).length < 2) return bad;
+  return SYSTEM_ROOTS.some((r) => c === r || c.startsWith(`${r}/`)) ? bad : undefined;
+}
+
+/** The folders a search found, as the choices to save: one match is preselected, several need a choice, and what is set already is left out. */
+export function initialChoices(found: readonly FoundRow[], rows: readonly RepoRow[]): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const f of found) {
+    const row = rows.find((r) => r.repoId === f.repoId);
+    if (f.candidates.length === 1 && f.candidates[0].path !== row?.path) out[f.repoId] = f.candidates[0].path;
+  }
+  return out;
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ServerCfg, ServerStatus, SetupEvent } from "../../ipc/servers";
-import { checklist, defaultSetupOptions, emptyForm, formFromCfg, freeSlots, loginCommand, missingRepoIds, needsClaudeLogin, repoKind, setupLabelId, setupOutcome, statusChip, stepRows, toDraft, validateForm } from "./logic";
+import { canonicalPath, checklist, defaultSetupOptions, emptyForm, formFromCfg, freeSlots, loginCommand, initialChoices, missingRepoIds, needsClaudeLogin, pathSource, repoKind, setupLabelId, setupOutcome, statusChip, stepRows, toDraft, validateForm, validateRepoPath } from "./logic";
 
 const ready: ServerStatus = {
   reachable: true, os: "linux", arch: "x64",
@@ -120,5 +120,31 @@ describe("repositories", () => {
     ];
     expect(states.map(repoKind)).toEqual(["ready", "notGit", "missing"]);
     expect(missingRepoIds(["ra", "rb", "rc"], states)).toEqual(["rc"]);
+  });
+});
+
+describe("folders on the server", () => {
+  it("accepts an absolute or ~/ folder and refuses the rest", () => {
+    for (const ok of ["/srv/apps/orders-api", "~/code/orders api", " /opt/x/ ", "/srv//apps/./x", "~/.cache/x"]) expect(validateRepoPath(ok)).toBeUndefined();
+    for (const bad of ["", "~", "~/", "/", "orders-api", "./x", "/a/../b", "~user/x", "/a\nb", "/a\u0000b", "~/.", "/srv", "/srv/", "/./opt", "/home", "/etc/x", "/root/a", "~/.ssh", "~/.config/a", "~/.local/x", "~/.intely/y", "/usr"]) expect(validateRepoPath(bad), JSON.stringify(bad)).toBe("servers.repos.pathInvalid");
+  });
+
+  it("cleans a folder up the way the backend does", () => {
+    expect([canonicalPath("/srv//apps/./x/"), canonicalPath("~/./code//x/"), canonicalPath("~/"), canonicalPath("//")]).toEqual(["/srv/apps/x", "~/code/x", "~", "/"]);
+  });
+
+  it("tells a mapped folder from the default", () => {
+    expect([pathSource({ mapped: true }), pathSource({ mapped: false }), pathSource({})]).toEqual(["mapped", "default", "default"]);
+  });
+
+  it("preselects only a single match that is not in use already", () => {
+    const row = (repoId: string, path: string) => ({ repoId, key: `dir:${repoId}`, name: repoId, path, exists: true, isGit: true });
+    const found = [
+      { repoId: "one", key: "dir:one", candidates: [{ path: "/srv/one" }] },
+      { repoId: "two", key: "dir:two", candidates: [{ path: "/a/two" }, { path: "/b/two" }] },
+      { repoId: "none", key: "dir:none", candidates: [] },
+      { repoId: "same", key: "dir:same", candidates: [{ path: "/srv/same" }] },
+    ];
+    expect(initialChoices(found, [row("one", "~/work/one"), row("same", "/srv/same")])).toEqual({ one: "/srv/one" });
   });
 });

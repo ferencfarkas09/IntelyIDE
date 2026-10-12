@@ -4,6 +4,12 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [1.3.3] - 2026-10-12
+
+### Added
+
+- Runs on a server no longer assume that a repository is at `<root>/<its folder name on this Mac>`. In Settings > Servers > Repositories every repository shows where it is looked for (default or mapped) and you can set its folder on the server, or let **Find on server** search the usual places once (read-only, bounded) and confirm what it found. The checks before a run, the agent's working folders, approvals and Clone missing use the chosen folders; two repositories with the same folder name are refused only when they end up in the same folder on the server.
+
 ## [1.3.2] - 2026-10-12
 
 ### Fixed
@@ -167,7 +173,8 @@ First public release. This is alpha software.
 - Providers other than Claude, Happy, MongoDB Studio and Remote are proven only against mocks or on a local machine.
 - Version 0.1.0 still stores its state in the folder `IntelySwitchIDE` and uses Keychain services named after the earlier bundle identifier; a switch to `com.intelyhome.intelyide` with a migration is planned.
 
-[Unreleased]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.3.2...HEAD
+[Unreleased]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.3.3...HEAD
+[1.3.3]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.3.2...v1.3.3
 [1.3.2]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.1.1...v1.3.0

@@ -186,7 +186,7 @@ fn sweep_plan_dirs(dir: &Path, max_age: Duration) {
 }
 
 /// The `origin` URL of a local repository as git spells it, without credentials; `None` when it has none.
-fn local_origin(git: &Path, repo: &Path) -> Option<String> {
+pub fn local_origin(git: &Path, repo: &Path) -> Option<String> {
     let out = intely_core::exec::hardened_git(git).arg("-C").arg(repo).args(["remote", "get-url", "origin"]).env("GIT_TERMINAL_PROMPT", "0").stdin(std::process::Stdio::null()).output().ok()?;
     let url = String::from_utf8_lossy(&out.stdout).trim().to_string();
     if !out.status.success() || url.is_empty() {
@@ -1798,33 +1798,54 @@ impl Inner {
     fn prepare_remote(&self, loc: &str, meta: &Meta) -> Result<RemoteDirs, EngineError> {
         let registry = self.cfg.servers.clone().ok_or_else(|| err("serversUnavailable", "servers are not available in this build"))?;
         let (scfg, _status, paths) = registry.ready(loc).map_err(|e| err("serverNotReady", e.message()))?;
-        let mut dirs = Vec::new();
-        let mut names: Vec<String> = Vec::new();
+        let mut dirs: Vec<String> = Vec::new();
+        let mut specs: Vec<intely_servers::RepoSpec> = Vec::new();
+        let mut ours: Vec<Option<String>> = Vec::new();
         for repo in &meta.repos {
-            let dir = remote::remote_dir(&scfg, &paths.home, &repo.path).ok_or_else(|| err("remoteRepoName", format!("{} cannot be mapped to a folder on the server", repo.path.display())))?;
             let name = repo.path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-            // (two repositories of one run with the same folder name would share one folder there)
-            if names.contains(&name) {
-                return Err(err("remoteRepoName", format!("two repositories of this run are both called {name}; on a server they would share one folder")));
+            // where it lives there: the folder mapped for it in Settings > Servers > Repositories, otherwise `<root>/<folder name>`
+            let origin = local_origin(&self.cfg.git, &repo.path);
+            let resolved = intely_servers::resolve_repo_path(&scfg, origin.as_deref(), &name).ok_or_else(|| err("remoteRepoName", format!("{} cannot be mapped to a folder on the server: set the folder in Settings > Servers > {} > Repositories", repo.path.display(), scfg.name)))?;
+            let dir = intely_servers::expand_home(&resolved.path, &paths.home);
+            // (two repositories of one run on the same folder there would share it)
+            if dirs.iter().any(|d| intely_servers::equal_or_nested(d, &dir)) {
+                return Err(err("remoteRepoName", format!("two repositories of this run are both at {dir} on {} (the same folder, or one inside the other); set another folder for one of them in Settings > Servers > {} > Repositories", scfg.name, scfg.name)));
             }
-            names.push(name);
             dirs.push(dir);
+            specs.push(intely_servers::RepoSpec { name, path: resolved.path, mapped: resolved.mapped });
+            ours.push(origin);
         }
-        match intely_servers::repo_states(registry.ssh(), &scfg, &names) {
+        match intely_servers::repo_states_at(registry.ssh(), &scfg, &specs) {
             Ok(states) => {
-                let missing: Vec<&str> = states.iter().filter(|s| !s.exists || !s.is_git).map(|s| s.name.as_str()).collect();
+                let missing: Vec<String> = states.iter().filter(|s| !s.exists || !s.is_git).map(|s| format!("{} ({})", s.name, s.path)).collect();
                 if !missing.is_empty() {
-                    return Err(err("repoMissingOnServer", format!("{} is not on {} under {}: clone it first (Settings > Servers > Repositories)", missing.join(", "), scfg.name, scfg.root)));
+                    return Err(err("repoMissingOnServer", format!("{} is not on {}: clone it there, or set the folder in Settings > Servers > {} > Repositories", missing.join(", "), scfg.name, scfg.name)));
                 }
-                // The same folder name is not the same repository: a copy of another project (or a fork) under that name would be worked
-                // on instead. Both origins are compared as repositories (scheme, user, `.git` and the ssh/https spelling do not count);
-                // a repository without an origin on either side cannot be told apart and is taken as it is.
-                for (state, repo) in states.iter().zip(&meta.repos) {
-                    let (Some(theirs), Some(ours)) = (state.origin.as_deref(), local_origin(&self.cfg.git, &repo.path)) else { continue };
-                    if !intely_servers::same_origin(&ours, theirs) {
+                // Where each folder really is (links followed): that is the run's folder, the jail's root and what is compared. A link
+                // that leads to the home folder, `/`, a system folder or a private place of the home folder is refused, and so are two
+                // repositories whose folders are the same or one inside the other.
+                let mut real: Vec<String> = Vec::new();
+                for (state, spec) in states.iter().zip(&specs) {
+                    let phys = state.physical.as_deref().ok_or_else(|| err("remoteRepoName", format!("{} on {} ({}) could not be resolved to a real folder", spec.name, scfg.name, spec.path)))?;
+                    let phys = intely_servers::canonical_path(phys);
+                    if let Some(why) = intely_servers::forbidden_repo_dir(&phys, Some(&paths.home)) {
+                        return Err(err("remoteRepoName", format!("{} on {} is at {phys}, which {why}; set another folder in Settings > Servers > {} > Repositories", spec.name, scfg.name, scfg.name)));
+                    }
+                    if let Some(other) = real.iter().find(|r| intely_servers::equal_or_nested(r, &phys)) {
+                        return Err(err("remoteRepoName", format!("two repositories of this run are at {other} and {phys} on {}: the same folder, or one inside the other; set another folder for one of them in Settings > Servers > {} > Repositories", scfg.name, scfg.name)));
+                    }
+                    real.push(phys);
+                }
+                dirs = real;
+                // The same folder is not the same repository: a copy of another project (or a fork) there would be worked on instead.
+                // Both origins are compared as repositories (scheme, user, `.git` and the ssh/https spelling do not count); a repository
+                // without an origin on either side cannot be told apart and is taken as it is.
+                for (state, our) in states.iter().zip(&ours) {
+                    let (Some(theirs), Some(our)) = (state.origin.as_deref(), our.as_deref()) else { continue };
+                    if !intely_servers::same_origin(our, theirs) {
                         return Err(err(
                             "repoOriginMismatch",
-                            format!("{} on {} is a different repository from the one on this Mac (origin {theirs} there, {ours} here). Fix the origin there or use another folder name", state.name, scfg.name),
+                            format!("{} on {} ({}) is a different repository from the one on this Mac (origin {theirs} there, {our} here). Fix the origin there or set the right folder in Settings > Servers > {} > Repositories", state.name, scfg.name, state.path, scfg.name),
                         ));
                     }
                 }

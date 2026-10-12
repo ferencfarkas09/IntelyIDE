@@ -471,6 +471,8 @@ pub fn run() {
             modules::servers::servers_setup,
             modules::servers::servers_repos,
             modules::servers::servers_clone,
+            modules::servers::servers_find_repos,
+            modules::servers::servers_set_repo_path,
             modules::servers::servers_ssh_command,
             modules::viewers::viewers_stat,
             modules::viewers::viewers_read_range,

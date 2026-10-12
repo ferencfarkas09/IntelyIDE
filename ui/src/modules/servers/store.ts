@@ -1,6 +1,6 @@
 import { createMemo, createRoot, createSignal } from "solid-js";
 import { ipc } from "../../ipc";
-import type { RepoState, ServerCfg, ServerDraft, ServerStatus, ServerView, SetupEvent, SetupOptions } from "../../ipc/servers";
+import type { FoundRow, RepoRow, ServerCfg, ServerDraft, ServerStatus, ServerView, SetupEvent, SetupOptions } from "../../ipc/servers";
 
 const [servers, setServers] = createSignal<ServerView[]>([]);
 const [loaded, setLoaded] = createSignal(false);
@@ -125,7 +125,9 @@ export function clearSetup(id: string): void {
 
 // ---- repositories ----
 
-export const repoStates = (id: string, repoIds: string[]): Promise<RepoState[]> => ipc.servers.repos(id, repoIds);
+export const repoStates = (id: string, repoIds: string[]): Promise<RepoRow[]> => ipc.servers.repos(id, repoIds);
+export const findRepos = (id: string, repoIds: string[]): Promise<FoundRow[]> => ipc.servers.findRepos(id, repoIds);
+export const setRepoPath = (id: string, key: string, path: string | null): Promise<ServerCfg> => ipc.servers.setRepoPath(id, key, path);
 
 /** Test hook and sign-out: forget everything and stop listening. */
 export function resetServers(): void {

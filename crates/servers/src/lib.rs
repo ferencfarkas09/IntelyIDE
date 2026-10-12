@@ -8,6 +8,7 @@
 //! config value is checked by [`ServerCfg::validate`] first.
 
 pub mod cfg;
+pub mod paths;
 pub mod probe;
 pub mod quote;
 pub mod repos;
@@ -17,12 +18,13 @@ pub mod ssh;
 #[cfg(test)]
 mod testkit;
 
-pub use cfg::{slug_from_name, valid_repo_dir_name, CfgError, ServerCfg};
+pub use cfg::{canonical_path, forbidden_repo_dir, slug_from_name, valid_repo_dir_name, CfgError, ServerCfg};
 pub use probe::{
     parse_probe, probe, probe_script, status_from_facts, ProbeFacts, ServerStatus, StatusError,
 };
 pub use quote::{sh_quote, sh_quote_path_for_remote};
-pub use repos::{clone_repo, repo_states, same_origin, validate_git_url, RepoState};
+pub use paths::{candidates_for, default_path, equal_or_nested, expand_home, find_repos, repo_key, resolve_repo_path, FoundRepo, ResolvedPath, Wanted};
+pub use repos::{clone_repo, clone_repo_at, repo_states, repo_states_at, same_origin, validate_git_url, RepoSpec, RepoState};
 pub use setup::{
     node_pin_for, setup, NodePin, SetupError, SetupEvent, SetupOptions, SetupStep, StepState,
 };

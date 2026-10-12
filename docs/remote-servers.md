@@ -1,6 +1,6 @@
 # Runs on servers
 
-IntelyIDE can run an agent on a server you own, over `ssh`, instead of on your Mac. The agent's shell commands, file edits and the Claude CLI all run on the server, in the server's copy of your repositories. The permission rules stay in the IDE and judge the server's files, so an agent there is held to the same hard stops as one on your Mac (best-effort, as everywhere: see [safety.md](safety.md)). Applies to version 1.3.2.
+IntelyIDE can run an agent on a server you own, over `ssh`, instead of on your Mac. The agent's shell commands, file edits and the Claude CLI all run on the server, in the server's copy of your repositories. The permission rules stay in the IDE and judge the server's files, so an agent there is held to the same hard stops as one on your Mac (best-effort, as everywhere: see [safety.md](safety.md)). Applies to version 1.3.3.
 
 Typical use: a build server with a lot of CPU and RAM, and a task such as "run this prompt on 3 agents on the big server and 2 on my Mac".
 
@@ -45,6 +45,15 @@ A step that is already done is skipped, so you can run it again. When everything
 
 To remove everything the IDE put on a server: `rm -rf ~/.intely ~/.local/share/IntelyIDE` (and delete the repository folders if you want them gone).
 
+## Where the repositories are
+
+By default a repository is looked for at `<root>/<its folder name on this Mac>`, for example `~/work/orders-api`. When your projects live elsewhere on the server, open Settings > Servers > the server > **Repositories**. Every repository of the workspace is listed with the folder where it is looked for and a badge: **default** (`<root>/<folder name>`) or **mapped** (a folder you set), and **not found** when nothing is there.
+
+- **Change folder** sets the folder for one repository (an absolute path such as `/srv/apps/orders-api`, or one from the home folder such as `~/code/orders-api`). **Reset to default** removes it again.
+- **Find on server** makes one read-only search for git repositories in the root folder, `~`, `~/projects`, `~/src`, `~/code`, `~/repos`, `/var/www`, `/srv` and `/opt` (4 levels deep; `node_modules`, `.cache`, `vendor` and `target` are skipped; it stops after about 20 seconds and reports at most 300 folders). It reads each folder's `origin` and matches it to your repositories by origin. You see what was found: one match is preselected, several matches need a choice, and a repository that was not found stays as it is. **Nothing is saved until you press Save.**
+
+The folders are stored in the server's entry in the settings as `repoPaths`, keyed by the repository's normalized origin (`origin:owner/repo`, the same spelling-independent comparison that checks the origin of a run), or by the folder name on this Mac (`dir:orders-api`) for a repository without an origin. A run, the checks before it (the folder exists, it is a git repository, its `origin` is the same repository), the agent's working folders, the approvals and **Clone missing** all use the same resolved folder. The folder is cleaned up as text (`.`, `//` and a trailing `/` are removed) and must be at least two levels deep when absolute; the home folder, `/`, top-level folders such as `/srv`, system folders such as `/etc` and `~/.ssh`, `~/.config`, `~/.local` and `~/.intely` are refused. Before a run the server reports each folder's real location (links followed); the run works there, and the same rules apply to it, so a link to `/` or to the home folder is refused. Two repositories of one run are refused when their real folders are the same or one is inside the other.
+
 ## Start runs
 
 In **New run**, the section **Where to run** lists This Mac and every server that is ready, each with a counter. Set 3 on the Build server and 2 on This Mac, write the prompt once, and Start: the IDE starts five separate runs one after the other. With more than one run the option **Tell each agent its number in the prompt** adds `[Agent 2 of 5, running on Build server]` in front of each prompt, so the prompt can split the work.
@@ -85,10 +94,10 @@ A run on a server shows the server's name next to it in the list and in the run 
 | Permission denied (publickey) | `ssh` needs a key or agent that logs in without a password; test with `ssh -o BatchMode=yes <server> true` |
 | Could not resolve hostname / Connection timed out | Check the SSH target and your network or VPN |
 | "is not set up: ... missing" when starting | Open Settings > Servers and run Set up |
-| "is not on <server> under <folder>" | Clone the repository there (Repositories > Clone missing) |
+| "is not on <server>: clone it there, or set the folder ..." | Clone the repository there (Repositories > Clone missing), or set the folder where it is (Repositories > Change folder, or Find on server) |
 | "already runs N agents and none of them is finished" | Every place of that server is held by a run that works or waits for you; answer or stop one, or raise the limit |
-| "is a different repository from the one on this Mac" | The folder on the server has another `origin`; fix it there (`git remote set-url origin ...`) or use another folder name |
-| "are both called ..." | Two repositories of one run have the same folder name; they would share one folder on the server |
+| "is a different repository from the one on this Mac" | The folder on the server has another `origin`; fix it there (`git remote set-url origin ...`) or set the right folder for it (Repositories > Change folder) |
+| "are both at ... on <server>" | Two repositories of one run resolve to the same folder on the server; set another folder for one of them (Repositories > Change folder) |
 | An agent answers "not signed in" | `ssh -t <server> claude` and sign in |
 
 Connections are shared through a `ControlMaster` socket in `/tmp/intely-ssh-<user>/` (a folder of yours that nobody else can enter; the IDE checks owner and mode) that closes a minute after the last use. If no such folder can be had, every call opens its own connection, which is slower.
