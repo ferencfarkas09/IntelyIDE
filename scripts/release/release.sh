@@ -32,7 +32,7 @@ cd "$ROOT"
 REPO="ferencfarkas09/IntelyIDE"
 SITE_DATA="site/data/release.json"
 # files whose change cannot change the disk image (the licence files, the UI, the Rust crates, the sidecar and the packaging scripts are not here)
-NEUTRAL='^(site/|docs/|\.github/|scripts/ci/|scripts/release/(release\.sh$|[a-z-]+\.test\.mjs$|check-[a-z-]+\.mjs$|contact-allowlist\.json$|gates/|ci-test/|templates/)|(README|CHANGELOG|SECURITY|SUPPORT|CONTRIBUTING|CODE_OF_CONDUCT|TRADEMARKS)\.md$)'
+NEUTRAL='^(site/|docs/|\.github/|scripts/ci/|scripts/release/(release\.sh$|[a-z-]+\.test\.mjs$|check-[a-z-]+\.mjs$|contact-allowlist\.json$|gates/|ci-test/|templates/)|(README|CHANGELOG|SECURITY|SUPPORT|CONTRIBUTING|CODE_OF_CONDUCT|TRADEMARKS)\.md$|^ui/src/.+\.test\.tsx?$)'
 
 cmd="${1:-all}"
 [ $# -gt 0 ] && shift

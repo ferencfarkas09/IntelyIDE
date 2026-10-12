@@ -6,7 +6,7 @@ import { FRAME_SANDBOX, FRAME_SRC, LOOPBACK_HOSTS } from "./logic";
 
 const capabilities = import.meta.glob("../../../../src-tauri/capabilities/*.json", { query: "?raw", import: "default", eager: true }) as Record<string, string>;
 
-const config = JSON.parse(conf) as { app: { withGlobalTauri?: boolean; security: { csp: string; [k: string]: unknown } } };
+const config = JSON.parse(conf) as { app: { withGlobalTauri?: boolean; security: { csp: string; [k: string]: unknown } }; bundle?: { resources?: Record<string, string>; [k: string]: unknown } };
 const directives = (csp: string): Map<string, string[]> =>
   new Map(
     csp
@@ -65,7 +65,10 @@ describe("no Tauri IPC for the frame's origin", () => {
 
   it("does not expose the global Tauri object or the remote IPC escape hatch", () => {
     expect(config.app.withGlobalTauri).toBe(false);
-    expect(JSON.stringify(config)).not.toMatch(/dangerousRemoteDomainIpcAccess|dangerousDisableAssetCspModification|remote/);
+    // bundle.resources only lists files copied into the app (the relay kit lives in remote-relay/ and remote-web/)
+    const scanned = { ...config, bundle: { ...config.bundle, resources: undefined } };
+    expect(JSON.stringify(scanned)).not.toMatch(/dangerousRemoteDomainIpcAccess|dangerousDisableAssetCspModification|remote/);
+    expect(JSON.stringify(Object.values(config.bundle?.resources ?? {}))).not.toMatch(/dangerous/);
   });
 });
 
