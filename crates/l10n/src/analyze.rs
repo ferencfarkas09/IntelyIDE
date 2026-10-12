@@ -138,7 +138,8 @@ pub fn keys_in_line(line: &str) -> Vec<String> {
     let mut i = 0;
     while i < b.len() {
         let call = b[i] == b't' && b.get(i + 1) == Some(&b'(') && (i == 0 || !(b[i - 1].is_ascii_alphanumeric() || b[i - 1] == b'_') || b[i - 1] == b'$');
-        let attr = line[i..].starts_with("i18nKey=");
+        // bytes, not `line[i..]`: `i` walks bytes and may sit inside a multi-byte character such as 'á'
+        let attr = b[i..].starts_with(b"i18nKey=");
         if call || attr {
             let mut j = i + if call { 2 } else { 8 };
             if attr && b.get(j) == Some(&b'{') {
@@ -392,4 +393,16 @@ fn ph_cell(have: &BTreeSet<String>, want: &BTreeSet<String>, todo: impl FnOnce()
         note.push(format!("extra {}", extra.join(" ")));
     }
     Cell { state: CellState::Placeholder, note: Some(note.join(", ")), todo: todo() }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::keys_in_line;
+
+    #[test]
+    fn accented_text_before_a_key_does_not_panic() {
+        assert_eq!(keys_in_line("const címke = 'Mentés'; t('save.button')"), ["save.button"]);
+        assert_eq!(keys_in_line("<Trans i18nKey=\"a.b\">Árvíztűrő</Trans> á"), ["a.b"]);
+        assert!(keys_in_line("ááááááááá t").is_empty());
+    }
 }
