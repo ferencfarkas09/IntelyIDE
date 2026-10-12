@@ -117,7 +117,7 @@ The full layer table, the enforcement suite and its results are in [docs/safety.
 
 ## Status and known limitations
 
-This is version 1.3.3. It has been used mostly by its author, on an Intel Mac.
+This is version 1.4.0. It has been used mostly by its author, on an Intel Mac.
 
 - Write mode is not judged suitable for unattended daily use on repositories you cannot restore.
 - The agent protections are best-effort. See the safety model above.
@@ -137,7 +137,7 @@ This is version 1.3.3. It has been used mostly by its author, on an Intel Mac.
 <!--dmg:available-->
 ### macOS installer (DMG)
 
-1. Download `IntelyIDE_1.3.3_x64.dmg` from the Releases page of this repository. It is built for Intel Macs and also runs on Apple Silicon under Rosetta 2, more slowly. Apple may remove Rosetta in a future macOS. If you are unsure which Mac you have: Apple menu > About This Mac.
+1. Download `IntelyIDE_1.4.0_x64.dmg` from the Releases page of this repository. It is built for Intel Macs and also runs on Apple Silicon under Rosetta 2, more slowly. Apple may remove Rosetta in a future macOS. If you are unsure which Mac you have: Apple menu > About This Mac.
 2. Check the download. `shasum -a 256 --ignore-missing -c SHA256SUMS` in the download folder detects a corrupted download only; the checksums come from the same page as the file, so they cannot prove where it came from.
 3. Open the DMG and drag IntelyIDE to Applications, then open it from there.
 4. First launch. <!--dmg:v:adhoc,developer-id--><!--This build is not notarized, so macOS refuses the first launch: on macOS 15 and later open System Settings > Privacy & Security, scroll to the message about IntelyIDE, choose Open Anyway and confirm; on macOS 13 and 14 right-click the app and choose Open. Do this only for a file you downloaded from this repository's Releases page.--><!--/dmg:v--><!--dmg:v:notarized-->The app is notarized and opens normally.<!--/dmg:v-->

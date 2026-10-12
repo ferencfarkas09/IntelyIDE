@@ -4,6 +4,8 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-13
+
 ### Added
 
 - Changes on a server. Under the Changes tree a new **Server changes** panel shows, read-only, the uncommitted changes of every repository a server run works in (and of any repository of a server you add): a "Server: <name>" group with the branch, the changed files, the diff of each file in the usual diff viewer and the time of the last look. It reads with one bounded, hardened `git status` over the shared ssh connection, every 4 seconds while a run is active there, rarely when idle, and not at all while the panel is closed or the window is hidden. There is nothing to stage, commit, discard or stash on a server entry.
@@ -179,7 +181,8 @@ First public release. This is alpha software.
 - Providers other than Claude, Happy, MongoDB Studio and Remote are proven only against mocks or on a local machine.
 - Version 0.1.0 still stores its state in the folder `IntelySwitchIDE` and uses Keychain services named after the earlier bundle identifier; a switch to `com.intelyhome.intelyide` with a migration is planned.
 
-[Unreleased]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.3.3...HEAD
+[Unreleased]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.3.3...v1.4.0
 [1.3.3]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.3.2...v1.3.3
 [1.3.2]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.3.0...v1.3.1
