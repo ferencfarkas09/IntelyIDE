@@ -555,6 +555,35 @@
   },
   {
     "body": {
+      "agentId": "a1",
+      "from": "run 'Backend' (server build-1)",
+      "noteId": "n3",
+      "text": "The API is ready."
+    },
+    "id": 68,
+    "type": "session/note",
+    "v": 1
+  },
+  {
+    "body": {
+      "agentId": "a1"
+    },
+    "id": 69,
+    "type": "peer/list",
+    "v": 1
+  },
+  {
+    "body": {
+      "agentId": "a1",
+      "runId": "a2",
+      "text": "The API is ready."
+    },
+    "id": 70,
+    "type": "peer/send",
+    "v": 1
+  },
+  {
+    "body": {
       "ok": true,
       "servers": [
         {

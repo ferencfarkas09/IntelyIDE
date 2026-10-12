@@ -19,6 +19,7 @@ use super::paths::{canonical_lossy, Jail};
 use super::session_allow::{exec_offer, saved_exec_allows};
 use crate::mcp::{fit as mcp_fit, normalize_tool_name, McpPolicy, McpServerRules, RESOURCES_TOOL};
 use crate::events::types::DecidedBy;
+use crate::peer::{PeerMode, PEER_SERVER, TOOL_LIST, TOOL_SEND};
 use crate::providers::PermissionMode;
 
 wire_enums! {
@@ -34,6 +35,8 @@ wire_enums! {
         Net,
         Mcp,
         Write,
+        /// A run may message one other run: the scope is that run's id.
+        Peer,
     }
 }
 
@@ -74,6 +77,8 @@ pub enum SavedAllow {
     McpTool { server: String, tool: String },
     /// Edits inside the run directories that touch no exec-surface, protected or outside path (`{"kind":"writeInside"}`).
     WriteInside,
+    /// The run may send peer messages to this one run (`peer_send`), saved for this run only.
+    PeerSend { target: String },
 }
 
 /// What the broker knows about one agent: its role and where it may work. Held by Rust, never sent over the wire.
@@ -135,6 +140,9 @@ pub struct PolicyContext {
     /// `fs.protected` in every mode, Bypass included (MCP spec 5.4 step 4c).
     #[serde(default)]
     pub mcp_code_paths: Vec<PathBuf>,
+    /// `agents.peerMessages` as it was when the run started (the host passes the live value to every decision): rules the two peer tools.
+    #[serde(default)]
+    pub peer_mode: PeerMode,
     /// The file system the run's files live on: `None` = this machine. For a run on a remote server it answers from the server (see
     /// `policy::fsview`); `decide` judges every path, glob and script against it. Not part of the wire form.
     #[serde(skip)]
@@ -143,7 +151,7 @@ pub struct PolicyContext {
 
 impl std::fmt::Debug for PolicyContext {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let Self { mode, cwd, add_dirs, home, role_deny, subagents, mcp_servers, saved, state_dir, strict_jail, scratch_dirs, delegates, delegation_cap, delegation_used, saved_by_role, plan_dir, mcp_tools, mcp_code_paths, fs } = self;
+        let Self { mode, cwd, add_dirs, home, role_deny, subagents, mcp_servers, saved, state_dir, strict_jail, scratch_dirs, delegates, delegation_cap, delegation_used, saved_by_role, plan_dir, mcp_tools, mcp_code_paths, peer_mode, fs } = self;
         f.debug_struct("PolicyContext")
             .field("mode", mode)
             .field("cwd", cwd)
@@ -163,6 +171,7 @@ impl std::fmt::Debug for PolicyContext {
             .field("plan_dir", plan_dir)
             .field("mcp_tools", mcp_tools)
             .field("mcp_code_paths", mcp_code_paths)
+            .field("peer_mode", peer_mode)
             .field("fs", &fs.as_ref().map(|_| "FsView"))
             .finish()
     }
@@ -170,14 +179,14 @@ impl std::fmt::Debug for PolicyContext {
 
 impl PartialEq for PolicyContext {
     fn eq(&self, other: &Self) -> bool {
-        let Self { mode, cwd, add_dirs, home, role_deny, subagents, mcp_servers, saved, state_dir, strict_jail, scratch_dirs, delegates, delegation_cap, delegation_used, saved_by_role, plan_dir, mcp_tools, mcp_code_paths, fs } = self;
-        let Self { mode: o_mode, cwd: o_cwd, add_dirs: o_add_dirs, home: o_home, role_deny: o_role_deny, subagents: o_subagents, mcp_servers: o_mcp_servers, saved: o_saved, state_dir: o_state_dir, strict_jail: o_strict_jail, scratch_dirs: o_scratch_dirs, delegates: o_delegates, delegation_cap: o_delegation_cap, delegation_used: o_delegation_used, saved_by_role: o_saved_by_role, plan_dir: o_plan_dir, mcp_tools: o_mcp_tools, mcp_code_paths: o_mcp_code_paths, fs: o_fs } = other;
+        let Self { mode, cwd, add_dirs, home, role_deny, subagents, mcp_servers, saved, state_dir, strict_jail, scratch_dirs, delegates, delegation_cap, delegation_used, saved_by_role, plan_dir, mcp_tools, mcp_code_paths, peer_mode, fs } = self;
+        let Self { mode: o_mode, cwd: o_cwd, add_dirs: o_add_dirs, home: o_home, role_deny: o_role_deny, subagents: o_subagents, mcp_servers: o_mcp_servers, saved: o_saved, state_dir: o_state_dir, strict_jail: o_strict_jail, scratch_dirs: o_scratch_dirs, delegates: o_delegates, delegation_cap: o_delegation_cap, delegation_used: o_delegation_used, saved_by_role: o_saved_by_role, plan_dir: o_plan_dir, mcp_tools: o_mcp_tools, mcp_code_paths: o_mcp_code_paths, peer_mode: o_peer_mode, fs: o_fs } = other;
         let same_fs = match (fs, o_fs) {
             (None, None) => true,
             (Some(a), Some(b)) => Arc::ptr_eq(a, b),
             _ => false,
         };
-        same_fs && mode == o_mode && cwd == o_cwd && add_dirs == o_add_dirs && home == o_home && role_deny == o_role_deny && subagents == o_subagents && mcp_servers == o_mcp_servers && saved == o_saved && state_dir == o_state_dir && strict_jail == o_strict_jail && scratch_dirs == o_scratch_dirs && delegates == o_delegates && delegation_cap == o_delegation_cap && delegation_used == o_delegation_used && saved_by_role == o_saved_by_role && plan_dir == o_plan_dir && mcp_tools == o_mcp_tools && mcp_code_paths == o_mcp_code_paths
+        same_fs && mode == o_mode && cwd == o_cwd && add_dirs == o_add_dirs && home == o_home && role_deny == o_role_deny && subagents == o_subagents && mcp_servers == o_mcp_servers && saved == o_saved && state_dir == o_state_dir && strict_jail == o_strict_jail && scratch_dirs == o_scratch_dirs && delegates == o_delegates && delegation_cap == o_delegation_cap && delegation_used == o_delegation_used && saved_by_role == o_saved_by_role && plan_dir == o_plan_dir && mcp_tools == o_mcp_tools && mcp_code_paths == o_mcp_code_paths && peer_mode == o_peer_mode
     }
 }
 
@@ -250,7 +259,7 @@ impl<'de> Deserialize<'de> for DelegationCounter {
 
 impl PolicyContext {
     pub fn new(mode: PermissionMode, cwd: impl Into<PathBuf>) -> Self {
-        Self { mode, cwd: cwd.into(), add_dirs: Vec::new(), home: None, role_deny: Vec::new(), subagents: Vec::new(), mcp_servers: Vec::new(), saved: Vec::new(), state_dir: None, strict_jail: false, scratch_dirs: Vec::new(), delegates: None, delegation_cap: DEFAULT_DELEGATION_CAP, delegation_used: DelegationCounter::default(), saved_by_role: BTreeMap::new(), plan_dir: None, mcp_tools: BTreeMap::new(), mcp_code_paths: Vec::new(), fs: None }
+        Self { mode, cwd: cwd.into(), add_dirs: Vec::new(), home: None, role_deny: Vec::new(), subagents: Vec::new(), mcp_servers: Vec::new(), saved: Vec::new(), state_dir: None, strict_jail: false, scratch_dirs: Vec::new(), delegates: None, delegation_cap: DEFAULT_DELEGATION_CAP, delegation_used: DelegationCounter::default(), saved_by_role: BTreeMap::new(), plan_dir: None, mcp_tools: BTreeMap::new(), mcp_code_paths: Vec::new(), peer_mode: PeerMode::Ask, fs: None }
     }
 
     /// Judges the run's paths against `fs` (a remote server's files) instead of this machine's.
@@ -412,6 +421,7 @@ pub fn session_allow_for(ctx: &PolicyContext, intent: &ToolIntent) -> Option<(Sa
                 SavedAllow::McpTool { server: server.to_string(), tool: tool.to_string() }
             }
             SessionAllowKind::Write => SavedAllow::WriteInside,
+            SessionAllowKind::Peer => SavedAllow::PeerSend { target: offer.scope.clone() },
         };
         Some((saved, offer))
     })
@@ -734,6 +744,9 @@ fn decide_net_auto(intent: &ToolIntent) -> PolicyDecision {
 fn decide_mcp(eff: &Eff, intent: &ToolIntent, jail: &Jail) -> PolicyDecision {
     let tool_name = intent.tool.as_deref().unwrap_or_default();
     let server = intent.server.as_deref().unwrap_or_default();
+    if server == PEER_SERVER {
+        return decide_peer(eff, intent);
+    }
     let resource_tool = MCP_RESOURCE_TOOLS.contains(&tool_name);
     if resource_tool && server.is_empty() {
         return role_deny("mcp.resource-server", format!("{tool_name} without a server: name the MCP server, nothing is judged on a wildcard"));
@@ -802,6 +815,47 @@ fn decide_mcp(eff: &Eff, intent: &ToolIntent, jail: &Jail) -> PolicyDecision {
         }
         PermissionMode::Automatic => allow("mcp.auto", format!("{server}.{tool}: this run works without asking")),
         PermissionMode::Bypass => allow("mcp.bypass", format!("{server}.{tool}: this run has no prompts")),
+    }
+}
+
+/// The two tools that let a run talk to another run of the same person (docs/peer-runs.md). `peer_list` shows names, never content.
+/// `peer_send` asks once per (this run, target run) pair; "Allow for this run" saves the pair. Nothing here grants anything to the
+/// receiver: a peer message is a note, and the receiving run's own broker judges what it does with it. Sub-agents get neither tool.
+fn decide_peer(eff: &Eff, intent: &ToolIntent) -> PolicyDecision {
+    let tool_name = intent.tool.as_deref().unwrap_or_default();
+    let tool = tool_name.strip_prefix("mcp__").and_then(|t| t.strip_prefix(PEER_SERVER)).and_then(|t| t.strip_prefix("__")).unwrap_or_default();
+    if eff.actor.is_some() {
+        return role_deny("peer.delegate", "sub-agents do not get the peer tools");
+    }
+    if eff.ctx.peer_mode == PeerMode::Off {
+        return role_deny("peer.off", "messages between runs are switched off in Settings");
+    }
+    if let Some(d) = denied_by_role_list(eff, intent) {
+        return d;
+    }
+    match tool {
+        TOOL_LIST => allow("peer.list", "the list of your other runs: names and states only"),
+        TOOL_SEND => {
+            if eff.mode == PermissionMode::ReadOnly {
+                return role_deny("role.read-only", "a read-only run does not message other runs");
+            }
+            if eff.ctx.peer_mode == PeerMode::Auto {
+                return allow("peer.auto", "messages between runs are set to automatic in Settings");
+            }
+            // an unattended run shows no card: the answer "ask" is a denial there (spec 2.4)
+            if matches!(eff.mode, PermissionMode::Automatic | PermissionMode::Bypass) {
+                return role_deny("peer.ask-unattended", "this run works without asking, so it does not message other runs unless Settings > Agents says automatic");
+            }
+            // the sidecar puts the target run id, and only that, into `argv` for this tool (`argv` survives into the card's stored intent;
+            // `args` does not, and the answer to the card is judged from the stored one)
+            let target = intent.argv.as_ref().and_then(|a| a.first()).cloned().unwrap_or_default();
+            if !target.is_empty() && eff.saved.iter().any(|s| matches!(s, SavedAllow::PeerSend { target: t } if *t == target)) {
+                return verdict(Decision::Allow, DecidedBy::Saved, "peer.saved", format!("messages to run {target} are allowed for this run"));
+            }
+            let offer = (!target.is_empty()).then(|| SessionAllowOffer { kind: SessionAllowKind::Peer, scope: target.clone() });
+            ask_with_offer("peer.ask", format!("let this run message run {target}?"), offer)
+        }
+        _ => role_deny("peer.unknown", "unknown peer tool"),
     }
 }
 

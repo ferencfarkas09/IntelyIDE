@@ -536,7 +536,7 @@ mod tests {
         use intely_agent_core::policy::intent::ToolIntent;
         let mut r = Redactor::new();
         let intent: ToolIntent = serde_json::from_value(json!({"class": "exec", "tool": "Bash", "rawCommand": "cat .env", "paths": [], "summary": "cat .env"})).unwrap();
-        r.event(&ev(EventKind::PermissionRequest { req_id: "p".into(), tool_id: "tp".into(), intent, options: vec![], session_allow: None, plan: None, plan_truncated: None, modes: vec![] })).unwrap();
+        r.event(&ev(EventKind::PermissionRequest { req_id: "p".into(), tool_id: "tp".into(), intent, options: vec![], session_allow: None, plan: None, plan_truncated: None, modes: vec![], peer: None })).unwrap();
         let res = ev(EventKind::ToolResult { tool_id: "tp".into(), status: ToolStatus::Ok, output: Some("SECRET=1".into()), diff: None, duration_ms: None });
         assert!(!r.event(&res).unwrap().to_string().contains("SECRET=1"));
     }

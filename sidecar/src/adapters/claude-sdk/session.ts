@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 import type { AgentDefinition, Options, Query, SDKUserMessage, SpawnedProcess } from '@anthropic-ai/claude-agent-sdk';
 import { buildChildEnv } from '../../env.js';
 import { redact } from '../../redact.js';
-import { loadSdk } from '../../sdk.js';
+import { loadSdk, loadZod } from '../../sdk.js';
 import type {
   AgentSession, DelegateSpec, EventSink, HostServices, McpStatusOp, McpStatusServer, PermissionAnswer, PermissionMode, PolicyClient, ResolvedRole, SessionNote, SessionSpec, UserInput,
 } from '../../types.js';
@@ -15,7 +15,8 @@ import { effortOf, NoteError } from '../../abstract.js';
 import { assertInit, checkCredential, type CliModel, findModel, initSessionInfo, isolationLeak, isWriterMode, mcpState, permissionModeFor } from './facts.js';
 import { CANARY_MARK, ToolGate } from './gate.js';
 import { mapRaw, type MapState, newMapState, type Raw } from './map.js';
-import { IDE_MCP_NOTE, IDE_PLAN_NOTE, IDE_SESSION_NOTE } from './notes.js';
+import { IDE_MCP_NOTE, IDE_PEER_NOTE, IDE_PLAN_NOTE, IDE_SESSION_NOTE } from './notes.js';
+import { PEER_LIST_DESCRIPTION, PEER_LIST_TOOL, PEER_SEND_DESCRIPTION, PEER_SEND_TOOL, PEER_SERVER, peerHandlers, peerShapes } from './peer-tools.js';
 import { projectInstructions } from './project-notes.js';
 import { Pushable } from './pushable.js';
 import { buildContent } from './attachments.js';
@@ -166,7 +167,8 @@ export class ClaudeSession implements AgentSession {
   private async start(): Promise<void> {
     const { spec } = this;
     // Fail closed before anything is built or spawned: no verified SDK, no run (and no CLI-only fallback without the policy hooks).
-    const { query } = await loadSdk();
+    const sdk = await loadSdk();
+    const { query } = sdk;
     const built = buildChildEnv(spec.env, spec.auth, { addDirs: spec.addDirs.length > 0 });
     this.strayKeyRemoved = spec.auth.mode === 'subscription' && built.scrubbed.includes('ANTHROPIC_API_KEY');
     this.state = newMapState({
@@ -181,6 +183,7 @@ export class ClaudeSession implements AgentSession {
       mode: () => this.mode, noteMode: (m) => this.noteMode(m), lastText: () => this.state.lastText, cwd: spec.cwd, runDirs: [spec.cwd, ...spec.addDirs, ...SCRATCH_DIRS], planDir: spec.planDir,
     });
     const role: ResolvedRole = spec.role;
+    const peer = await this.peerServer(sdk);
     const options: Options = {
       pathToClaudeCodeExecutable: spec.env.claudeBin ?? undefined,
       cwd: spec.cwd,
@@ -190,7 +193,7 @@ export class ClaudeSession implements AgentSession {
       permissionMode: permissionModeFor(role.permission),
       settingSources: spec.settingSources ?? [],
       strictMcpConfig: true,
-      mcpServers: spec.mcp as Options['mcpServers'],
+      mcpServers: { ...(spec.mcp as Options['mcpServers']), ...(peer ? { [PEER_SERVER]: peer } : {}) },
       settings: settingsOverlay(spec.env, spec.denyRules ?? true, false, spec.addDirs, spec.planDir) as Options['settings'],
       // an empty list (Rust sends one for "no restriction") means the IDE default set (see DEFAULT_TOOLS), not no tools at all
       tools: sessionTools(role, this.delegates, Object.keys(spec.mcp ?? {}).length > 0),
@@ -198,7 +201,7 @@ export class ClaudeSession implements AgentSession {
       ...(role.maxTurns ? { maxTurns: role.maxTurns } : {}),
       ...(role.maxBudgetUsd ? { maxBudgetUsd: role.maxBudgetUsd } : {}),
       // the D12 note rides on EVERY session, also when the role has no prompt; the plan note too (a session can enter Plan live)
-      systemPrompt: { type: 'preset', preset: 'claude_code', append: [role.systemPrompt, IDE_SESSION_NOTE, IDE_PLAN_NOTE, Object.keys(spec.mcp ?? {}).length > 0 ? IDE_MCP_NOTE : '', projectInstructions([spec.cwd, ...spec.addDirs], { includeUserMemory: spec.includeUserMemory !== false, env: spec.env.vars })].filter(Boolean).join('\n\n') },
+      systemPrompt: { type: 'preset', preset: 'claude_code', append: [role.systemPrompt, IDE_SESSION_NOTE, IDE_PLAN_NOTE, Object.keys(spec.mcp ?? {}).length > 0 ? IDE_MCP_NOTE : '', peer ? IDE_PEER_NOTE : '', projectInstructions([spec.cwd, ...spec.addDirs], { includeUserMemory: spec.includeUserMemory !== false, env: spec.env.vars })].filter(Boolean).join('\n\n') },
       // The extra directories, the settings and MCP are re-passed on every open, including resume (they do not restore by themselves).
       // The directories travel inside `settings` (see settingsOverlay): the `--add-dir` flag would load the user's plugins and hooks.
       ...(spec.resume ? { resume: spec.resume.nativeId } : { sessionId: this.nativeId }),
@@ -232,6 +235,30 @@ export class ClaudeSession implements AgentSession {
     void this.pump();
   }
 
+  private hasPeer = false;
+
+  /**
+   * The in-process MCP server with `peer_list` and `peer_send`, when the host asked for it (`agents.peerMessages` is not off), this session
+   * has the host's RPC, and the SDK install has the `zod` its schemas need. Otherwise the run simply has no peer tools.
+   */
+  private async peerServer(sdk: Awaited<ReturnType<typeof loadSdk>>) {
+    if (!this.spec.peerTools || !this.host.peer) return undefined;
+    const z = await loadZod(sdk);
+    if (!z) return undefined;
+    const shapes = peerShapes(z as Parameters<typeof peerShapes>[0]);
+    const h = peerHandlers({ agentId: this.spec.agentId, host: this.host.peer, sink: this.sink, newId: randomUUID });
+    this.hasPeer = true;
+    return sdk.createSdkMcpServer({
+      name: PEER_SERVER,
+      version: '1.0.0',
+      alwaysLoad: true,
+      tools: [
+        sdk.tool(PEER_LIST_TOOL, PEER_LIST_DESCRIPTION, shapes.list as {}, () => h.list(), { annotations: { readOnlyHint: true } }),
+        sdk.tool(PEER_SEND_TOOL, PEER_SEND_DESCRIPTION, shapes.send as {}, (a: unknown) => h.send(a as { run_id: string; text: string })),
+      ],
+    });
+  }
+
   // ---------- facts ----------
   private describeInit(init: Raw) {
     const auth = checkCredential(this.spec.auth.mode, String(init.apiKeySource ?? 'none'), this.strayKeyRemoved);
@@ -239,7 +266,7 @@ export class ClaudeSession implements AgentSession {
       init,
       role: this.spec.role,
       mode: this.mode,
-      mcpExpected: Object.keys(this.spec.mcp ?? {}),
+      mcpExpected: [...Object.keys(this.spec.mcp ?? {}), ...(this.hasPeer ? [PEER_SERVER] : [])],
       models: this.models,
       appliedEffort: this.appliedEffort,
       foreignHookEvents: this.foreignHooks,

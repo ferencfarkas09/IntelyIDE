@@ -54,12 +54,15 @@ export class SidecarHost {
     const seq = new SeqSink((ev) => this.proto.emit(b.agentId, b.provider, ev), b.nextSeq ?? 1);
     const guard = new TurnGuard(seq, b.nextSeq && b.nextSeq > 1 ? `turn-s${b.nextSeq}-` : 'turn-');
     const entry: Entry = { agentId: b.agentId, provider: b.provider, session: undefined as never, guard, leaseId, pgids: new Set(), prompts: b.nextSeq ?? 0 };
-    const services: HostServices = { registerPid: (pid) => this.registerPid(entry, pid) };
+    const services: HostServices = {
+      registerPid: (pid) => this.registerPid(entry, pid),
+      peer: { list: (agentId) => this.proto.request('peer/list', { agentId }), send: (agentId, runId, text) => this.proto.request('peer/send', { agentId, runId, text }) },
+    };
     const spec: SessionSpec = {
       agentId: b.agentId, provider: b.provider, role: b.role, cwd: b.cwd, addDirs: b.addDirs ?? [], env: b.env, mcp: (b.mcp ?? {}) as McpSet, auth: b.auth,
       ...(b.resume ? { resume: b.resume } : {}), ...(b.sessionId ? { sessionId: b.sessionId } : {}), ...(b.mock ? { mock: b.mock } : {}), ...(b.acp ? { acp: b.acp } : {}),
       ...(b.settingSources ? { settingSources: b.settingSources } : {}), ...(typeof b.denyRules === 'boolean' ? { denyRules: b.denyRules } : {}),
-      ...(b.delegates?.length ? { delegates: b.delegates } : {}), ...(b.planDir ? { planDir: b.planDir } : {}),
+      ...(b.delegates?.length ? { delegates: b.delegates } : {}), ...(b.planDir ? { planDir: b.planDir } : {}), ...(b.peerTools ? { peerTools: true } : {}),
     };
     try {
       entry.session = await provider.open(spec, guard, this.proto, services);
@@ -168,7 +171,7 @@ export class SidecarHost {
     if (!text) return { error: 'empty' };
     if (text.length > MAX_NOTE_CHARS) return { error: 'tooLong', detail: `at most ${MAX_NOTE_CHARS} characters` };
     try {
-      e.session.note({ noteId: b.noteId, text, parentToolId: b.parentToolId ?? null });
+      e.session.note({ noteId: b.noteId, text, parentToolId: b.parentToolId ?? null, ...(b.from ? { from: b.from } : {}) });
       return { ok: true };
     } catch (err) {
       if (err instanceof NoteError) return { error: err.code, ...(err.message !== err.code ? { detail: err.message } : {}) };

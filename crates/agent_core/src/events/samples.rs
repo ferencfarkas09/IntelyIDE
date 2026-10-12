@@ -44,7 +44,7 @@ fn turn_end(reason: StopReason) -> EventKind {
 fn permission_request(req_id: &str) -> EventKind {
     let mut intent = ToolIntent::exec("git status");
     intent.actor = Some(Actor { agent_id: "sub-1".into(), role: "researcher".into() });
-    EventKind::PermissionRequest { req_id: req_id.into(), tool_id: "t9".into(), intent, options: vec![PermissionOption::AllowOnce, PermissionOption::AllowRun, PermissionOption::Deny], session_allow: Some(SessionAllowOffer { kind: SessionAllowKind::Exec, scope: "git status".into() }), plan: None, plan_truncated: None, modes: Vec::new() }
+    EventKind::PermissionRequest { req_id: req_id.into(), tool_id: "t9".into(), intent, options: vec![PermissionOption::AllowOnce, PermissionOption::AllowRun, PermissionOption::Deny], session_allow: Some(SessionAllowOffer { kind: SessionAllowKind::Exec, scope: "git status".into() }), plan: None, plan_truncated: None, modes: Vec::new(), peer: None }
 }
 
 /// A complete, valid single-agent stream containing every kind exactly once.
@@ -113,6 +113,8 @@ pub fn sample_events() -> Vec<AgentEvent> {
             text: Some("Use the staging database, not production".into()),
             tool_id: Some("t9".into()),
             reason: None,
+            from: None,
+            to: None,
         }),
         (Some("t1"), EventKind::QuestionRequest {
             req_id: "q1".into(),

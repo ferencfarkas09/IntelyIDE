@@ -20,6 +20,7 @@ import { lstat, readdir, readFile, realpath } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
+import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { redact } from './redact.js';
 
@@ -258,6 +259,21 @@ async function verifyTree(root: string, manifestText: string, home: string): Pro
   return have.size;
 }
 
+/** Where each loaded SDK came from (the verified install or the checkout), to find the `zod` that SDK was installed with. */
+const sdkDirs = new WeakMap<object, string>();
+
+/**
+ * The `zod` module of the SDK install the SDK was loaded from (the SDK's own dependency, hashed with it in the packaged build), for the
+ * tool schemas of the in-process MCP server. `null` when it is not there: the run then simply has no peer tools.
+ */
+export async function loadZod(sdk: Sdk): Promise<unknown | null> {
+  const dir = sdkDirs.get(sdk);
+  if (!dir) return null;
+  try {
+    return await import(/* @vite-ignore */ pathToFileURL(createRequire(path.join(dir, 'package.json')).resolve('zod/v4')).href);
+  } catch { return null; }
+}
+
 async function importEntry(pkgDir: string, home: string): Promise<Sdk> {
   let entry: string;
   try {
@@ -269,7 +285,9 @@ async function importEntry(pkgDir: string, home: string): Promise<Sdk> {
     if (!(await lstat(entry)).isFile()) throw new Error('entry is not a file');
   } catch { throw new SdkBrokenError(`${SDK_NAME} has no usable entry point`); }
   try {
-    return (await import(/* @vite-ignore */ pathToFileURL(entry).href)) as Sdk;
+    const sdk = (await import(/* @vite-ignore */ pathToFileURL(entry).href)) as Sdk;
+    sdkDirs.set(sdk, pkgDir);
+    return sdk;
   } catch (e) {
     const msg = String((e as Error)?.message ?? e);
     const dep = /Cannot find (?:package|module) '([^']+)'/.exec(msg)?.[1];

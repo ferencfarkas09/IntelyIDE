@@ -11,6 +11,7 @@ pub mod delegates;
 pub mod events;
 pub mod hub;
 pub mod mcp;
+pub mod peer;
 pub mod policy;
 pub mod projection;
 pub mod providers;

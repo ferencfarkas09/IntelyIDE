@@ -215,6 +215,12 @@
 .note__main { display: flex; flex: 1 1 0; flex-direction: column; gap: 1px; min-width: 0; }
 .note__who { color: var(--text-3); font-size: var(--text-xs); font-weight: var(--weight-medium); }
 .note__text { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text-1); }
+.note--peer { background: var(--surface-1); box-shadow: inset 2px 0 0 0 var(--accent), inset 0 0 0 1px var(--border-subtle); }
+.note--peer[data-dir="to"] { box-shadow: inset 2px 0 0 0 var(--border-strong, var(--border)), inset 0 0 0 1px var(--border-subtle); }
+.note--peer .note__icon { color: var(--text-2); }
+.note__agent { padding: 0 6px; border-radius: var(--radius-full); background: var(--surface-3, var(--surface-2)); color: var(--text-2); }
+.note--peer[data-stopped] { box-shadow: inset 2px 0 0 0 var(--warning, var(--accent)), inset 0 0 0 1px var(--border-subtle); }
+.note__banner { color: var(--text-1); font-weight: var(--weight-medium); }
 .note__why { color: var(--text-3); font-size: var(--text-xs); }
 .note__state { flex: none; margin-top: 1px; padding: 0 7px; border-radius: var(--radius-full); color: var(--text-2); font-size: var(--text-xs); line-height: 18px; white-space: nowrap; box-shadow: inset 0 0 0 1px var(--border); }
 .note[data-state="queued"] .note__state { color: var(--warn); background: var(--warn-subtle); box-shadow: inset 0 0 0 1px var(--warn-border); }
@@ -223,3 +229,8 @@
 .note-input { display: flex; align-items: flex-end; gap: 4px; min-width: 0; }
 .note-input__field { flex: 1 1 0; min-width: 0; }
 .note-input .ui-icon-btn { flex: none; }
+
+.perm__peer { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.perm__peer-who { margin: 0; color: var(--text-2); font-size: var(--text-xs); }
+.perm__peer-warn { margin: 0; color: var(--text-1); font-size: var(--text-xs); font-weight: var(--weight-medium); }
+.perm__peer[data-riskier] { padding-left: 8px; box-shadow: inset 2px 0 0 0 var(--warning, var(--accent)); }

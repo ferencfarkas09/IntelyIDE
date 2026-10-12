@@ -438,11 +438,18 @@ impl Redactor {
                 req_id: req_id.clone(),
                 tool_id: tool_id.clone(),
                 intent: wire_intent(intent),
-                options: options.iter().copied().filter(|o| *o != intely_agent_core::events::PermissionOption::AllowRun).collect(),
+                // a message from one run to another is approved at the desktop, where the card shows who gets it and what it says
+                options: options
+                    .iter()
+                    .copied()
+                    .filter(|o| *o != intely_agent_core::events::PermissionOption::AllowRun)
+                    .filter(|o| intent.tool.as_deref() != Some(intely_agent_core::peer::SEND_TOOL_FULL) || *o == intely_agent_core::events::PermissionOption::Deny)
+                    .collect(),
                 session_allow: None,
                 plan: None,
                 plan_truncated: None,
                 modes: Vec::new(),
+                peer: None,
             },
             EventKind::PermissionResolved { .. } => e.kind.clone(),
             EventKind::QuestionRequest { req_id, tool_id, prompt, options } => EventKind::QuestionRequest {

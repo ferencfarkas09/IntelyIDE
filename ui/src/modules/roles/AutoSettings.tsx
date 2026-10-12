@@ -15,6 +15,8 @@ export interface AgentsSettings {
   delegation?: { enabled?: boolean };
   /** Put the user's own ~/.claude/CLAUDE.md into the prompt of an agent run (default on). */
   includeUserMemory?: boolean;
+  /** Messages between the person's own runs: a card once per pair (default), no card, or off (the tools are not offered). */
+  peerMessages?: "ask" | "auto" | "off";
 }
 
 export const DEFAULT_CAP = 12;
@@ -42,6 +44,7 @@ export function AutoSettings(props: { caps: RoleProviderCaps[]; /** Bumped when 
   const autoOn = () => value().auto?.enabled !== false;
   const delegationOn = () => value().delegation?.enabled !== false;
   const memoryOn = () => value().includeUserMemory !== false;
+  const peerMode = () => (value().peerMessages === "auto" || value().peerMessages === "off" ? value().peerMessages! : "ask");
   const [capText, setCapText] = createSignal<string | undefined>(undefined);
   const capInvalid = createMemo(() => {
     const raw = capText();
@@ -135,6 +138,21 @@ export function AutoSettings(props: { caps: RoleProviderCaps[]; /** Bumped when 
         <Switch size="sm" checked={memoryOn()} label={t("memory.includeUserMemory")} onChange={(on) => void save({ includeUserMemory: on })} />
       </div>
       <p class="roles-auto__hint">{t("memory.includeUserMemory.hint")}</p>
+      <label class="roles-auto__field">
+        <span class="roles__label">{t("settings.agents.peer.label")}</span>
+        <Select
+          size="sm"
+          aria-label={t("settings.agents.peer.label")}
+          value={peerMode()}
+          options={[
+            { value: "ask", label: t("settings.agents.peer.ask") },
+            { value: "auto", label: t("settings.agents.peer.auto") },
+            { value: "off", label: t("settings.agents.peer.off") },
+          ]}
+          onChange={(mode) => void save({ peerMessages: mode })}
+        />
+      </label>
+      <p class="roles-auto__hint">{t("settings.agents.peer.hint")}</p>
       <Show when={!autoOn() || !delegationOn()}>
         <p class="roles-auto__hint">{!autoOn() ? t("settings.agents.killSwitch.autoOff") : t("settings.agents.killSwitch.delegationOff")}</p>
       </Show>

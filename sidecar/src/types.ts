@@ -123,6 +123,8 @@ export interface SessionSpec {
   planDir?: string;
   /** `false` = leave the user's own ~/.claude/CLAUDE.md out of the prompt (Claude only). Absent = on. */
   includeUserMemory?: boolean;
+  /** `true` = offer the two peer tools (`peer_list`, `peer_send`) to the lead (Claude only). Absent = none. */
+  peerTools?: boolean;
 }
 
 /** An attachment as the Rust host resolves it for a prompt: metadata plus the absolute path of the stored copy. */
@@ -162,7 +164,7 @@ export type McpStatusOp = { reconnect?: string; toggle?: McpToggle };
 export type McpStatusServer = McpServerStatus;
 
 /** A note the user adds to a running agent (`session/note`): delivered to `parentToolId`'s sub-agent, or the lead when absent, at its next tool call. */
-export type SessionNote = { noteId: string; text: string; parentToolId?: string | null };
+export type SessionNote = { noteId: string; text: string; parentToolId?: string | null; /** `run 'title' (where)`: a message from another run of the same person, not a note of the user. */ from?: string };
 
 export interface AgentSession {
   readonly nativeId: string;
@@ -183,6 +185,8 @@ export interface AgentSession {
 export interface HostServices {
   /** Registers a spawned child so Rust can kill its process group if the sidecar dies (5.6). */
   registerPid(pid: number): void;
+  /** The host's side of the two peer tools (Claude only): the answers of `peer/list` and `peer/send`. */
+  peer?: { list(agentId: string): Promise<unknown>; send(agentId: string, runId: string, text: string): Promise<unknown> };
 }
 
 export interface DetectContext { claudeBin?: string }
@@ -234,7 +238,9 @@ export interface SidecarMsg {
   /** Live MCP status of a session (Claude): the servers with their state and tools. */
   'session/mcp-status': { body: { agentId: string; reconnect?: string; toggle?: McpToggle }; reply: { ok: true; servers: McpStatusServer[] } | { error: 'noSession' | 'unsupported' | 'failed'; detail?: string } };
   /** A note for the lead (no `parentToolId`) or the running sub-agent started by that `Agent`/`Task` call; delivered at its next tool call. */
-  'session/note': { body: { agentId: string; noteId: string; text: string; parentToolId?: string | null }; reply: { ok: true } | { error: 'noSession' | 'unsupported' | NoteErrorCode; detail?: string } };
+  'peer/list': { body: { agentId: string }; reply: unknown };
+  'peer/send': { body: { agentId: string; runId: string; text: string }; reply: unknown };
+  'session/note': { body: { agentId: string; noteId: string; text: string; parentToolId?: string | null; from?: string }; reply: { ok: true } | { error: 'noSession' | 'unsupported' | NoteErrorCode; detail?: string } };
   /** The plan limits of the signed-in Claude account (limits.ts): no open session needed. */
   'usage/limits': { body: import('./limits.js').LimitsRequest; reply: import('./limits.js').LimitsReply };
   /** File-system questions of the permission broker about THIS machine (fsquery.ts); a read-only oracle, sent ad hoc by the host (not in the generated Rust enum). */
