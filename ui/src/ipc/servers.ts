@@ -1,3 +1,4 @@
+import type { Change, ChangeKind, FileContents } from "../bindings";
 import type { Unsubscribe } from "./index";
 import { call, subscribe } from "./rpc";
 
@@ -90,6 +91,66 @@ export interface FoundRow {
   candidates: { path: string; origin?: string }[];
 }
 
+/** The read-only view of a repository's working copy on a server (`servers_changes`). */
+export interface ServerChanges {
+  /** `server(<name>)`: where these changes are. */
+  source: string;
+  /** `ok`, or why there is nothing to list: the folder is missing, it is no git repository, or git failed (`error`). */
+  state: "ok" | "missing" | "notGit" | "error";
+  /** The real folder on the server (links followed). */
+  physical?: string | null;
+  head?: string | null;
+  branch?: string | null;
+  detached: boolean;
+  ahead: number;
+  behind: number;
+  origin?: string | null;
+  changes: Change[];
+  /** All changed files; more than `changes.length` when the list was cut at 500. */
+  total: number;
+  truncated: boolean;
+  error?: string | null;
+  updatedAtMs: number;
+}
+
+export type TransferDirection = "bring" | "send";
+
+export interface TransferBlocked {
+  path: string;
+  code: string;
+  reason: string;
+}
+
+/** What the confirmation dialog of a patch transfer shows; computing it changes nothing. */
+export interface TransferPlan {
+  direction: TransferDirection;
+  files: { path: string; origPath?: string | null; kind: ChangeKind; untracked: boolean }[];
+  tracked: number;
+  untracked: number;
+  serverHead?: string | null;
+  localHead?: string | null;
+  sameOrigin: boolean;
+  sameHead: boolean;
+  /** The destination has no uncommitted change; otherwise the person may choose "apply on top". */
+  destinationClean: boolean;
+  blocked: TransferBlocked[];
+  /** Paths that run or configure something on their own, or become executable: they travel only with the extra tick. */
+  risky: { path: string; code: string }[];
+  /** Lines added and removed per file, as git reads the patch (`null` for a binary file). */
+  stat: { path: string; added?: number | null; deleted?: number | null; binary: boolean }[];
+  /** Size of the patch in bytes. */
+  bytes: number;
+  /** Identifies exactly this patch; the apply goes ahead only when it builds the same one. */
+  patchId: string;
+  /** Why nothing can happen at all, and what to do about it. */
+  refusal?: { code: string; message: string } | null;
+}
+
+export interface TransferApplied {
+  files: number;
+  bytes: number;
+}
+
 export type ServerDraft = Omit<ServerCfg, "id"> & { id?: string };
 
 /** Remote servers: connection settings, checks, one-click setup, repositories on the server. */
@@ -110,6 +171,16 @@ export interface ServersIpc {
   setRepoPath(id: string, key: string, path: string | null): Promise<ServerCfg>;
   /** Clones the repository's origin on the server, with the server's own git credentials. */
   clone(id: string, repoId: string): Promise<void>;
+  /** One read-only `git status` of the repository's folder on the server. Rejects with `{ code: "ssh" | ..., message }` when the server cannot be reached. */
+  changes(id: string, repoId: string): Promise<ServerChanges>;
+  /** Both sides of one changed file on the server, for the diff viewer. */
+  file(id: string, repoId: string, file: string, origPath: string | undefined, untracked: boolean, reveal: boolean): Promise<FileContents>;
+  /** Computes what a transfer would do. Changes nothing. */
+  transferPlan(id: string, repoId: string, direction: TransferDirection): Promise<TransferPlan>;
+  /** "Bring changes here": the server's uncommitted changes become uncommitted changes of the local working tree. Only after the person confirmed. */
+  transferBring(id: string, repoId: string, onTop: boolean, planId: string, acceptRisky: boolean): Promise<TransferApplied>;
+  /** "Send my changes there". Only after the person confirmed. */
+  transferSend(id: string, repoId: string, onTop: boolean, planId: string, acceptRisky: boolean): Promise<TransferApplied>;
   /** The command line for a terminal, e.g. `ssh -p 2222 dev@build1`. */
   sshCommand(id: string): Promise<string>;
   onSetup(cb: (e: SetupEvent) => void): Unsubscribe;
@@ -127,6 +198,11 @@ export function createTauriServers(): ServersIpc {
     findRepos: (id, repoIds) => call("servers_find_repos", { id, repoIds }),
     setRepoPath: (id, key, path) => call("servers_set_repo_path", { id, key, path }),
     clone: (id, repoId) => call("servers_clone", { id, repoId }),
+    changes: (id, repoId) => call("servers_changes", { id, repoId }),
+    file: (id, repoId, file, origPath, untracked, reveal) => call("servers_file", { id, repoId, file, origPath: origPath ?? null, untracked, reveal }),
+    transferPlan: (id, repoId, direction) => call("servers_transfer_plan", { id, repoId, direction }),
+    transferBring: (id, repoId, onTop, planId, acceptRisky) => call("servers_transfer_bring", { id, repoId, onTop, planId, acceptRisky }),
+    transferSend: (id, repoId, onTop, planId, acceptRisky) => call("servers_transfer_send", { id, repoId, onTop, planId, acceptRisky }),
     sshCommand: (id) => call("servers_ssh_command", { id }),
     onSetup: (cb) => subscribe<SetupEvent>("servers:setup", cb),
     onStatus: (cb) => subscribe<{ id: string; status: ServerStatus }>("servers:status", (p) => cb(p.id, p.status)),

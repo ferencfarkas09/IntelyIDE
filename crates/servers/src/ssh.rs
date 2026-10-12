@@ -120,6 +120,15 @@ impl Ssh {
         finish(raw, cfg, timeout)
     }
 
+    /// Runs `remote_command` (ONE shell word list the caller has quoted) with `input` on its stdin and at most `cap` bytes of stdout kept.
+    /// Used by the read-only view (bigger output) and the patch transfer (the patch is the input). A non-zero exit of the command is
+    /// returned in [`ExecOut`]; ssh's own failures, spawn errors and timeouts are errors.
+    pub fn exec_with(&self, cfg: &ServerCfg, remote_command: &str, input: &[u8], timeout: Duration, cap: usize) -> Result<ExecOut, SshError> {
+        cfg.validate().map_err(|e| SshError::invalid(e.to_string()))?;
+        let raw = run_cap(self.command(cfg, remote_command), Input::Bytes(input), timeout, None, cap).map_err(|e| SshError::spawn(&self.bin, &e))?;
+        finish(raw, cfg, timeout)
+    }
+
     /// Streams `entries` of `local_dir` into `remote_dir` on the server: `tar -cf -` locally piped into
     /// `mkdir -p <dir> && tar -xf -` over ssh. Both exit codes are checked.
     pub fn push_tar(
@@ -385,7 +394,12 @@ enum Input<'a> {
 }
 
 /// Reads a stream to EOF, keeping at most [`OUTPUT_CAP`] bytes. Reports `(bytes, truncated)` when done.
-fn drain(mut r: impl Read + Send + 'static) -> Receiver<(Vec<u8>, bool)> {
+fn drain(r: impl Read + Send + 'static) -> Receiver<(Vec<u8>, bool)> {
+    drain_cap(r, OUTPUT_CAP)
+}
+
+/// [`drain`] with another cap.
+fn drain_cap(mut r: impl Read + Send + 'static, cap: usize) -> Receiver<(Vec<u8>, bool)> {
     let (tx, rx) = mpsc::channel();
     thread::spawn(move || {
         let (mut buf, mut cut, mut chunk) = (Vec::new(), false, [0u8; 8192]);
@@ -393,7 +407,7 @@ fn drain(mut r: impl Read + Send + 'static) -> Receiver<(Vec<u8>, bool)> {
             match r.read(&mut chunk) {
                 Ok(0) | Err(_) => break,
                 Ok(n) => {
-                    let room = OUTPUT_CAP.saturating_sub(buf.len());
+                    let room = cap.saturating_sub(buf.len());
                     if n > room {
                         cut = true;
                     }
@@ -439,7 +453,12 @@ fn wait_until(child: &mut Child, deadline: Instant, pid: u32) -> Option<i32> {
 
 /// Runs `cmd` (stdout and stderr piped) with `input` on stdin and a wall-clock `timeout`. On timeout the process group
 /// (and `also_kill`'s group) is killed.
-fn run(mut cmd: Command, input: Input<'_>, timeout: Duration, also_kill: Option<u32>) -> std::io::Result<Raw> {
+fn run(cmd: Command, input: Input<'_>, timeout: Duration, also_kill: Option<u32>) -> std::io::Result<Raw> {
+    run_cap(cmd, input, timeout, also_kill, OUTPUT_CAP)
+}
+
+/// [`run`] with a cap per output stream.
+fn run_cap(mut cmd: Command, input: Input<'_>, timeout: Duration, also_kill: Option<u32>, cap: usize) -> std::io::Result<Raw> {
     cmd.stdout(Stdio::piped()).stderr(Stdio::piped()).process_group(0);
     let bytes = match input {
         Input::Bytes(b) => {
@@ -458,7 +477,7 @@ fn run(mut cmd: Command, input: Input<'_>, timeout: Duration, also_kill: Option<
             let _ = stdin.write_all(&bytes);
         });
     }
-    let out = child.stdout.take().map(drain);
+    let out = child.stdout.take().map(|o| drain_cap(o, cap));
     let err = child.stderr.take().map(drain);
     let deadline = Instant::now() + timeout;
     let mut timed_out = false;

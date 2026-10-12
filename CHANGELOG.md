@@ -4,6 +4,11 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 
 ## [Unreleased]
 
+### Added
+
+- Changes on a server. Under the Changes tree a new **Server changes** panel shows, read-only, the uncommitted changes of every repository a server run works in (and of any repository of a server you add): a "Server: <name>" group with the branch, the changed files, the diff of each file in the usual diff viewer and the time of the last look. It reads with one bounded, hardened `git status` over the shared ssh connection, every 4 seconds while a run is active there, rarely when idle, and not at all while the panel is closed or the window is hidden. There is nothing to stage, commit, discard or stash on a server entry.
+- **Bring changes here** and **Send my changes there**: move uncommitted changes between this Mac and a server, only on a click and after a confirmation that lists the files and counts. Both copies must name the same origin and be on the same commit (nothing is fetched for you), the destination must be clean or you choose "apply on top" (the patch must then pass `git apply --check`), and the changes are applied to the working tree only: never staged, committed, pushed or checked out. Paths are validated (no `..`, absolute paths, `.git`, hooks folders, links or submodules), up to 200 new text files of 1 MB and 20 MB in all travel, binary and secret-looking new files stop the transfer, and sending is refused while a run is working in that repository (checked again under a lock right before the patch goes). The patch that is applied is byte for byte the one the dialog showed, modes are read from git (a link or submodule cannot hide behind `0120000`), and environment files, editor tasks, hooks, make/npm configuration and files that become executable are highlighted in a diffstat and need an extra tick.
+
 ## [1.3.3] - 2026-10-12
 
 ### Added

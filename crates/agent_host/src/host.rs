@@ -654,6 +654,12 @@ impl AgentHost {
         if let Some(loc) = meta.location.clone() {
             meta.remote = Some(inner.prepare_remote(&loc, &meta)?);
         }
+        // Not while "send my changes there" is copying into one of those folders; the mark stays until the run is registered, so that
+        // transfer's busy check sees it (docs/remote-servers.md).
+        let _starting = match (&meta.location, &meta.remote) {
+            (Some(loc), Some(r)) => Some(intely_servers::repolock::begin_run(loc, &r.dirs).map_err(|m| err("repoBusy", m))?),
+            _ => None,
+        };
         // Mandatory (docs/safety.md, layer 8): a run that can edit the user's repos starts only with a Rewind snapshot of
         // every repo. A repo that cannot be snapshotted (merge in progress, no commits, no git) refuses the run unless the
         // user ticked "run without safety net" for this run; then the run starts and Rewind has nothing for that repo.

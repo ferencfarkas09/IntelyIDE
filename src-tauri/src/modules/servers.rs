@@ -458,6 +458,85 @@ async fn engine_repo_path(app: &AppHandle, repo_id: &str) -> Res<PathBuf> {
     all.iter().find(|r| r.id == repo_id).map(|r| r.path.clone()).ok_or_else(|| err("unknownRepo", format!("unknown repository {repo_id}")))
 }
 
+/// A jail (INTELY_READONLY / INTELY_E2E) allows no connection to a server: the view and the transfer are refused before any ssh starts.
+fn network_allowed() -> Res<()> {
+    let jail = intely_core::jail::Jail::global();
+    match jail.mode() {
+        intely_core::jail::Mode::Off => Ok(()),
+        intely_core::jail::Mode::ReadOnly => Err(err(intely_core::jail::READ_ONLY, "read-only mode (INTELY_READONLY): no connection to a server is made")),
+        intely_core::jail::Mode::E2e => Err(err(intely_core::jail::TEST_JAIL, "test jail (INTELY_E2E): no connection to a server is made")),
+    }
+}
+
+/// Where one workspace repository is on one server: the server's entry, the folder as the settings resolve it, and the local copy.
+struct Target {
+    cfg: ServerCfg,
+    path: String,
+    local: intely_servers::transfer::LocalRepo,
+}
+
+async fn target(app: &AppHandle, state: &ServersState, id: &str, repo_id: &str) -> Res<Target> {
+    let cfg = state.registry.cfg(id).ok_or_else(|| err("unknownServer", "this server is not in the list any more"))?;
+    let l = local_repos(app, std::slice::from_ref(&repo_id.to_string())).await?.into_iter().next().ok_or_else(|| err("unknownRepo", "unknown repository"))?;
+    let path = resolve_repo_path(&cfg, l.origin.as_deref(), &l.folder).ok_or_else(|| err("remoteRepoName", "that folder name cannot be used on a server; set a folder for it first"))?.path;
+    let local_path = engine_repo_path(app, repo_id).await?;
+    Ok(Target { cfg, path, local: intely_servers::transfer::LocalRepo { path: local_path, origin: l.origin } })
+}
+
+/// The read-only view of a repository's working copy on a server (one bounded `git status` over the shared connection).
+#[tauri::command]
+pub async fn servers_changes(app: AppHandle, state: State<'_, ServersState>, id: String, repo_id: String) -> Res<intely_servers::ServerChanges> {
+    network_allowed()?;
+    let t = target(&app, &state, &id, &repo_id).await?;
+    let registry = state.registry();
+    blocking(move || intely_servers::server_changes(registry.ssh(), &t.cfg, &t.path).map_err(|e| err("ssh", e.to_string()))).await
+}
+
+/// Both sides of one changed file on a server, for the diff viewer (nothing is written anywhere).
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+pub async fn servers_file(app: AppHandle, state: State<'_, ServersState>, id: String, repo_id: String, file: String, orig_path: Option<String>, untracked: bool, reveal: bool) -> Res<intely_core::FileContents> {
+    network_allowed()?;
+    let t = target(&app, &state, &id, &repo_id).await?;
+    let registry = state.registry();
+    blocking(move || intely_servers::server_file(registry.ssh(), &t.cfg, &t.path, &file, orig_path.as_deref(), untracked, reveal).map_err(|e| err("ssh", e.to_string()))).await
+}
+
+/// A run of this server that works or waits for you in this repository now.
+fn server_busy(host: &intely_agent_host::AgentHost, id: &str, repo_id: &str) -> bool {
+    host.list().iter().any(|s| s.location.as_deref() == Some(id) && matches!(s.status, RunStatus::Running | RunStatus::NeedsYou) && s.repo_ids.iter().any(|r| r == repo_id))
+}
+
+/// What the confirmation dialog of a transfer shows: the files, the counts and every reason it cannot happen. Changes nothing.
+#[tauri::command]
+pub async fn servers_transfer_plan(app: AppHandle, state: State<'_, ServersState>, agents: State<'_, AgentSlot>, id: String, repo_id: String, direction: intely_servers::transfer::Direction) -> Res<intely_servers::transfer::TransferPlan> {
+    network_allowed()?;
+    let t = target(&app, &state, &id, &repo_id).await?;
+    let busy = server_busy(agents.host(), &id, &repo_id);
+    let registry = state.registry();
+    blocking(move || intely_servers::transfer::plan(direction, registry.ssh(), &t.cfg, &t.path, &t.local, &intely_core::jail::Jail::global(), busy)).await
+}
+
+/// "Bring changes here": only ever called by the button, after the person confirmed the plan.
+#[tauri::command]
+pub async fn servers_transfer_bring(app: AppHandle, state: State<'_, ServersState>, id: String, repo_id: String, on_top: bool, plan_id: String, accept_risky: bool) -> Res<intely_servers::transfer::Applied> {
+    network_allowed()?;
+    let t = target(&app, &state, &id, &repo_id).await?;
+    let registry = state.registry();
+    blocking(move || intely_servers::transfer::bring_changes(registry.ssh(), &t.cfg, &t.path, &t.local, &intely_core::jail::Jail::global(), on_top, &plan_id, accept_risky)).await
+}
+
+/// "Send my changes there": refused while a run of that server works in the repository.
+#[tauri::command]
+pub async fn servers_transfer_send(app: AppHandle, state: State<'_, ServersState>, agents: State<'_, AgentSlot>, id: String, repo_id: String, on_top: bool, plan_id: String, accept_risky: bool) -> Res<intely_servers::transfer::Applied> {
+    network_allowed()?;
+    let t = target(&app, &state, &id, &repo_id).await?;
+    let host = agents.host().clone();
+    let registry = state.registry();
+    // (asked again by the transfer itself right before it sends, with the folder locked against runs that start here)
+    blocking(move || intely_servers::transfer::send_changes(registry.ssh(), &t.cfg, &t.path, &t.local, &intely_core::jail::Jail::global(), on_top, &plan_id, accept_risky, &|| server_busy(&host, &id, &repo_id))).await
+}
+
 #[tauri::command]
 pub async fn servers_ssh_command(state: State<'_, ServersState>, id: String) -> Res<String> {
     let cfg = state.registry.cfg(&id).ok_or_else(|| err("unknownServer", "this server is not in the list any more"))?;

@@ -74,9 +74,44 @@ A run on a server shows the server's name next to it in the list and in the run 
 | Attachments (dropped or pasted files) | not yet |
 | Rewind snapshots | no: a snapshot of your local repository does not describe the server's copy |
 | Other providers (Codex, Gemini, ...) | no |
-| The Changes tree and commits of the server's working copy | no: the IDE does not show it; open a terminal on the server (**Copy SSH command**) to review and commit there |
+| The uncommitted changes of the server's working copy | yes, read-only: **Server changes** under the Changes tree (see [See what the server changed](#see-what-the-server-changed)); committing there stays on the server (**Copy SSH command**) |
+| Moving uncommitted changes between this Mac and a server | yes, on a click with a confirmation: **Bring changes here** and **Send my changes there** |
 | Run history of the server's sessions in the History view | no |
 | Approving a request from the phone (Remote) | no: approve at the desktop |
+
+## See what the server changed
+
+The panel **Server changes** under the Changes tree (closed until you open it) lists a "Server: <name>" group for every repository that a run on a server works in, and for any repository of a server you add with the two drop-downs at the bottom of the panel. A group shows the branch, the changed files and the time of the last look; a click on a file opens its diff in the usual diff viewer. It is a view, not a second Changes tree: there is nothing to tick, and no stage, commit, discard or stash for a server entry. Commit on the server (**Copy SSH command**), or bring the changes here.
+
+- **How it reads.** One bounded command over the shared ssh connection: `git --no-optional-locks -c core.fsmonitor=false -c core.hooksPath=/dev/null -c core.pager=cat status --porcelain=v2 -z --branch --untracked-files=normal`, in the folder the settings resolve for the repository (the real folder, links followed), 15 seconds at most, 500 files listed at most (the rest is counted). A diff is read per file on demand with `git diff --no-ext-diff --no-textconv --no-color`, 2 MB at most; a binary file or a secret-looking one (such as `.env`) is not shown until you ask. Nothing is written on the server. Git runs with the system configuration off and without replace refs, but **a clean/smudge filter or other driver defined in the repository's own configuration on the server still runs there** when git compares files (`--no-ext-diff` and `--no-textconv` only turn off external diff programs and text conversion). The agent on the server already runs as the same user and could do the same, so this view adds no new right, but it is not a sandbox. The output is parsed into the same records the Changes tree uses for a local repository.
+- **When it reads.** Every 4 seconds while a run of that server is active in the repository; every 30 seconds otherwise; every 60 seconds after a failure; never while the panel is closed or the window is hidden. The refresh button reads at once.
+- **What it says when it cannot show a list.** The server cannot be reached (the last good list stays, with the error), the folder does not exist, the folder is not a git repository, or git failed.
+- In a read-only or test-jail session (`INTELY_READONLY`, `INTELY_E2E`) no connection to a server is made.
+
+## Move changes between this Mac and a server
+
+Two buttons in the group of a server repository, both explicit, both with a confirmation that lists the files and the counts before anything happens:
+
+- **Bring changes here** applies the server's uncommitted changes (`git diff --binary --full-index HEAD` plus the new files that are not ignored) to your working tree.
+- **Send my changes there** does the same the other way, into the server's working copy. It is refused while a run of that server works or waits for you in that repository (the agent could be writing).
+
+What is checked first, and what happens if it is not met:
+
+| Check | If not met |
+|---|---|
+| Both copies have an `origin` and it names the same repository | Nothing happens; the dialog says so |
+| Both copies are on the **same commit** (the same sha) | Nothing happens. Pull or push so both sides are on the same commit, then try again; the IDE never fetches or checks out for you |
+| The destination has no uncommitted change | You may tick **Apply on top**; then `git apply --check` has to accept the patch, otherwise nothing changes |
+| The changes can travel | Any one change that cannot stops the whole transfer and is named: a new binary file, a new file over 1 MB, more than 200 new files, a file whose name looks like a secret (`.env`, keys), a link or a submodule, an unresolved conflict |
+| The whole patch is at most 20 MB | The transfer is refused; commit and use git |
+| The patch the dialog showed is the patch that is applied | The apply builds the patch again and goes ahead only when it is byte for byte the one you confirmed (its id); if the agent or you changed a file meanwhile, nothing is applied and you look again |
+| The files that run or configure something on their own | The dialog highlights them and the button waits for an extra tick (below) |
+
+**Files that need the extra tick**: environment files (`.env`, `.env.*` except `.example`, `.sample`, `.template`, and `.envrc`), editor folders (`.vscode/`, `.idea/`), `.husky/`, `.cargo/config*`, `Makefile` and `GNUmakefile`, `.npmrc`, `.pre-commit-config.yaml`, a `package.json` change that touches `preinstall`, `postinstall`, `install`, `prepare` or `prepublish`, and any file that becomes executable (mode 100755). Files that look like secrets are not carried at all. The confirmation dialog shows a diffstat (lines added and removed per file) with these files highlighted. Remember that the contents of files you have not opened travel too, and that a secret inside an ordinarily named file cannot be detected.
+
+The patch is applied with `git apply --whitespace=nowarn` to the **working tree only**: never `--index`, never staged, never committed, pushed, fetched or checked out. Every path in the patch is validated before it is applied (on this Mac by the app, on the server by the script itself): relative, no `..`, no absolute path, nothing under `.git`, no `.gitmodules`, `.gitattributes` or `.githooks`, no new symbolic link and no submodule. Links, submodules and special files are recognised from what `git apply --summary` reads (modes are octal, so `0120000` is a link too), not from the header text; names with a trailing space or dot, a `:`, or invisible characters (zero-width, bidi, variation selectors) are refused; this Mac applies with `core.protectHFS` and `core.protectNTFS` on. Local git calls of the transfer stop after 60 seconds and keep at most about 22 MB of output. `git apply --check` has to pass, and the application is all or nothing. On this Mac the apply follows the same mutation jail as the other Git buttons (`INTELY_READONLY`, `INTELY_E2E`). **Sending and runs.** While a send is applying, the folder is locked against runs that start from this IDE (a run that starts then is refused for a moment), and the check for an active run is repeated right before the patch goes. Runs started from another IDE or from a terminal on the server are not detected, so do not send while something else is writing there. Right before an apply the app also checks that your repository is still on the same commit (and still clean unless you chose "apply on top").
+
+Agents never trigger a transfer: it is a UI command only, and a test keeps every other part of the app from naming it.
 
 ## How it stays within the rules
 

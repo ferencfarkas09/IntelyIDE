@@ -11,10 +11,13 @@ pub mod cfg;
 pub mod paths;
 pub mod probe;
 pub mod quote;
+pub mod repolock;
 pub mod repos;
 pub mod setup;
 pub mod shim;
 pub mod ssh;
+pub mod transfer;
+pub mod view;
 #[cfg(test)]
 mod testkit;
 
@@ -29,4 +32,5 @@ pub use setup::{
     node_pin_for, setup, NodePin, SetupError, SetupEvent, SetupOptions, SetupStep, StepState,
 };
 pub use shim::{remote_paths, remove_shim, sidecar_command, upload_shim, RemotePaths};
+pub use view::{server_changes, server_file, ServerChanges, ViewState};
 pub use ssh::{classify, default_control_dirs, private_control_dir, ExecOut, Ssh, SshError, SshErrorKind};
