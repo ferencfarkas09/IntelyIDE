@@ -4,6 +4,12 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-10-12
+
+### Fixed
+
+- The app closed a few seconds after every start when a repository had an accented letter (for example `á`) before a translation key on the same line: the translation scan cut the line inside the character. Since 1.3.0 the scan runs at start for shared projects, so the app could not be used.
+
 ## [1.3.1] - 2026-10-12
 
 ### Fixed
@@ -161,7 +167,8 @@ First public release. This is alpha software.
 - Providers other than Claude, Happy, MongoDB Studio and Remote are proven only against mocks or on a local machine.
 - Version 0.1.0 still stores its state in the folder `IntelySwitchIDE` and uses Keychain services named after the earlier bundle identifier; a switch to `com.intelyhome.intelyide` with a migration is planned.
 
-[Unreleased]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.3.1...HEAD
+[Unreleased]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.3.2...HEAD
+[1.3.2]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.1.1...v1.3.0
 [1.1.1]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.1.0...v1.1.1
