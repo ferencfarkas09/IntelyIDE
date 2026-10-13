@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { capsFor, staticCaps } from '../src/adapters/claude-sdk/caps.js';
-import { assertInit, checkCredential, type CliModel, isUnattended, isWriterMode, isolationLeak, modelMatches, permissionModeFor } from '../src/adapters/claude-sdk/facts.js';
+import { assertInit, checkCredential, type CliModel, isUnattended, isWriterMode, isolationLeak, expectedMcpServers, modelMatches, permissionModeFor } from '../src/adapters/claude-sdk/facts.js';
 import { intentFor, toolKind } from '../src/adapters/claude-sdk/intent.js';
 import { DENY_RULES, settingsOverlay } from '../src/adapters/claude-sdk/settings.js';
 import { ClaudeSession } from '../src/adapters/claude-sdk/session.js';
@@ -191,6 +191,12 @@ describe('extra directories travel in the inline settings, never as the --add-di
 });
 
 describe('isolationLeak (fail-closed init check)', () => {
+  it('does not call the IDE\'s own in-process peer server a leak, but still flags it for a run without peer tools', () => {
+    const withPeer = init({ mcp_servers: [{ name: 'intely-peer', status: 'connected' }, { name: 'mine', status: 'connected' }] });
+    expect(isolationLeak(withPeer, expectedMcpServers({ mine: {} }, 'intely-peer'))).toBeNull();
+    expect(isolationLeak(withPeer, expectedMcpServers({ mine: {} }, null))).toContain('MCP server(s) [intely-peer]');
+    expect(isolationLeak(init({ mcp_servers: [{ name: 'foreign', status: 'connected' }] }), expectedMcpServers({}, 'intely-peer'))).toContain('[foreign]');
+  });
   it('is null for the CLI built-in plugins only', () => expect(isolationLeak(init(), [])).toBeNull());
   it('names a user plugin loaded from the plugin cache', () => {
     const r = isolationLeak(init({ plugins: [{ name: 'token-optimizer', path: '/Users/x/.claude/plugins/cache/t/5.4.3' }, { name: 'agents-md', path: 'builtin' }] }), []);

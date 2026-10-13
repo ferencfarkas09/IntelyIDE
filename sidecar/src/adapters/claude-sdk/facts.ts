@@ -76,6 +76,11 @@ export const BUILTIN_AGENT_TYPES = ['general-purpose', 'Explore', 'Plan', 'statu
 /** Oldest CLI the delegation path was checked against ((design notes: roles-orchestration-spec) 4.4, D12); mirrors MIN_CLI_FOR_DELEGATION in crates/agent_host. */
 export const MIN_CLI_FOR_DELEGATION = '2.1.284';
 
+/** The MCP servers a session may show in its init report: the spec's own and, when the run has the peer tools, the IDE's in-process peer server. The one list for the isolation check and for the facts. */
+export function expectedMcpServers(specMcp: Record<string, unknown> | undefined, peerServer: string | null): string[] {
+  return [...Object.keys(specMcp ?? {}), ...(peerServer ? [peerServer] : [])];
+}
+
 /**
  * The fail-closed form of the isolation check: a user plugin (its PreToolUse hooks can hold gigabytes and can refuse tools) or a
  * foreign MCP server in the init report means the session is NOT isolated from the user's Claude setup. Returns the reason or null.

@@ -13,7 +13,7 @@ import type {
 } from '../../types.js';
 import { capsFor, toModelInfo } from './caps.js';
 import { effortOf, NoteError } from '../../abstract.js';
-import { assertInit, checkCredential, type CliModel, findModel, initSessionInfo, isolationLeak, isWriterMode, mcpState, permissionModeFor } from './facts.js';
+import { assertInit, checkCredential, type CliModel, expectedMcpServers, findModel, initSessionInfo, isolationLeak, isWriterMode, mcpState, permissionModeFor } from './facts.js';
 import { CANARY_MARK, ToolGate } from './gate.js';
 import { mapRaw, type MapState, newMapState, type Raw } from './map.js';
 import { IDE_MCP_NOTE, IDE_PEER_NOTE, IDE_PLAN_NOTE, IDE_SESSION_NOTE } from './notes.js';
@@ -238,6 +238,11 @@ export class ClaudeSession implements AgentSession {
 
   private hasPeer = false;
 
+  /** The MCP servers this session may legitimately show in its init report: the spec's own and the IDE's in-process peer server (when the run has the peer tools). One list for the isolation check and for the facts, so they cannot disagree. */
+  private expectedMcp(): string[] {
+    return expectedMcpServers(this.spec.mcp as Record<string, unknown> | undefined, this.hasPeer ? PEER_SERVER : null);
+  }
+
   /**
    * The in-process MCP server with `peer_list` and `peer_send`, when the host asked for it (`agents.peerMessages` is not off), this session
    * has the host's RPC, and the SDK install has the `zod` its schemas need. Otherwise the run simply has no peer tools.
@@ -267,7 +272,7 @@ export class ClaudeSession implements AgentSession {
       init,
       role: this.spec.role,
       mode: this.mode,
-      mcpExpected: [...Object.keys(this.spec.mcp ?? {}), ...(this.hasPeer ? [PEER_SERVER] : [])],
+      mcpExpected: this.expectedMcp(),
       models: this.models,
       appliedEffort: this.appliedEffort,
       foreignHookEvents: this.foreignHooks,
@@ -291,7 +296,7 @@ export class ClaudeSession implements AgentSession {
     // Fail closed: a user plugin or a foreign MCP server in the init report means the session is not isolated from the user's Claude
     // setup (its hooks can refuse tools and hold gigabytes). Nothing runs: the error is shown and the CLI is stopped.
     if (m.type === 'system' && m.subtype === 'init') {
-      const leak = isolationLeak(m, Object.keys(this.spec.mcp ?? {}));
+      const leak = isolationLeak(m, this.expectedMcp());
       if (leak) {
         this.fail(leak);
         void this.close();
