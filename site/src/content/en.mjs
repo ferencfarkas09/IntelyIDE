@@ -65,6 +65,8 @@ export default {
     kind: { dmg: 'macOS disk image', nsis: 'Windows installer', msi: 'Windows MSI package', appimage: 'Linux AppImage', deb: 'Linux .deb package' },
     winNote: 'Windows: the installer is not code-signed yet. If SmartScreen warns, choose “More info”, then “Run anyway”.',
     linuxNote: 'Linux: make the AppImage executable first (chmod +x IntelyIDE_*.AppImage), then run it.',
+    soonNote: 'Windows and Linux builds are coming. The macOS app is available now.',
+    soonButton: 'See the release page',
     alsoFor: 'Also available for',
     colFile: 'File',
     colArch: 'Architecture',

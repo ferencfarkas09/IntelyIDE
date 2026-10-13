@@ -4,8 +4,8 @@
 //   node scripts/release/pack-release.mjs check-app   --app <IntelyIDE.app> --version <X.Y.Z> [--home <dir>] [--forbid <text>]...
 //   node scripts/release/pack-release.mjs patch-paths --app <IntelyIDE.app> [--home <dir>]
 //   node scripts/release/pack-release.mjs finalize    --version <X.Y.Z> --dmg <file> --out <dir> --commit <sha> [--date YYYY-MM-DD] [--notarized yes]
-//                                                     [--ci yes] [--site-data <release.json>] [--repo OWNER/REPO]
-//   node scripts/release/pack-release.mjs verify      --version <X.Y.Z> --out <dir> [--commit <sha>] [--site-data <release.json>] [--partial yes]
+//                                                     [--ci yes] [--mac-only yes] [--site-data <release.json>] [--repo OWNER/REPO]
+//   node scripts/release/pack-release.mjs verify      --version <X.Y.Z> --out <dir> [--commit <sha>] [--site-data <release.json>] [--partial yes] [--mac-only yes]
 //
 // check-app    the bundle has the version, the sidecar, the SDK installer and the SDK pin files and the relay kit (equal to their sources), no
 //              path of the builder's home in any file, and a universal main executable (x86_64 and arm64).
@@ -14,8 +14,11 @@
 // finalize     writes SHA256SUMS, the SBOM, RELEASE_NOTES.md, build-record.json and (with --ci yes and --site-data) the site's release.json.
 //              Without --ci only the disk image is listed (the first step of a build); with --ci the four installers the GitHub Actions
 //              workflow built (AppImage, deb, NSIS exe, MSI) must already be in <dir> under their release names (assets.mjs).
+//              --mac-only yes: the release is the disk image alone (Windows and Linux installers are paused): the same files as without --ci,
+//              but the set is complete, the notes do not mention other platforms and the site's release.json lists only the macOS file.
 // verify       the files of <out> still match SHA256SUMS and the record (and the record's commit, when --commit is given), and the record
 //              lists every release file; --partial yes accepts a record that has only the disk image.
+//              --mac-only yes: the disk image and the SBOM are the complete set (the site data must list only the macOS file).
 //
 // Exit codes: 0 ok, 1 a check failed, 2 usage or input error.
 import { spawnSync } from "node:child_process";
@@ -169,7 +172,7 @@ const demote = (md) => md.replace(/^(#{2,5}) /gm, (_, h) => `${h}# `);
 const mib = (f) => `${(f.size / 1048576).toFixed(1)} MiB`;
 
 /** The text of the GitHub release. Facts only: what is attached, how to verify and install, what changed. */
-export function renderNotes({ version, repo = REPO, dmg, sbom, ci = {}, body, notarized = false }) {
+export function renderNotes({ version, repo = REPO, dmg, sbom, ci = {}, body, notarized = false, macOnly = false }) {
   const base = `https://github.com/${repo}/blob/main`;
   const rows = [
     `| \`${dmg.name}\` | macOS 13.5 or later, Intel and Apple Silicon (one universal app), ${mib(dmg)} | \`${dmg.sha256}\` |`,
@@ -205,7 +208,7 @@ Agent runs also need Node.js 24 or newer, your own Claude Code login and the Cla
 
 ## Verify the download
 
-In the folder with the files: \`shasum -a 256 -c SHA256SUMS\` (on Windows: \`certutil -hashfile <file> SHA256\` and compare by eye). This detects a damaged download. The checksums come from the same page as the files, so they cannot prove who made them.
+In the folder with the files: \`shasum -a 256 -c SHA256SUMS\`${macOnly ? ". " : " (on Windows: `certutil -hashfile <file> SHA256` and compare by eye). "}This detects a damaged download. The checksums come from the same page as the files, so they cannot prove who made them.
 
 ## What's changed
 
@@ -254,7 +257,8 @@ function runSbom(version, out, root) {
 
 const describeFile = (path) => ({ name: basename(path), size: statSync(path).size, sha256: sha256File(path) });
 
-export function finalize({ version, dmg: dmgPath, out, commit, date, siteData, repo = REPO, root = ROOT, notarized = false, ci: withCi = false }) {
+export function finalize({ version, dmg: dmgPath, out, commit, date, siteData, repo = REPO, root = ROOT, notarized = false, ci: withCi = false, macOnly = false }) {
+  if (macOnly && withCi) throw new Fail("--mac-only and --ci cannot be combined", 2);
   const names = assetNames(version);
   if (basename(dmgPath) !== names.dmg) throw new Fail(`the disk image must be named ${names.dmg}`, 2);
   if (!existsSync(dmgPath)) throw new Fail(`no disk image at ${dmgPath}`, 2);
@@ -280,7 +284,7 @@ export function finalize({ version, dmg: dmgPath, out, commit, date, siteData, r
   const changelog = readFileSync(join(root, "CHANGELOG.md"), "utf8");
   const section = changelogSection(changelog, version);
   const when = date ?? section.date ?? new Date().toISOString().slice(0, 10);
-  const notes = renderNotes({ version, repo, dmg, sbom, ci, body: section.body, notarized });
+  const notes = renderNotes({ version, repo, dmg, sbom, ci, body: section.body, notarized, macOnly });
   // the publish-scan rules (and the owner's local needles, when that untracked file exists) over the text; rule ids and lines only
   const hits = scanText(notes, "release-notes.md", loadLocalNeedles(root));
   if (hits.length) throw new Fail(`the release notes trip the publish scan:\n  ${hits.map((h) => `line ${h.line}: ${h.rule}`).join("\n  ")}`);
@@ -289,10 +293,10 @@ export function finalize({ version, dmg: dmgPath, out, commit, date, siteData, r
   const files = Object.fromEntries(listed.map((f) => [f.name, f]));
   writeAtomic(
     join(out, "build-record.json"),
-    JSON.stringify({ version, commit, date: when, platforms: withCi ? ["mac", "windows", "linux"] : ["mac"], files, signing: notarized ? "developer id, notarized" : "ad hoc, not notarized" }, null, 2) + "\n",
+    JSON.stringify({ version, commit, date: when, platforms: macOnly ? ["mac"] : withCi ? ["mac", "windows", "linux"] : ["mac"], files, signing: notarized ? "developer id, notarized" : "ad hoc, not notarized" }, null, 2) + "\n",
   );
 
-  if (siteData && withCi) {
+  if (siteData && (withCi || macOnly)) {
     let previous = {};
     try {
       previous = JSON.parse(readFileSync(siteData, "utf8"));
@@ -305,7 +309,7 @@ export function finalize({ version, dmg: dmgPath, out, commit, date, siteData, r
 }
 
 /** Problems of an artifact folder: files must match SHA256SUMS and the record; with `commit` the record must be for it. */
-export function verifyOut({ version, out, commit, siteData, partial = false }) {
+export function verifyOut({ version, out, commit, siteData, partial = false, macOnly = false }) {
   const problems = [];
   const recFile = join(out, "build-record.json");
   if (!existsSync(recFile)) return [`no build-record.json in ${out}`];
@@ -314,7 +318,7 @@ export function verifyOut({ version, out, commit, siteData, partial = false }) {
   if (rec.version !== version) problems.push(`the build record is for ${rec.version}, expected ${version}`);
   if (commit && rec.commit !== commit) problems.push(`the build record is for commit ${String(rec.commit).slice(0, 12)}, HEAD is ${commit.slice(0, 12)}`);
   const sums = existsSync(join(out, "SHA256SUMS")) ? parseSums(readFileSync(join(out, "SHA256SUMS"), "utf8")) : new Map();
-  const expected = partial ? [names.dmg, names.sbom] : [names.dmg, ...ALL_CI_KINDS.map((k) => names[k]), names.sbom];
+  const expected = partial || macOnly ? [names.dmg, names.sbom] : [names.dmg, ...ALL_CI_KINDS.map((k) => names[k]), names.sbom];
   for (const name of expected) if (!rec.files?.[name]) problems.push(`the build record does not list ${name}${partial ? "" : " (pnpm release:collect fetches the Windows and Linux files)"}`);
   for (const [file, meta] of Object.entries(rec.files ?? {})) {
     const p = join(out, file);
@@ -326,6 +330,10 @@ export function verifyOut({ version, out, commit, siteData, partial = false }) {
     }
   }
   if (!existsSync(join(out, "RELEASE_NOTES.md"))) problems.push("missing: RELEASE_NOTES.md");
+  if (macOnly && (rec.platforms ?? []).join() !== "mac") problems.push("the build record is not a macOS-only record (pnpm release:build --mac-only --rebuild)");
+  if (macOnly) {
+    for (const f of Object.keys(rec.files ?? {})) if (![names.dmg, names.sbom].includes(f)) problems.push(`unexpected file in a macOS-only release: ${f}`);
+  }
   if (siteData && !partial) {
     try {
       const site = JSON.parse(readFileSync(siteData, "utf8"));
@@ -333,7 +341,9 @@ export function verifyOut({ version, out, commit, siteData, partial = false }) {
       if (site.status !== "stable") problems.push(`site data status is ${site.status}, expected stable`);
       const a = site.assets ?? {};
       const listed = { dmg: a.mac, nsis: a.windows?.nsis, msi: a.windows?.msi, appimage: a.linux?.appimage, deb: a.linux?.deb };
+      if (macOnly && (a.windows || a.linux)) problems.push("site data lists Windows or Linux files in a macOS-only release");
       for (const [kind, asset] of Object.entries(listed)) {
+        if (macOnly && kind !== "dmg") continue;
         const f = rec.files?.[names[kind]];
         if (!asset || !f || asset.name !== names[kind] || asset.sha256 !== f.sha256 || asset.size !== f.size) problems.push(`site data does not describe ${names[kind]} (name, hash or size)`);
       }
@@ -380,13 +390,13 @@ export function main(argv, io = { log: console.log, err: console.error }) {
     }
     if (cmd === "finalize") {
       need("version", "dmg", "out", "commit");
-      const r = finalize({ version: o.version, dmg: resolve(o.dmg), out: resolve(o.out), commit: o.commit, date: o.date, siteData: o.siteData ? resolve(o.siteData) : undefined, repo: o.repo ?? REPO, notarized: o.notarized === "yes", ci: o.ci === "yes" });
+      const r = finalize({ version: o.version, dmg: resolve(o.dmg), out: resolve(o.out), commit: o.commit, date: o.date, siteData: o.siteData ? resolve(o.siteData) : undefined, repo: o.repo ?? REPO, notarized: o.notarized === "yes", ci: o.ci === "yes", macOnly: o.macOnly === "yes" });
       io.log(`finalize: ${r.dmg.name} ${r.dmg.size} bytes sha256 ${r.dmg.sha256}`);
       return 0;
     }
     if (cmd === "verify") {
       need("version", "out");
-      const problems = verifyOut({ version: o.version, out: resolve(o.out), commit: o.commit, siteData: o.siteData ? resolve(o.siteData) : undefined, partial: o.partial === "yes" });
+      const problems = verifyOut({ version: o.version, out: resolve(o.out), commit: o.commit, siteData: o.siteData ? resolve(o.siteData) : undefined, partial: o.partial === "yes", macOnly: o.macOnly === "yes" });
       problems.forEach((p) => io.err(`FAIL ${p}`));
       io.log(problems.length ? `verify: ${problems.length} problem(s)` : "verify: OK");
       return problems.length ? 1 : 0;

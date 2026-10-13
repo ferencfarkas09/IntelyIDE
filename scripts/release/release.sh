@@ -16,6 +16,9 @@
 #   --rebuild      build even when dist-release/<version> is up to date for the commit
 #   --smoke        build: start the finished app through the e2e scenarios a and m (opens windows; needs an unlocked screen)
 #   --skip-ci      publish: do not require a green CI run for HEAD (say why in the commit message of your decision)
+#   --mac-only     the release is the universal macOS disk image + SBOM + SHA256SUMS alone (Windows and Linux installers paused): build does not
+#                  collect them, status/build/publish treat that set as complete, site/data/release.json lists only the macOS file.
+#                  Give it to every step you run (pnpm release -- --mac-only, pnpm release:build -- --mac-only, ...)
 #   --version X.Y.Z  default: the version in package.json
 #   --ad-hoc       build: sign ad hoc and skip notarization (macOS then asks users to confirm the first launch)
 #
@@ -42,7 +45,7 @@ NEUTRAL='^(site/|docs/|\.github/|scripts/ci/|scripts/release/(release\.sh$|[a-z-
 
 cmd="${1:-all}"
 [ $# -gt 0 ] && shift
-DRY=0 YES=0 DRAFT_ONLY=0 REBUILD=0 SMOKE=0 SKIP_CI=0 ADHOC=0 VERSION=""
+DRY=0 YES=0 DRAFT_ONLY=0 REBUILD=0 SMOKE=0 SKIP_CI=0 ADHOC=0 MAC_ONLY=0 VERSION=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --) ;; # `pnpm release -- --dry-run` hands the separator on
@@ -53,8 +56,9 @@ while [ $# -gt 0 ]; do
     --smoke) SMOKE=1 ;;
     --skip-ci) SKIP_CI=1 ;;
     --ad-hoc) ADHOC=1 ;;
+    --mac-only) MAC_ONLY=1 ;;
     --version) shift; VERSION="${1:-}" ;;
-    -h | --help) sed -n '2,36p' "$0"; exit 0 ;;
+    -h | --help) sed -n '2,39p' "$0"; exit 0 ;;
     *) echo "release: unknown option $1 (see --help)" >&2; exit 2 ;;
   esac
   shift
@@ -68,6 +72,13 @@ SBOM="IntelyIDE_${VERSION}.sbom.cdx.json"
 # built by GitHub Actions; the names are the single source scripts/release/assets.mjs
 CI_FILES=("IntelyIDE_${VERSION}_x64-setup.exe" "IntelyIDE_${VERSION}_x64.msi" "IntelyIDE_${VERSION}_x86_64.AppImage" "intelyide_${VERSION}_amd64.deb")
 ALL_FILES=("$DMG" "${CI_FILES[@]}" "$SBOM" SHA256SUMS)
+# --mac-only: the disk image, the SBOM and the sums are the whole release (pack-release gets --mac-only yes)
+MACFLAG=""
+if [ "$MAC_ONLY" = 1 ]; then
+  CI_FILES=()
+  ALL_FILES=("$DMG" "$SBOM" SHA256SUMS)
+  MACFLAG="--mac-only yes"
+fi
 WORKFLOW="release-build.yml"
 PACK="node scripts/release/pack-release.mjs"
 SIGN_ID="${INTELY_SIGN_IDENTITY:-}"
@@ -191,15 +202,16 @@ artifacts_ok() {
   git merge-base --is-ancestor "$rec" HEAD 2>/dev/null || return 1
   [ -z "$(app_changes_since "$rec")" ] || return 1
   [ "$(node -p "require('$OUT/build-record.json').signing" 2>/dev/null)" = "$SIGNING" ] || return 1
-  if [ "${1:-}" = partial ]; then $PACK verify --version "$VERSION" --out "$OUT" --partial yes >/dev/null 2>&1; else $PACK verify --version "$VERSION" --out "$OUT" --site-data "$SITE_DATA" >/dev/null 2>&1; fi
+  if [ "${1:-}" = partial ] && [ "$MAC_ONLY" = 0 ]; then $PACK verify --version "$VERSION" --out "$OUT" --partial yes >/dev/null 2>&1; else $PACK verify --version "$VERSION" --out "$OUT" --site-data "$SITE_DATA" $MACFLAG >/dev/null 2>&1; fi
 }
 
 do_status() {
   step "release status for $TAG"
   say "HEAD $(head_sha | cut -c1-10) on $(git rev-parse --abbrev-ref HEAD), $( [ -z "$(git status --porcelain)" ] && echo clean || echo 'NOT clean')"
+  [ "$MAC_ONLY" = 0 ] || say "mode: macOS only (disk image + SBOM + SHA256SUMS are the complete release; Windows and Linux installers are not part of it)"
   if artifacts_ok; then ok "artifacts in dist-release/$VERSION are complete and match the commit"; else warn "no complete artifacts for this commit in dist-release/$VERSION (pnpm release:build)"; fi
   local f
-  for f in "$DMG" "${CI_FILES[@]}"; do
+  for f in "$DMG" ${CI_FILES[@]+"${CI_FILES[@]}"}; do
     if [ -f "$OUT/$f" ]; then say "$f: $(wc -c <"$OUT/$f" | tr -d ' ') bytes, sha256 $(shasum -a 256 "$OUT/$f" | cut -c1-16)..."; else say "$f: not there yet"; fi
   done
   gh run list --repo "$REPO" --workflow CI --commit "$(head_sha)" --limit 1 --json status,conclusion --jq '.[0] | "CI for HEAD: \(.status) \(.conclusion)"' 2>/dev/null | sed 's/^/   /' || true
@@ -220,7 +232,7 @@ do_preflight() {
 do_build() {
   step "build $TAG"
   if [ "$REBUILD" = 0 ] && artifacts_ok; then ok "dist-release/$VERSION is up to date for this commit: nothing to build"; return 0; fi
-  if [ "$REBUILD" = 0 ] && artifacts_ok partial; then ok "the disk image in dist-release/$VERSION is up to date for this commit: only the installers are missing"; do_collect; return 0; fi
+  if [ "$REBUILD" = 0 ] && [ "$MAC_ONLY" = 0 ] && artifacts_ok partial; then ok "the disk image in dist-release/$VERSION is up to date for this commit: only the installers are missing"; do_collect; return 0; fi
   [ -z "$(git status --porcelain)" ] || die "the working tree is not clean: the disk image must be built from a commit"
   local commit app
   commit="$(head_sha)"
@@ -234,6 +246,7 @@ do_build() {
   app="$CARGO_TARGET_DIR/universal-apple-darwin/release/bundle/macos/IntelyIDE.app"
   if [ "$DRY" = 1 ]; then
     warn "dry run: the remaining build steps (patch, DMG, checksums, SBOM, notes, site data) need the finished app and are not shown"
+    if [ "$MAC_ONLY" = 1 ]; then say "macOS only: no Windows or Linux installers are collected"; return 0; fi
     say "afterwards the Windows and Linux installers come from GitHub Actions (needs the commit on origin/main):"
     mut gh workflow run "$WORKFLOW" --repo "$REPO" --ref main -f "version=$VERSION" -f "commit=$commit"
     return 0
@@ -253,10 +266,22 @@ do_build() {
   verify_dmg
   if [ "$SMOKE" = 1 ]; then smoke "$OUT/work/IntelyIDE.app"; fi
   # the first record: the disk image alone (it keeps the build commit while the installers are fetched)
-  $PACK finalize --version "$VERSION" --dmg "$OUT/$DMG" --out "$OUT" --commit "$commit" --notarized "$( [ "$ADHOC" = 1 ] && echo no || echo yes )"
+  $PACK finalize --version "$VERSION" --dmg "$OUT/$DMG" --out "$OUT" --commit "$commit" --notarized "$( [ "$ADHOC" = 1 ] && echo no || echo yes )" $MACFLAG $( [ "$MAC_ONLY" = 1 ] && echo "--site-data $SITE_DATA" )
   rm -rf "$OUT/work"
   ok "the macOS disk image is done: $OUT/$DMG"
+  if [ "$MAC_ONLY" = 1 ]; then
+    ok "macOS only: SHA256SUMS, SBOM, notes and $SITE_DATA are written; no Windows or Linux installers are collected"
+    site_data_note
+    return 0
+  fi
   do_collect
+}
+
+# the site data was written: it has to be committed and pushed before publish
+site_data_note() {
+  if [ -n "$(git status --porcelain)" ]; then
+    warn "$SITE_DATA now describes this release: commit and push it (git add $SITE_DATA && git commit -s -m 'site: download data for $VERSION' && git push) before you publish"
+  fi
 }
 
 # the build record of the disk image says commit, date and signing; write everything again with the installers of the workflow
@@ -265,8 +290,11 @@ finalize_with_ci() {
   rec="$(node -p "require('$OUT/build-record.json').commit")"
   date="$(node -p "require('$OUT/build-record.json').date")"
   notarized="$(node -p "require('$OUT/build-record.json').signing === 'developer id, notarized' ? 'yes' : 'no'")"
-  $PACK finalize --version "$VERSION" --dmg "$OUT/$DMG" --out "$OUT" --commit "$rec" --date "$date" --site-data "$SITE_DATA" --notarized "$notarized" --ci yes
+  $PACK finalize --version "$VERSION" --dmg "$OUT/$DMG" --out "$OUT" --commit "$rec" --date "$date" --site-data "$SITE_DATA" --notarized "$notarized" $(finalize_mode)
 }
+
+# the installers of the workflow are part of the release, unless --mac-only
+finalize_mode() { if [ "$MAC_ONLY" = 1 ]; then echo "--mac-only yes"; else echo "--ci yes"; fi; }
 
 # the newest "Release build" run of this version and commit: "<id> <status> <conclusion>" (empty when there is none)
 find_run() {
@@ -277,10 +305,11 @@ find_run() {
 # Windows and Linux installers: GitHub Actions builds them from the commit of the disk image; download, check, and list them with the rest
 do_collect() {
   step "Windows and Linux installers for $TAG"
+  [ "$MAC_ONLY" = 0 ] || die "--mac-only: the Windows and Linux installers are paused and not part of this release"
   [ -f "$OUT/build-record.json" ] && [ -f "$OUT/$DMG" ] || die "no disk image for $VERSION in dist-release: run pnpm release:build first"
   local rec run prev id st concl waited=0 tmp f n src
   rec="$(node -p "require('$OUT/build-record.json').commit")"
-  if [ "$REBUILD" = 0 ] && $PACK verify --version "$VERSION" --out "$OUT" --commit "$rec" --site-data "$SITE_DATA" >/dev/null 2>&1; then
+  if [ "$REBUILD" = 0 ] && $PACK verify --version "$VERSION" --out "$OUT" --commit "$rec" --site-data "$SITE_DATA" $MACFLAG >/dev/null 2>&1; then
     ok "dist-release/$VERSION already holds every installer for ${rec:0:10}"
     return 0
   fi
@@ -330,9 +359,7 @@ do_collect() {
   finalize_with_ci
   ok "artifacts in $OUT:"
   ls -l "$OUT" | sed 's/^/     /'
-  if [ -n "$(git status --porcelain)" ]; then
-    warn "$SITE_DATA now describes this release: commit and push it (git add $SITE_DATA && git commit -s -m 'site: download data for $VERSION' && git push) before you publish"
-  fi
+  site_data_note
 }
 
 # the changelog changed after the build: write the notes (and the sums, the SBOM, the record) again from the same disk image
@@ -346,7 +373,7 @@ refinalize_notes() {
   notarized="$(node -p "require('$OUT/build-record.json').signing === 'developer id, notarized' ? 'yes' : 'no'")"
   say "CHANGELOG.md changed since the build: writing the release notes again"
   if [ "$DRY" = 1 ]; then warn "dry run: not written"; return 0; fi
-  $PACK finalize --version "$VERSION" --dmg "$OUT/$DMG" --out "$OUT" --commit "$rec" --date "$date" --site-data "$SITE_DATA" --notarized "$notarized" --ci yes
+  $PACK finalize --version "$VERSION" --dmg "$OUT/$DMG" --out "$OUT" --commit "$rec" --date "$date" --site-data "$SITE_DATA" --notarized "$notarized" $(finalize_mode)
   if [ -n "$(git status --porcelain -- "$SITE_DATA")" ]; then die "$SITE_DATA changed: commit and push it, then run again"; fi
 }
 
@@ -398,7 +425,7 @@ do_publish() {
   step "publish $TAG"
   [ -d "$OUT" ] || die "no artifacts in dist-release/$VERSION: run pnpm release:build first"
   refinalize_notes
-  $PACK verify --version "$VERSION" --out "$OUT" --site-data "$SITE_DATA" || die "the artifacts do not verify (above): run pnpm release:build --rebuild"
+  $PACK verify --version "$VERSION" --out "$OUT" --site-data "$SITE_DATA" $MACFLAG || die "the artifacts do not verify (above): run pnpm release:build --rebuild"
   check_build_commit
   confirm
   local sign=()
