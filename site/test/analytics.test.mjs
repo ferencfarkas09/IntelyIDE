@@ -53,7 +53,9 @@ describe('analytics consent', () => {
     b.click(b.target('[data-consent]', { 'data-consent': 'granted' }));
     assert.equal(b.banner.hidden, true);
     assert.equal(b.store.get('ga-consent'), 'granted');
-    assert.equal(b.appended[0].src, 'https://www.googletagmanager.com/gtag/js?id=G-NY3S7X9J5P');
+    assert.equal(b.appended[0].src, 'https://www.googletagmanager.com/gtag/js?id=G-E7RB55MV0F');
+    const configs = b.win.dataLayer.map((a) => [...a]).filter((a) => a[0] === 'config').map((a) => a[1]);
+    assert.equal(JSON.stringify(configs), JSON.stringify(['G-E7RB55MV0F', 'G-NY3S7X9J5P']), 'every measurement id gets its own config');
     const [def, upd] = b.win.dataLayer.map((a) => [...a]);
     assert.deepEqual(def.slice(0, 2), ['consent', 'default']);
     assert.equal(def[2].ad_storage, 'denied');
@@ -118,6 +120,7 @@ describe('analytics consent', () => {
     assert.equal(JSON.stringify([...b.win.dataLayer[n - 1]]), JSON.stringify(['consent', 'update', { analytics_storage: 'denied' }]));
     b.click(b.target('[data-ga]', { 'data-ga': 'nav', 'data-ga-label': 'faq' }));
     assert.equal(b.win.dataLayer.length, n);
+    assert.equal(b.win['ga-disable-G-E7RB55MV0F'], true);
     assert.equal(b.win['ga-disable-G-NY3S7X9J5P'], true);
     assert.match(b.doc.cookie, /_ga_ABC=; expires=Thu, 01 Jan 1970/);
   });

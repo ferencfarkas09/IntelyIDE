@@ -2,7 +2,9 @@
 // without this file, or without consent, no Google script is loaded and nothing is sent.
 (function (w) {
   'use strict';
-  var ID = 'G-NY3S7X9J5P';
+  // Measurement ids: the first one loads gtag.js; every one gets its own config, so each stream receives the page views and events.
+  var IDS = ['G-E7RB55MV0F', 'G-NY3S7X9J5P'];
+  var ID = IDS[0];
   var KEY = 'ga-consent';
   var doc = w.document;
   var loaded = false;
@@ -17,12 +19,12 @@
   function load() {
     if (loaded) return;
     loaded = true;
-    w['ga-disable-' + ID] = false;
+    IDS.forEach(function (id) { w['ga-disable-' + id] = false; });
     // Advertising signals stay denied always; only measurement is granted, and only by the visitor's choice.
     gtag('consent', 'default', { ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied', analytics_storage: 'denied' });
     gtag('consent', 'update', { analytics_storage: 'granted' });
     gtag('js', new Date());
-    gtag('config', ID, { allow_google_signals: false, allow_ad_personalization_signals: false });
+    IDS.forEach(function (id) { gtag('config', id, { allow_google_signals: false, allow_ad_personalization_signals: false }); });
     var s = doc.createElement('script');
     s.async = true;
     s.src = 'https://www.googletagmanager.com/gtag/js?id=' + ID;
@@ -44,7 +46,7 @@
   }
 
   function withdraw() {
-    w['ga-disable-' + ID] = true;
+    IDS.forEach(function (id) { w['ga-disable-' + id] = true; });
     if (loaded) gtag('consent', 'update', { analytics_storage: 'denied' });
     clearCookies();
   }
