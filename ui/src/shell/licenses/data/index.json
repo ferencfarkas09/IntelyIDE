@@ -2,7 +2,7 @@
   "schema": 1,
   "generator": {
     "tool": "scripts/licenses/gen.mjs",
-    "cargoLockSha256": "7d1e4fc22a5a875a2e5952307655af9316c53938ad9add6e874448a9b9d7551a",
+    "cargoLockSha256": "b00f7035c7b2be58224fd0cc0ea6972bd2d8bd6d69e6fdbafb4d2d8df45dd80a",
     "pnpmLockSha256": {
       "root": "df9baa0a5a3fba972b303e06487d0ef0d94ce1c1964afb3d4f3bdb16339aec50",
       "remote-web": "671ec4d0bc03ce2b693a132dd3c59e313000320d28deb78e89f6db4f46c54998",
@@ -26,7 +26,7 @@
   "groups": [
     {
       "id": "MIT",
-      "count": 432
+      "count": 433
     },
     {
       "id": "Unicode-3.0",
@@ -10461,6 +10461,29 @@
       "distributed": true,
       "homepage": "https://tokio.rs",
       "sourceUrl": "https://crates.io/crates/tracing/0.1.44",
+      "verdict": "ok"
+    },
+    {
+      "id": "cargo:tracing-attributes@0.1.31",
+      "kind": "cargo",
+      "name": "tracing-attributes",
+      "version": "0.1.31",
+      "expression": "MIT",
+      "chosen": [
+        "MIT"
+      ],
+      "copyright": [
+        "Copyright (c) 2019 Tokio Contributors"
+      ],
+      "textIds": [
+        "23f18e03dc49"
+      ],
+      "shippedIn": [
+        "app"
+      ],
+      "distributed": true,
+      "homepage": "https://tokio.rs",
+      "sourceUrl": "https://crates.io/crates/tracing-attributes/0.1.31",
       "verdict": "ok"
     },
     {

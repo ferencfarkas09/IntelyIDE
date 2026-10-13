@@ -202,7 +202,9 @@ plan?: string | null;
 /**  The plan was cut at 64 KiB. */
 planTruncated?: boolean | null; 
 /**  ExitPlanMode: the working modes the card offers (ask, edit, automatic). */
-modes?: PermissionMode[] } | { kind: "permission.resolved"; reqId: string; outcome: PermissionOutcome; by: DecidedBy } | { kind: "question.request"; reqId: string; toolId?: string | null; prompt: string; options?: QuestionOption[] } | { kind: "plan"; items: PlanItem[] } | 
+modes?: PermissionMode[]; 
+/**  `peer_send`: who the message would go to and a bounded excerpt of it (host-made). */
+peer?: PeerCard | null } | { kind: "permission.resolved"; reqId: string; outcome: PermissionOutcome; by: DecidedBy } | { kind: "question.request"; reqId: string; toolId?: string | null; prompt: string; options?: QuestionOption[] } | { kind: "plan"; items: PlanItem[] } | 
 /**  A note the user added to a running agent, the lead or one sub-agent. One event per state, joined by `note_id`. */
 { kind: "note"; noteId: string; state: NoteState; 
 /**  The sub-agent's `Agent` tool call; absent for the lead. */
@@ -212,7 +214,11 @@ text?: string | null;
 /**  `delivered` only: the tool call the note rode on. */
 toolId?: string | null; 
 /**  `dropped` only: `finished`, `turnEnded`, `cancelled` or `error`. */
-reason?: string | null } | { kind: "usage"; usage: UsageRecord } | { kind: "status"; state: StatusState; retryAfterMs?: number | null; scope?: string | null } | { kind: "error"; class: ErrorClass; message: string; retryable: boolean } | { kind: "turn.end"; stopReason: StopReason } | { kind: "session.info"; title?: string | null; nativeId?: string | null; models?: ModelInfo[]; 
+reason?: string | null; 
+/**  A message another run of the same person sent to this one (`run 'title' (where)`), not a note of the user. */
+from?: string | null; 
+/**  This run sent the text to that other run (same label form); the row is the sender's record of it. */
+to?: string | null } | { kind: "usage"; usage: UsageRecord } | { kind: "status"; state: StatusState; retryAfterMs?: number | null; scope?: string | null } | { kind: "error"; class: ErrorClass; message: string; retryable: boolean } | { kind: "turn.end"; stopReason: StopReason } | { kind: "session.info"; title?: string | null; nativeId?: string | null; models?: ModelInfo[]; 
 /**  The capability matrix computed for this session (runtime truth beats the static table). */
 caps?: ProviderCaps | null; effective?: EffectiveChange | null; 
 /**  The roles the lead may delegate to, emitted once after init (never the prompts). */
@@ -285,6 +291,23 @@ export type Origin = { kind: "desktop" } | { kind: "remote"; deviceId: string };
 export type PairingView = {
 	offer: OfferView | null,
 	sas: SasView | null,
+};
+
+/**
+ *  What the card of a `peer_send` call tells the person about the run it would message: made by the host (never by the sidecar),
+ *  shown with the card and not part of the stored intent.
+ */
+export type PeerCard = {
+	/**  The target run's title. */
+	title: string,
+	/**  `local` or the server's name. */
+	location: string,
+	/**  The mode the target works in. */
+	mode: PermissionMode,
+	/**  A bounded excerpt (400 characters) of the message text. */
+	text: string,
+	/**  The target is more permissive than the sender: this card is shown for every message and cannot be saved for the run. */
+	riskier: boolean,
 };
 
 export type PendingKind = "permission" | "question";
@@ -472,7 +495,9 @@ challenge: string; rpId: string; expiresAt: number } | { t: "diff"; opId: string
 { t: "revoked" } | { t: "bye"; reason: string };
 
 /**  What kind of saved allow an "Allow always in this session" answer would create. */
-export type SessionAllowKind = "exec" | "net" | "mcp" | "write";
+export type SessionAllowKind = "exec" | "net" | "mcp" | "write" | 
+/**  A run may message one other run: the scope is that run's id. */
+"peer";
 
 /**
  *  What an "Allow always in this session" answer would allow; the card states exactly this. Plain data: the UI
