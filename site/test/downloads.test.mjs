@@ -48,7 +48,7 @@ function build(release, args = ['--prod']) {
 describe('files for several platforms', () => {
   const { dist, page } = build(multi);
   it('the big button falls back to the release page without JavaScript and every platform has a link', () => {
-    const home = page('index.html');
+    const home = page('intelyide/index.html');
     assert.match(home, /<a class="dl-btn" href="https:\/\/github\.com\/ferencfarkas09\/IntelyIDE\/releases\/tag\/v2\.0\.0" data-ga-platform="other" data-ga="download" data-ga-label="hero-dl">/);
     assert.match(home, /Other platforms: <a href="[^"]*IntelyIDE_2\.0\.0_universal\.dmg" data-platform="mac" data-primary/);
     assert.match(home, /data-platform="windows" data-primary[^>]*>Windows<\/a>/);
@@ -56,24 +56,24 @@ describe('files for several platforms', () => {
     assert.ok(!/<a href="[^"]*amd64\.deb"[^>]*data-primary/.test(home), 'the .deb is not the primary Linux file');
   });
   it('each download link carries its platform for the analytics event', () => {
-    const home = page('index.html');
+    const home = page('intelyide/index.html');
     for (const p of ['mac', 'windows', 'linux']) assert.match(home, new RegExp(`data-ga="download" data-ga-label="hero-dl-${p}[^"]*" data-ga-platform="${p}"`));
     assert.match(page('download/index.html'), /data-ga-label="table" data-ga-platform="windows"/);
   });
   it('notes for Windows (unsigned) and Linux (chmod), in English and Hungarian', () => {
-    assert.match(page('index.html'), /Run anyway/);
-    assert.match(page('index.html'), /chmod \+x IntelyIDE_\*\.AppImage/);
-    assert.match(page('hu/index.html'), /Futtatás mindenképpen/);
-    assert.match(page('hu/index.html'), /Más platformok:/);
+    assert.match(page('intelyide/index.html'), /Run anyway/);
+    assert.match(page('intelyide/index.html'), /chmod \+x IntelyIDE_\*\.AppImage/);
+    assert.match(page('hu/intelyide/index.html'), /Futtatás mindenképpen/);
+    assert.match(page('hu/intelyide/index.html'), /Más platformok:/);
   });
   it('the all-downloads table lists the five files', () => {
     const t = page('download/index.html');
     for (const n of ['universal.dmg', 'x64-setup.exe', 'x64.msi', 'x86_64.AppImage', 'amd64.deb']) assert.ok(t.includes(n), n);
   });
   it('the header and install buttons open the download page, not one platform file', () => {
-    const home = page('index.html');
-    assert.match(home, /class="btn btn-sm hdr-dl" href="download\/"/);
-    assert.match(home, /class="btn" href="download\/" data-ga="download" data-ga-label="install"/);
+    const home = page('intelyide/index.html');
+    assert.match(home, /class="btn btn-sm hdr-dl" href="\.\.\/download\/"/);
+    assert.match(home, /class="btn" href="\.\.\/download\/" data-ga="download" data-ga-label="install"/);
   });
   it('keeps the CSP strict: no inline handler, no inline script but the theme init and JSON-LD', () => {
     for (const p of ['index.html', 'hu/index.html', 'download/index.html']) {
@@ -89,20 +89,20 @@ describe('files for several platforms', () => {
 describe('older data with one file per release', () => {
   it('still builds one macOS button that points straight at the file', () => {
     const { page } = build(legacy);
-    assert.match(page('index.html'), /<a class="dl-btn" href="[^"]*IntelyIDE_2\.0\.0_x64\.dmg"/);
-    assert.doesNotMatch(page('index.html'), /data-dl-multi|Other platforms/);
+    assert.match(page('intelyide/index.html'), /<a class="dl-btn" href="[^"]*IntelyIDE_2\.0\.0_x64\.dmg"/);
+    assert.doesNotMatch(page('intelyide/index.html'), /data-dl-multi|Other platforms/);
   });
   it('a macOS-only release in the new shape behaves the same', () => {
     const { page } = build({ ...multi, assets: { mac: multi.assets.mac } });
-    assert.match(page('index.html'), /<a class="dl-btn" href="[^"]*universal\.dmg"/);
-    assert.doesNotMatch(page('index.html'), /data-dl-multi/);
+    assert.match(page('intelyide/index.html'), /<a class="dl-btn" href="[^"]*universal\.dmg"/);
+    assert.doesNotMatch(page('intelyide/index.html'), /data-dl-multi/);
   });
   it('a macOS-only release offers a hidden note for Windows and Linux visitors, in English and Hungarian, and lists no other platform', () => {
     const { page } = build({ ...multi, assets: { mac: multi.assets.mac } });
-    const en = page('index.html');
+    const en = page('intelyide/index.html');
     assert.match(en, /data-mac-only/);
     assert.match(en, /<p class="dl-soon" data-soon hidden>Windows and Linux builds are coming\. The macOS app is available now\./);
-    assert.match(page('hu/index.html'), /<p class="dl-soon" data-soon hidden>A Windows és a Linux verzió hamarosan érkezik/);
+    assert.match(page('hu/intelyide/index.html'), /<p class="dl-soon" data-soon hidden>A Windows és a Linux verzió hamarosan érkezik/);
     assert.doesNotMatch(en, /Other platforms|data-note=|x64-setup|AppImage/);
     assert.match(readFileSync(join(SITE, 'src/static/assets/site.js'), 'utf8'), /data-mac-only/);
   });

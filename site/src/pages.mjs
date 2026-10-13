@@ -111,7 +111,7 @@ function header(ctx, path) {
   ]
     .map(([id, u]) => `<li><a href="${u}"${ga('nav', id)}>${t.nav[id]}</a></li>`)
     .join('');
-  const dl = rel.primary?.url ?? releasesUrl(ctx.cfg);
+  const dl = rel.multi ? href(ctx, dlPath(ctx.lang)) : (rel.primary?.url ?? releasesUrl(ctx.cfg));
   return `<header class="site-header" id="top">
 <div class="wrap bar">
 <a class="brand" href="${href(ctx, homePath(lang))}" aria-label="${t.ui.home}">${logo(ctx)}</a>
@@ -122,7 +122,7 @@ ${ctx.noLang ? '' : `<li><a href="${href(ctx, switchPath)}" hreflang="${otherLan
 </ul>
 </nav>
 <div class="bar-actions">
-${ctx.sticky ? `<a class="btn btn-sm hdr-dl" href="${esc(dl)}"${ga('download', 'header')}>${icons.download('sm')}<span>${t.dl.button}</span></a>` : ''}
+${ctx.sticky ? `<a class="btn btn-sm hdr-dl" href="${esc(dl)}"${ga('download', 'header')}>${icons.download('sm')}<span>${rel.multi ? t.dl.buttonGeneric : t.dl.button}</span></a>` : ''}
 <button type="button" class="icon-btn js-only" id="theme-toggle"${ga('theme', 'header')} aria-pressed="false" aria-label="${t.ui.theme}">${icons.theme()}</button>
 <button type="button" class="icon-btn js-only menu-btn" aria-expanded="false" aria-controls="site-nav" aria-label="${t.ui.menu}">${icons.menu()}</button>
 </div>
@@ -131,6 +131,42 @@ ${ctx.sticky ? `<a class="btn btn-sm hdr-dl" href="${esc(dl)}"${ga('download', '
 }
 
 /** The big download button plus everything directly under it. */
+/** The in-page navigation under the header: [[anchor id, label], ...] of the product pages (content: t.subnav.<product>). */
+function subnavBar(ctx, items) {
+  const { t } = ctx;
+  return `<nav class="subnav" aria-label="${esc(t.ui.pageNav)}"><div class="wrap"><ul>${items.map(([id, label]) => `<li><a href="#${esc(id)}">${esc(label)}</a></li>`).join('')}</ul></div></nav>`;
+}
+
+function multiDownloadBlock(ctx, id) {
+  const { t, rel, cfg } = ctx;
+  const ver = `${t.dl.version} ${esc(rel.version)}${rel.statusLabel ? ` ${rel.statusLabel}` : ''}`;
+  const pl = rel.platforms;
+  const link = (a, platform, { primary = false, text }) =>
+    `<a href="${esc(a.url)}" data-platform="${platform}"${primary ? ' data-primary' : ''} data-label="${esc(t.dl.forPlatform[platform])}" data-sub="${esc([ver, a.kindLabel, a.ext, a.sizeLabel, a.archLabel].filter(Boolean).join(' · '))}"${ga('download', id + '-' + platform + (primary ? '' : '-' + a.kind))} data-ga-platform="${platform}">${text}</a>`;
+  const win = pl.windows.nsis ?? pl.windows.msi;
+  const lin = pl.linux.appimage ?? pl.linux.deb;
+  const parts = [
+    pl.mac && link(pl.mac, 'mac', { primary: true, text: t.dl.platformName.mac }),
+    win && link(win, 'windows', { primary: true, text: t.dl.platformName.windows }),
+    lin && `${t.dl.platformName.linux} (${[pl.linux.appimage && link(pl.linux.appimage, 'linux', { primary: true, text: 'AppImage' }), pl.linux.deb && link(pl.linux.deb, 'linux', { text: '.deb' })].filter(Boolean).join(', ')})`,
+  ].filter(Boolean);
+  const notes = [win && ['windows', t.dl.winNote], lin && ['linux', t.dl.linuxNote]].filter(Boolean);
+  return `<div class="dl-block" id="${id}" data-dl-block data-dl-multi>
+<a class="dl-btn" href="${esc(rel.notesUrl)}" data-ga-platform="other"${ga('download', id)}>
+${icons.download()}
+<span class="dl-text"><span class="dl-main" data-default="${esc(t.dl.buttonGeneric)}">${t.dl.buttonGeneric}</span><span class="dl-sub" data-default="${ver}">${ver}</span></span>
+</a>
+<p class="dl-other">${t.dl.otherPlatforms} ${parts.join(' · ')}</p>
+<ul class="dl-notes">${notes.map(([k, text]) => `<li data-note="${k}">${text}</li>`).join('')}</ul>
+<p class="dl-meta">${t.dl.minMac} ${esc(rel.minMac)} ${t.dl.orLater}. ${rel.archNote}</p>
+<ul class="dl-links">
+<li><a href="${esc(rel.notesUrl)}"${ga('cta', 'release-notes')}>${t.dl.notes}</a></li>
+${rel.sumsUrl ? `<li><a href="${esc(rel.sumsUrl)}"${ga('cta', 'checksums')}>${t.dl.sums}</a></li>` : ''}
+<li><a href="${cfg.repoUrl}"${ga('cta', 'github-repo')}>${icons.github(16)} ${t.dl.github}</a></li>
+</ul>
+</div>`;
+}
+
 function downloadBlock(ctx, { id = 'download' } = {}) {
   const { t, rel, cfg } = ctx;
   if (rel.multi) return multiDownloadBlock(ctx, id);
