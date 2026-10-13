@@ -649,6 +649,11 @@
       "path": "crates/team/src/redact.rs",
       "rule": "pem-block",
       "reason": "canary key blocks in the team redactor tests"
+    },
+    {
+      "path": "site/src/content/hu.mjs",
+      "rule": "email-address",
+      "reason": "placeholder address in the Hungarian example text of the website's contact form (an example, not a contact point)"
     }
   ]
 }
