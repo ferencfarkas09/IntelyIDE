@@ -8,6 +8,7 @@
     ]
   },
   "githubOtherPaths": {
+    "/ferencfarkas09/IntelyOpti-releases": "public release repository of the separate IntelyOpti product, linked from its pages on the website",
     "/rust-lang/crates.io-index": "cargo-deny registry index (deny.toml)",
     "/rhysd/actionlint": "pinned actionlint release download (CI)",
     "/rsms/inter": "upstream of the bundled Inter font (OFL text)",
@@ -73,6 +74,7 @@
     "get.example.dev": "placeholder host in mock data"
   },
   "allowedText": {
+    "te\u0040pelda.hu": "placeholder address in the Hungarian example text of the website's contact form (an example, not a contact point)",
     "+36 30 123 4567": "synthetic phone number used as sample data of the PII masker",
     "36 30 123 4567": "synthetic phone number used as sample data of the PII masker",
     "06 30 123 4567": "synthetic phone number used as sample data of the PII masker",

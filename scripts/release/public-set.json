@@ -34,6 +34,7 @@
   "maxBytes": 1048576,
   "bigFileAllow": [
     "THIRD_PARTY_LICENSES.md", "sidecar/sdk-pin/tree.sha256", "ui/src/shell/licenses/data/texts.json",
-    "ui/src/shell/licenses/data/index.json", "src-tauri/icons/icon.icns", "remote-relay/tests/fixtures/**"
+    "ui/src/shell/licenses/data/index.json", "src-tauri/icons/icon.icns", "remote-relay/tests/fixtures/**",
+    "site/src/static/assets/img/shots/opti-*-2400.png", "site/src/static/assets/img/shots/opti-*-1440.png"
   ]
 }
