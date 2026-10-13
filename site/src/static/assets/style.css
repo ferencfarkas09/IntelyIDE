@@ -134,6 +134,8 @@ pre { background: var(--bg-soft); border: 1px solid var(--line); border-radius: 
 .dl-other { margin: 16px 0 0; font-size: .95rem; color: var(--ink-mute); }
 .dl-other a { font-weight: 600; }
 .dl-notes { list-style: none; width: min(100%, 40rem); margin: 8px auto 0; padding: 0; display: grid; gap: 4px; font-size: .9rem; color: var(--ink-mute); }
+.dl-soon { width: min(100%, 40rem); margin: 12px auto 0; font-size: .95rem; color: var(--ink); font-weight: 600; }
+.dl-soon[hidden] { display: none; }
 .dl-notes .is-current { color: var(--ink); font-weight: 600; }
 .dl-meta { margin: 14px auto 0; max-width: 40rem; color: var(--ink-mute); font-size: .95rem; }
 .dl-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 24px; list-style: none; padding: 0; margin: 0 0 8px; }

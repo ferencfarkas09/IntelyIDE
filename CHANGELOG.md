@@ -6,7 +6,16 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 
 ### Added
 
-- The code compiles and runs on Linux (x86_64, webkit2gtk 4.1), Windows 10/11 (x86_64, WebView2) and Apple Silicon Macs, in addition to Intel Macs. No Linux or Windows package is published yet; see `docs/install-linux.md` and `docs/install-windows.md` for what works and what is different. Secrets use Windows Credential Manager and the Linux Secret Service (one vault entry, split over several Credential Manager entries when it is large), banners use a Windows toast and `notify-send`, files and links open with `explorer.exe` and `xdg-open`, the terminal starts PowerShell on Windows, and connections to servers are not shared on Windows (OpenSSH for Windows has no `ControlMaster`). Process groups, the process table and the disk-space check are macOS and Linux features; the update swap of the app bundle stays macOS only.
+- Work in progress, not released: the code compiles for Linux (x86_64, webkit2gtk 4.1), Windows 10/11 (x86_64, WebView2) and Apple Silicon Macs, in addition to Intel Macs. Linux passes its tests; on Windows the permission checks and many tests are not yet verified. No Linux or Windows package is published; see `docs/install-linux.md` and `docs/install-windows.md` for what works and what is different. Secrets use Windows Credential Manager and the Linux Secret Service (one vault entry, split over several Credential Manager entries when it is large), banners use a Windows toast and `notify-send`, files and links open with `explorer.exe` and `xdg-open`, the terminal starts PowerShell on Windows, and connections to servers are not shared on Windows (OpenSSH for Windows has no `ControlMaster`). Process groups, the process table and the disk-space check are macOS and Linux features; the update swap of the app bundle stays macOS only.
+
+## [1.4.0] - 2026-10-13
+
+### Added
+
+- Changes on a server. Under the Changes tree a new **Server changes** panel shows, read-only, the uncommitted changes of every repository a server run works in (and of any repository of a server you add): a "Server: <name>" group with the branch, the changed files, the diff of each file in the usual diff viewer and the time of the last look. It reads with one bounded, hardened `git status` over the shared ssh connection, every 4 seconds while a run is active there, rarely when idle, and not at all while the panel is closed or the window is hidden. There is nothing to stage, commit, discard or stash on a server entry.
+- **Bring changes here** and **Send my changes there**: move uncommitted changes between this Mac and a server, only on a click and after a confirmation that lists the files and counts. Both copies must name the same origin and be on the same commit (nothing is fetched for you), the destination must be clean or you choose "apply on top" (the patch must then pass `git apply --check`), and the changes are applied to the working tree only: never staged, committed, pushed or checked out. Paths are validated (no `..`, absolute paths, `.git`, hooks folders, links or submodules), up to 200 new text files of 1 MB and 20 MB in all travel, binary and secret-looking new files stop the transfer, and sending is refused while a run is working in that repository (checked again under a lock right before the patch goes). The patch that is applied is byte for byte the one the dialog showed, modes are read from git (a link or submodule cannot hide behind `0120000`), and environment files, editor tasks, hooks, make/npm configuration and files that become executable are highlighted in a diffstat and need an extra tick.
+- Your own runs can message each other, so a run on this Mac and a run on a server (or two runs here) work together. A Claude run gets two tools: `peer_list` (your other open runs: title, where, repositories, state; no transcript, no files) and `peer_send` (a message of up to 4 KB into a run that is working; the answer is that run sending one back). The IDE carries every message, also to a run on a server; nothing goes to teammates. By default a card asks once per pair of runs; Settings > Roles > Auto run > Messages between my runs can switch it to automatic or off. A message grants nothing: the receiving run keeps its own rules, and `git push` stays yours. Limits: 6 messages a minute per pair, 30 per run, 8 hops without a message from you ("Runs stopped messaging each other - your turn"). Both runs show the message as an agent message ("Sent to ..." / "From ..."), and the run list marks runs that talk. See `docs/peer-runs.md`.
+
 
 ## [1.3.3] - 2026-10-12
 
@@ -177,7 +186,8 @@ First public release. This is alpha software.
 - Providers other than Claude, Happy, MongoDB Studio and Remote are proven only against mocks or on a local machine.
 - Version 0.1.0 still stores its state in the folder `IntelySwitchIDE` and uses Keychain services named after the earlier bundle identifier; a switch to `com.intelyhome.intelyide` with a migration is planned.
 
-[Unreleased]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.3.3...HEAD
+[Unreleased]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.3.3...v1.4.0
 [1.3.3]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.3.2...v1.3.3
 [1.3.2]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.3.0...v1.3.1

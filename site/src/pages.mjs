@@ -161,11 +161,14 @@ function downloadBlock(ctx, { id = 'download' } = {}) {
   const alt = rel.others[0];
   const btnSub = p ? sub(p) : `${t.dl.version} ${esc(rel.version)}${rel.statusLabel ? ` ${rel.statusLabel}` : ''}`;
   const btnAttrs = p ? ` data-arch="${p.arch}" data-sub="${esc(sub(p))}" data-alt="${esc(altText(p))}"` : '';
-  return `<div class="dl-block" id="${id}" data-dl-block${rel.swap ? ' data-swap' : ''}>
+  // Files for macOS only: Windows and Linux visitors get a plain note and the release page instead of a macOS file (site.js reveals it).
+  const macOnly = p?.platform === 'mac';
+  return `<div class="dl-block" id="${id}" data-dl-block${rel.swap ? ' data-swap' : ''}${macOnly ? ` data-mac-only data-soon-label="${esc(t.dl.soonButton)}" data-soon-href="${esc(rel.notesUrl)}"` : ''}>
 <a class="dl-btn" href="${esc(p?.url ?? releasesUrl(cfg))}"${btnAttrs}${ga('download', id)}>
 ${icons.download()}
 <span class="dl-text"><span class="dl-main">${t.dl.button}</span><span class="dl-sub">${btnSub}</span></span>
 </a>
+${macOnly ? `<p class="dl-soon" data-soon hidden>${t.dl.soonNote}</p>` : ''}
 ${alt ? `<p class="dl-alt-wrap"><a class="dl-alt"${ga('download', id + '-alt')} href="${esc(alt.url)}" data-arch="${alt.arch}" data-sub="${esc(sub(alt))}" data-alt="${esc(altText(alt))}">${altText(alt)}</a></p>` : ''}
 <p class="dl-meta">${t.dl.minMac} ${esc(rel.minMac)} ${t.dl.orLater}. ${rel.archNote}</p>
 <ul class="dl-links">

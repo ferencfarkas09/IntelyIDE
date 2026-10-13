@@ -73,6 +73,19 @@
     block.querySelectorAll('[data-note]').forEach((n) => n.classList.toggle('is-current', n.dataset.note === platform));
   });
 
+  // Files for macOS only: a Windows or Linux visitor sees the note and the button opens the release page instead of a macOS file.
+  if (platform === 'windows' || platform === 'linux') {
+    document.querySelectorAll('[data-mac-only]').forEach((block) => {
+      const btn = block.querySelector('.dl-btn');
+      const note = block.querySelector('[data-soon]');
+      if (!btn || !note) return;
+      note.hidden = false;
+      btn.setAttribute('href', block.dataset.soonHref);
+      btn.dataset.gaPlatform = platform;
+      btn.querySelector('.dl-main').textContent = block.dataset.soonLabel;
+    });
+  }
+
   // Offer the matching build when both Intel and Apple Silicon exist and the browser reveals the CPU.
   const block = document.querySelector('[data-dl-block][data-swap]');
   navigator.userAgentData?.getHighEntropyValues?.(['architecture']).then(({ architecture }) => {

@@ -136,6 +136,11 @@ export type SessionStart = {
 	 *  `None` = the sidecar default (on), and a request that serialises exactly as before.
 	 */
 	includeUserMemory?: boolean | null,
+	/**
+	 *  `Some(true)` = the run gets the two peer tools (`peer_list`, `peer_send`; `agents.peerMessages` is not `off`; Claude only).
+	 *  `None` = no peer tools, and a request that serialises exactly as before.
+	 */
+	peerTools?: boolean | null,
 };
 
 /**  Reply to `session/start`. */
@@ -201,6 +206,21 @@ export type SidecarBody = { type: "hello"; body: {
 	noteId: string,
 	text: string,
 	parentToolId?: string | null,
+	/**  Set for a message from another run (`run 'title' (where)`): the sidecar frames it as such, not as a note of the user. */
+	from?: string | null,
+} } | 
+/**  Sidecar -> Rust: the run `agent_id` calls `peer_list`. Replies `{ok: true, runs: [...]}`. */
+{ type: "peer/list"; body: {
+	agentId: string,
+} } | 
+/**
+ *  Sidecar -> Rust: the run `agent_id` calls `peer_send`. Replies `{status: "queued"|"refused", reason?, code?}`. The host sends the
+ *  note to the target run, wherever that runs; the sidecar never talks to another run itself.
+ */
+{ type: "peer/send"; body: {
+	agentId: string,
+	runId: string,
+	text: string,
 } } | { type: "cancel/request"; body: {
 	agentId: string,
 	softMs: number,

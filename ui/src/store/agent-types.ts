@@ -32,6 +32,7 @@ export type {
   ModeChangeReason,
   ModelTokens,
   NoteState,
+  PeerCard,
   PermissionDecision,
   PermissionMode,
   PermissionOption,

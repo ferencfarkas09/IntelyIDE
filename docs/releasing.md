@@ -1,6 +1,6 @@
 # Releasing
 
-This is the maintainer's guide to publishing IntelyIDE: how versions and the changelog work, which checks run before a release, how the repository is first published, what the threat model and the trust roots are, and what to do when something goes wrong. Applies to version 1.3.3.
+This is the maintainer's guide to publishing IntelyIDE: how versions and the changelog work, which checks run before a release, how the repository is first published, what the threat model and the trust roots are, and what to do when something goes wrong. Applies to version 1.4.0.
 
 **Status of this guide.** The workflow files under `.github/workflows` (the pull-request workflow with its single required check `ci-ok`, the release workflow, the CodeQL and audit workflows) are not in the repository yet. Every passage below that describes what those workflows do, the action inventory and the repository controls is the planned setup and becomes true when they land; until then the same checks run locally through `scripts/release/gate.sh`. A local `--release` run counts only when its summary table shows no SKIP.
 
@@ -64,6 +64,8 @@ A release can be withdrawn but not edited once releases are immutable (see "Repo
 | `pnpm release` | Preflight, build (with collect) and publish. |
 
 Options go after `--`, for example `pnpm release -- --dry-run`: `--dry-run` prints every command that would change something and runs only the checks; `--draft-only` stops after the draft is verified (publish it later with `gh release edit <tag> --draft=false --latest`); `--yes` does not ask for the tag; `--smoke` starts the finished app through the e2e scenarios `a` and `m`; `--skip-ci` skips the CI check.
+
+**macOS only (`--mac-only`).** While the Windows and Linux installers are paused, release with `pnpm release -- --mac-only` (or the parts: `pnpm release:build -- --mac-only`, `pnpm release:publish -- --mac-only`, `pnpm release:status -- --mac-only`; give the option to every step). The release is then the universal disk image `IntelyIDE_<version>_universal.dmg`, the SBOM and `SHA256SUMS`, and nothing else: `build` does not start or wait for the `Release build` workflow, `pnpm release:collect` refuses to run, the release notes do not mention Windows or Linux, `site/data/release.json` is written with the macOS file only (`assets` holds `mac` and no `windows` or `linux` key; commit and push it before `publish`), and `publish` uploads and downloads exactly those three files. The website then shows Windows and Linux visitors a note that those builds are coming, with a button to the release page. The multi-platform mode (without the option) is unchanged and is used again when the installers are ready.
 
 A usual release: bump the version and write the changelog (see Versioning and Changelog), push, wait for CI. Once per Mac: `rustup target add x86_64-apple-darwin aarch64-apple-darwin`, and `INTELY_SIGN_IDENTITY` and `INTELY_NOTARY_PROFILE` (see Signed builds). Run `pnpm release:build` the day before, commit and push `site/data/release.json`, wait for CI again. On the day run `pnpm release`, then `pnpm site:deploy` for the website (its download data already points at the release). HEAD may differ from the build commit only in `site/data/release.json`; any other change needs `pnpm release:build --rebuild`.
 

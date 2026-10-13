@@ -206,6 +206,11 @@ wire_types! {
         #[serde(default)]
         #[cfg_attr(feature = "specta", specta(optional))]
         pub include_user_memory: Option<bool>,
+        /// `Some(true)` = the run gets the two peer tools (`peer_list`, `peer_send`; `agents.peerMessages` is not `off`; Claude only).
+        /// `None` = no peer tools, and a request that serialises exactly as before.
+        #[serde(default)]
+        #[cfg_attr(feature = "specta", specta(optional))]
+        pub peer_tools: Option<bool>,
     }
 
     #[serde(rename_all = "camelCase")]
@@ -333,7 +338,18 @@ wire_types! {
             #[serde(default)]
             #[cfg_attr(feature = "specta", specta(optional))]
             parent_tool_id: Option<String>,
+            /// Set for a message from another run (`run 'title' (where)`): the sidecar frames it as such, not as a note of the user.
+            #[serde(default)]
+            #[cfg_attr(feature = "specta", specta(optional))]
+            from: Option<String>,
         },
+        /// Sidecar -> Rust: the run `agent_id` calls `peer_list`. Replies `{ok: true, runs: [...]}`.
+        #[serde(rename = "peer/list")]
+        PeerList { agent_id: String },
+        /// Sidecar -> Rust: the run `agent_id` calls `peer_send`. Replies `{status: "queued"|"refused", reason?, code?}`. The host sends the
+        /// note to the target run, wherever that runs; the sidecar never talks to another run itself.
+        #[serde(rename = "peer/send")]
+        PeerSend { agent_id: String, run_id: String, text: String },
         #[serde(rename = "cancel/request")]
         CancelRequest { agent_id: String, soft_ms: u32, term_ms: u32 },
         /// Sidecar -> Rust, after the turn ended (or the soft deadline passed).
@@ -386,6 +402,8 @@ impl SidecarBody {
             SidecarBody::SessionPermission { .. } => "session/permission",
             SidecarBody::SessionMcpStatus { .. } => "session/mcp-status",
             SidecarBody::SessionNote { .. } => "session/note",
+            SidecarBody::PeerList { .. } => "peer/list",
+            SidecarBody::PeerSend { .. } => "peer/send",
             SidecarBody::CancelRequest { .. } => "cancel/request",
             SidecarBody::CancelDone { .. } => "cancel/done",
             SidecarBody::PermissionAnswer { .. } => "permission/answer",
@@ -461,6 +479,9 @@ pub fn sample_messages() -> Vec<serde_json::Value> {
         json!({"v":1,"id":65,"type":"session/mcp-status","body":{"agentId":"a1","toggle":{"server":"github","enabled":false}}}),
         json!({"v":1,"id":66,"type":"session/note","body":{"agentId":"a1","noteId":"n1","text":"Use the staging URL, not production.","parentToolId":"toolu_01"}}),
         json!({"v":1,"id":67,"type":"session/note","body":{"agentId":"a1","noteId":"n2","text":"Also update the changelog."}}),
+        json!({"v":1,"id":68,"type":"session/note","body":{"agentId":"a1","noteId":"n3","text":"The API is ready.","from":"run 'Backend' (server build-1)"}}),
+        json!({"v":1,"id":69,"type":"peer/list","body":{"agentId":"a1"}}),
+        json!({"v":1,"id":70,"type":"peer/send","body":{"agentId":"a1","runId":"a2","text":"The API is ready."}}),
         json!({"v":1,"id":63,"type":"reply","body":{"ok":true,"servers":[
             {"name":"github","status":"connected","tools":[{"name":"search_issues","description":"Search issues"},{"name":"get_issue"}]},
             {"name":"docs","status":"failed","error":"spawn ENOENT","tools":[]},

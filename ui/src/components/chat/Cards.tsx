@@ -5,7 +5,7 @@ import { Badge, Ban, Brain, Button, Check, ChevronRight, CircleAlert, CircleQues
 import { t, type MessageKey } from "../../i18n";
 import { errorWording, intentActor, RISK } from "./format";
 import { isRoleRule, refusalHeadline } from "./refusal";
-import { modeErrorText } from "./modes";
+import { MODE_META, modeErrorText } from "./modes";
 import "./modes.css";
 
 const DECISIONS: { id: PermissionDecision; label: MessageKey; variant: "primary" | "secondary"; title: MessageKey }[] = [
@@ -82,7 +82,7 @@ export function agentWording(command: string | undefined, summary: string): stri
   return !said || cmd.startsWith(said) || said.includes(cmd) ? undefined : plain(summary);
 }
 
-const SCOPE_KEY = { exec: "modes.sessionAllow.exec", net: "modes.sessionAllow.net", mcp: "modes.sessionAllow.mcp", write: "modes.sessionAllow.write" } as const satisfies Record<SessionAllowKind, MessageKey>;
+const SCOPE_KEY = { exec: "modes.sessionAllow.exec", net: "modes.sessionAllow.net", mcp: "modes.sessionAllow.mcp", write: "modes.sessionAllow.write", peer: "modes.sessionAllow.peer" } as const satisfies Record<SessionAllowKind, MessageKey>;
 const SCOPE_MARK = "\u0001";
 
 /** What "allow always in this session" allows, as a sentence; the scope sits apart so the card can set it in code type. */
@@ -91,7 +91,10 @@ export function scopeSentence(offer: SessionAllowOffer): { before: string; scope
   return { before, ...(after === undefined ? {} : { scope: offer.scope, after }), text: t(SCOPE_KEY[offer.kind], { scope: offer.scope }) };
 }
 
-export function PermissionCard(props: { item: PermissionItem; onAnswer: (decision: PermissionDecision) => void; /** The run's role table: marks a request from a role that comes from a repository. */ delegates?: DelegateInfo[] }) {
+/** The tool of a run that asks to message another run of the same person; the target travels in `argv`. */
+export const PEER_SEND_TOOL = "mcp__intely-peer__peer_send";
+
+export function PermissionCard(props: { item: PermissionItem; onAnswer: (decision: PermissionDecision) => void; /** The run's role table: marks a request from a role that comes from a repository. */ delegates?: DelegateInfo[]; /** The title of one of the person's runs (for the peer-message card). */ runTitle?: (id: string) => string | undefined }) {
   let card: HTMLElement | undefined;
   /** The delegate that asks, when one does (the lead has no actor). */
   const actor = () => intentActor(props.item.intent);
@@ -105,6 +108,12 @@ export function PermissionCard(props: { item: PermissionItem; onAnswer: (decisio
   /** The command that will run: shown first and in full for a shell call. */
   const command = () => props.item.intent.rawCommand?.trim() || undefined;
   const said = () => agentWording(command(), props.item.intent.summary);
+  /** The run a peer message would go to: its title when the list knows it, else its id. */
+  const peerTarget = () => {
+    if (props.item.intent.tool !== PEER_SEND_TOOL) return undefined;
+    const id = props.item.intent.argv?.[0] ?? "";
+    return id ? (props.runTitle?.(id) ?? id) : "?";
+  };
   const paths = () => (props.item.intent.paths ?? []).filter((p) => !props.item.intent.summary.includes(p));
   const answer = (d: PermissionDecision) => {
     refocusAfterAnswer(card); // before the answer: the card can leave the DOM as soon as it is sent
@@ -164,10 +173,22 @@ export function PermissionCard(props: { item: PermissionItem; onAnswer: (decisio
             {risk().label}
           </Badge>
         </header>
-        <Show when={command()} fallback={<p class="perm__summary">{actor() ? t("runs.actorAsks", { role: actor()!.role, summary: plain(props.item.intent.summary) }) : plain(props.item.intent.summary)}</p>}>
+        <Show when={peerTarget()}>{(run) => <p class="perm__summary" data-testid="peer-ask">{t("peer.card.ask", { run: run() })}</p>}</Show>
+        <Show when={props.item.peer}>
+          {(pc) => (
+            <div class="perm__peer" data-testid="peer-card" data-riskier={pc().riskier ? "" : undefined}>
+              <p class="perm__peer-who">{t("peer.card.target", { title: pc().title, where: pc().location, mode: t(MODE_META[pc().mode].label) })}</p>
+              <Show when={pc().riskier}>
+                <p class="perm__peer-warn" role="note">{t("peer.card.riskier")}</p>
+              </Show>
+              <pre class="perm__code ui-mono ui-selectable" aria-label={t("peer.card.text")}>{pc().text}</pre>
+            </div>
+          )}
+        </Show>
+        <Show when={command()} fallback={<Show when={!peerTarget()}><p class="perm__summary">{actor() ? t("runs.actorAsks", { role: actor()!.role, summary: plain(props.item.intent.summary) }) : plain(props.item.intent.summary)}</p></Show>}>
           {(c) => <pre class="perm__code perm__code--cmd ui-mono ui-selectable" aria-label={t("chat.perm.command")}>{c()}</pre>}
         </Show>
-        <Show when={said()}>{(text) => <p class="perm__said">{t("chat.perm.said", { text: text() })}</p>}</Show>
+        <Show when={!peerTarget() && said()}>{(text) => <p class="perm__said">{t("chat.perm.said", { text: text() })}</p>}</Show>
         <Show when={paths().length}>
           <ul class="perm__paths ui-mono">
             <For each={paths()}>{(p) => <li class="ui-truncate">{p}</li>}</For>

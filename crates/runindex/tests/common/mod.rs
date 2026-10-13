@@ -58,7 +58,7 @@ impl Log {
     }
 
     pub fn permission(&mut self, req_id: &str, tool_id: &str, command: &str) -> &mut Self {
-        self.push(EventKind::PermissionRequest { req_id: req_id.into(), tool_id: tool_id.into(), intent: ToolIntent::exec(command), options: vec![PermissionOption::AllowOnce, PermissionOption::Deny], session_allow: None, plan: None, plan_truncated: None, modes: Vec::new() })
+        self.push(EventKind::PermissionRequest { req_id: req_id.into(), tool_id: tool_id.into(), intent: ToolIntent::exec(command), options: vec![PermissionOption::AllowOnce, PermissionOption::Deny], session_allow: None, plan: None, plan_truncated: None, modes: Vec::new(), peer: None })
     }
 
     pub fn jsonl(&self) -> String {

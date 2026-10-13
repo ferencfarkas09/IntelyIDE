@@ -64,6 +64,8 @@ export default {
     kind: { dmg: 'macOS lemezkép', nsis: 'Windows telepítő', msi: 'Windows MSI csomag', appimage: 'Linux AppImage', deb: 'Linux .deb csomag' },
     winNote: 'Windows: a telepítő még nincs kódaláírással ellátva. Ha a SmartScreen figyelmeztet, válaszd a „További információ”, majd a „Futtatás mindenképpen” gombot.',
     linuxNote: 'Linux: az AppImage-et előbb tedd futtathatóvá (chmod +x IntelyIDE_*.AppImage), utána indítsd el.',
+    soonNote: 'A Windows és a Linux verzió hamarosan érkezik. A macOS-alkalmazás már letölthető.',
+    soonButton: 'A kiadás oldala',
     alsoFor: 'Elérhető még',
     colFile: 'Fájl',
     colArch: 'Architektúra',

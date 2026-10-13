@@ -6,6 +6,7 @@ import type {
   ErrorClass,
   McpServerInfo,
   NoteState,
+  PeerCard,
   PermissionDecision,
   PermissionMode,
   PermissionOutcome,
@@ -70,6 +71,8 @@ export interface PermissionItem extends ItemBase {
   decision?: PermissionDecision;
   /** What the "allow always in this session" button would allow (the card states it). */
   sessionAllow?: SessionAllowOffer;
+  /** A message to another run: who gets it, the mode it works in and an excerpt of the text (made by the host). */
+  peer?: PeerCard;
   /** ExitPlanMode only: the full plan text (redacted, at most 64 KiB), whether it was cut, and the working modes the card offers. */
   plan?: string;
   planTruncated?: boolean;
@@ -133,8 +136,12 @@ export interface NoteItem extends ItemBase {
   parentToolId?: string;
   /** Delivered: the tool call it rode on. */
   toolId?: string;
-  /** Dropped: `finished`, `turnEnded`, `cancelled` or `error`. */
+  /** Dropped: `finished`, `turnEnded`, `cancelled` or `error`; a refused message to another run: `<code>: <why>`. */
   reason?: string;
+  /** A message another run of the same person sent to this one (`run 'title' (where)`): agent-originated, not a note of the user. */
+  from?: string;
+  /** This run sent the text to that other run: the sender's record of it. */
+  to?: string;
 }
 export type TranscriptItem = UserItem | TextItem | ThinkingItem | ToolItem | PermissionItem | QuestionItem | PlanCardItem | ErrorItem | TurnItem | NoteItem;
 
@@ -314,6 +321,7 @@ function applyOne(v: AgentView, ev: AgentEvent): AgentView {
         intent: ev.intent,
         options: decisionsOf(ev.options),
         ...(ev.sessionAllow ? { sessionAllow: ev.sessionAllow } : {}),
+        ...(ev.peer ? { peer: ev.peer } : {}),
         ...(ev.plan !== undefined && ev.plan !== null ? { plan: ev.plan } : {}),
         ...(ev.planTruncated ? { planTruncated: true } : {}),
         ...(ev.modes?.length ? { modes: ev.modes } : {}),
@@ -338,8 +346,8 @@ function applyOne(v: AgentView, ev: AgentEvent): AgentView {
       // queued carries the text and opens the item; delivered/dropped update it in place (a replay that starts later makes the item from what it has)
       upsert<NoteItem>(
         NOTE(ev.noteId),
-        () => ({ ...base(NOTE(ev.noteId)), type: "note", noteId: ev.noteId, state: ev.state, text: ev.text ?? "", ...(ev.parentToolId ? { parentToolId: ev.parentToolId } : {}), ...(ev.toolId ? { toolId: ev.toolId } : {}), ...(ev.reason ? { reason: ev.reason } : {}) }),
-        (n) => ({ ...n, state: ev.state, text: ev.text ?? n.text, ...(ev.parentToolId ? { parentToolId: ev.parentToolId } : {}), ...(ev.toolId ? { toolId: ev.toolId } : {}), ...(ev.reason ? { reason: ev.reason } : {}) }),
+        () => ({ ...base(NOTE(ev.noteId)), type: "note", noteId: ev.noteId, state: ev.state, text: ev.text ?? "", ...(ev.parentToolId ? { parentToolId: ev.parentToolId } : {}), ...(ev.toolId ? { toolId: ev.toolId } : {}), ...(ev.reason ? { reason: ev.reason } : {}), ...(ev.from ? { from: ev.from } : {}), ...(ev.to ? { to: ev.to } : {}) }),
+        (n) => ({ ...n, state: ev.state, text: ev.text ?? n.text, ...(ev.parentToolId ? { parentToolId: ev.parentToolId } : {}), ...(ev.toolId ? { toolId: ev.toolId } : {}), ...(ev.reason ? { reason: ev.reason } : {}), ...(ev.from ? { from: ev.from } : {}), ...(ev.to ? { to: ev.to } : {}) }),
       );
       break;
     case "usage":

@@ -209,6 +209,43 @@ describe("finalize and verify on a throwaway folder", () => {
     assert.match(verifyOut({ version: VERSION, out, siteData: site }).join("\n"), /changed since the build record/);
   });
 
+  it("--mac-only: the disk image, the SBOM and the sums are the complete release; the site data lists only macOS", () => {
+    const out = tmp();
+    const dmg = join(out, names.dmg);
+    writeFileSync(dmg, "pretend disk image");
+    const site = join(out, "site-release.json");
+    finalize({ version: VERSION, dmg, out, commit: "c".repeat(40), siteData: site, macOnly: true });
+    const data = JSON.parse(readFileSync(site, "utf8"));
+    assert.deepEqual(Object.keys(data.assets), ["mac"]);
+    assert.equal(data.assets.mac.name, names.dmg);
+    assert.equal(data.version, VERSION);
+    assert.ok(data.notesUrl && data.sha256sumsUrl && "signed" in data && data.date);
+    assert.deepEqual(verifyOut({ version: VERSION, out, commit: "c".repeat(40), siteData: site, macOnly: true }), []);
+    const notes = readFileSync(join(out, "RELEASE_NOTES.md"), "utf8");
+    assert.doesNotMatch(notes, /Windows|Linux|AppImage|\.msi|SmartScreen|certutil/);
+    assert.match(notes, /\.dmg/);
+    assert.equal(JSON.parse(readFileSync(join(out, "build-record.json"), "utf8")).platforms.join(), "mac");
+    assert.equal(readFileSync(join(out, "SHA256SUMS"), "utf8").trim().split("\n").length, 2);
+    // the full verify still demands every installer
+    assert.match(verifyOut({ version: VERSION, out, siteData: site }).join("\n"), /does not list IntelyIDE_.*_x64-setup\.exe/);
+    // site data with a Windows file does not pass as macOS only
+    writeFileSync(site, JSON.stringify({ ...data, assets: { ...data.assets, windows: { nsis: data.assets.mac } } }));
+    assert.match(verifyOut({ version: VERSION, out, siteData: site, macOnly: true }).join("\n"), /lists Windows or Linux/);
+    // a stray file in the record is refused, --mac-only and --ci do not mix
+    assert.throws(() => finalize({ version: VERSION, dmg, out, commit: "c".repeat(40), macOnly: true, ci: true }), /cannot be combined/);
+  });
+
+  it("--mac-only on the command line", () => {
+    const out = tmp();
+    const dmg = join(out, names.dmg);
+    writeFileSync(dmg, "pretend disk image");
+    const io = { log: () => {}, err: () => {} };
+    const site = join(out, "site.json");
+    assert.equal(main(["finalize", "--version", VERSION, "--dmg", dmg, "--out", out, "--commit", "c".repeat(40), "--mac-only", "yes", "--site-data", site], io), 0);
+    assert.equal(main(["verify", "--version", VERSION, "--out", out, "--site-data", site, "--mac-only", "yes"], io), 0);
+    assert.equal(main(["verify", "--version", VERSION, "--out", out, "--site-data", site], io), 1);
+  });
+
   it("refuses a missing or truncated installer", () => {
     const out = tmp();
     const dmg = join(out, names.dmg);

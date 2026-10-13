@@ -19,8 +19,9 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use intely_agent_core::api::{AgentStartRequest, AgentSummary, AutoInfo, AutoQueue, PermissionDecision, QuestionAnswer, RoleInfo};
 use intely_agent_core::delegates::DelegateRepo;
 use intely_agent_core::events::log::{EventLog, JsonlEventLog};
-use intely_agent_core::events::types::{AgentEvent, BatchEvent, DecidedBy, EffectiveChange, ErrorClass, EventKind, McpServerStatus, ModeChangeReason, PermissionOption, PermissionOutcome, StopReason, ToolStatus};
+use intely_agent_core::events::types::{PeerCard, AgentEvent, BatchEvent, DecidedBy, EffectiveChange, ErrorClass, EventKind, McpServerStatus, ModeChangeReason, PermissionOption, PermissionOutcome, StopReason, ToolStatus};
 use intely_agent_core::mcp::{McpPolicy, McpSelection, McpServerRules};
+use intely_agent_core::peer::{self, PeerBook, PeerMode, Refusal, SEND_TOOL_FULL};
 use intely_agent_core::policy::decide::{decide_with, decide_wire, fail_closed, session_allow_for, Decision, DelegateRule, PolicyContext, PolicyDecision, SavedAllow, SessionAllowOffer, STRICT_BACKGROUND};
 use intely_agent_core::policy::enforcement::{EnforcementBook, EnforcementChip, Tier};
 use intely_agent_core::policy::fsrpc::RpcFs;
@@ -113,6 +114,8 @@ struct Inner {
     /// or change the map, never across a call.
     remote: Mutex<HashMap<String, RemoteLink>>,
     reaper: Mutex<Option<Reaper>>,
+    /// The counters behind the limits of messages between runs (`peer/send`); nothing here is persisted.
+    peers: Mutex<PeerBook>,
     /// The sidecar's canary fired: a sub-agent call reached policy without an actor. Delegation stays off until the host restarts.
     delegation_tripped: AtomicBool,
     me: Weak<Inner>,
@@ -362,6 +365,7 @@ impl AgentHost {
             state: Mutex::new(State::default()),
             remote: Mutex::new(HashMap::new()),
             reaper: Mutex::new(None),
+            peers: Mutex::new(PeerBook::default()),
             delegation_tripped: AtomicBool::new(false),
             me: me.clone(),
         });
@@ -654,6 +658,12 @@ impl AgentHost {
         if let Some(loc) = meta.location.clone() {
             meta.remote = Some(inner.prepare_remote(&loc, &meta)?);
         }
+        // Not while "send my changes there" is copying into one of those folders; the mark stays until the run is registered, so that
+        // transfer's busy check sees it (docs/remote-servers.md).
+        let _starting = match (&meta.location, &meta.remote) {
+            (Some(loc), Some(r)) => Some(intely_servers::repolock::begin_run(loc, &r.dirs).map_err(|m| err("repoBusy", m))?),
+            _ => None,
+        };
         // Mandatory (docs/safety.md, layer 8): a run that can edit the user's repos starts only with a Rewind snapshot of
         // every repo. A repo that cannot be snapshotted (merge in progress, no commits, no git) refuses the run unless the
         // user ticked "run without safety net" for this run; then the run starts and Rewind has nothing for that repo.
@@ -716,6 +726,7 @@ impl AgentHost {
         if inner.ensure_live(agent_id)? {
             return Err(err("turnOpen", "the agent is still working; stop it first or wait"));
         }
+        lock(&inner.peers).human_message(agent_id);
         inner.prompt(agent_id, text, files)
     }
 
@@ -792,35 +803,30 @@ impl AgentHost {
     /// dropped); this returns the note's id once the sidecar has taken it. Refused when nothing is working, the sub-agent is not running,
     /// or the provider cannot take notes.
     pub fn note(&self, agent_id: &str, parent_tool_id: Option<String>, text: &str) -> Result<String, EngineError> {
-        let text = text.trim();
-        if text.is_empty() {
-            return Err(err("noteEmpty", "the note is empty"));
-        }
-        if text.chars().count() > MAX_NOTE_CHARS {
-            return Err(err("noteTooLong", format!("a note is at most {MAX_NOTE_CHARS} characters")));
-        }
-        let sc = {
-            let st = lock(&self.inner.state);
-            self.inner.live_sidecar(&st, agent_id)?
-        };
-        let note_id = format!("n-{}", uuid::Uuid::new_v4());
-        let body = json!({"agentId": agent_id, "noteId": note_id, "text": text, "parentToolId": parent_tool_id});
-        let v = sc.request("session/note", body, Duration::from_secs(10)).map_err(|e| err("note", e.to_string()))?;
-        match v["error"].as_str() {
-            None => Ok(note_id),
-            Some(code) => {
-                let code = match code {
-                    "noTurn" => "noteNoTurn",
-                    "unknownTarget" => "noteUnknownTarget",
-                    "unsupported" => "noteUnsupported",
-                    "noSession" => "noteNoSession",
-                    "tooLong" => "noteTooLong",
-                    "empty" => "noteEmpty",
-                    _ => "note",
-                };
-                Err(err(code, v["detail"].as_str().unwrap_or("the agent did not take the note").to_string()))
-            }
-        }
+        let id = self.inner.note_to(agent_id, parent_tool_id, text, None)?;
+        // the person wrote to this run: a chain of messages between runs starts again
+        lock(&self.inner.peers).human_message(agent_id);
+        Ok(id)
+    }
+
+    /// What the `peer_send` tool does for the run `from`: checks the target and the limits, then hands `text` to the run `to` as a message of
+    /// another run (never as a note of the person). `Ok` = the label of the target; `Err((code, reason))` = refused, and nothing was counted.
+    /// The sidecar's RPC (`peer/send`) calls the same function.
+    pub fn peer_message(&self, from: &str, to: &str, text: &str) -> Result<String, (String, String)> {
+        self.inner.peer_send(&json!({"agentId": from, "runId": to, "text": text}), None)
+    }
+
+    /// What the broker says about a message from one run to another right now (tests).
+    #[doc(hidden)]
+    pub fn peer_decision(&self, from: &str, to: &str) -> Option<PolicyDecision> {
+        let st = lock(&self.inner.state);
+        self.inner.peer_decide(&st, from, to)
+    }
+
+    /// [`peer_message`](Self::peer_message) as a sidecar of the given generation would ask for it (tests of the ownership binding).
+    #[doc(hidden)]
+    pub fn peer_message_via(&self, generation: u64, from: &str, to: &str, text: &str) -> Result<String, (String, String)> {
+        self.inner.peer_send(&json!({"agentId": from, "runId": to, "text": text}), Some(generation))
     }
 
     /// The plan limits of the signed-in Claude account (`usage/limits`): how much of the 5 hour session and the 7 day week is used. The
@@ -1003,6 +1009,10 @@ impl AgentHost {
         let allowing = matches!(decision, PermissionDecision::AllowOnce | PermissionDecision::AllowRun);
         // a run on a server is judged against the server's files over the network: that happens here, never under the lock below
         let prejudged = inner.prejudge_remote(agent_id, req_id, allowing, decision == PermissionDecision::AllowRun);
+        // a message to a run that may do more, or that works without prompts, is never saved for the run, whatever the card offered
+        if decision == PermissionDecision::AllowRun && inner.peer_save_blocked(agent_id, req_id) {
+            return Err(err("optionNotOffered", "a message to that run is approved one message at a time"));
+        }
         let step = {
             let mut st = lock(&inner.state);
             let sc = inner.live_sidecar(&st, agent_id)?;
@@ -1106,6 +1116,12 @@ impl AgentHost {
                         run.mode_busy = true;
                     }
                     body_mode = Some(target);
+                }
+                // "Allow once" on a card for a message leaves a token the send uses up (the host judges the message again when it is sent)
+                if allowing && decision == PermissionDecision::AllowOnce && intent.tool.as_deref() == Some(SEND_TOOL_FULL) {
+                    if let Some(to) = intent.argv.as_ref().and_then(|a| a.first()) {
+                        run.peer_once.insert(Inner::peer_token(to));
+                    }
                 }
                 if let Some(p) = run.state.perms.get_mut(req_id) {
                     p.answering = true;
@@ -2224,6 +2240,7 @@ impl Inner {
             delegates,
             plan_dir: plan_path.as_ref().map(|p| p.to_string_lossy().into_owned()),
             include_user_memory: (role.provider == "claude" && !self.cfg.include_user_memory()).then_some(false),
+            peer_tools: (role.provider == "claude" && self.cfg.defaults().peer_messages != PeerMode::Off).then_some(true),
         };
         let mut body = serde_json::to_value(&start).map_err(|e| err("internal", e.to_string()))?;
         drop(start);
@@ -2406,6 +2423,17 @@ impl Inner {
 
     fn ingest(&self, sc: &Arc<Sidecar>, agent_id: &str, provider: &str, batch: Vec<BatchEvent>) {
         let mut st = lock(&self.state);
+        // the card of a message to another run says who gets it and what it says (made here, from the host's own view of the runs)
+        let mut cards: HashMap<String, PeerCard> = batch
+            .iter()
+            .filter_map(|b| match &b.kind {
+                EventKind::PermissionRequest { req_id, intent, .. } if intent.tool.as_deref() == Some(SEND_TOOL_FULL) => {
+                    let to = intent.argv.as_ref()?.first()?;
+                    self.peer_card_for(&st, agent_id, to, intent.args.first().map(String::as_str).unwrap_or("")).map(|c| (req_id.clone(), c))
+                }
+                _ => None,
+            })
+            .collect();
         let Some(run) = st.agents.get_mut(agent_id) else {
             eprintln!("agent host: events for unknown agent {agent_id} dropped");
             return;
@@ -2423,7 +2451,10 @@ impl Inner {
             if b.seq != run.state.last_seq + 1 {
                 eprintln!("agent host: seq gap for {agent_id}: expected {}, got {}", run.state.last_seq + 1, b.seq);
             }
-            let event = b.into_event(agent_id, provider);
+            let mut event = b.into_event(agent_id, provider);
+            if let EventKind::PermissionRequest { req_id, peer, .. } = &mut event.kind {
+                *peer = cards.remove(req_id);
+            }
             if let EventKind::Error { class: ErrorClass::Policy, message, .. } = &event.kind {
                 if message.starts_with(roles::DELEGATION_CANARY_MARK) && !self.delegation_tripped.swap(true, Ordering::SeqCst) {
                     eprintln!("agent host: delegation switched off for this session of the app: a sub-agent call carried no agent_id ({agent_id})");
@@ -2456,6 +2487,242 @@ impl Inner {
         }
     }
 
+    /// The body of [`AgentHost::note`]; `from` is the label of the run that wrote it (a peer message), absent for the person's own note.
+    fn note_to(&self, agent_id: &str, parent_tool_id: Option<String>, text: &str, from: Option<&str>) -> Result<String, EngineError> {
+        let text = text.trim();
+        if text.is_empty() {
+            return Err(err("noteEmpty", "the note is empty"));
+        }
+        if text.chars().count() > MAX_NOTE_CHARS {
+            return Err(err("noteTooLong", format!("a note is at most {MAX_NOTE_CHARS} characters")));
+        }
+        let sc = {
+            let st = lock(&self.state);
+            self.live_sidecar(&st, agent_id)?
+        };
+        let note_id = format!("n-{}", uuid::Uuid::new_v4());
+        let mut body = json!({"agentId": agent_id, "noteId": note_id, "text": text, "parentToolId": parent_tool_id});
+        if let Some(from) = from {
+            body["from"] = json!(from);
+        }
+        let v = sc.request("session/note", body, Duration::from_secs(10)).map_err(|e| err("note", e.to_string()))?;
+        match v["error"].as_str() {
+            None => Ok(note_id),
+            Some(code) => {
+                let code = match code {
+                    "noTurn" => "noteNoTurn",
+                    "unknownTarget" => "noteUnknownTarget",
+                    "unsupported" => "noteUnsupported",
+                    "noSession" => "noteNoSession",
+                    "tooLong" => "noteTooLong",
+                    "empty" => "noteEmpty",
+                    _ => "note",
+                };
+                Err(err(code, v["detail"].as_str().unwrap_or("the agent did not take the note").to_string()))
+            }
+        }
+    }
+
+    /// How a run reads in the other run's transcript: its title and where it executes (`local`, or the server's name).
+    fn peer_where(&self, run: &Run) -> String {
+        match run.meta.location.as_deref() {
+            None => "local".to_string(),
+            Some(loc) => self.cfg.servers.as_ref().and_then(|r| r.cfg(loc)).map_or_else(|| loc.to_string(), |c| c.name),
+        }
+    }
+
+    /// Whether the card `req_id` of `agent_id` is for a message that may not be saved for the run (see [`Self::adjust_peer`]).
+    fn peer_save_blocked(&self, agent_id: &str, req_id: &str) -> bool {
+        let st = lock(&self.state);
+        let Some(intent) = st.agents.get(agent_id).and_then(|r| r.state.perms.get(req_id)).map(|p| p.intent.clone()) else { return false };
+        if intent.tool.as_deref() != Some(SEND_TOOL_FULL) {
+            return false;
+        }
+        let Some(to) = intent.argv.as_ref().and_then(|a| a.first()) else { return false };
+        let Some(card) = self.peer_card_for(&st, agent_id, to, "") else { return true };
+        card.riskier || matches!(card.mode, PermissionMode::Automatic | PermissionMode::Bypass)
+    }
+
+    /// The sidecar `sc` may speak for the run `agent_id` only when the run's open session is on that very sidecar: a sidecar on a server
+    /// never acts as a run of this Mac, and a sidecar never as a run of another one.
+    fn owns(st: &State, sc_generation: Option<u64>, agent_id: &str) -> bool {
+        match (sc_generation, st.agents.get(agent_id).and_then(|r| r.live.as_ref())) {
+            (Some(g), Some(live)) => live.generation == g,
+            (None, Some(_)) => true,
+            _ => false,
+        }
+    }
+
+    /// The mode a run really works in: the looser of its recorded and its live mode (a switch that is still on its way counts as loose).
+    fn loosest_mode(r: &Run) -> PermissionMode {
+        let recorded = r.meta.permission;
+        r.state.effective.as_ref().map(|e| e.permission).filter(|l| l.strictness() > recorded.strictness()).unwrap_or(recorded)
+    }
+
+    fn run_title(r: &Run) -> String {
+        if r.state.title.is_empty() { r.meta.role.clone() } else { r.state.title.clone() }
+    }
+
+    /// Who a message from `from` would reach and how much more it may do than the sender (`strictness` grows with permissiveness).
+    fn peer_card_for(&self, st: &State, from: &str, to: &str, text: &str) -> Option<PeerCard> {
+        let (sender, target) = (st.agents.get(from)?, st.agents.get(to)?);
+        let (sm, tm) = (Self::loosest_mode(sender), Self::loosest_mode(target));
+        Some(PeerCard { title: Self::run_title(target), location: self.peer_where(target), mode: tm, text: peer::excerpt(text), riskier: tm.strictness() > sm.strictness() })
+    }
+
+    /// The broker's verdict on a message, with the one thing it cannot know: the target. A target that works with more freedom than the
+    /// sender, or without prompts at all, never gets a saved allow; a more permissive one is asked about for every message, also with the
+    /// setting on `auto`; an unattended sender cannot be asked and is refused. Used for the decision AND again when the message is sent.
+    fn adjust_peer(&self, st: &State, from: &str, to: &str, d: PolicyDecision) -> PolicyDecision {
+        if d.decision == Decision::Deny {
+            return d;
+        }
+        let (Some(sender), Some(target)) = (st.agents.get(from), st.agents.get(to)) else { return d };
+        let (sm, tm) = (Self::loosest_mode(sender), Self::loosest_mode(target));
+        let riskier = tm.strictness() > sm.strictness();
+        let unattended_target = matches!(tm, PermissionMode::Automatic | PermissionMode::Bypass);
+        let mut d = d;
+        if riskier {
+            if matches!(sm, PermissionMode::Automatic | PermissionMode::Bypass) {
+                return fail_peer("peer.privilege-unattended", "this run works without asking, so it cannot be asked about a message to a run that may do more");
+            }
+            d = PolicyDecision { decision: Decision::Ask, reason: "a run that may do more than this one would read the message: you decide for every message".into(), rule: Some("peer.privilege".into()), session_allow: None, ..d };
+        } else if unattended_target {
+            d.session_allow = None;
+        }
+        d
+    }
+
+    /// `peer/list`: the person's other runs that have an open session. Names and states, never a transcript or a file.
+    fn on_peer_list(&self, sc: &Arc<Sidecar>, id: u32, body: &Value) {
+        let me = body["agentId"].as_str().unwrap_or_default();
+        if self.cfg.defaults().peer_messages == PeerMode::Off {
+            sc.reply(id, json!({"error": "off", "detail": Refusal::Off.reason()}));
+            return;
+        }
+        let st = lock(&self.state);
+        if !Self::owns(&st, Some(sc.generation), me) {
+            sc.reply(id, json!({"error": "unknown", "detail": Refusal::Unknown.reason()}));
+            return;
+        }
+        let mut runs: Vec<(u64, Value)> = st
+            .agents
+            .iter()
+            .filter(|(rid, r)| rid.as_str() != me && r.live.is_some())
+            .map(|(rid, r)| {
+                let state = if !r.state.perms.is_empty() || !r.state.questions.is_empty() {
+                    "waiting"
+                } else if r.state.turn_open {
+                    "running"
+                } else {
+                    "idle"
+                };
+                (r.meta.started_at, json!({"id": rid, "title": Self::run_title(r), "where": self.peer_where(r), "repos": r.meta.repos.iter().map(|x| x.id.clone()).collect::<Vec<_>>(), "state": state}))
+            })
+            .collect();
+        runs.sort_by_key(|(t, _)| *t);
+        sc.reply(id, json!({"ok": true, "runs": runs.into_iter().map(|(_, v)| v).collect::<Vec<_>>()}));
+    }
+
+    /// `peer/send`: the run `agentId` hands `text` to the run `runId`. Never executed by the target's machine: this host checks the limits,
+    /// then sends a `session/note` to the sidecar that holds the target (this Mac's, or the server's through its connection).
+    fn on_peer_send(&self, sc: &Arc<Sidecar>, id: u32, body: Value) {
+        let me = self.me.upgrade();
+        let sc = sc.clone();
+        // the note goes to a sidecar and waits for its answer: the reader thread of this one must stay free (it may be the same sidecar)
+        std::thread::spawn(move || {
+            let Some(inner) = me else { return };
+            let reply = match inner.peer_send(&body, Some(sc.generation)) {
+                Ok(to) => json!({"status": "queued", "to": to}),
+                Err((code, reason)) => json!({"status": "refused", "code": code, "reason": reason}),
+            };
+            sc.reply(id, reply);
+        });
+    }
+
+    /// The token an "Allow once" answer leaves: one message to exactly this run, used up when it is sent. (It is not bound to the text:
+    /// the card shows a redacted excerpt, the sidecar sends the original, and the SDK runs the very input that was approved.)
+    fn peer_token(to: &str) -> String {
+        to.to_string()
+    }
+
+    /// What the broker says about a message `from` -> `to` right now, target rules included; `None` for an unknown sender.
+    fn peer_decide(&self, st: &State, from: &str, to: &str) -> Option<PolicyDecision> {
+        let sender = st.agents.get(from)?;
+        let mut ctx = sender.ctx.clone();
+        ctx.peer_mode = self.cfg.defaults().peer_messages;
+        // the verdict on a message depends on no file: a run on a server is not asked about its files (no trip over the network under the lock)
+        ctx.fs = None;
+        let mut intent = ToolIntent::mcp(peer::PEER_SERVER, peer::TOOL_SEND);
+        intent.argv = Some(vec![to.to_string()]);
+        let req = PolicyRequest { agent_id: from.to_string(), tool_id: "peer".into(), provider: sender.meta.provider.clone(), intent };
+        Some(self.adjust_peer(st, from, to, decide_with(&ctx, &req, STRICT_BACKGROUND)))
+    }
+
+    /// Consent, judged again here: the sidecar's hook is not the only thing between a message and its target.
+    fn peer_consent(&self, from: &str, to: &str) -> Result<(), (String, String)> {
+        let mut st = lock(&self.state);
+        let Some(d) = self.peer_decide(&st, from, to) else { return Err((Refusal::Unknown.code().to_string(), Refusal::Unknown.reason())) };
+        match d.decision {
+            Decision::Allow => Ok(()),
+            Decision::Deny => Err(("consent".to_string(), d.reason)),
+            Decision::Ask => {
+                if st.agents.get_mut(from).is_some_and(|r| r.peer_once.remove(&Self::peer_token(to))) {
+                    Ok(())
+                } else {
+                    Err(("consent".to_string(), "this message was not approved: it needs your answer on a card".into()))
+                }
+            }
+        }
+    }
+
+    fn peer_send(&self, body: &Value, sc_generation: Option<u64>) -> Result<String, (String, String)> {
+        let refuse = |r: Refusal| (r.code().to_string(), r.reason());
+        let (from, to, text) = (body["agentId"].as_str().unwrap_or_default(), body["runId"].as_str().unwrap_or_default(), body["text"].as_str().unwrap_or_default());
+        if self.cfg.defaults().peer_messages == PeerMode::Off {
+            return Err(refuse(Refusal::Off));
+        }
+        if !Self::owns(&lock(&self.state), sc_generation, from) {
+            return Err(refuse(Refusal::Unknown));
+        }
+        if from == to {
+            return Err(refuse(Refusal::SelfSend));
+        }
+        let (from_label, to_label) = {
+            let st = lock(&self.state);
+            let Some(sender) = st.agents.get(from) else { return Err(refuse(Refusal::Unknown)) };
+            let Some(target) = st.agents.get(to) else { return Err(refuse(Refusal::Unknown)) };
+            if target.live.is_none() {
+                return Err(refuse(Refusal::Finished));
+            }
+            if !target.state.turn_open {
+                return Err(refuse(Refusal::Idle));
+            }
+            (peer::run_label(&Self::run_title(sender), &self.peer_where(sender)), peer::run_label(&Self::run_title(target), &self.peer_where(target)))
+        };
+        let previous = {
+            let mut book = lock(&self.peers);
+            let previous = book.hop_of(to);
+            book.admit(from, to, text, now_ms()).map_err(refuse)?;
+            previous
+        };
+        // only a message the broker allows (or the person approved on a card) goes on; the counts of one that does not are given back
+        if let Err(e) = self.peer_consent(from, to) {
+            lock(&self.peers).undo(from, to, previous);
+            return Err(e);
+        }
+        // the label names the sender; the sidecar frames the text as a message of another run, not of the person
+        let delivered = self.note_to(to, None, text, Some(&from_label));
+        match delivered {
+            Ok(_) => Ok(to_label),
+            Err(e) => {
+                lock(&self.peers).undo(from, to, previous);
+                let r = if e.code == "noteNoTurn" || e.code == "notRunning" { Refusal::Idle } else { Refusal::Finished };
+                Err((r.code().to_string(), if r == Refusal::Idle { r.reason() } else { format!("{} ({})", r.reason(), e.message) }))
+            }
+        }
+    }
+
     fn on_policy(&self, sc: &Arc<Sidecar>, id: u32, body: Value) {
         match self.cfg.policy_fault {
             Some(PolicyFault::Drop) => return,
@@ -2469,7 +2736,15 @@ impl Inner {
             Some((ctx, fs)) => (Some(ctx), fs),
             None => (None, None),
         };
+        // the Settings are read at every decision: switching messages between runs off (or on) reaches a run that is already working
+        let ctx = ctx.map(|mut c| {
+            c.peer_mode = self.cfg.defaults().peer_messages;
+            c
+        });
         let sc = sc.clone();
+        let is_peer_send = body["intent"]["tool"].as_str() == Some(SEND_TOOL_FULL);
+        let body_for_peer = is_peer_send.then(|| (body["agentId"].as_str().unwrap_or_default().to_string(), body["intent"]["argv"][0].as_str().unwrap_or_default().to_string()));
+        let peer = is_peer_send.then(|| self.me.upgrade()).flatten();
         // a run on a server looks at its files through the network: the sidecar there was told the longer wait too (`--policy-timeout`)
         let wait_ms = (if remote_fs.is_some() { u64::from(REMOTE_POLICY_TIMEOUT_MS) } else { u64::from(POLICY_REPLY_TIMEOUT_MS) }) - 200;
         std::thread::spawn(move || {
@@ -2481,6 +2756,11 @@ impl Inner {
             });
             // the sidecar gives up after its own timeout and denies on its own; answering first keeps the audit trail honest
             let decision = rx.recv_timeout(Duration::from_millis(wait_ms)).unwrap_or_else(|_| fail_closed("the policy decision took too long"));
+            // a message to another run: the target decides what the card may offer (see `adjust_peer`)
+            let decision = match (peer, body_for_peer) {
+                (Some(inner), Some((from, to))) => inner.adjust_peer(&lock(&inner.state), &from, &to, decision),
+                _ => decision,
+            };
             sc.reply(id, serde_json::to_value(decision).unwrap_or(Value::Null));
         });
     }
@@ -2617,6 +2897,8 @@ impl Handler for Inner {
                 self.gate.heartbeat(&sc.owner);
             }
             "policy/decide" => self.on_policy(sc, msg.id, msg.body),
+            "peer/list" => self.on_peer_list(sc, msg.id, &msg.body),
+            "peer/send" => self.on_peer_send(sc, msg.id, msg.body),
             "slot/acquire" => self.on_acquire(sc, msg.id, msg.body),
             "slot/renew" => {
                 let asked: Vec<i64> = msg.body["pgids"].as_array().map(|a| a.iter().filter_map(Value::as_i64).collect()).unwrap_or_default();
@@ -2692,6 +2974,10 @@ impl Handler for Inner {
             }
         }
     }
+}
+
+fn fail_peer(rule: &str, reason: &str) -> PolicyDecision {
+    PolicyDecision { decision: Decision::Deny, by: DecidedBy::RoleDeny, reason: reason.into(), rule: Some(rule.into()), session_allow: None }
 }
 
 fn tail_suffix(sc: &Sidecar) -> String {

@@ -4,7 +4,7 @@ import { execute, getCommand } from "../../platform/commands";
 import { selectedFile } from "../../store/selection";
 import { repoError, snapshots } from "../../store/snapshots";
 import { repos } from "../../store/workspace";
-import { Badge, BrandMark, Button, Copy, CircleAlert, Eye, File, FileDiff, FolderOpen, IconButton, Kbd, ListChecks, SegmentedControl, ShieldAlert, Skeleton, TriangleAlert, StatusLetter, EmptyState, toast, readStored, resolvedTheme, writeStored } from "../../ui-kit";
+import { Badge, BrandMark, type ChangeKindName, Button, Copy, CircleAlert, Eye, File, FileDiff, FolderOpen, IconButton, Kbd, ListChecks, SegmentedControl, ShieldAlert, Skeleton, TriangleAlert, StatusLetter, EmptyState, toast, readStored, resolvedTheme, writeStored } from "../../ui-kit";
 import { splitPath } from "../push/logic";
 import { t, type MessageKey } from "../../i18n";
 import type { DiffHandle } from "./cm";
@@ -22,6 +22,10 @@ export interface DiffViewProps {
   target?: DiffTarget;
   /** Fixed source (for example a commit); without it the header offers working tree and staged. */
   source?: DiffSource;
+  /** Reads the contents elsewhere than in the local engine (a file of a server's working copy); `reveal` asks for a hidden secret. */
+  load?: (reveal: boolean) => Promise<FileContents>;
+  /** The kind letter in the header when the file is not in a local snapshot. */
+  kind?: ChangeKindName;
 }
 
 const VIEW_KEY = "intely.diff.view";
@@ -102,7 +106,7 @@ export function DiffView(props: DiffViewProps) {
     if (!t || isDir()) return null;
     return { repoId: t.repoId, path: t.path, origPath: t.origPath ?? change()?.origPath ?? undefined, source: source(), reveal: revealed(), revision: snapshot()?.revision };
   });
-  const [contents, { refetch }] = createResource(request, (r) => ipc.fileContents(r.repoId, r.path, r.origPath, r.source, r.reveal));
+  const [contents, { refetch }] = createResource(request, (r) => (props.load ? props.load(r.reveal) : ipc.fileContents(r.repoId, r.path, r.origPath, r.source, r.reveal)));
   // Keep showing the previous contents while a refresh is in flight, so a snapshot update does not flash a skeleton.
   // Snapshots refetch the file on every revision; identical contents must not rebuild the editor.
   const sameContents = (a?: FileContents, b?: FileContents) =>
@@ -199,7 +203,7 @@ export function DiffView(props: DiffViewProps) {
     <section class="diff-view" aria-label={t("diff.aria")}>
       <Show when={target() && !isDir()}>
         <header class="diff-view__head">
-          <StatusLetter kind={change()?.kind ?? "modified"} />
+          <StatusLetter kind={props.kind ?? change()?.kind ?? "modified"} />
           <div class="diff-view__title ui-truncate" title={target()?.path}>
             <span class="diff-view__name" classList={{ "ui-file-deleted": change()?.kind === "deleted" }}>
               {pathParts().name}

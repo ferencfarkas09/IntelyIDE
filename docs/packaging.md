@@ -1,6 +1,6 @@
 # Packaging
 
-This page describes how a release is built today: the macOS app and its disk image on the maintainer's own Mac, the Windows and Linux installers on GitHub Actions, and which parts of a fuller release pipeline do not exist yet. Applies to version 1.3.3.
+This page describes how a release is built today: the macOS app and its disk image on the maintainer's own Mac, the Windows and Linux installers on GitHub Actions, and which parts of a fuller release pipeline do not exist yet. Applies to version 1.4.0.
 
 It is written for the maintainer. Users want [install-macos.md](install-macos.md).
 
@@ -51,6 +51,8 @@ The Developer ID mode is the default of `pnpm release:build`, which reads the id
 The script stages a copy of the app (signed with the `--identity` certificate, or ad hoc when `--ad-hoc-sign` is given), the licence files and a short read-me, draws the background, builds the image with `dmgbuild`, verifies it with `hdiutil`, and writes `<image>.sha256` next to it. With `--identity` it also submits the image for notarization with the `--notary-profile` and staples the ticket to the app and to the image. It does not use Finder or AppleScript.
 
 ## 4. Windows and Linux installers (GitHub Actions)
+
+The installers are paused for now: `pnpm release -- --mac-only` ships only the disk image, the SBOM and `SHA256SUMS`, does not run this workflow and writes the site's download data with the macOS file alone (see [releasing.md](releasing.md)). The workflow and the multi-platform release mode stay for when the installers are ready.
 
 `.github/workflows/release-build.yml` (`workflow_dispatch`, inputs `version` and the full `commit` SHA) checks the commit out, installs the Linux packages (`libwebkit2gtk-4.1-dev`, `libayatana-appindicator3-dev`, `librsvg2-dev`, `libsecret-1-dev`, `patchelf`, and a few more), builds the relay kit and the sidecar, runs `pnpm exec tauri build --bundles appimage,deb` (Linux) or `--bundles nsis,msi` (Windows), renames the results with `scripts/release/stage-artifacts.mjs` and uploads them as the artifacts `release-linux` and `release-windows`. It has no secret, a read-only token and publishes nothing. `pnpm release:collect` (also the last part of `pnpm release:build`) starts it for the commit of the disk image, waits, downloads the artifacts into `dist-release/<version>/` and checks their names and sizes. The commit must be on `origin/main` first, and the workflow file must exist on `main`.
 

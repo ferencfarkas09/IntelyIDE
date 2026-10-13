@@ -97,4 +97,13 @@ describe('older data with one file per release', () => {
     assert.match(page('index.html'), /<a class="dl-btn" href="[^"]*universal\.dmg"/);
     assert.doesNotMatch(page('index.html'), /data-dl-multi/);
   });
+  it('a macOS-only release offers a hidden note for Windows and Linux visitors, in English and Hungarian, and lists no other platform', () => {
+    const { page } = build({ ...multi, assets: { mac: multi.assets.mac } });
+    const en = page('index.html');
+    assert.match(en, /data-mac-only/);
+    assert.match(en, /<p class="dl-soon" data-soon hidden>Windows and Linux builds are coming\. The macOS app is available now\./);
+    assert.match(page('hu/index.html'), /<p class="dl-soon" data-soon hidden>A Windows és a Linux verzió hamarosan érkezik/);
+    assert.doesNotMatch(en, /Other platforms|data-note=|x64-setup|AppImage/);
+    assert.match(readFileSync(join(SITE, 'src/static/assets/site.js'), 'utf8'), /data-mac-only/);
+  });
 });

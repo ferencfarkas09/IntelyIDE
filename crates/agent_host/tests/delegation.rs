@@ -111,7 +111,7 @@ fn a_claude_single_role_session_start_is_unchanged_and_carries_no_delegates() {
     let (host, _sink) = host_with(r.cfg);
     start(&host, "developer", &repo, job(&out, vec![], vec![]));
     let body = &wait_file(&out, 20)["starts"][0];
-    assert_eq!(keys(body), ["addDirs", "agentId", "auth", "cwd", "env", "nextSeq", "planDir", "provider", "repoId", "role", "sessionId", "writer"], "the classic body has no delegates key");
+    assert_eq!(keys(body), ["addDirs", "agentId", "auth", "cwd", "env", "nextSeq", "peerTools", "planDir", "provider", "repoId", "role", "sessionId", "writer"], "the classic body has no delegates key (and offers the peer tools, which are on by default)");
     assert!(body["planDir"].as_str().is_some_and(|p| p.ends_with(&format!("plans/{}", body["agentId"].as_str().unwrap()))), "a Claude run is told where its plan notes live: {body}");
     assert_eq!(keys(&body["role"]), ["disallowedTools", "effort", "maxTurns", "model", "name", "permission", "systemPrompt", "tools"]);
     assert_eq!(body["role"]["name"], "developer");

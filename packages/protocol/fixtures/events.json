@@ -260,6 +260,7 @@
       "allow_run",
       "deny"
     ],
+    "peer": null,
     "plan": null,
     "planTruncated": null,
     "provider": "claude",
@@ -318,6 +319,7 @@
   },
   {
     "agentId": "a1",
+    "from": null,
     "kind": "note",
     "noteId": "n1",
     "parentToolId": null,
@@ -327,6 +329,7 @@
     "seq": 13,
     "state": "delivered",
     "text": "Use the staging database, not production",
+    "to": null,
     "toolId": "t9",
     "ts": 1790000000520,
     "turnId": "t1"

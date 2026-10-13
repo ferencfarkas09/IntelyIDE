@@ -67,7 +67,7 @@ fn every_event_kind_is_clean_and_drops_raw() {
         EventKind::ToolStart { tool_id: "t".into(), name: "Bash".into(), tool_kind: ToolKind::Exec, input: json!({"command": format!("echo {}", CANARIES[0]), "env": {"API_TOKEN": CANARIES[7], "PATH": "/bin"}, "headers": [{"authorization": CANARIES[8]}]}), parent_tool_id: None },
         EventKind::ToolUpdate { tool_id: "t".into(), status: ToolStatus::Running, output: Some(format!("DATABASE_PASSWORD={}", CANARIES[6])) },
         EventKind::ToolResult { tool_id: "t".into(), status: ToolStatus::Ok, output: Some(format!("{}\n{}", CANARIES[2], CANARIES[3])), diff: Some(ToolDiff { path: "a.rs".into(), old: None, new: CANARIES[0].into() }), duration_ms: Some(5) },
-        EventKind::PermissionRequest { req_id: "r".into(), tool_id: "t".into(), intent: secret_intent, options: vec![PermissionOption::AllowOnce], session_allow: None, plan: None, plan_truncated: None, modes: Vec::new() },
+        EventKind::PermissionRequest { req_id: "r".into(), tool_id: "t".into(), intent: secret_intent, options: vec![PermissionOption::AllowOnce], session_allow: None, plan: None, plan_truncated: None, modes: Vec::new(), peer: None },
         EventKind::QuestionRequest { req_id: "q".into(), tool_id: None, prompt: format!("is {} yours?", CANARIES[0]), options: vec![QuestionOption { label: CANARIES[1].into(), description: Some(CANARIES[2].into()) }] },
         EventKind::Plan { items: vec![PlanItem { content: format!("rotate {}", CANARIES[0]), status: None }] },
         EventKind::Error { class: ErrorClass::Provider, message: format!("401 for key {}", CANARIES[0]), retryable: false },
@@ -97,7 +97,7 @@ fn a_note_to_a_working_agent_never_leaves_the_mac() {
     use intely_agent_core::events::NoteState;
     let mut r = Redactor::new();
     for state in [NoteState::Queued, NoteState::Delivered, NoteState::Dropped] {
-        let e = ev(EventKind::Note { note_id: "n1".into(), state, parent_tool_id: None, text: Some("use the staging key".into()), tool_id: None, reason: None });
+        let e = ev(EventKind::Note { note_id: "n1".into(), state, parent_tool_id: None, text: Some("use the staging key".into()), tool_id: None, reason: None, from: None, to: None });
         assert!(r.wire_event(&e).is_none(), "{state:?}");
     }
 }

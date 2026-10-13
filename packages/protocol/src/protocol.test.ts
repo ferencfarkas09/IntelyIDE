@@ -116,7 +116,7 @@ describe("sidecar messages written by Rust", () => {
   const messages = sidecarMessages as unknown as SidecarMsg[];
   const TYPES = [
     "hello", "heartbeat", "policy/decide", "slot/acquire", "slot/renew", "slot/release", "events/batch",
-    "session/start", "session/prompt", "session/close", "session/permission", "session/mcp-status", "session/note", "cancel/request", "cancel/done", "permission/answer", "reply",
+    "session/start", "session/prompt", "session/close", "session/permission", "session/mcp-status", "session/note", "peer/list", "peer/send", "cancel/request", "cancel/done", "permission/answer", "reply",
   ];
 
   it("cover every type and carry the envelope", () => {
@@ -201,6 +201,7 @@ describe("notes to a working agent", () => {
     expect(bodies).toEqual([
       { agentId: "a1", noteId: "n1", text: "Use the staging URL, not production.", parentToolId: "toolu_01" },
       { agentId: "a1", noteId: "n2", text: "Also update the changelog." },
+      { agentId: "a1", noteId: "n3", text: "The API is ready.", from: "run 'Backend' (server build-1)" },
     ]);
   });
 

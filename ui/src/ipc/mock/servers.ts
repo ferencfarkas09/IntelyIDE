@@ -1,4 +1,5 @@
-import type { FoundRow, RepoRow, ServerCfg, ServerDraft, ServersIpc, ServerStatus, SetupEvent, SetupOptions, SetupStepName } from "../servers";
+import type { Change, FileContents } from "../../bindings";
+import type { FoundRow, RepoRow, ServerCfg, ServerChanges, ServerDraft, ServersIpc, ServerStatus, SetupEvent, SetupOptions, SetupStepName, TransferDirection, TransferPlan } from "../servers";
 
 export interface MockServersOptions {
   /** Start with the three demo servers (default) or with none. */
@@ -217,6 +218,35 @@ export function createMockServers(opts: MockServersOptions = {}): MockServersHan
       await pause(stepMs);
       if (!check(id).reachable) return reject("unreachable", "The server is not reachable.");
       cloned.set(id, new Set([...(cloned.get(id) ?? []), repoId]));
+    },
+    async changes(id, repoId) {
+      if (!find(id)) return missing(id);
+      await pause(stepMs / 2);
+      if (statuses.get(id)?.reachable === false) return reject("ssh", "Host key verification failed.");
+      const change = (path: string, kind: Change["kind"], untracked = false): Change => ({ path, kind, indexStatus: " ", worktreeStatus: untracked ? "?" : "M", staged: false, partiallyStaged: false, guard: "ok", ...(untracked ? {} : {}) }) as Change;
+      const changes = sum(repoId) % 3 === 0 ? [] : [change("src/server.ts", "modified"), change("src/routes/orders.ts", "modified"), change("docs/notes.md", "untracked", true)];
+      const state: ServerChanges["state"] = sum(repoId) % 7 === 0 ? "notGit" : "ok";
+      return { source: `server(${find(id)!.name})`, state, physical: `/home/me/work/${repoId}`, head: "0123456789abcdef0123456789abcdef01234567", branch: "main", detached: false, ahead: 0, behind: 0, origin: `git@example.com:acme/${repoId}.git`, changes: state === "ok" ? changes : [], total: state === "ok" ? changes.length : 0, truncated: false, updatedAtMs: Date.now() };
+    },
+    async file(id, _repoId, file) {
+      if (!find(id)) return missing(id);
+      await pause(stepMs / 2);
+      return { path: file, original: "export const a = 1;\n", modified: "export const a = 2;\n", binary: false, tooLarge: false, guard: "ok", language: "typescript" } as FileContents;
+    },
+    async transferPlan(id, repoId, direction: TransferDirection): Promise<TransferPlan> {
+      if (!find(id)) return missing(id);
+      await pause(stepMs / 2);
+      return { direction, files: [{ path: "src/server.ts", kind: "modified", untracked: false }, { path: "src/routes/orders.ts", kind: "modified", untracked: false }, { path: "docs/notes.md", kind: "untracked", untracked: true }], tracked: 2, untracked: 1, serverHead: "0123456789abcdef0123456789abcdef01234567", localHead: "0123456789abcdef0123456789abcdef01234567", sameOrigin: true, sameHead: true, destinationClean: sum(repoId) % 2 === 0, blocked: [], risky: [{ path: ".vscode/tasks.json", code: "editor" }], stat: [{ path: "src/server.ts", added: 3, deleted: 1, binary: false }, { path: "src/routes/orders.ts", added: 8, deleted: 2, binary: false }, { path: "docs/notes.md", added: 4, deleted: 0, binary: false }], bytes: 1200, patchId: "mock-plan", refusal: null };
+    },
+    async transferBring(id) {
+      if (!find(id)) return missing(id);
+      await pause(stepMs);
+      return { files: 3, bytes: 1200 };
+    },
+    async transferSend(id) {
+      if (!find(id)) return missing(id);
+      await pause(stepMs);
+      return { files: 3, bytes: 1200 };
     },
     async sshCommand(id) {
       const s = find(id);

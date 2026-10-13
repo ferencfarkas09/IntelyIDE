@@ -774,19 +774,19 @@ mod tests {
     #[test]
     fn windows_credential_and_browser_locations_are_never_read_in_any_spelling() {
         for p in [
-            r"C:\Users\Me\AppData\Roaming\Microsoft\Credentials\ABC",
-            r"c:\users\me\appdata\roaming\microsoft\protect\S-1-5\key",
-            r"C:\Users\Me\AppData\Local\Microsoft\Edge\User Data\Default\Cookies",
-            r"C:\Users\Me\AppData\Local\Google\Chrome\User Data\Default\Login Data",
-            r"C:/Users/Me/AppData/Roaming/Mozilla/Firefox/Profiles/x/logins.json",
-            r"\\?\C:\Users\Me\AppData\Local\BraveSoftware\Brave-Browser\User Data",
-            r"C:\USERS\ME\APPDATA\ROAMING\MICROSOFT\VAULT\x",
+            r"C:\Users\alice\AppData\Roaming\Microsoft\Credentials\ABC",
+            r"c:\users\alice\appdata\roaming\microsoft\protect\S-1-5\key",
+            r"C:\Users\alice\AppData\Local\Microsoft\Edge\User Data\Default\Cookies",
+            r"C:\Users\alice\AppData\Local\Google\Chrome\User Data\Default\Login Data",
+            r"C:/Users/alice/AppData/Roaming/Mozilla/Firefox/Profiles/x/logins.json",
+            r"\\?\C:\Users\alice\AppData\Local\BraveSoftware\Brave-Browser\User Data",
+            r"C:\USERS\ALICE\APPDATA\ROAMING\MICROSOFT\VAULT\x",
         ] {
-            assert!(reason(r"C:\Users\Me", p, PathStyle::WINDOWS).is_some(), "{p}");
+            assert!(reason(r"C:\Users\alice", p, PathStyle::WINDOWS).is_some(), "{p}");
         }
-        assert!(reason(r"C:\Users\Me", r"C:\Users\Me\AppData\Local\Programs\app\x.txt", PathStyle::WINDOWS).is_none());
-        assert!(reason(r"C:\Users\Me", r"D:\Users\Me\AppData\Roaming\Mozilla", PathStyle::WINDOWS).is_none(), "another drive is another place");
-        assert!(reason(r"C:\Users\Me", r"C:\Users\Me2\AppData\Roaming\Mozilla", PathStyle::WINDOWS).is_none());
+        assert!(reason(r"C:\Users\alice", r"C:\Users\alice\AppData\Local\Programs\app\x.txt", PathStyle::WINDOWS).is_none());
+        assert!(reason(r"C:\Users\alice", r"D:\Users\alice\AppData\Roaming\Mozilla", PathStyle::WINDOWS).is_none(), "another drive is another place");
+        assert!(reason(r"C:\Users\alice", r"C:\Users\bob\AppData\Roaming\Mozilla", PathStyle::WINDOWS).is_none());
     }
 
     #[test]
@@ -801,9 +801,9 @@ mod tests {
     #[test]
     fn case_is_folded_only_where_the_system_folds_it() {
         assert!(reason("/Users/me", "/users/ME/library/application support/google/chrome/x", PathStyle::MACOS).is_some());
-        assert!(reason("/home/me", "/home/ME/.mozilla/x", PathStyle::UNIX).is_none(), "a case-sensitive system: another user's folder");
+        assert!(reason("/home/me", "/home/bob/.mozilla/x", PathStyle::UNIX).is_none(), "a case-sensitive system: another user's folder");
         assert!(reason("/home/me", "/home/me/.Mozilla/x", PathStyle::UNIX).is_some(), "names below home are still judged in lower case");
-        assert_eq!(rel_to_home("C:\\Users\\Me", "c:/users/me/x//./y", PathStyle::WINDOWS), Some(vec!["x".to_owned(), "y".to_owned()]));
+        assert_eq!(rel_to_home("C:\\Users\\alice", "c:/users/alice/x//./y", PathStyle::WINDOWS), Some(vec!["x".to_owned(), "y".to_owned()]));
     }
 
     use super::*;

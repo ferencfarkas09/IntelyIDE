@@ -7,6 +7,7 @@ import { commitView } from "./layout";
 import { t } from "../i18n";
 
 const StashPanel = lazy(() => import("../modules/branches/StashPanel"));
+const ServerChangesPanel = lazy(() => import("../modules/servers/view/ServerChangesPanel"));
 
 export function CommitToolWindow() {
   return (
@@ -21,6 +22,9 @@ export function CommitToolWindow() {
         }
       >
         <ChangesTree />
+        <Suspense>
+          <ServerChangesPanel />
+        </Suspense>
         <CommitPanel />
       </Show>
     </section>
