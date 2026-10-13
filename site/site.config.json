@@ -1,7 +1,24 @@
 {
-  "_comment": "Single place for site-wide settings. Environment variables SITE_URL and BASE_PATH override siteUrl and basePath.",
+  "_comment": "Single place for site-wide settings. Environment variables SITE_URL and BASE_PATH override siteUrl and basePath. Prices, trial length and checkout switch for IntelyOpti live here and nowhere else.",
   "siteUrl": "https://intelyhome.com",
   "basePath": "",
   "repoUrl": "https://github.com/ferencfarkas09/IntelyIDE",
-  "orgUrl": "https://intelyhome.com"
+  "githubUrl": "https://github.com/ferencfarkas09",
+  "orgUrl": "https://intelyhome.com",
+  "apiBase": "https://api.intelyhome.com",
+  "checkout": {
+    "enabled": false,
+    "yearlyUrl": "",
+    "lifetimeUrl": ""
+  },
+  "intelyopti": {
+    "releasesRepoUrl": "https://github.com/ferencfarkas09/IntelyOpti-releases",
+    "downloadUrl": "https://github.com/ferencfarkas09/IntelyOpti-releases/releases/latest/download/IntelyOpti.dmg",
+    "trialDays": 14,
+    "freeCleanMB": 500,
+    "currency": "USD",
+    "yearlyPrice": "19.99",
+    "lifetimePrice": "39.99",
+    "minMacOS": "26"
+  }
 }

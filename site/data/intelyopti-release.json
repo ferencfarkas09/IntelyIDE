@@ -1,0 +1,8 @@
+{
+  "_comment": "IntelyOpti download facts, written by the release script. Null fields are simply not shown on the site; the page works without this file too.",
+  "version": "1.0.0",
+  "date": "2026-10-13",
+  "minMacOS": "26",
+  "size": 4422398,
+  "sha256": "3a92991f3671fab0654375279068f8eee77919c7dd2ca0dd932178a655f63f24"
+}

@@ -1,10 +1,11 @@
-# IntelyIDE website
+# IntelyHome website (intelyhome.com)
 
-Static download site for IntelyIDE. Plain HTML, CSS and a little vanilla JS, produced by a
-dependency-free Node script (Node 20+). No server, no database, no cookies, no analytics, no
-external requests. Fonts are self-hosted (Inter, JetBrains Mono, SIL OFL 1.1).
+Static site for IntelyHome and its two products, IntelyIDE and IntelyOpti. Plain HTML, CSS and a little vanilla JS, produced by a
+dependency-free Node script (Node 20+). No server and no database of its own; Google Analytics loads only after the visitor
+accepts, and the one other external request is the IntelyOpti e-mail form to the API. Fonts are self-hosted (Inter, JetBrains Mono, SIL OFL 1.1).
 
-English lives at `/`, Hungarian at `/hu/`. Pages: home, `/download/`, `404.html`.
+English lives at `/`, Hungarian at `/hu/`. Pages: `/` (company home), `/intelyide/`, `/intelyopti/`, `/download/` (IntelyIDE),
+`/privacy/`, `/terms/`, `404.html`. Old `/#install`-style IntelyIDE anchors on the home page are forwarded to `/intelyide/` by `site.js`.
 
 ## Layout
 
@@ -17,6 +18,8 @@ src/pages.mjs           page templates        src/lib.mjs: release data, <pictur
 src/static/             copied verbatim into dist/ (CSS, JS, fonts, images, favicons)
 scripts/build.mjs       builds dist/          scripts/check-site.mjs: release gate
 scripts/gen-placeholders.mjs / shots.mjs / make-images.sh   screenshot slots and variants
+scripts/import-shots.mjs / import-opti-shots.mjs            one-off screenshot importers (macOS sips)
+data/intelyopti-release.json                                IntelyOpti version/date/size/sha256 (optional, null fields are hidden)
 ```
 
 ## Local preview
@@ -95,3 +98,45 @@ See [DEPLOY.md](DEPLOY.md) for GitHub Pages.
   persists in `localStorage` with a safe fallback. Dark `<source>` elements follow the toggle (`site.js`).
 - CSP is a `<meta>` tag with no `unsafe-inline`; the one inline script (theme restore) is allowed by hash.
 - Download button text is dark on the gradient (contrast 5.3:1 or better at every stop).
+
+## Products, trial and pricing
+
+Everything about IntelyOpti that can change lives in `site.config.json`; the copy in `src/content/{en,hu}.mjs` uses
+`{{trial}}`, `{{yearly}}`, `{{lifetime}}`, `{{freeMB}}`, `{{minMac}}` tokens that `build.mjs` fills (HU prices render as `19,99 USD`).
+
+| Key | Meaning |
+|---|---|
+| `apiBase` | Trial/lead API, `https://api.intelyhome.com`. The form posts to `{apiBase}/api/lead` (contract: IntelyOpti `docs/API.md`). The CSP allows exactly this origin in `connect-src` |
+| `checkout.enabled` | `false`: the Buy buttons read "Notify me when checkout opens" and lead to a waitlist form (`kind:"waitlist"`). `true`: they link to `checkout.yearlyUrl` / `lifetimeUrl` (both required, https; `check-site` fails if one is empty) |
+| `intelyopti.trialDays`, `yearlyPrice`, `lifetimePrice`, `currency`, `freeCleanMB`, `minMacOS` | Numbers used in the copy, the pricing cards and the JSON-LD offers |
+| `intelyopti.downloadUrl`, `releasesRepoUrl` | DMG link shown after the download form succeeds; the API response may override it, but only with a link on `githubUrl` |
+
+`data/intelyopti-release.json` is written by the release script (`version`, `date`, `minMacOS`, `size` in bytes, `sha256`).
+A `null` or missing field is not shown; the page also builds without the file.
+
+The download form (`assets/lead.js`) collects e-mail, a consent checkbox and a hidden honeypot field `company`, posts with
+`fetch`, disables the button while sending, reports errors in `aria-live` text (EN/HU) and then reveals the download button and
+"open IntelyOpti and enter the same e-mail". Without JavaScript the form is hidden and a link to the GitHub releases is shown.
+
+### Screenshots
+
+```sh
+node scripts/import-shots.mjs         # IntelyIDE: ../docs/screenshots/<name>-<light|dark>.png -> shots/<slot>-<theme>-720|1440 (+ webp when cwebp exists)
+node scripts/import-opti-shots.mjs    # IntelyOpti: ../../IntelyOpti/site-assets/shots/opti-<name>-<light|dark>.png -> 720|1440|2400
+node scripts/gen-placeholders.mjs     # neutral SVG only for slots that still have no real image
+```
+
+Opti names: `dashboard`, `health`, `turbo`, `tweaks`, `network`, `modes`, `advisor`, `cleanup` (2400x1600, transparent margin).
+Sources are never upscaled; the pages accept any subset of widths. Every shot is a light and a dark `<source>` pair that follows
+the site theme toggle and `prefers-color-scheme`. The IDE slots `team` and `team-memory` keep their older captures (no curated source exists).
+
+### Review before launch
+
+- `/privacy/` and `/terms/` (EN and HU) are short, factual drafts written generally. **A lawyer should review them**, in particular
+  the controller identity, the legal bases, the retention wording, the refund/withdrawal paragraph, the licence restrictions,
+  the liability clause and governing law (none is named). The deletion route (GitHub Discussions "Data request") is a process the
+  owner must be ready to run.
+- The API Worker must be deployed and `api.intelyhome.com` must resolve to it (CORS allows `https://intelyhome.com` and
+  `https://www.intelyhome.com` only) before the forms work for visitors.
+- `assets/img/og.png` is still the IntelyIDE card, shared by every page.
+- The FAQ states Apple silicon Macs are not supported by IntelyOpti: confirm that is the intended wording.

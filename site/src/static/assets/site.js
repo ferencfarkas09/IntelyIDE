@@ -11,14 +11,18 @@
     document.querySelectorAll('source[data-theme="dark"]').forEach((s) => (s.media = media));
     const toggle = document.getElementById('theme-toggle');
     if (toggle) toggle.setAttribute('aria-pressed', String(effective() === 'dark'));
+    document.querySelectorAll('[data-theme-set]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.themeSet === effective())));
+  }
+  function setTheme(value) {
+    root.dataset.theme = value;
+    try { localStorage.setItem('theme', value); } catch { /* storage unavailable: keep for this visit */ }
+    applyTheme();
   }
   applyTheme();
   dark.addEventListener('change', applyTheme);
-  document.getElementById('theme-toggle')?.addEventListener('click', () => {
-    root.dataset.theme = effective() === 'dark' ? 'light' : 'dark';
-    try { localStorage.setItem('theme', root.dataset.theme); } catch { /* storage unavailable: keep for this visit */ }
-    applyTheme();
-  });
+  document.getElementById('theme-toggle')?.addEventListener('click', () => setTheme(effective() === 'dark' ? 'light' : 'dark'));
+  // The showcase switch drives the same site theme, so the pictures and the page always agree.
+  document.querySelectorAll('[data-theme-set]').forEach((b) => b.addEventListener('click', () => setTheme(b.dataset.themeSet)));
 
   // Mobile menu.
   const menu = document.querySelector('.menu-btn');
@@ -28,8 +32,34 @@
     menu.setAttribute('aria-expanded', String(open));
   });
   nav?.addEventListener('click', (e) => {
-    if (e.target.closest('a')) { nav.classList.remove('open'); menu?.setAttribute('aria-expanded', 'false'); }
+    if (e.target.closest('a')) { nav.classList.remove('open'); menu?.setAttribute('aria-expanded', 'false'); closeSub(); }
   });
+
+  // Products dropdown: a button that toggles the list. Escape and a click outside close it; no inline JS.
+  const sub = document.querySelector('.has-sub');
+  const subBtn = sub?.querySelector('.sub-btn');
+  function closeSub(restoreFocus) {
+    if (!sub?.classList.contains('open')) return;
+    sub.classList.remove('open');
+    subBtn.setAttribute('aria-expanded', 'false');
+    if (restoreFocus) subBtn.focus();
+  }
+  subBtn?.addEventListener('click', () => {
+    const open = sub.classList.toggle('open');
+    subBtn.setAttribute('aria-expanded', String(open));
+  });
+  document.addEventListener('click', (e) => { if (sub && !sub.contains(e.target)) closeSub(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (sub?.classList.contains('open')) closeSub(true);
+    else if (nav?.classList.contains('open')) { nav.classList.remove('open'); menu?.setAttribute('aria-expanded', 'false'); menu?.focus(); }
+  });
+  sub?.addEventListener('focusout', (e) => { if (!sub.contains(e.relatedTarget)) closeSub(); });
+
+  // Old IntelyIDE links such as /#install or /hu/#trust now live on the product page: forward them.
+  const ideUrl = document.body.dataset.ideUrl;
+  const hash = decodeURIComponent(location.hash.slice(1));
+  if (ideUrl && hash && !document.getElementById(hash)) location.replace(`${ideUrl}#${hash}`);
 
   // Sticky header download button, shown once the hero button has scrolled away.
   const hdr = document.querySelector('.hdr-dl');

@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import en from '../src/content/en.mjs';
 import hu from '../src/content/hu.mjs';
-import { FEED_CHANNELS, feedFiles, prepareRelease } from '../src/lib.mjs';
+import { FEED_CHANNELS, feedFiles, fillTokens, loadOptiRelease, optiVars, prepareOptiRelease, prepareRelease } from '../src/lib.mjs';
 import { pages } from '../src/pages.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -29,26 +29,39 @@ const abs = (path) => `${cfg.siteUrl}${cfg.basePath}${path}`;
 rmSync(dist, { recursive: true, force: true });
 cpSync(join(root, 'src/static'), dist, { recursive: true });
 
+const PAGES = [['', 'home'], ['intelyide', 'ide'], ['intelyopti', 'opti'], ['download', 'download'], ['privacy', 'privacy'], ['terms', 'terms']];
 const langs = [
-  { t: en, prefix: '/', dir: '' },
-  { t: hu, prefix: '/hu/', dir: 'hu/' },
+  { raw: en, prefix: '/', dir: '' },
+  { raw: hu, prefix: '/hu/', dir: 'hu/' },
 ];
-for (const { t, prefix, dir } of langs) {
-  const rel = prepareRelease(release, t);
-  const make = (path, extra = {}) => ({
-    cfg, t, rel, lang: t.lang, path, abs,
-    root: '../'.repeat(path.split('/').filter(Boolean).length),
-    ...extra,
+const optiRaw = loadOptiRelease(dataDir);
+const siteTexts = {};
+for (const { raw, prefix, dir } of langs) {
+  // One place feeds every price, number and legal link in the copy: site.config.json (see optiVars).
+  const t = fillTokens(raw, {
+    ...optiVars(cfg, raw.lang),
+    privacyHref: `${cfg.basePath}${prefix}privacy/`,
+    termsHref: `${cfg.basePath}${prefix}terms/`,
   });
-  write(`${dir}index.html`, pages.home(make(prefix, { sticky: true })));
-  write(`${dir}download/index.html`, pages.download(make(`${prefix}download/`)));
+  siteTexts[raw.lang] = t;
+  const rel = prepareRelease(release, t);
+  const opti = prepareOptiRelease(optiRaw, t);
+  for (const [slug, page] of PAGES) {
+    const path = `${prefix}${slug ? `${slug}/` : ''}`;
+    const ctx = {
+      cfg, t, rel, opti, lang: t.lang, path, slug, abs,
+      root: '../'.repeat(path.split('/').filter(Boolean).length),
+    };
+    write(`${dir}${slug ? `${slug}/` : ''}index.html`, pages[page](ctx));
+  }
 }
+const en0 = siteTexts.en;
 
 // GitHub Pages serves 404.html at any depth, so it uses absolute, base-path-aware URLs.
 write(
   '404.html',
   pages.notFound({
-    cfg, t: en, rel: prepareRelease(release, en), lang: 'en', path: '/404.html', abs,
+    cfg, t: en0, rel: prepareRelease(release, en0), opti: {}, lang: 'en', path: '/404.html', slug: '404', abs,
     root: `${cfg.basePath}/`, absoluteLinks: true, noLang: true,
   }),
 );
@@ -64,7 +77,7 @@ for (const name of FEED_CHANNELS.flatMap(feedFiles)) {
 write('robots.txt', `User-agent: *\nAllow: /\n\nSitemap: ${abs('/sitemap.xml')}\n`);
 write(
   'sitemap.xml',
-  `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${['/', '/download/', '/hu/', '/hu/download/']
+  `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${PAGES.flatMap(([slug]) => [`/${slug ? `${slug}/` : ''}`, `/hu/${slug ? `${slug}/` : ''}`])
     .map((p) => `<url><loc>${abs(p)}</loc></url>`)
     .join('\n')}\n</urlset>\n`,
 );
@@ -72,9 +85,9 @@ write(
   'site.webmanifest',
   JSON.stringify(
     {
-      name: 'IntelyIDE',
-      short_name: 'IntelyIDE',
-      description: en.meta.homeDesc,
+      name: 'IntelyHome',
+      short_name: 'IntelyHome',
+      description: en0.meta.homeDesc,
       start_url: './',
       display: 'browser',
       theme_color: '#7c4dff',

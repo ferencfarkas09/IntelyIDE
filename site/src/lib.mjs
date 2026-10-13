@@ -3,7 +3,7 @@ import { extname, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateFeed } from '../../scripts/release/updater/lib/feed.mjs';
 import { CHANNELS, LIMITS, PAGES_BASE_PATH, PAGES_HOST, RELEASE_HOST, REPO_SLUG } from '../../scripts/release/updater/names.mjs';
-import { WIDTHS } from '../scripts/shots.mjs';
+import { DEFAULT_DIMS, DIMS, OPTI_DIMS, OPTI_WIDTHS, WIDTHS } from '../scripts/shots.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const IMG = join(here, 'static/assets/img');
@@ -102,11 +102,16 @@ const has = (file) => existsSync(join(IMG, file));
 /**
  * <picture> for a themed image. Real files named <name>-<theme>-<width>.<fmt> in img/shots win;
  * otherwise the SVG placeholder is used. The dark <source> carries data-theme="dark" so site.js
- * can follow the manual theme toggle (see applyTheme there).
+ * can follow the manual theme toggle (see applyTheme there). Light and dark are never shown together:
+ * the dark source only matches in a dark scheme, otherwise the light <img> is the fallback.
+ * Slots named opti-* use the IntelyOpti widths and aspect ratio; any subset of widths is fine.
  */
-export function picture(root, name, alt, { eager = false, sizes = '(min-width: 1000px) 640px, 92vw', w = 1440, h = 900 } = {}) {
+export function picture(root, name, alt, { eager = false, sizes = '(min-width: 1000px) 640px, 92vw' } = {}) {
+  const opti = name.startsWith('opti-');
+  const [w, h] = opti ? OPTI_DIMS : (DIMS[name] ?? DEFAULT_DIMS);
+  const widths = opti ? OPTI_WIDTHS : WIDTHS;
   const dark = '(prefers-color-scheme: dark)';
-  const real = (theme, fmt) => WIDTHS.filter((x) => has(`shots/${name}-${theme}-${x}.${fmt}`));
+  const real = (theme, fmt) => widths.filter((x) => has(`shots/${name}-${theme}-${x}.${fmt}`));
   const hasReal = real('light', 'png').length > 0;
   const loading = eager ? 'fetchpriority="high"' : 'loading="lazy" decoding="async"';
   if (!hasReal) {
@@ -124,8 +129,8 @@ export function picture(root, name, alt, { eager = false, sizes = '(min-width: 1
         return `<source${media} type="${types[fmt]}" srcset="${srcset(theme, fmt)}" sizes="${sizes}">`;
       })
       .join('');
-  const widths = real('light', 'png');
-  const fallback = `${root}assets/img/shots/${name}-light-${widths[widths.length - 1]}.png`;
+  const lightWidths = real('light', 'png');
+  const fallback = `${root}assets/img/shots/${name}-light-${lightWidths[lightWidths.length - 1]}.png`;
   return `<picture>${sources('dark')}${sources('light')}<img src="${fallback}" srcset="${srcset('light', 'png')}" sizes="${sizes}" alt="${esc(alt)}" width="${w}" height="${h}" ${loading}></picture>`;
 }
 
@@ -175,6 +180,99 @@ export const icons = {
       '<path d="M6 16a8 8 0 0 1 8-8h22l8 10h38a8 8 0 0 1 8 8v42a8 8 0 0 1-8 8H14a8 8 0 0 1-8-8z" fill="#4aa8ff"/><path d="M6 30a8 8 0 0 1 8-8h68a8 8 0 0 1 8 8v36a8 8 0 0 1-8 8H14a8 8 0 0 1-8-8z" fill="#7cc4ff"/>',
     ),
 };
+
+const ICON_PATHS = {
+  layers: '<path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/>',
+  shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+  rewind: '<path d="M11 19 2 12l9-7v14z"/><path d="M22 19l-9-7 9-7v14z"/>',
+  database: '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.7 4 3 9 3s9-1.3 9-3V5"/><path d="M3 12c0 1.7 4 3 9 3s9-1.3 9-3"/>',
+  contract: '<path d="M22 11.1V12a10 10 0 1 1-5.9-9.1"/><path d="m22 4-10 10-3-3"/>',
+  phone: '<rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/>',
+  users: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.9"/><path d="M16 3.1a4 4 0 0 1 0 7.8"/>',
+  server: '<rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><path d="M6 6h.01M6 18h.01"/>',
+  code: '<path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/>',
+  zap: '<path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/>',
+  activity: '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
+  thermo: '<path d="M14 14.8V4a2 2 0 0 0-4 0v10.8a4 4 0 1 0 4 0z"/>',
+  wifi: '<path d="M5 12.6a10 10 0 0 1 14 0"/><path d="M1.4 9a15 15 0 0 1 21.2 0"/><path d="M8.5 16.1a6 6 0 0 1 7 0"/><path d="M12 20h.01"/>',
+  trash: '<path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="m19 6-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>',
+  pie: '<path d="M21.2 15.9A10 10 0 1 1 8 2.8"/><path d="M22 12A10 10 0 0 0 12 2v10z"/>',
+  sliders: '<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>',
+  cpu: '<rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"/>',
+  clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+  sparkles: '<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8L19 15z"/>',
+  battery: '<rect x="2" y="7" width="16" height="10" rx="2"/><path d="M22 11v2"/>',
+  lock: '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  unlock: '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>',
+  home: '<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/>',
+  branch: '<circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="8" r="2"/><path d="M6 8v8"/><path d="M18 10a6 6 0 0 1-6 6H8"/>',
+  globe: '<circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20z"/>',
+  contrast: '<circle cx="12" cy="12" r="9"/><path d="M12 3v18a9 9 0 0 0 0-18z" fill="currentColor"/>',
+  keyboard: '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01M7 15h10"/>',
+  feed: '<path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/>',
+  badge: '<path d="M12 2l2.4 1.8 3 .1 1 2.8 2.4 1.8-.9 2.9.9 2.9-2.4 1.8-1 2.8-3 .1L12 22l-2.4-1.8-3-.1-1-2.8-2.4-1.8.9-2.9-.9-2.9 2.4-1.8 1-2.8 3-.1z"/><path d="m9 12 2 2 4-4"/>',
+  chart: '<path d="M18 20V10M12 20V4M6 20v-6"/>',
+  bell: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>',
+  drive: '<path d="M22 12H2"/><path d="M5.5 5.1 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.5-6.9A2 2 0 0 0 16.7 4H7.3a2 2 0 0 0-1.8 1.1z"/><path d="M6 16h.01M10 16h.01"/>',
+  power: '<path d="M18.4 6.6a9 9 0 1 1-12.8 0"/><path d="M12 2v10"/>',
+  mail: '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/>',
+  check: '<path d="m5 12 5 5L20 7"/>',
+  heart: '<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21.2l7.8-7.7 1-1.1a5.5 5.5 0 0 0 0-7.8z"/>',
+};
+/** Decorative stroke icon by name (see ICON_PATHS). */
+export const icon = (name, size = 24) =>
+  svg(`class="ico" viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"`, ICON_PATHS[name] ?? '');
+
+/** Replaces {{key}} in every string of a content tree (deep copy). Unknown keys fail the build loudly. */
+export function fillTokens(node, vars) {
+  if (typeof node === 'string') {
+    return node.replace(/\{\{(\w+)\}\}/g, (_, k) => {
+      if (!(k in vars)) throw new Error(`unknown content token {{${k}}}`);
+      return vars[k];
+    });
+  }
+  if (Array.isArray(node)) return node.map((x) => fillTokens(x, vars));
+  if (node && typeof node === 'object') return Object.fromEntries(Object.entries(node).map(([k, v]) => [k, fillTokens(v, vars)]));
+  return node;
+}
+
+/** Money for the page copy, from the plain numbers in site.config.json ("19.99" -> "$19.99" / "19,99 USD"). */
+export function money(amount, lang, currency = 'USD') {
+  if (lang === 'hu') return `${String(amount).replace('.', ',')} ${currency}`;
+  return currency === 'USD' ? `$${amount}` : `${amount} ${currency}`;
+}
+
+/** Copy variables for the IntelyOpti numbers: one place (site.config.json) feeds every page and language. */
+export function optiVars(cfg, lang) {
+  const o = cfg.intelyopti;
+  return {
+    trial: String(o.trialDays),
+    freeMB: String(o.freeCleanMB),
+    yearly: money(o.yearlyPrice, lang, o.currency),
+    lifetime: money(o.lifetimePrice, lang, o.currency),
+    minMac: String(o.minMacOS),
+  };
+}
+
+/** Display-ready IntelyOpti release facts (size and date formatted); absent fields stay absent. */
+export function prepareOptiRelease(raw, t) {
+  const out = { ...raw };
+  if (out.size !== undefined) out.size = fmtSize(out.size);
+  if (out.date !== undefined) out.date = fmtDate(out.date, t.locale);
+  return out;
+}
+
+/** Reads data/intelyopti-release.json when it exists; the pages work without it. */
+export function loadOptiRelease(dataDir) {
+  const file = join(dataDir, 'intelyopti-release.json');
+  if (!existsSync(file)) return {};
+  try {
+    const r = JSON.parse(readFileSync(file, 'utf8'));
+    return Object.fromEntries(Object.entries(r).filter(([k, v]) => !k.startsWith('_') && v !== null && v !== ''));
+  } catch {
+    return {};
+  }
+}
 
 /** Feed files the site serves verbatim under /update/ (updater spec 4.14). */
 export const FEED_CHANNELS = CHANNELS;

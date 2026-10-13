@@ -1,5 +1,6 @@
 // The screenshot slots. Key = file stem, value = what the real screenshot must show.
-// Real files go in src/static/assets/img/shots/ as <name>-<light|dark>-<2880|1440|720>.<png|webp|avif>.
+// Real files go in src/static/assets/img/shots/ as <name>-<light|dark>-<width>.<png|webp|avif>.
+// IntelyIDE: 720 / 1440 (from 1600 px sources, never upscaled). IntelyOpti: 720 / 1440 / 2400.
 export const SHOTS = {
   hero: 'Main window: Changes tree, editor and an agent panel (demo workspace)',
   'changes-tree': 'Changes tree with four repositories and grouped changes',
@@ -14,7 +15,29 @@ export const SHOTS = {
   'team-memory': 'Team (Beta): shared Claude memory with a pending CLAUDE.md change and a conflict copy',
   providers: 'Settings > Providers: provider cards and the Experimental providers switch',
   'api-contract': 'API contract view: contract-drift findings',
-  'api-explorer': 'API contract view: read-only Swagger explorer',
+  appearance: 'Settings > Appearance: themes and accent colors',
+  palette: 'Command palette',
+  'diff-graph': 'Diff and commit graph',
 };
 
+// IntelyOpti captures: opti-<name>-<light|dark>.png, 2400x1600, dropped by the owner into IntelyOpti/site-assets/shots/.
+export const OPTI_SHOTS = {
+  'opti-dashboard': 'Smart Care dashboard: health score and one-click optimize',
+  'opti-health': 'Mac Health: thermals, fans, battery, SSD',
+  'opti-turbo': 'Turbo: background-service diet, priorities, GPU mode',
+  'opti-tweaks': 'Speed Tweaks: reversible animation and effect tweaks',
+  'opti-network': 'Network Speed: download, upload, responsiveness, DNS benchmark',
+  'opti-modes': 'Pro Modes: Max Speed, Cool Down, Focus, Battery Saver',
+  'opti-advisor': 'AI Advisor: plan built from a redacted snapshot',
+  'opti-cleanup': 'Cleanup: caches, logs, developer leftovers',
+};
+
+/** Widths available per slot family, smallest first. Pages tolerate any subset. */
 export const WIDTHS = [720, 1440, 2880];
+export const OPTI_WIDTHS = [720, 1440, 2400];
+/** Intrinsic size (w, h) the <img> declares at the 1440 variant, to avoid layout shift. */
+export const DEFAULT_DIMS = [1440, 923];
+export const DIMS = {
+  team: [1440, 900], 'team-memory': [1440, 900], 'api-explorer': [1440, 900],
+};
+export const OPTI_DIMS = [1440, 960];
