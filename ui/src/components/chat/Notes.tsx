@@ -118,7 +118,7 @@ export function NoteRow(props: {
  * The field that adds a note to a running subagent: Enter sends, Shift+Enter breaks the line, Esc clears. `onSend` rejects when the host
  * refused the note (the caller says why); the text then stays so it can be sent again.
  */
-export function NoteInput(props: { label: string; onSend: (text: string) => Promise<void> }) {
+export function NoteInput(props: { label: string; /** The name of the send button; "Send note" when not given. */ sendLabel?: string; onSend: (text: string) => Promise<void> }) {
   const [text, setText] = createSignal("");
   const [busy, setBusy] = createSignal(false);
   const send = async () => {
@@ -155,7 +155,7 @@ export function NoteInput(props: { label: string; onSend: (text: string) => Prom
           }
         }}
       />
-      <IconButton icon={SendHorizontal} size="sm" label={t("notes.send")} disabled={busy() || text().trim() === ""} onClick={() => void send()} />
+      <IconButton icon={SendHorizontal} size="sm" label={props.sendLabel ?? t("notes.send")} disabled={busy() || text().trim() === ""} onClick={() => void send()} />
     </div>
   );
 }

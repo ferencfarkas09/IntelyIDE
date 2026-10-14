@@ -3,10 +3,13 @@ import { Transcript } from "../../components/chat/Transcript";
 import { t } from "../../i18n";
 import type { TeamMember, TeamRun } from "../../ipc/team";
 import { openSettings } from "../../platform/settings";
-import { Badge, Button, EmptyState, Eye, FileText, SegmentedControl, StatusDot, Users } from "../../ui-kit";
+import { Badge, Button, EmptyState, Eye, FileText, GitCommitHorizontal, SegmentedControl, StatusDot, Users } from "../../ui-kit";
 import { timeAgo } from "../../components/push/logic";
 import { loadRuns, runs, runsError, selected, selectRun, transcript } from "./runs";
+import { ChatPanel } from "./ChatPanel";
+import CommitsPane from "./CommitsPane";
 import MemoryPane from "./MemoryPane";
+import { unreadOf, watchChat } from "./chat";
 import { watchMemory } from "./memoryWatch";
 import { TeamNoteCards, TeamNoteComposer } from "./TeamNotes";
 import { loadTeam, loaded, view } from "./store";
@@ -25,6 +28,7 @@ const stateText = (s: TeamRun["state"]) => t(`team.run.state.${s}` as "team.run.
 export default function TeamTab() {
   onMount(() => {
     watchMemory();
+    watchChat();
     void loadTeam();
     void loadRuns();
   });
@@ -49,13 +53,20 @@ export default function TeamTab() {
   );
 }
 
-type Sub = "run" | "workspace";
+type Sub = "run" | "chat" | "workspace";
+// a team-wide pane takes the main area until a run is picked again
+type Pane = "memory" | "commits";
 
 function Body() {
   const [sub, setSub] = createSignal<Sub>("run");
-  // "Shared memory" (beta) is about the whole team, not one run: it takes the main area until a run is picked again
-  const [memory, setMemory] = createSignal(false);
-  createEffect(on(selected, () => setMemory(false), { defer: true }));
+  const [pane, setPane] = createSignal<Pane | undefined>(undefined);
+  const toggle = (p: Pane) => setPane((cur) => (cur === p ? undefined : p));
+  createEffect(on(selected, () => setPane(undefined), { defer: true }));
+  const openWorkspace = (memberId: string, runId: string) => {
+    selectRun({ memberId, runId });
+    setSub("workspace");
+    setPane(undefined);
+  };
   const others = createMemo(() => view().members.filter((m) => !m.me));
   const runsOf = (id: string) => runs().filter((r) => r.memberId === id);
   const current = createMemo(() => {
@@ -70,13 +81,14 @@ function Body() {
         <Show when={others().length > 0} fallback={<p class="team-note team-tab__pad">{t("team.tab.alone")}</p>}>
           <For each={others()}>{(m) => <MemberBlock member={m} runs={runsOf(m.id)} />}</For>
         </Show>
-        <Button size="sm" variant={memory() ? "primary" : "secondary"} icon={FileText} aria-pressed={memory()} data-testid="team-memory-open" onClick={() => setMemory((v) => !v)}>{t("team.mem.tab")}</Button>
+        <Button size="sm" variant={pane() === "commits" ? "primary" : "secondary"} icon={GitCommitHorizontal} aria-pressed={pane() === "commits"} data-testid="team-commits-open" onClick={() => toggle("commits")}>{t("team.commits.tab")}</Button>
+        <Button size="sm" variant={pane() === "memory" ? "primary" : "secondary"} icon={FileText} aria-pressed={pane() === "memory"} data-testid="team-memory-open" onClick={() => toggle("memory")}>{t("team.mem.tab")}</Button>
         <p class="team-note team-tab__pad"><Eye size={12} /> {t("team.tab.readOnly")}</p>
       </aside>
       <section class="team-tab__main" aria-label={t("team.tab.transcript")}>
         <Show
-          when={memory() ? undefined : current()}
-          fallback={memory() ? <MemoryPane /> : <EmptyState icon={Eye} size="sm" title={t("team.tab.pick")} description={runs().length ? t("team.tab.pickDesc") : t("team.tab.noRuns")} />}
+          when={pane() ? undefined : current()}
+          fallback={pane() === "memory" ? <MemoryPane /> : pane() === "commits" ? <CommitsPane onOpenWorkspace={openWorkspace} /> : <EmptyState icon={Eye} size="sm" title={t("team.tab.pick")} description={runs().length ? t("team.tab.pickDesc") : t("team.tab.noRuns")} />}
         >
           {(r) => (
             <>
@@ -97,18 +109,43 @@ function Body() {
                   onChange={setSub}
                   options={[
                     { value: "run", label: t("team.tab.subRun") },
+                    {
+                      value: "chat",
+                      label: (
+                        <>
+                          {t("team.chat.tab")}
+                          <Show when={unreadOf(r().memberId, r().runId) > 0}>
+                            {" "}
+                            <Badge tone="accent" numeric size="sm" title={t("team.chat.unread", { n: unreadOf(r().memberId, r().runId) })}>{unreadOf(r().memberId, r().runId)}</Badge>
+                          </Show>
+                        </>
+                      ),
+                    },
                     { value: "workspace", label: t("team.tab.subWorkspace") },
                   ]}
                 />
               </div>
-              <Show when={sub() === "run"} fallback={<WorkspaceView memberId={r().memberId} memberName={r().memberName} projectKey={r().projectKey} projectName={r().projectName} />}>
-                <Show when={transcript()}>{(v) => <Transcript agentId={r().runId} view={v()} readOnly who={r().memberName} />}</Show>
-                <TeamNoteComposer run={r()} />
+              <Show when={sub() === "workspace"} fallback={
+                <Show when={sub() === "chat"} fallback={<RunSub run={r()} />}>
+                  <ChatPanel ownerId={r().memberId} runId={r().runId} ownerName={r().memberName} ownerOnline={view().members.some((m) => m.id === r().memberId && m.online)} />
+                </Show>
+              }>
+                <WorkspaceView memberId={r().memberId} memberName={r().memberName} projectKey={r().projectKey} projectName={r().projectName} />
               </Show>
             </>
           )}
         </Show>
       </section>
+    </>
+  );
+}
+
+/** The Run sub-tab: the read-only transcript, and what you can send under it (a note while it works, a follow-up when it does not). */
+function RunSub(props: { run: TeamRun }) {
+  return (
+    <>
+      <Show when={transcript()}>{(v) => <Transcript agentId={props.run.runId} view={v()} readOnly who={props.run.memberName} />}</Show>
+      <TeamNoteComposer run={props.run} />
     </>
   );
 }
@@ -135,6 +172,9 @@ function MemberBlock(props: { member: TeamMember; runs: TeamRun[] }) {
                     <span class="team-tab__run-top">
                       <StatusDot tone={STATE_TONE[r.state]} pulse={r.state === "running"} size={6} label={stateText(r.state)} />
                       <span class="team-tab__run-title ui-truncate">{r.title || t("team.run.untitled")}</span>
+                      <Show when={unreadOf(r.memberId, r.runId) > 0}>
+                        <Badge tone="accent" numeric size="sm" title={t("team.chat.unread", { n: unreadOf(r.memberId, r.runId) })}>{unreadOf(r.memberId, r.runId)}</Badge>
+                      </Show>
                     </span>
                     <span class="team-tab__run-sub">
                       <span class="ui-truncate">{r.projectName}</span>

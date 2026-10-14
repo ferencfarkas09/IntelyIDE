@@ -12,9 +12,12 @@ export { snapshots, waiting, problems };
 
 /** No answer after this long: stop waiting and say so. */
 export const WAIT_MS = 20_000;
+/** The owner's machine answers a requester once per 30 s and project; asking sooner only earns a `rate` refusal. */
+export const ASK_GAP_MS = 30_000;
 export const wsKey = (memberId: string, projectKey: string) => `${memberId}:${projectKey}`;
 
 let watching: (() => void) | undefined;
+const askedAt = new Map<string, number>();
 const timers = new Map<string, ReturnType<typeof setTimeout>>();
 
 const put = <T>(set: (f: (o: Record<string, T>) => Record<string, T>) => void, key: string, value: T | undefined) =>
@@ -65,6 +68,7 @@ export async function loadWorkspace(memberId: string, projectKey: string): Promi
 export async function requestWorkspace(memberId: string, projectKey: string): Promise<void> {
   watch();
   const key = wsKey(memberId, projectKey);
+  askedAt.set(key, Date.now());
   put(setProblems, key, undefined);
   put(setWaiting, key, true);
   clearTimeout(timers.get(key));
@@ -77,12 +81,21 @@ export async function requestWorkspace(memberId: string, projectKey: string): Pr
   }
 }
 
+/** Like `requestWorkspace`, but not when this install asked less than 30 s ago. Resolves true when a request went out. */
+export async function requestWorkspaceThrottled(memberId: string, projectKey: string): Promise<boolean> {
+  const key = wsKey(memberId, projectKey);
+  if (Date.now() - (askedAt.get(key) ?? 0) < ASK_GAP_MS) return false;
+  await requestWorkspace(memberId, projectKey);
+  return true;
+}
+
 /** Tests: forget everything and the watchers. */
 export function resetWorkspace(): void {
   watching?.();
   watching = undefined;
   for (const t of timers.values()) clearTimeout(t);
   timers.clear();
+  askedAt.clear();
   setSnapshots({});
   setWaiting({});
   setProblems({});

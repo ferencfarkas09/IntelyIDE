@@ -1,13 +1,14 @@
 # Team
 
-Team collaboration (Beta) lets colleagues see who is online, follow each other's runs read-only, send a note into a run, look at a teammate's workspace changes and keep Claude memory equal across computers. It runs on your own relay (the same Cloudflare Worker as Remote). There is no account, no telemetry and no service we operate.
+Team collaboration (Beta) lets colleagues see who is online, follow each other's runs read-only, talk in a run, send a note or suggest a follow-up into a run, look at a teammate's workspace changes and latest commits and keep Claude memory equal across computers. It runs on your own relay (the same Cloudflare Worker as Remote). There is no account, no telemetry and no service we operate.
 
 ## Overview
 
 - **Teams on your own relay.** An admin creates a team and invites people with a one-time code and a safety code. Everything the relay carries is end-to-end encrypted.
 - **Sharing runs.** Live, read-only view of teammates' runs, tool calls and diffs, shared per project, with secrets masked.
-- **Notes.** A note into a teammate's run, delivered only after the owner approves it.
-- **Workspace.** A snapshot of a teammate's changed files, opt-in per project.
+- **Notes and follow-ups.** A note into a teammate's working run, or a follow-up for one that has stopped, marked as the teammate's and delivered only after the owner approves it.
+- **Chat in a run.** A thread under every shared run for the people talking about it. It is for humans: nothing in it is ever given to an agent.
+- **Workspace and commits.** A snapshot of a teammate's changed files and latest commits, opt-in per project, and a team-wide Commits view.
 - **Shared memory.** `memory/*.md` kept equal, opt-in per project, with conflict copies. `CLAUDE.md` is a separate opt-in and is never written for you.
 - **Never more than that.** A teammate can never answer permission cards or start runs (see "What a teammate can never do").
 
@@ -63,11 +64,40 @@ In the Team view, a run that is **working**, belongs to a member who is **online
 
 **Audit.** `team-audit.jsonl` records that a note was received, accepted or rejected, with the member and no text.
 
+## Follow-ups into a run that stopped
+
+A note goes into a run that is working. For a run that is **not working** (finished, waiting for its next message, or ended with an error) a teammate can suggest a **follow-up** instead: the Team view shows a follow-up field in place of the note field when the run is idle or failed, its owner is online and it uses **Claude**.
+
+1. **You write** up to 3800 characters ("Suggest a follow-up to <name>").
+2. **The owner's machine checks** what it checks for a note (you are a current member, the run exists, is shared and is a Claude run) and that the run is **not** working. A run that works answers "Refused: busy" (send a note instead). At most 5 follow-ups per minute per sender.
+3. **The owner always decides.** A card "<name> suggests a follow-up for this agent" with **Send to the agent** and **Reject** appears in the run's panel, and a banner goes through the same gate as the other notifications. The trusted-members opt-in (`team.autoAcceptNotesFrom`) never applies to a follow-up, because a follow-up starts a new turn: it waits for a click every time. Send to the agent gives the text to the run as a normal message (the call behind the run's own composer), headed "Follow-up from teammate <name> (the person running you approved it):", so the agent can tell it from you. Reject tells the sender.
+4. **You see where it stands:** Sent, Waiting for the owner, Sent to the agent, or Rejected, Refused (busy, unknown run...). Pending follow-ups share the list of pending notes (5 per sender, 40 in all).
+
+**Audit.** `team-audit.jsonl` records that a follow-up was received, accepted or rejected, with the member and no text.
+
+## Chat in a run
+
+Every shared run has a **thread**, a conversation of the people looking at it. It is human to human: **nothing said in a thread is ever given to an agent**. To put something in front of the agent use a note or a follow-up, which the owner approves.
+
+- **Where.** Team view > a teammate's run > **Chat**. On your own shared run a collapsible "Team chat" strip sits below the run's cards (collapsed by default, with an unread count); it is there only when you are in a team and the run is shared.
+- **The owner is the hub.** A message goes to the machine of the run's owner. That machine stamps it with its own clock (everybody sees one order), keeps it and sends it on to every member that is online. A member that connects later asks the owner for the last messages (up to 50 at a time). So **the owner has to be online** to chat or to catch up; what was already loaded stays readable and the composer says why it cannot send.
+- **Text.** 1 to 2000 characters, control characters other than newline and tab removed, secrets masked by the same redactor as shared runs before the message is passed on. At most 20 messages per minute per sender, counted by the owner; the first excess message comes back as "too many messages" and the rest of a flood is dropped without an answer (the sender is told at most once every 10 seconds, so refusing never becomes a flood of its own). A message the owner never answers is shown as lost after 30 seconds. Everything is shown as plain text, never as HTML.
+- **Who said it.** The name beside a message comes from the signed roster, by member id, never from the message. Someone who has left the team shows as "Former member". A message id starts with its author's member id and the owner's machine refuses an id that is not the sender's own, so nobody can keep another member's message out by reusing its id. The author and the time of a line are what the owner's machine recorded (a time more than a day ahead of your clock is taken as a day ahead), so a thread is only as trustworthy as that machine; see Known limits.
+- **Who can write.** Anyone in the team who sees the run, including after the run finished, as long as the owner is online and the run is still shared. Switching the run or its project off ends the thread: a message for a run that is not shared is refused.
+- **Kept.** A thread holds the last 200 messages (256 KB). The machine of the run's owner saves the threads of its own runs to `team-chat/<hash>.jsonl` in the app data folder (the file name is a hash of the run id; mode 0600 in a 0700 folder). Teammates keep what they received in memory only. Leaving or forgetting the team deletes the folder.
+- **Banners.** A message from someone else raises a banner through the same gate as the other Team notifications, never while that thread is open. An unread count shows on the Chat tab and beside the run in the list.
+
+**Audit.** Only refusals (rate, a message for a run that is not shared, an id that is not the sender's) are written to `team-audit.jsonl`, never a message text.
+
 ## Looking at a teammate's workspace
 
-Off by default, per project: Settings > Team > Shared projects has a "Workspace" switch next to the share switch (`team.workspaceProjects`, `{ "<projectKey>": true }`). When a teammate opens the **Workspace** sub-tab of one of your projects' runs and presses **Refresh**, your machine (if the project is switched on, and not more than once per 30 seconds for that teammate) builds a snapshot from the same git view as the Changes view and sends it in pieces.
+Off by default, per project: Settings > Team > Shared projects has a "Workspace and commits" switch next to the share switch (`team.workspaceProjects`, `{ "<projectKey>": true }`). When a teammate opens the **Workspace** sub-tab of one of your projects' runs and presses **Refresh**, your machine (if the project is switched on, and not more than once per 30 seconds for that teammate) builds a snapshot from the same git view as the Changes view and sends it in pieces.
 
-What is in it: the branch, commits ahead and behind, and every changed file (tracked changes and untracked text files) with its unified diff. What is left out: gitignored files (git does not list them), secret files by name (`.env*`, `*.pem`, `*.key`, `id_rsa*`, `.ssh/...`; the file is listed as "withheld"), files the app's guard calls secret, binaries and large files (listed, no diff), and secrets in the text (masked before sending, like shared runs). At most 512 KB of diff text in total and 64 KB per file; a cut file ends with `[... truncated]`.
+What is in it: the branch and its upstream, commits ahead and behind, the newest commits of the branch (see below) and every changed file (tracked changes and untracked text files) with its unified diff. What is left out: gitignored files (git does not list them), secret files by name (`.env*`, `*.pem`, `*.key`, `id_rsa*`, `.ssh/...`; the file is listed as "withheld"), files the app's guard calls secret, binaries and large files (listed, no diff), and secrets in the text (masked before sending, like shared runs). At most 512 KB of diff text in total and 64 KB per file; a cut file ends with `[... truncated]`.
+
+**Commits.** The snapshot carries up to 40 of the newest commits of the checked-out branch, newest first: the short id, the first line of the message (cut at 160 characters and masked like other text), the author's **name** (never the e-mail address git has with it; an address typed into a subject or a name is masked as `[email]`), the time, and whether the commit is not on the upstream branch yet ("not pushed"). That marker is read from the repository as it is: nothing is fetched for a snapshot, so a commit somebody else pushed can still show as not pushed until the owner fetches. A sender from an older version simply sends no commits.
+
+**Commits view.** The Team view has a **Commits** button beside Memory. It asks every online teammate for a snapshot of each project they share (one request per member and project per 30 seconds, plus **Refresh all**) and shows, per member and project, the branch with ahead and behind, how many files are edited (a link to their Workspace tab) and one **team timeline** of the recent commits of everybody, newest first. A project whose switch is off shows "Workspace sharing is off for this project".
 
 **Transfer.** The snapshot is serialized, split into chunks of at most 24 KiB per message (each chunk carries the snapshot id, its index, the count and the SHA-256 of the whole), sent a few at a time so it does not flood the relay, and put back together on the receiving side: chunks may arrive in any order, a damaged or inconsistent set is dropped, and a snapshot nobody asked for is ignored. The receiver shows the file list, a read-only diff and the time it was taken. There is no live mirror: **Refresh** asks again. Snapshots are kept in memory only.
 
@@ -92,7 +122,7 @@ Per project, off by default (Settings > Team > "Memory on"; setting `team.memory
 
 ## What a teammate can never do
 
-Only two requests exist (a note, a snapshot), and your machine decides on both. A teammate cannot answer a permission card or a question, send a prompt, start, stop or resume a run, change a setting or read a file. This is enforced in the message parser (`crates/team/src/collab.rs`): any other message kind does not parse and is dropped, and `cargo test -p intely-team` asserts it. See `docs/safety.md`.
+Only four requests exist (a note, a follow-up, a chat message, a snapshot), plus the answers to requests you made, and your machine decides on each: a note or a follow-up waits for your click (a follow-up even for a member you trust with notes), a chat message only ever goes into a thread that people read, and a snapshot is built only for a project you switched on. A teammate cannot answer a permission card or a question, send a prompt, start, stop or resume a run, change a setting or read a file. This is enforced in the message parser (`crates/team/src/collab.rs`): any other message kind does not parse and is dropped, and `cargo test -p intely-team` asserts it. See `docs/safety.md`.
 
 ## Security model
 
@@ -105,7 +135,7 @@ Only two requests exist (a note, a snapshot), and your machine decides on both. 
 - **Removing a member = a new epoch.** The admin generates a fresh key and sends it to every remaining member separately (`Noise_X`, one message that can wait in the relay's queue for an offline member), together with the new signed roster. The relay drops the removed member's token and closes the socket. The removed person never gets the new key. What they already saw stays with them; that cannot be undone.
 - **Audit.** `team-audit.jsonl` in the app data folder is a hash-chained log (the Remote audit code, its own file and head): joins, removals, key rotations, rejected messages. No keys, no content.
 - **Network rules.** The client is built on the Remote relay client: the host must be acknowledged, never a non-local host under the read-only or test jail, `wss://` off this machine, DNS answers in private ranges are refused.
-- **Boundaries.** A team member can never answer a permission card, answer a question, send a prompt or start or stop a run on another machine. The only requests are a note (the owner accepts it) and a workspace snapshot (the owner switched the project on). Run data and snapshots are read-only for the receiver and in memory only.
+- **Boundaries.** A team member can never answer a permission card, answer a question, send a prompt or start or stop a run on another machine. The only requests are a note or a follow-up (the owner accepts it), a chat message (human to human, never given to an agent) and a workspace snapshot (the owner switched the project on). Run data and snapshots are read-only for the receiver and in memory only.
 
 ## Relay protocol (for the curious)
 
@@ -114,6 +144,8 @@ Routes `/t/<teamId>/{create,join,ws,stat}`. Credentials travel as the WebSocket 
 ## Known limits
 
 - Shared runs: only the first repository of a run decides its project; runs on servers are not shared; a run you switch on again does not resend its earlier events; a teammate sees nothing of a run that started before they connected beyond the last 400 events.
+- Chat: the owner's machine is the hub of the threads of its own runs, so it must be online, and it could in principle alter or invent lines of such a thread, as any chat host could. Whoever can see a run can read and write in its thread. Nothing is queued for an offline member: a message to an offline owner is refused, and a teammate that was offline catches up from the owner when they open the thread.
+- Chat, follow-ups and the commit list need version 1.5.0 on both sides. An older version ignores the new messages (it never answers a chat message or a follow-up, so the sender sees "no answer" or "Sent" only) and sends no commits.
 - One team per install. One admin per team (there is no hand-over of the admin role yet).
 - A new member can replay old team messages (they are signed, so never forged) until it has seen newer ones.
 - The relay keeps a removed member's id as a tombstone; a team cannot be deleted from the relay yet.

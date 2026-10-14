@@ -1,7 +1,9 @@
-//! Team, phases T3 and T4 (docs/team.md): a note into a teammate's run and a snapshot of a teammate's workspace. Tauri-free and I/O-free.
+//! Team, phases T3, T4 and T6 (docs/team.md): a note or a follow-up into a teammate's run, a snapshot of a teammate's workspace (with
+//! the branch's commits), and chat in a shared run. Tauri-free and I/O-free.
 //!
-//! These are the ONLY things a teammate can ask of another machine, and both are requests the owner's side decides on: a note waits
-//! for the owner's accept (or a per-member opt-in), a snapshot is built only for a project the owner switched on. Anything else a
+//! These are the ONLY things a teammate can ask of another machine, and every one is decided on the owner's side: a note waits for the
+//! owner's accept (or a per-member opt-in), a follow-up ALWAYS waits for the owner's accept, a snapshot is built only for a project the
+//! owner switched on, and chat only lands in the thread of a run the owner shares (it is never handed to an agent). Anything else a
 //! `direct` envelope carries (a permission answer, a start, a stop, a question answer, a prompt) does not parse here: [`CollabMsg::parse`]
 //! returns `None` for every `t` that is not listed below, and the caller drops it. There is no variant to add them to by accident.
 
@@ -11,7 +13,8 @@ use intely_remote::util::{b64u, b64u_decode, sha256_hex};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
-use crate::redact::{is_secret_file, scrub};
+use crate::chat::{clean_chat, text_ok, ChatEntry, HISTORY_MAX, MAX_CHAT_BYTES};
+use crate::redact::{is_secret_file, mask_emails, scrub};
 use crate::share::MAX_MSG;
 
 /// A note is at most this many bytes on the wire and this many characters (the host's limit is 4000 including the "Note from ..." line).
@@ -35,6 +38,14 @@ pub const MAX_FILES: usize = 300;
 pub const CHUNK_RAW: usize = 14 * 1024;
 /// A snapshot of more chunks than this is refused by the receiver (diff text is 512 KiB; JSON escaping can double it).
 pub const MAX_CHUNKS: u32 = 128;
+/// Follow-ups a member may send per minute (counted by the receiver, per sender).
+pub const FOLLOWUPS_PER_MIN: usize = 5;
+/// The newest commits of the checked-out branch a snapshot carries, and the longest subject of one.
+pub const MAX_COMMITS: usize = 40;
+/// A sender over a limit is told about it at most this often (and the audit log gets one line per telling).
+pub const REFUSAL_GAP_MS: u64 = 10_000;
+pub const MAX_SUBJECT_CHARS: usize = 160;
+const MAX_AUTHOR_CHARS: usize = 60;
 
 /// Where a note stands, as the sender sees it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -52,12 +63,48 @@ pub enum NoteStatus {
     Refused,
 }
 
-/// The plaintext of a `direct` envelope of T3 / T4.
+/// What a pending message from a teammate is: a note for a run that works (delivered with the agent's next tool call), or a follow-up
+/// for a run that does not (sent as a new prompt). A follow-up is never accepted without the owner's click.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum NoteKind {
+    #[default]
+    #[serde(rename = "note")]
+    Note,
+    #[serde(rename = "followup")]
+    FollowUp,
+}
+
+/// The plaintext of a `direct` (or, for `chat.msg`, `fanout`) envelope of T3 / T4 / T6.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "t", rename_all_fields = "camelCase")]
 pub enum CollabMsg {
     #[serde(rename = "note.send")]
     NoteSend { run_id: String, note_id: String, text: String },
+    /// A suggestion for a run that is not working; the owner decides, every time.
+    #[serde(rename = "followup.send")]
+    FollowUpSend { run_id: String, note_id: String, text: String },
+    #[serde(rename = "followup.status")]
+    FollowUpStatus {
+        run_id: String,
+        note_id: String,
+        status: NoteStatus,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        reason: Option<String>,
+    },
+    /// Member -> the run's owner: a chat message for the thread of that run.
+    #[serde(rename = "chat.send")]
+    ChatSend { run_id: String, msg_id: String, text: String },
+    /// The run's owner -> everyone: a message of the thread, stamped with the owner's clock (accepted only from the owner of the run).
+    #[serde(rename = "chat.msg")]
+    ChatMsg { run_id: String, msg_id: String, author: String, text: String, at: u64 },
+    /// Member -> owner: "send me the last messages of this run's thread".
+    #[serde(rename = "chat.request")]
+    ChatRequest { run_id: String },
+    #[serde(rename = "chat.history")]
+    ChatHistory { run_id: String, msgs: Vec<ChatEntry> },
+    /// Owner -> sender: the message was not taken (`rate`, `unknownRun`, `notMember`, `invalid`).
+    #[serde(rename = "chat.denied")]
+    ChatDenied { run_id: String, msg_id: String, reason: String },
     #[serde(rename = "note.status")]
     NoteStatus {
         run_id: String,
@@ -88,7 +135,7 @@ impl CollabMsg {
         serde_json::to_vec(self).expect("collab message serializes")
     }
 
-    /// `None` for anything that is not one of the five messages above or breaks their limits.
+    /// `None` for anything that is not one of the messages above or breaks their limits.
     pub fn parse(plain: &[u8]) -> Option<Self> {
         if plain.len() > MAX_MSG * 2 {
             return None;
@@ -103,7 +150,18 @@ impl CollabMsg {
                 let t = clean_note(text);
                 clean_id(run_id, 80) && clean_id(note_id, 80) && text.len() <= MAX_NOTE_BYTES && !t.is_empty() && t.chars().count() <= MAX_NOTE_CHARS
             }
-            Self::NoteStatus { run_id, note_id, reason, .. } => clean_id(run_id, 80) && clean_id(note_id, 80) && reason.as_ref().is_none_or(|r| r.len() <= 40),
+            Self::NoteStatus { run_id, note_id, reason, .. } | Self::FollowUpStatus { run_id, note_id, reason, .. } => {
+                clean_id(run_id, 80) && clean_id(note_id, 80) && reason.as_ref().is_none_or(|r| r.len() <= 40)
+            }
+            Self::FollowUpSend { run_id, note_id, text } => {
+                let t = clean_note(text);
+                clean_id(run_id, 80) && clean_id(note_id, 80) && text.len() <= MAX_NOTE_BYTES && !t.is_empty() && t.chars().count() <= MAX_NOTE_CHARS
+            }
+            Self::ChatSend { run_id, msg_id, text } => clean_id(run_id, 80) && clean_id(msg_id, 80) && text.len() <= MAX_CHAT_BYTES && text_ok(&clean_chat(text)),
+            Self::ChatMsg { run_id, msg_id, author, text, .. } => clean_id(run_id, 80) && clean_id(msg_id, 80) && clean_id(author, 64) && text_ok(text),
+            Self::ChatRequest { run_id } => clean_id(run_id, 80),
+            Self::ChatHistory { run_id, msgs } => clean_id(run_id, 80) && msgs.len() <= HISTORY_MAX && msgs.iter().all(ChatEntry::valid),
+            Self::ChatDenied { run_id, msg_id, reason } => clean_id(run_id, 80) && clean_id(msg_id, 80) && reason.len() <= 40,
             Self::WsRequest { project_key } | Self::WsDenied { project_key, .. } => clean_id(project_key, 64),
             Self::WsChunk { project_key, snap_id, index, count, sha256, data } => {
                 clean_id(project_key, 64) && clean_id(snap_id, 40) && *count >= 1 && *count <= MAX_CHUNKS && index < count && sha256.len() == 64 && data.len() <= MAX_MSG
@@ -151,6 +209,19 @@ impl RateLimit {
 
     pub fn snapshots() -> Self {
         Self::new(1, SNAPSHOT_GAP_MS)
+    }
+
+    pub fn followups() -> Self {
+        Self::new(FOLLOWUPS_PER_MIN, 60_000)
+    }
+
+    pub fn chat() -> Self {
+        Self::new(crate::chat::CHAT_PER_MIN, 60_000)
+    }
+
+    /// "May I tell this sender it was refused?": once per [`REFUSAL_GAP_MS`] per key, so refusing a flood cannot become a flood of its own.
+    pub fn refusals() -> Self {
+        Self::new(1, REFUSAL_GAP_MS)
     }
 
     /// Records the event and says whether it is within the limit. A refused event is not recorded.
@@ -239,6 +310,31 @@ pub fn judge_note(sender_in_roster: bool, run: Option<RunFacts>) -> Result<(), &
     Ok(())
 }
 
+/// The rule for an incoming follow-up: like a note, but for a run that is NOT working (a working run takes a note instead).
+/// `Err` is the `reason` sent back; nothing is shown to the owner then.
+pub fn judge_followup(sender_in_roster: bool, run: Option<RunFacts>) -> Result<(), &'static str> {
+    if !sender_in_roster {
+        return Err("notMember");
+    }
+    let Some(r) = run.filter(|r| r.shared) else { return Err("unknownRun") };
+    if r.live {
+        return Err("busy");
+    }
+    if !r.claude {
+        return Err("unsupported");
+    }
+    Ok(())
+}
+
+/// The rule for an incoming chat message: a member of the team writing in the thread of a run that is shared (finished or not, any
+/// provider). A run that is not shared answers like one that does not exist.
+pub fn judge_chat(sender_in_roster: bool, run: Option<RunFacts>) -> Result<(), &'static str> {
+    if !sender_in_roster {
+        return Err("notMember");
+    }
+    run.filter(|r| r.shared).map(|_| ()).ok_or("unknownRun")
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PendingNote {
     pub from: String,
@@ -247,6 +343,7 @@ pub struct PendingNote {
     pub note_id: String,
     pub text: String,
     pub at: u64,
+    pub kind: NoteKind,
 }
 
 /// Notes the owner has not decided on yet, in memory only.
@@ -313,6 +410,13 @@ pub fn attributed(name: &str, text: &str) -> String {
     format!("Note from teammate {name}:\n{}", clean_note(text))
 }
 
+/// The prompt a follow-up becomes once the owner approved it: marked as the teammate's, and as approved, so the agent (and the
+/// transcript, which every member can read) can tell it from something the person typed.
+pub fn attributed_followup(name: &str, text: &str) -> String {
+    let name: String = name.chars().filter(|c| !c.is_control()).take(60).collect();
+    format!("Follow-up from teammate {name} (the person running you approved it):\n{}", clean_note(text))
+}
+
 // ---------------------------------------------------------------- workspace snapshot (T4)
 
 /// One changed file of a snapshot. `diff` is a unified diff (redacted); empty with `skipped` set when the content is not shared.
@@ -329,18 +433,92 @@ pub struct SnapshotFile {
     pub skipped: Option<String>,
 }
 
+/// One commit of the branch a snapshot was taken on (docs/team.md, "commit list"). No e-mail address, a redacted subject.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SnapshotCommit {
+    /// The first ten characters of the commit id.
+    pub oid: String,
+    pub subject: String,
+    /// The author's name as git has it.
+    pub author: String,
+    /// Author time, milliseconds.
+    pub at: u64,
+    /// Not on the upstream branch yet.
+    pub unpushed: bool,
+}
+
+impl SnapshotCommit {
+    /// What the receiving side insists on, whatever the sender claims: a hexadecimal id of at most ten characters, and names and
+    /// subjects within their caps (they are shown as text, so this is about size, not about markup).
+    pub fn sane(&self) -> bool {
+        (7..=10).contains(&self.oid.len())
+            && self.oid.bytes().all(|c| c.is_ascii_hexdigit())
+            && self.subject.chars().count() <= MAX_SUBJECT_CHARS
+            && self.author.chars().count() <= MAX_AUTHOR_CHARS
+    }
+}
+
+/// What the owner's git integration reported for one commit.
+#[derive(Debug, Clone)]
+pub struct RawCommit {
+    pub oid: String,
+    pub subject: String,
+    pub author: String,
+    pub date_ms: i64,
+    pub unpushed: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Snapshot {
     pub id: String,
     pub project_key: String,
     pub branch: Option<String>,
+    /// The upstream branch (`origin/main`), when the branch has one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub upstream: Option<String>,
     pub ahead: u32,
     pub behind: u32,
     pub taken_at: u64,
     pub files: Vec<SnapshotFile>,
+    /// The newest commits of the branch (a sender before the commit list sends none).
+    #[serde(default)]
+    pub commits: Vec<SnapshotCommit>,
     /// Files or text were left out to stay under the caps.
     pub truncated: bool,
+}
+
+fn plain(s: &str, max: usize) -> String {
+    s.chars().filter(|c| !c.is_control()).take(max).collect()
+}
+
+/// The commit list a teammate may see: at most [`MAX_COMMITS`], newest first as given, subjects through the redactor and cut, names
+/// without control characters, ids shortened and checked to be hexadecimal.
+pub fn build_commits(raw: Vec<RawCommit>) -> Vec<SnapshotCommit> {
+    raw.into_iter()
+        .filter(|c| c.oid.len() >= 7 && c.oid.chars().all(|ch| ch.is_ascii_hexdigit()))
+        .take(MAX_COMMITS)
+        .map(|c| SnapshotCommit {
+            oid: c.oid.chars().take(10).collect(),
+            // redact first, then cut: a secret that straddles the cut must not survive as a prefix
+            subject: plain(&mask_emails(&scrub(&plain(&c.subject, 2000))), MAX_SUBJECT_CHARS),
+            author: plain(&mask_emails(&c.author), MAX_AUTHOR_CHARS),
+            at: c.date_ms.max(0) as u64,
+            unpushed: c.unpushed,
+        })
+        .collect()
+}
+
+/// What a snapshot knows besides its files.
+#[derive(Debug, Clone, Default)]
+pub struct SnapshotMeta {
+    pub branch: Option<String>,
+    pub upstream: Option<String>,
+    pub ahead: u32,
+    pub behind: u32,
+    pub taken_at: u64,
+    pub commits: Vec<RawCommit>,
 }
 
 /// What the owner's git integration reported for one changed file (gitignored files never get here: git status leaves them out).
@@ -367,9 +545,16 @@ fn cut_at(s: &str, max: usize) -> &str {
     &s[..i]
 }
 
-/// Builds the snapshot a teammate may see: secret files and binaries are listed without content, text goes through the redactor, each
-/// file is cut at [`MAX_FILE_BYTES`] with a marker, and the sum stays under [`MAX_SNAPSHOT_BYTES`].
+/// [`build_snapshot_with`] for a snapshot without a commit list.
 pub fn build_snapshot(id: &str, project_key: &str, branch: Option<String>, ahead: u32, behind: u32, taken_at: u64, raw: Vec<RawFile>) -> Snapshot {
+    build_snapshot_with(id, project_key, SnapshotMeta { branch, ahead, behind, taken_at, ..SnapshotMeta::default() }, raw)
+}
+
+/// Builds the snapshot a teammate may see: secret files and binaries are listed without content, text goes through the redactor, each
+/// file is cut at [`MAX_FILE_BYTES`] with a marker, and the sum stays under [`MAX_SNAPSHOT_BYTES`]. The commit list is bounded and
+/// redacted ([`build_commits`]).
+pub fn build_snapshot_with(id: &str, project_key: &str, meta: SnapshotMeta, raw: Vec<RawFile>) -> Snapshot {
+    let SnapshotMeta { branch, upstream, ahead, behind, taken_at, commits } = meta;
     let mut files = Vec::new();
     let mut total = 0usize;
     let mut truncated = false;
@@ -409,7 +594,18 @@ pub fn build_snapshot(id: &str, project_key: &str, branch: Option<String>, ahead
         }
         files.push(out);
     }
-    Snapshot { id: id.to_string(), project_key: project_key.to_string(), branch: branch.map(|b| scrub(&b)), ahead, behind, taken_at, files, truncated }
+    Snapshot {
+        id: id.to_string(),
+        project_key: project_key.to_string(),
+        branch: branch.map(|b| mask_emails(&scrub(&b))),
+        upstream: upstream.map(|u| plain(&mask_emails(&scrub(&u)), 120)),
+        ahead,
+        behind,
+        taken_at,
+        files,
+        commits: build_commits(commits),
+        truncated,
+    }
 }
 
 /// Splits a snapshot into messages of at most [`MAX_MSG`] bytes, in order, each carrying the whole snapshot's SHA-256.
@@ -481,7 +677,7 @@ impl Reassembly {
             return Err("badHash");
         }
         let snap: Snapshot = serde_json::from_slice(&whole).map_err(|_| "badSnapshot")?;
-        if snap.id != p.snap_id || snap.project_key != *project_key || snap.files.len() > MAX_FILES {
+        if snap.id != p.snap_id || snap.project_key != *project_key || snap.files.len() > MAX_FILES || snap.commits.len() > MAX_COMMITS || !snap.commits.iter().all(SnapshotCommit::sane) {
             return Err("mismatch");
         }
         Ok(Some(snap))
@@ -528,6 +724,10 @@ mod tests {
             r#"{"t":"run.send","runId":"r1","text":"hi"}"#,
             r#"{"t":"agent.prompt","runId":"r1","text":"hi"}"#,
             r#"{"t":"note.accept","runId":"r1","noteId":"n1"}"#,
+            r#"{"t":"followup.accept","runId":"r1","noteId":"n1"}"#,
+            r#"{"t":"followup.start","runId":"r1","text":"hi"}"#,
+            r#"{"t":"chat.delete","runId":"r1","msgId":"m1"}"#,
+            r#"{"t":"chat.send","runId":"r1","text":"no message id"}"#,
             r#"{"t":"runs.request"}"#,
             r#"{"t":"","runId":"r1"}"#,
             r#"{"runId":"r1","noteId":"n1","text":"no tag"}"#,
@@ -571,7 +771,7 @@ mod tests {
     #[test]
     fn pending_notes_are_bounded_and_decided_once() {
         let mut p = PendingNotes::default();
-        let n = |from: &str, i: usize| PendingNote { from: from.into(), from_name: "Mia".into(), run_id: "r".into(), note_id: format!("n{i}"), text: "t".into(), at: 0 };
+        let n = |from: &str, i: usize| PendingNote { from: from.into(), from_name: "Mia".into(), run_id: "r".into(), note_id: format!("n{i}"), text: "t".into(), at: 0, kind: NoteKind::Note };
         assert_eq!(p.add(n("m", 0)), Some(vec![]));
         assert_eq!(p.add(n("m", 0)), None, "replay");
         for i in 1..100 {
@@ -588,7 +788,7 @@ mod tests {
     #[test]
     fn one_sender_cannot_fill_the_pending_list() {
         let mut p = PendingNotes::default();
-        let n = |from: &str, i: usize| PendingNote { from: from.into(), from_name: "x".into(), run_id: "r".into(), note_id: format!("n{i}"), text: "t".into(), at: 0 };
+        let n = |from: &str, i: usize| PendingNote { from: from.into(), from_name: "x".into(), run_id: "r".into(), note_id: format!("n{i}"), text: "t".into(), at: 0, kind: NoteKind::Note };
         p.add(n("other", 0));
         let mut dropped = vec![];
         for i in 0..20 {
@@ -743,5 +943,192 @@ mod tests {
         assert!(CollabMsg::parse(&too_many.encode()).is_none());
         let past_end = CollabMsg::WsChunk { project_key: "k".into(), snap_id: "s".into(), index: 3, count: 3, sha256: "0".repeat(64), data: String::new() };
         assert!(CollabMsg::parse(&past_end.encode()).is_none());
+    }
+
+    // ------------------------------------------------------------ T6: chat, follow-ups, commits
+
+    fn followup(text: &str) -> Vec<u8> {
+        CollabMsg::FollowUpSend { run_id: "r1".into(), note_id: "f1".into(), text: text.into() }.encode()
+    }
+
+    fn chat_send(text: &str) -> Vec<u8> {
+        CollabMsg::ChatSend { run_id: "r1".into(), msg_id: "c1".into(), text: text.into() }.encode()
+    }
+
+    #[test]
+    fn followup_and_chat_roundtrip_and_are_validated() {
+        assert!(matches!(CollabMsg::parse(&followup("please also run the tests")), Some(CollabMsg::FollowUpSend { .. })));
+        assert!(CollabMsg::parse(&followup("   ")).is_none());
+        assert!(CollabMsg::parse(&followup(&"x".repeat(MAX_NOTE_CHARS + 1))).is_none());
+        assert!(matches!(CollabMsg::parse(&chat_send("hello team")), Some(CollabMsg::ChatSend { .. })));
+        assert!(CollabMsg::parse(&chat_send("  ")).is_none());
+        assert!(CollabMsg::parse(&chat_send(&"x".repeat(crate::chat::MAX_CHAT_CHARS + 1))).is_none());
+        let bad_run = CollabMsg::ChatSend { run_id: "r 1\n".into(), msg_id: "c1".into(), text: "hi".into() }.encode();
+        assert!(CollabMsg::parse(&bad_run).is_none());
+        let msg = |author: &str, text: &str| CollabMsg::ChatMsg { run_id: "r1".into(), msg_id: "c1".into(), author: author.into(), text: text.into(), at: 5 }.encode();
+        assert!(CollabMsg::parse(&msg("mia", "hello")).is_some());
+        assert!(CollabMsg::parse(&msg("mia/x", "hello")).is_none(), "the author is an id");
+        assert!(CollabMsg::parse(&msg("mia", "bell\u{7}")).is_none(), "a stamped message is clean already");
+        assert!(CollabMsg::parse(&CollabMsg::ChatRequest { run_id: "r1".into() }.encode()).is_some());
+        assert!(CollabMsg::parse(&CollabMsg::ChatDenied { run_id: "r1".into(), msg_id: "c1".into(), reason: "rate".into() }.encode()).is_some());
+        let st = CollabMsg::FollowUpStatus { run_id: "r1".into(), note_id: "f1".into(), status: NoteStatus::Accepted, reason: None };
+        assert!(CollabMsg::parse(&st.encode()).is_some());
+    }
+
+    #[test]
+    fn a_chat_history_is_bounded() {
+        let e = |i: usize| ChatEntry { msg_id: format!("m{i}"), author: "mia".into(), text: "hi".into(), at: i as u64 };
+        let ok = CollabMsg::ChatHistory { run_id: "r1".into(), msgs: (0..HISTORY_MAX).map(e).collect() };
+        assert!(CollabMsg::parse(&ok.encode()).is_some());
+        let many = CollabMsg::ChatHistory { run_id: "r1".into(), msgs: (0..=HISTORY_MAX).map(e).collect() };
+        assert!(CollabMsg::parse(&many.encode()).is_none());
+        let mut bad = (0..3).map(e).collect::<Vec<_>>();
+        bad[1].author = "../x".into();
+        assert!(CollabMsg::parse(&CollabMsg::ChatHistory { run_id: "r1".into(), msgs: bad }.encode()).is_none());
+    }
+
+    #[test]
+    fn judge_followup_needs_member_shared_claude_and_a_run_that_is_not_working() {
+        let idle = RunFacts { shared: true, live: false, claude: true };
+        assert_eq!(judge_followup(true, Some(idle)), Ok(()));
+        assert_eq!(judge_followup(false, Some(idle)), Err("notMember"));
+        assert_eq!(judge_followup(true, None), Err("unknownRun"));
+        assert_eq!(judge_followup(true, Some(RunFacts { shared: false, ..idle })), Err("unknownRun"), "same answer as a run that does not exist");
+        assert_eq!(judge_followup(true, Some(RunFacts { live: true, ..idle })), Err("busy"), "a working run takes a note instead");
+        assert_eq!(judge_followup(true, Some(RunFacts { claude: false, ..idle })), Err("unsupported"));
+        // and the note rule is the opposite on `live`
+        assert_eq!(judge_note(true, Some(idle)), Err("notLive"));
+    }
+
+    #[test]
+    fn judge_chat_needs_member_and_a_shared_run_whatever_its_state() {
+        let any = RunFacts { shared: true, live: false, claude: false };
+        assert_eq!(judge_chat(true, Some(any)), Ok(()), "a finished run of any provider has a thread");
+        assert_eq!(judge_chat(true, Some(RunFacts { live: true, ..any })), Ok(()));
+        assert_eq!(judge_chat(false, Some(any)), Err("notMember"));
+        assert_eq!(judge_chat(true, None), Err("unknownRun"));
+        assert_eq!(judge_chat(true, Some(RunFacts { shared: false, ..any })), Err("unknownRun"));
+    }
+
+    #[test]
+    fn a_followup_is_marked_as_the_teammates_and_as_approved() {
+        let t = attributed_followup("Mia\u{7}", "run the\u{0} tests too");
+        assert_eq!(t, "Follow-up from teammate Mia (the person running you approved it):\nrun the tests too");
+        assert_ne!(t.lines().next(), attributed("Mia", "x").lines().next(), "not the header of a note");
+    }
+
+    #[test]
+    fn followups_and_chat_have_their_own_budgets() {
+        let mut f = RateLimit::followups();
+        for i in 0..FOLLOWUPS_PER_MIN {
+            assert!(f.allow("a", i as u64));
+        }
+        assert!(!f.allow("a", 1000));
+        assert!(f.allow("b", 1000));
+        let mut c = RateLimit::chat();
+        for i in 0..crate::chat::CHAT_PER_MIN {
+            assert!(c.allow("a", i as u64));
+        }
+        assert!(!c.allow("a", 1000));
+    }
+
+    /// Test text with an address in it, written with a `#` so that no address is spelled out in the source.
+    fn at(s: &str) -> String {
+        s.replace('#', "@")
+    }
+
+    fn rc(oid: &str, subject: &str, unpushed: bool) -> RawCommit {
+        RawCommit { oid: oid.into(), subject: subject.into(), author: "Mia Kovacs".into(), date_ms: 1_700_000_000_000, unpushed }
+    }
+
+    #[test]
+    fn commits_are_bounded_redacted_and_without_an_email_address() {
+        let key = format!("AKIA{}", "ABCDEFGHIJKLMNOP");
+        let raw: Vec<RawCommit> = (0..60).map(|i| rc(&format!("{:040x}", i + 1), &format!("fix {i}"), i < 3)).collect();
+        let c = build_commits(raw);
+        assert_eq!(c.len(), MAX_COMMITS);
+        assert_eq!(c[0].oid.len(), 10);
+        assert!(c[0].unpushed && c[2].unpushed && !c[3].unpushed);
+        let c = build_commits(vec![
+            RawCommit { author: at("jane#corp.com"), ..rc("fedcba9876543210", &at("reported by jane.doe#corp.com, thanks"), false) },
+            rc("abcdef0123456789", &format!("rotate {key} now\nsecond line"), false),
+            rc("not-hex-id!", "dropped: the id is not hexadecimal", false),
+            rc("abc", "dropped: too short to be an id", false),
+            rc("1234567890abcdef", &"long ".repeat(100), false),
+        ]);
+        assert_eq!(c.len(), 3);
+        assert_eq!((c[0].subject.as_str(), c[0].author.as_str()), ("reported by [email], thanks", "[email]"), "an address in a subject or in a name is masked");
+        assert!(!c[1].subject.contains(&key) && !c[1].subject.contains('\n'), "{}", c[1].subject);
+        assert!(c[2].subject.chars().count() <= MAX_SUBJECT_CHARS);
+        let wire = serde_json::to_string(&c).unwrap();
+        assert!(!wire.contains('@'), "no address on the wire: {wire}");
+        // the branch and the upstream are text too
+        let s = build_snapshot_with("s", "k", SnapshotMeta { branch: Some(at("fix/for-jane#corp.com")), upstream: Some(at("origin/fix/for-jane#corp.com")), ..SnapshotMeta::default() }, vec![]);
+        assert!(!serde_json::to_string(&s).unwrap().contains('@'));
+    }
+
+    #[test]
+    fn a_snapshot_carries_its_commits_through_the_chunks() {
+        let meta = SnapshotMeta {
+            branch: Some("feat".into()),
+            upstream: Some("origin/feat".into()),
+            ahead: 2,
+            behind: 0,
+            taken_at: 7,
+            commits: vec![rc("abcdef0123", "first", true), rc("0123456789ab", "second", false)],
+        };
+        let s = fit_snapshot(build_snapshot_with("s1", "key", meta, vec![raw("src/a.rs", "+x")]));
+        assert_eq!(s.commits.len(), 2);
+        assert_eq!(s.upstream.as_deref(), Some("origin/feat"));
+        let mut r = Reassembly::default();
+        let mut got = None;
+        for c in chunk_snapshot(&s) {
+            if let Some(x) = r.push("mia", &c).unwrap() {
+                got = Some(x);
+            }
+        }
+        assert_eq!(got.unwrap(), s);
+    }
+
+    #[test]
+    fn a_snapshot_of_an_older_sender_has_no_commits_and_still_parses() {
+        let old = r#"{"id":"s","projectKey":"k","branch":"main","ahead":0,"behind":0,"takenAt":1,"files":[],"truncated":false}"#;
+        let s: Snapshot = serde_json::from_str(old).unwrap();
+        assert!(s.commits.is_empty() && s.upstream.is_none());
+        // and one that claims more commits than the cap is refused after reassembly
+        let mut big = fit_snapshot(build_snapshot("s2", "k", None, 0, 0, 1, vec![]));
+        big.commits = (0..=MAX_COMMITS).map(|i| SnapshotCommit { oid: format!("{i:010x}"), subject: "x".into(), author: "a".into(), at: 1, unpushed: false }).collect();
+        let mut r = Reassembly::default();
+        let mut last = Ok(None);
+        for c in chunk_snapshot(&big) {
+            last = r.push("mia", &c);
+        }
+        assert_eq!(last.unwrap_err(), "mismatch");
+        // so is one with a commit that cannot have come from the builder: an id that is not hexadecimal, a subject over the cap
+        for bad in [
+            SnapshotCommit { oid: "not-hex-id!".into(), subject: "x".into(), author: "a".into(), at: 1, unpushed: false },
+            SnapshotCommit { oid: "abcdef0123456789abcdef".into(), subject: "x".into(), author: "a".into(), at: 1, unpushed: false },
+            SnapshotCommit { oid: "abcdef0123".into(), subject: "s".repeat(MAX_SUBJECT_CHARS + 1), author: "a".into(), at: 1, unpushed: false },
+            SnapshotCommit { oid: "abcdef0123".into(), subject: "x".into(), author: "a".repeat(MAX_AUTHOR_CHARS + 1), at: 1, unpushed: false },
+        ] {
+            let mut s = fit_snapshot(build_snapshot("s3", "k", None, 0, 0, 1, vec![]));
+            s.commits = vec![bad];
+            let mut r = Reassembly::default();
+            let mut last = Ok(None);
+            for c in chunk_snapshot(&s) {
+                last = r.push("mia", &c);
+            }
+            assert_eq!(last.unwrap_err(), "mismatch");
+        }
+    }
+
+    #[test]
+    fn a_refusal_is_told_once_in_a_while() {
+        let mut r = RateLimit::refusals();
+        assert!(r.allow("mia:chat", 1_000));
+        assert!(!r.allow("mia:chat", 1_001), "the second refusal inside the gap is silent");
+        assert!(r.allow("mia:note", 1_002), "another kind of refusal is told on its own");
+        assert!(r.allow("bo:chat", 1_003), "and so is another sender");
+        assert!(r.allow("mia:chat", 1_000 + REFUSAL_GAP_MS));
     }
 }

@@ -431,6 +431,10 @@ fn reset(inner: &mut Inner, secrets: &Arc<dyn SecretStore>) {
     inner.relay_roster = 0;
     inner.removed = false;
     inner.error = None;
+    // the threads of this machine's own runs hold teammates' words: they go with the team
+    if let Some(dir) = inner.state_dir.as_ref() {
+        let _ = std::fs::remove_dir_all(dir.join(collab::CHAT_DIR));
+    }
     share::forget_all(inner);
     inner.identity = Identity::rotate(secrets).ok();
 }

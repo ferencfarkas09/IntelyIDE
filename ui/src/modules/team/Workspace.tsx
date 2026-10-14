@@ -2,7 +2,8 @@ import { createEffect, createMemo, createSignal, For, on, onCleanup, onMount, Sh
 import { timeAgo } from "../../components/push/logic";
 import { t, type MessageKey } from "../../i18n";
 import type { TeamWorkspaceFile } from "../../ipc/team";
-import { BranchPill, Button, EmptyState, Eye, FileDiff, RefreshCw, Spinner, TriangleAlert } from "../../ui-kit";
+import { Badge, BranchPill, Button, EmptyState, Eye, FileDiff, RefreshCw, Spinner, TriangleAlert } from "../../ui-kit";
+import { CommitList } from "./CommitList";
 import { loadWorkspace, problems, requestWorkspace, snapshots, waiting, wsKey } from "./wsStore";
 import "./team.css";
 
@@ -13,7 +14,7 @@ const SKIPPED: Record<string, MessageKey> = {
   unreadable: "team.ws.skipped.unreadable",
   limit: "team.ws.skipped.limit",
 };
-const PROBLEM: Record<string, MessageKey> = {
+export const PROBLEM: Record<string, MessageKey> = {
   off: "team.ws.problem.off",
   rate: "team.ws.problem.rate",
   noProject: "team.ws.problem.noProject",
@@ -124,33 +125,46 @@ export function WorkspaceView(props: { memberId: string; memberName: string; pro
         fallback={<EmptyState icon={Eye} size="sm" title={waiting()[key()] ? t("team.ws.waiting", { name: props.memberName }) : t("team.ws.empty")} description={t("team.ws.emptyDesc")} />}
       >
         {(s) => (
-          <div class="team-ws__body">
-            <Show when={s().truncated}><p class="team-note team-ws__trunc">{t("team.ws.truncated")}</p></Show>
-            <Show when={s().files.length > 0} fallback={<EmptyState icon={FileDiff} size="sm" title={t("team.ws.clean")} />}>
-              <ul class="team-ws__files" aria-label={t("team.ws.files")}>
-                <For each={s().files}>
-                  {(f) => (
-                    <li>
-                      <button type="button" class="team-ws__file" aria-pressed={file()?.path === f.path} onClick={() => setPick(f.path)}>
-                        <span class="team-ws__status" data-tone={STATUS_TONE[f.status] ?? "mod"} aria-hidden="true">{f.status}</span>
-                        <span class="ui-mono ui-truncate">{f.path}</span>
-                        <Show when={f.skipped}><span class="team-note">{t("team.ws.withheld")}</span></Show>
-                      </button>
-                    </li>
-                  )}
-                </For>
-              </ul>
-              <div class="team-ws__main">
-                <Show when={file()}>
-                  {(f) => (
-                    <Show when={!f().skipped} fallback={<p class="team-note team-ws__skipped" data-testid="ws-skipped">{t(SKIPPED[f().skipped as string] ?? "team.ws.skipped.unreadable")}</p>}>
-                      <UnifiedDiff file={f()} />
-                    </Show>
-                  )}
-                </Show>
-              </div>
-            </Show>
-          </div>
+          <>
+            <section class="team-commits" aria-label={t("team.commits.title")} data-testid="ws-commits">
+              <header class="team-commits__head">
+                <span class="team-commits__title">{t("team.commits.title")}</span>
+                <Show when={s().upstream}>{(u) => <Badge size="sm" tone="neutral" title={t("team.commits.upstream")}>{u()}</Badge>}</Show>
+                <Show when={s().ahead > 0}><Badge size="sm" tone="warn" numeric>{t("team.commits.ahead", { n: s().ahead })}</Badge></Show>
+                <Show when={s().behind > 0}><Badge size="sm" tone="info" numeric>{t("team.commits.behind", { n: s().behind })}</Badge></Show>
+              </header>
+              <Show when={(s().commits ?? []).length > 0} fallback={<p class="team-note">{t("team.commits.none")}</p>}>
+                <CommitList commits={s().commits} now={now()} label={t("team.commits.list")} />
+              </Show>
+            </section>
+            <div class="team-ws__body">
+              <Show when={s().truncated}><p class="team-note team-ws__trunc">{t("team.ws.truncated")}</p></Show>
+              <Show when={s().files.length > 0} fallback={<EmptyState icon={FileDiff} size="sm" title={t("team.ws.clean")} />}>
+                <ul class="team-ws__files" aria-label={t("team.ws.files")}>
+                  <For each={s().files}>
+                    {(f) => (
+                      <li>
+                        <button type="button" class="team-ws__file" aria-pressed={file()?.path === f.path} onClick={() => setPick(f.path)}>
+                          <span class="team-ws__status" data-tone={STATUS_TONE[f.status] ?? "mod"} aria-hidden="true">{f.status}</span>
+                          <span class="ui-mono ui-truncate">{f.path}</span>
+                          <Show when={f.skipped}><span class="team-note">{t("team.ws.withheld")}</span></Show>
+                        </button>
+                      </li>
+                    )}
+                  </For>
+                </ul>
+                <div class="team-ws__main">
+                  <Show when={file()}>
+                    {(f) => (
+                      <Show when={!f().skipped} fallback={<p class="team-note team-ws__skipped" data-testid="ws-skipped">{t(SKIPPED[f().skipped as string] ?? "team.ws.skipped.unreadable")}</p>}>
+                        <UnifiedDiff file={f()} />
+                      </Show>
+                    )}
+                  </Show>
+                </div>
+              </Show>
+            </div>
+          </>
         )}
       </Show>
     </div>

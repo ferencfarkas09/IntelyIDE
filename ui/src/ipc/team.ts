@@ -104,8 +104,12 @@ export interface TeamProject {
   claudeMd: boolean;
 }
 
+export type TeamNoteKind = "note" | "followup";
+
 /** A note a teammate sent into one of your runs; it waits for you (or was passed on at once when `auto`). */
 export interface TeamNoteIn {
+  /** `followup`: a suggestion for a run that is not working; it always waits for the owner's click. */
+  kind: TeamNoteKind;
   memberId: string;
   memberName: string;
   runId: string;
@@ -120,11 +124,12 @@ export interface TeamNoteIn {
 export type TeamNoteStatus = "sent" | "received" | "accepted" | "rejected" | "delivered" | "dropped" | "refused";
 
 export interface TeamSentNote {
+  kind: TeamNoteKind;
   memberId: string;
   runId: string;
   noteId: string;
   status: TeamNoteStatus;
-  /** Why it was refused or dropped (`rate`, `notLive`, `notShared`, `unsupported`, `unknownRun`, ...). */
+  /** Why it was refused or dropped (`rate`, `notLive`, `busy`, `notShared`, `unsupported`, `unknownRun`, ...). */
   reason?: string | null;
   at: number;
 }
@@ -140,6 +145,16 @@ export interface TeamWorkspaceFile {
   skipped?: "secret" | "binary" | "large" | "unreadable" | "limit" | null;
 }
 
+/** One commit of a teammate's checked-out branch. `oid` is the first 10 characters, `at` is in ms, `author` is the git author name. */
+export interface TeamSnapshotCommit {
+  oid: string;
+  subject: string;
+  author: string;
+  at: number;
+  /** Not on the upstream branch yet. */
+  unpushed: boolean;
+}
+
 export interface TeamSnapshot {
   id: string;
   projectKey: string;
@@ -149,6 +164,10 @@ export interface TeamSnapshot {
   takenAt: number;
   files: TeamWorkspaceFile[];
   truncated: boolean;
+  /** Up to 40 newest commits of the branch, newest first (empty from old senders). */
+  commits: TeamSnapshotCommit[];
+  /** The upstream branch, e.g. `origin/main`. */
+  upstream?: string | null;
 }
 
 export interface TeamWorkspaceEvent {
@@ -160,6 +179,32 @@ export interface TeamWorkspaceEvent {
 export interface TeamWorkspaceDenied {
   memberId: string;
   projectKey: string;
+  reason: string;
+}
+
+/** One message of the chat thread of a shared run. `authorName` is empty when the author left the team. */
+export interface TeamChatMsg {
+  msgId: string;
+  author: string;
+  authorName: string;
+  text: string;
+  at: number;
+  mine: boolean;
+}
+
+/** New message(s) of a thread (`ownerId` null: a run of this install). `history`: the answer to `chatRequest`. */
+export interface TeamChatEvent {
+  ownerId: string | null;
+  runId: string;
+  msgs: TeamChatMsg[];
+  history: boolean;
+}
+
+/** The owner refused a message: `rate`, `unknownRun`, `notMember`, `invalid`, `offline`. */
+export interface TeamChatDenied {
+  ownerId: string | null;
+  runId: string;
+  msgId: string;
   reason: string;
 }
 
@@ -208,6 +253,14 @@ export interface TeamIpc {
   /** Sends a note into a teammate's live Claude run. The owner's machine decides; the status comes back as `onNoteStatus`. */
   noteSend(memberId: string, runId: string, text: string): Promise<string>;
   sentNotes(memberId: string, runId: string): Promise<TeamSentNote[]>;
+  /** Suggests a follow-up for a run that is not working. It only ever becomes a card on the owner's side; returns the note id. */
+  followUpSend(memberId: string, runId: string, text: string): Promise<string>;
+  /** The chat thread of a shared run (`ownerId` null: a run of this install). Human to human: the agent never sees it. */
+  chatThread(ownerId: string | null, runId: string): Promise<TeamChatMsg[]>;
+  /** Posts to the thread (a teammate's run needs its owner online). Resolves with the message id; the echo arrives as `onChat`. */
+  chatSend(ownerId: string | null, runId: string, text: string): Promise<string>;
+  /** Asks the owner for the history; the answer arrives as `onChat` with `history: true`. */
+  chatRequest(ownerId: string, runId: string): Promise<void>;
   /** `autoAcceptNotesFrom`: member ids whose notes are passed on without asking (default none). */
   collabSettings(): Promise<{ autoAcceptNotesFrom: string[] }>;
   setAutoAccept(memberId: string, enabled: boolean): Promise<void>;
@@ -219,6 +272,8 @@ export interface TeamIpc {
   /** Asks a member for a snapshot of a project; it arrives as `onWorkspace` (or `onWorkspaceDenied`). */
   workspaceRequest(memberId: string, projectKey: string): Promise<void>;
   workspace(memberId: string, projectKey: string): Promise<TeamSnapshot | null>;
+  onChat(cb: (e: TeamChatEvent) => void): Unsubscribe;
+  onChatDenied(cb: (e: TeamChatDenied) => void): Unsubscribe;
   onNoteIn(cb: (n: TeamNoteIn) => void): Unsubscribe;
   onNoteStatus(cb: (n: TeamSentNote) => void): Unsubscribe;
   onWorkspace(cb: (e: TeamWorkspaceEvent) => void): Unsubscribe;
@@ -251,6 +306,10 @@ export function createTauriTeam(): TeamIpc {
     noteDecide: (memberId, noteId, accept) => call("team_note_decide", { memberId, noteId, accept }),
     noteSend: (memberId, runId, text) => call("team_note_send", { memberId, runId, text }),
     sentNotes: (memberId, runId) => call("team_sent_notes", { memberId, runId }),
+    followUpSend: (memberId, runId, text) => call("team_followup_send", { memberId, runId, text }),
+    chatThread: (ownerId, runId) => call("team_chat_thread", { ownerId, runId }),
+    chatSend: (ownerId, runId, text) => call("team_chat_send", { ownerId, runId, text }),
+    chatRequest: (ownerId, runId) => call("team_chat_request", { ownerId, runId }),
     collabSettings: () => call("team_collab_settings"),
     setAutoAccept: (memberId, enabled) => call("team_set_auto_accept", { memberId, enabled }),
     setWorkspace: (projectKey, enabled) => call("team_set_workspace", { projectKey, enabled }),
@@ -259,6 +318,8 @@ export function createTauriTeam(): TeamIpc {
     memory: createTauriTeamMemory(),
     workspaceRequest: (memberId, projectKey) => call("team_workspace_request", { memberId, projectKey }),
     workspace: (memberId, projectKey) => call("team_workspace", { memberId, projectKey }),
+    onChat: (cb) => subscribe<TeamChatEvent>("team:chat", cb),
+    onChatDenied: (cb) => subscribe<TeamChatDenied>("team:chat-denied", cb),
     onNoteIn: (cb) => subscribe<TeamNoteIn>("team:note-in", cb),
     onNoteStatus: (cb) => subscribe<TeamSentNote>("team:note-status", cb),
     onWorkspace: (cb) => subscribe<TeamWorkspaceEvent>("team:workspace", cb),

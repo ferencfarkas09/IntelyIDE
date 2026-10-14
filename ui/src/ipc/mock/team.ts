@@ -1,6 +1,6 @@
 import type { AgentEvent } from "../../store/agent-types";
 import { createMockTeamMemory } from "../teamMemory";
-import type { TeamInvite, TeamIpc, TeamMember, TeamNoteIn, TeamNoteStatus, TeamPresence, TeamProject, TeamRun, TeamRunEvents, TeamSentNote, TeamSnapshot, TeamView, TeamWorkspaceDenied, TeamWorkspaceEvent } from "../team";
+import type { TeamChatDenied, TeamChatEvent, TeamChatMsg, TeamInvite, TeamIpc, TeamMember, TeamNoteIn, TeamNoteStatus, TeamPresence, TeamProject, TeamRun, TeamRunEvents, TeamSentNote, TeamSnapshot, TeamSnapshotCommit, TeamView, TeamWorkspaceDenied, TeamWorkspaceEvent } from "../team";
 
 export interface MockTeamOptions {
   now?: () => number;
@@ -25,11 +25,32 @@ export interface MockTeamSim {
   /** The teammate withdrew the run. */
   withdrawRun(runId: string): void;
   /** A teammate sends a note into one of your runs. */
-  noteIn(note: Omit<TeamNoteIn, "at" | "auto"> & { at?: number }): void;
+  noteIn(note: Omit<TeamNoteIn, "at" | "auto" | "kind"> & { at?: number; kind?: TeamNoteIn["kind"] }): void;
   /** The owner's machine reports where a note you sent stands. */
   noteStatus(noteId: string, status: TeamNoteStatus, reason?: string): void;
+  /** A message of the thread arrives (from a teammate, or `mine: true` for an echo). Lands in the thread and fires `onChat`. */
+  chatIn(ownerId: string | null, runId: string, msg: Partial<TeamChatMsg> & { text: string }): TeamChatMsg;
+  /** The owner's answer to `chatRequest`: these messages are the history (fires `onChat` with `history: true`). */
+  chatHistory(ownerId: string, runId: string, msgs: TeamChatMsg[]): void;
+  /** The owner refuses a message you sent. */
+  chatDenied(ownerId: string | null, runId: string, msgId: string, reason: string): void;
+  /** `false`: your own messages are no longer echoed (the owner has not answered yet). */
+  chatEcho(on: boolean): void;
+  /** The `ownerId:runId` pairs `chatRequest` was called for. */
+  chatRequests(): string[];
   /** What the next `workspaceRequest` gets: a snapshot (default) or a refusal (`off`, `rate`). */
   workspaceReply(reply: "ok" | "off" | "rate"): void;
+}
+
+/** The branch's recent commits for the dev preview: two not pushed yet. */
+export function mockCommits(takenAt: number): TeamSnapshotCommit[] {
+  const rows: Array<[string, string, string, number, boolean]> = [
+    ["a1b2c3d4e5", "Multiply the cart total by the quantity", "Jordan Doe", 5, true],
+    ["b2c3d4e5f6", "Add a test for the quantity case", "Jordan Doe", 22, true],
+    ["c3d4e5f6a7", "Round prices to cents in the receipt", "Riley Roe", 190, false],
+    ["d4e5f6a7b8", "Fix the typo in the checkout title", "Jordan Doe", 1500, false],
+  ];
+  return rows.map(([oid, subject, author, minutes, unpushed]) => ({ oid, subject, author, at: takenAt - minutes * MIN, unpushed }));
 }
 
 /** A small workspace for the dev preview: a modified file, a new file, a withheld secret file and a binary. */
@@ -42,6 +63,8 @@ export function mockSnapshot(projectKey: string, takenAt: number): TeamSnapshot 
     behind: 0,
     takenAt,
     truncated: false,
+    upstream: "origin/fix/cart-total",
+    commits: mockCommits(takenAt),
     files: [
       { path: "src/cart/total.ts", status: "M", truncated: false, diff: "--- a/src/cart/total.ts\n+++ b/src/cart/total.ts\n@@ -1,3 +1,3 @@\n import type { Item } from \"./types\";\n-export const total = (items: Item[]) => items.reduce((s, i) => s + i.price, 0);\n+export const total = (items: Item[]) => items.reduce((s, i) => s + i.price * i.qty, 0);\n export const count = (items: Item[]) => items.length;\n" },
       { path: "src/cart/total.test.ts", status: "U", truncated: false, diff: "--- /dev/null\n+++ b/src/cart/total.test.ts\n@@ -0,0 +1,4 @@\n+import { total } from \"./total\";\n+it(\"multiplies by the quantity\", () => {\n+  expect(total([{ price: 3, qty: 2 }])).toBe(6);\n+});\n" },
@@ -117,7 +140,7 @@ export function createMockTeam(options: MockTeamOptions = {}): MockTeamHandle {
   ];
   const unshared = new Set<string>();
   const pending: TeamNoteIn[] = on && options.preset === undefined // the `?team=on` dev URL only: the tests start from an empty inbox
-    ? [{ memberId: "m_ri", memberName: "Riley", runId: "r_me1", noteId: "tn-seed", text: "The retry should back off: please use 2 s, 4 s, 8 s and stop after three tries.", at: now() - 40_000, auto: false }]
+    ? [{ kind: "note" as const, memberId: "m_ri", memberName: "Riley", runId: "r_me1", noteId: "tn-seed", text: "The retry should back off: please use 2 s, 4 s, 8 s and stop after three tries.", at: now() - 40_000, auto: false }]
     : [];
   const sent: TeamSentNote[] = [];
   const autoAccept = new Set<string>();
@@ -127,6 +150,18 @@ export function createMockTeam(options: MockTeamOptions = {}): MockTeamHandle {
   const noteStatusCbs = new Set<(n: TeamSentNote) => void>();
   const wsCbs = new Set<(e: TeamWorkspaceEvent) => void>();
   const wsDeniedCbs = new Set<(e: TeamWorkspaceDenied) => void>();
+  const threads = new Map<string, TeamChatMsg[]>();
+  const chatCbs = new Set<(e: TeamChatEvent) => void>();
+  const chatDeniedCbs = new Set<(e: TeamChatDenied) => void>();
+  const requested: string[] = [];
+  let echo = true;
+  const threadKey = (ownerId: string | null, runId: string) => `${ownerId ?? "-"}:${runId}`;
+  const pushChat = (ownerId: string | null, runId: string, msgs: TeamChatMsg[], history: boolean) => {
+    const key = threadKey(ownerId, runId);
+    const have = threads.get(key) ?? [];
+    threads.set(key, [...have, ...msgs.filter((m) => !have.some((x) => x.msgId === m.msgId))].sort((a, b) => a.at - b.at).slice(-200));
+    for (const cb of chatCbs) cb({ ownerId, runId, msgs: msgs.map((m) => ({ ...m })), history });
+  };
   let seq = 0;
   const changed = new Set<(v: TeamView) => void>();
   const presence = new Set<(p: TeamPresence) => void>();
@@ -231,9 +266,44 @@ export function createMockTeam(options: MockTeamOptions = {}): MockTeamHandle {
       const body = text.trim();
       if (!body || body.length > 3800) return reject("noteInvalid", "a note must not be empty and is at most 3800 characters");
       seq++;
-      const note: TeamSentNote = { memberId, runId, noteId: `tn-${seq}`, status: "sent", at: now() };
+      const note: TeamSentNote = { kind: "note", memberId, runId, noteId: `tn-${seq}`, status: "sent", at: now() };
       sent.push(note);
       return note.noteId;
+    },
+    async followUpSend(memberId, runId, text) {
+      const member = view.members.find((m) => m.id === memberId);
+      if (!member || member.me) return reject("unknownMember", "that member is not in the team");
+      if (!member.online) return reject("offline", "that member is offline");
+      const run = mockRuns.find((r) => r.memberId === memberId && r.runId === runId);
+      if (!run) return reject("unknownRun", "that run is gone");
+      if (run.provider !== "claude") return reject("unsupported", "follow-ups go only to runs of Claude");
+      if (run.state === "running" || run.state === "waiting") return reject("busy", "the run is working: send a note instead");
+      const body = text.trim();
+      if (!body || body.length > 3800) return reject("noteInvalid", "a follow-up must not be empty and is at most 3800 characters");
+      seq++;
+      const note: TeamSentNote = { kind: "followup", memberId, runId, noteId: `tn-${seq}`, status: "sent", at: now() };
+      sent.push(note);
+      return note.noteId;
+    },
+    async chatThread(ownerId, runId) {
+      return (threads.get(threadKey(ownerId, runId)) ?? []).map((m) => ({ ...m }));
+    },
+    async chatSend(ownerId, runId, text) {
+      if (ownerId !== null) {
+        const member = view.members.find((m) => m.id === ownerId);
+        if (!member || member.me) return reject("unknownMember", "that member is not in the team");
+        if (!member.online) return reject("offline", "that member is offline");
+      }
+      const body = text.replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, "").trim();
+      if (!body || body.length > 2000) return reject("chatInvalid", "a chat message is 1 to 2000 characters");
+      seq++;
+      const msg: TeamChatMsg = { msgId: `cm-${seq}`, author: me.id, authorName: me.name, text: body, at: now(), mine: true };
+      // the owner stamps and stores it, then fans it out: the echo comes after the answer, like on the wire
+      if (echo) queueMicrotask(() => pushChat(ownerId, runId, [msg], false));
+      return msg.msgId;
+    },
+    async chatRequest(ownerId, runId) {
+      requested.push(`${ownerId}:${runId}`);
     },
     async sentNotes(memberId, runId) {
       return sent.filter((n) => n.memberId === memberId && n.runId === runId).map((n) => ({ ...n }));
@@ -277,6 +347,14 @@ export function createMockTeam(options: MockTeamOptions = {}): MockTeamHandle {
     },
     async workspace(memberId, projectKey) {
       return snapshots.get(`${memberId}:${projectKey}`) ?? null;
+    },
+    onChat(cb) {
+      chatCbs.add(cb);
+      return () => void chatCbs.delete(cb);
+    },
+    onChatDenied(cb) {
+      chatDeniedCbs.add(cb);
+      return () => void chatDeniedCbs.delete(cb);
     },
     onNoteIn(cb) {
       noteInCbs.add(cb);
@@ -337,8 +415,29 @@ export function createMockTeam(options: MockTeamOptions = {}): MockTeamHandle {
         eventsOf.set(runId, [...(eventsOf.get(runId) ?? []), ...events]);
         for (const cb of runEventCbs) cb({ memberId, runId, events });
       },
+      chatIn(ownerId, runId, m) {
+        seq++;
+        const author = m.author ?? ownerId ?? "m_jo";
+        const msg: TeamChatMsg = { msgId: m.msgId ?? `cm-${seq}`, author, authorName: m.authorName ?? view.members.find((x) => x.id === author)?.name ?? "", text: m.text, at: m.at ?? now(), mine: m.mine ?? false };
+        pushChat(ownerId, runId, [msg], false);
+        return msg;
+      },
+      chatHistory(ownerId, runId, msgs) {
+        pushChat(ownerId, runId, msgs, true);
+      },
+      chatDenied(ownerId, runId, msgId, reason) {
+        for (const cb of chatDeniedCbs) cb({ ownerId, runId, msgId, reason });
+      },
+      chatEcho(on) {
+        echo = on;
+      },
+      chatRequests() {
+        return [...requested];
+      },
       noteIn(n) {
-        const note: TeamNoteIn = { ...n, at: n.at ?? now(), auto: autoAccept.has(n.memberId) };
+        const kind = n.kind ?? "note";
+        // trusting a member only ever applies to notes: a follow-up always waits for the owner
+        const note: TeamNoteIn = { ...n, kind, at: n.at ?? now(), auto: kind === "note" && autoAccept.has(n.memberId) };
         if (!note.auto) pending.push(note);
         for (const cb of noteInCbs) cb(note);
       },

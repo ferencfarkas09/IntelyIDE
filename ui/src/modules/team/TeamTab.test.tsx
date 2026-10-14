@@ -82,9 +82,10 @@ describe("the Team tab", () => {
     expect(within(main).getAllByText("Read-only").length).toBeGreaterThan(0);
     const card = await within(main).findByTestId("shared-permission");
     expect(card.textContent).toMatch(/The owner allowed/);
-    // no composer, no button that answers a card or sends something
-    expect(main.querySelector("textarea, input[type=text]")).toBeNull();
-    expect(within(main).queryByRole("button", { name: /allow|deny|send|retry|continue/i })).toBeNull();
+    // the only field is the follow-up suggestion (the run is idle); no button answers a card or starts a turn
+    expect([...main.querySelectorAll("textarea, input[type=text]")].map((e) => e.getAttribute("aria-label"))).toEqual(["Suggest a follow-up to Jordan..."]);
+    expect(within(main).queryByRole("button", { name: /allow|deny|retry|continue/i })).toBeNull();
+    expect(within(card).queryByRole("button")).toBeNull();
   });
 
   it("shows a permission card that is still open as information only", async () => {

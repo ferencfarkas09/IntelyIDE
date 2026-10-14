@@ -11,6 +11,7 @@ use intely_remote::redact as base;
 use serde_json::{json, Value};
 
 pub const MASK: &str = "[redacted]";
+pub const EMAIL_MASK: &str = "[email]";
 /// Tool output is cut at 8 KiB (the reused Remote redactor cuts at 4 KiB first, which is stricter).
 pub const TOOL_OUTPUT_CAP: usize = 8 * 1024;
 /// One side of a diff.
@@ -141,6 +142,47 @@ fn mask_assignments(s: &str) -> String {
 pub fn scrub(text: &str) -> String {
     let t: String = if text.len() > SCRUB_INPUT_CAP { text.chars().take(SCRUB_INPUT_CAP).collect() } else { text.to_string() };
     mask_assignments(&mask_jwt(&base::scrub_text(&mask_bearer(&mask_pem(&t)))))
+}
+
+/// Anything that looks like an e-mail address (a name, an at sign and a host with a top-level domain) replaced by `[email]`. The commit list carries author names and subjects,
+/// and an address in one of them is a person's data that has no business in a teammate's view. Best effort, like the rest: an address
+/// that is written around (`name at host dot com`) is not recognised. Idempotent.
+pub fn mask_emails(text: &str) -> String {
+    let b = text.as_bytes();
+    // bytes of multi-byte characters count as part of a name, so a name with an accent is masked whole and the cuts stay on boundaries
+    let local = |c: u8| c >= 0x80 || c.is_ascii_alphanumeric() || matches!(c, b'.' | b'_' | b'%' | b'+' | b'-');
+    let domain = |c: u8| c >= 0x80 || c.is_ascii_alphanumeric() || matches!(c, b'.' | b'-');
+    let mut out = String::with_capacity(text.len());
+    let (mut last, mut i) = (0usize, 0usize);
+    while i < b.len() {
+        if b[i] != b'@' {
+            i += 1;
+            continue;
+        }
+        let mut start = i;
+        while start > last && local(b[start - 1]) {
+            start -= 1;
+        }
+        let mut end = i + 1;
+        while end < b.len() && domain(b[end]) {
+            end += 1;
+        }
+        // a full stop or a dash after the address belongs to the sentence
+        while end > i + 1 && matches!(b[end - 1], b'.' | b'-') {
+            end -= 1;
+        }
+        let tld_ok = text[i + 1..end].rsplit_once('.').is_some_and(|(host, tld)| !host.is_empty() && tld.len() >= 2 && tld.bytes().all(|c| c.is_ascii_alphabetic()));
+        if start < i && tld_ok {
+            out.push_str(&text[last..start]);
+            out.push_str(EMAIL_MASK);
+            last = end;
+            i = end;
+        } else {
+            i += 1;
+        }
+    }
+    out.push_str(&text[last..]);
+    out
 }
 
 /// Keeps the first `max` characters and says so.
@@ -373,6 +415,28 @@ impl Redactor {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn e_mail_addresses_are_masked_and_ordinary_text_is_not() {
+        // the `#` stands for the at sign, so that no address is spelled out in the source
+        let at = |s: &str| s.replace('#', "@");
+        assert_eq!(mask_emails(&at("mail jane#corp.com now")), "mail [email] now");
+        assert_eq!(mask_emails(&at("Jane Doe <jane.doe+tag#sub.corp.co.uk>")), "Jane Doe <[email]>");
+        assert_eq!(mask_emails(&at("reported by jane#corp.com.")), "reported by [email].");
+        assert_eq!(mask_emails(&at("a#b.cc, x_y%z#q-r.org; end")), "[email], [email]; end");
+        assert_eq!(mask_emails(&at("Zoltán <józsi#példa.hu>")), "Zoltán <[email]>", "accents do not hide an address");
+        // not addresses
+        for plain in ["#mention", "a#b", "user#localhost", "x#1.2", "npm i #scope/pkg#1.2.3", "price 5 # 3 each", "email me # home.", "##", ""] {
+            let plain = at(plain);
+            assert_eq!(mask_emails(&plain), plain, "{plain}");
+        }
+        // idempotent and never cuts inside a character
+        let once = mask_emails(&at("é#é.héé é#x.com ééé"));
+        assert_eq!(mask_emails(&once), once);
+        assert!(once.contains(EMAIL_MASK));
+        let many = at("a#b.com ").repeat(1000);
+        assert_eq!(mask_emails(&many), "[email] ".repeat(1000));
+    }
+
     use super::*;
     use intely_agent_core::events::{StopReason, ToolKind, ToolStatus};
 

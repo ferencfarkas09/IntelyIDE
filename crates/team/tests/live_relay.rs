@@ -450,6 +450,15 @@ impl Peer {
                 Err(why) => self.denied.push(why.into()),
             },
             CollabMsg::WsDenied { reason, .. } => self.denied.push(reason),
+            // Chat and follow-ups are decided by the app (the run owner is the hub); this harness only
+            // proves the relay carries notes and snapshots, so the other messages are dropped here.
+            CollabMsg::FollowUpSend { .. }
+            | CollabMsg::FollowUpStatus { .. }
+            | CollabMsg::ChatSend { .. }
+            | CollabMsg::ChatMsg { .. }
+            | CollabMsg::ChatRequest { .. }
+            | CollabMsg::ChatHistory { .. }
+            | CollabMsg::ChatDenied { .. } => {}
         }
     }
 

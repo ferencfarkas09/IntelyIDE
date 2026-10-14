@@ -21,6 +21,16 @@ pub fn setup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+/// The newest commits of the branch a repository has checked out (Team's commit list), read-only; `None` when the engine or the
+/// log is not available.
+pub(crate) async fn recent_commits(app: &AppHandle, repo_id: &str, limit: u32) -> Option<Vec<GraphRow>> {
+    let slot = app.try_state::<EngineSlot>()?;
+    let graph = app.try_state::<GraphState>()?;
+    let env = env_of(slot.get().ok()?).await.ok()?;
+    let filters = LogFilters { branch: Some("HEAD".into()), ..Default::default() };
+    graph.0.log_page(&env, &[repo_id.to_string()], None, &filters, Some(limit)).await.ok().map(|page| page.rows)
+}
+
 /// The git context plus the open workspace with the live patterns of every workspace that holds the same repositories (I7).
 async fn env_of(engine: &Engine) -> Res<Env> {
     Ok(Env::new(engine.git_ctx(), engine.effective_workspace().await?))

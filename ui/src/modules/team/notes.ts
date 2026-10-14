@@ -5,7 +5,7 @@ import type { TeamNoteIn, TeamSentNote } from "../../ipc/team";
 import { agentRows } from "../../store/agents";
 import { messageOf } from "./store";
 
-// Notes into a run (T3). Owner side: notes that wait for a decision. Sender side: the notes this install sent and where each stands.
+// Notes and follow-ups into a run (T3). Owner side: notes that wait for a decision. Sender side: the notes this install sent and where each stands.
 const [pending, setPending] = createSignal<TeamNoteIn[]>([]);
 const [sent, setSent] = createSignal<TeamSentNote[]>([]);
 
@@ -21,13 +21,16 @@ const upsertSent = (n: TeamSentNote) => setSent((all) => [...all.filter((x) => !
 function announce(n: TeamNoteIn): void {
   const text = n.text.length > BANNER_CHARS ? `${n.text.slice(0, BANNER_CHARS)}...` : n.text;
   const title = agentRows().find((r) => r.agentId === n.runId)?.title;
-  void ipc.notify.show({ kind: "question", title: t("team.note.banner", { name: n.memberName, text }), body: n.auto ? t("team.note.bannerAuto") : t("team.note.bannerAsk"), runId: n.runId, subtitle: title }).catch(() => undefined);
+  const heading = n.kind === "followup" ? t("team.followup.banner", { name: n.memberName, text }) : t("team.note.banner", { name: n.memberName, text });
+  const body = n.kind === "followup" ? t("team.followup.bannerAsk") : n.auto ? t("team.note.bannerAuto") : t("team.note.bannerAsk");
+  void ipc.notify.show({ kind: "question", title: heading, body, runId: n.runId, subtitle: title }).catch(() => undefined);
 }
 
 function watch(): void {
   if (watching) return;
   const offIn = ipc.team.onNoteIn((n) => {
-    if (!n.auto) setPending((all) => (all.some((x) => x.memberId === n.memberId && x.noteId === n.noteId) ? all : [...all, n]));
+    // a follow-up is never passed on by itself, whatever the flag says
+    if (!n.auto || n.kind === "followup") setPending((all) => (all.some((x) => x.memberId === n.memberId && x.noteId === n.noteId) ? all : [...all, n]));
     announce(n);
   });
   const offStatus = ipc.team.onNoteStatus(upsertSent);
@@ -64,7 +67,14 @@ export async function decideNote(n: TeamNoteIn, accept: boolean): Promise<string
 export async function sendTeamNote(memberId: string, runId: string, text: string): Promise<void> {
   watch();
   const noteId = await ipc.team.noteSend(memberId, runId, text);
-  upsertSent({ memberId, runId, noteId, status: "sent", at: Date.now() });
+  upsertSent({ kind: "note", memberId, runId, noteId, status: "sent", at: Date.now() });
+}
+
+/** Suggests a follow-up for a teammate's run that is not working. It only ever becomes a card for the owner. Rejects with the backend's reason. */
+export async function sendFollowUp(memberId: string, runId: string, text: string): Promise<void> {
+  watch();
+  const noteId = await ipc.team.followUpSend(memberId, runId, text);
+  upsertSent({ kind: "followup", memberId, runId, noteId, status: "sent", at: Date.now() });
 }
 
 export async function loadSent(memberId: string, runId: string): Promise<void> {

@@ -106,3 +106,44 @@
 .team-mem__diff { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); flex: 1 1 100%; min-width: 0; }
 .team-mem__diff pre { margin: 0; padding: var(--space-2); max-height: 18em; overflow: auto; background: var(--surface-1); border-radius: var(--radius-2); font-family: var(--font-mono); font-size: var(--text-xs); white-space: pre-wrap; overflow-wrap: anywhere; }
 .team-mem__diff [data-changed="true"] { background: color-mix(in srgb, var(--warn, var(--accent)) 22%, transparent); }
+
+/* Chat in a shared run. */
+.team-chat { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+.team-chat__log { flex: 1 1 auto; min-height: 8em; overflow-y: auto; display: flex; flex-direction: column; gap: var(--space-2); margin: 0; padding: var(--space-3) var(--space-4); list-style: none; }
+.team-chat__log:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.team-chat__empty { margin: auto; text-align: center; }
+.team-chat__msg { display: flex; flex-direction: column; gap: 2px; max-width: 85%; padding: var(--space-2) var(--space-3); border-radius: var(--radius-3); background: var(--surface-1); box-shadow: inset 0 0 0 1px var(--border-subtle); min-width: 0; align-self: flex-start; }
+.team-chat__msg[data-mine] { align-self: flex-end; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--accent); }
+.team-chat__msg[data-pending] { opacity: 0.7; }
+.team-chat__msg[data-failed] { box-shadow: inset 0 0 0 1px var(--danger); }
+.team-chat__meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); font-size: var(--text-xs); }
+.team-chat__author { color: var(--text-1); font-weight: var(--weight-semibold); }
+.team-chat__text { color: var(--text-1); font-size: var(--text-sm); white-space: pre-wrap; overflow-wrap: anywhere; }
+.team-chat__composer { display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-2) var(--space-4); box-shadow: inset 0 1px 0 var(--border-subtle); }
+.team-chat__field { display: flex; align-items: flex-end; gap: var(--space-2); }
+.team-chat__input { flex: 1 1 auto; min-width: 0; }
+.team-chat__count { align-self: flex-end; }
+.team-chat__count[data-over] { color: var(--danger); }
+.team-chatstrip { display: flex; flex-direction: column; box-shadow: inset 0 1px 0 var(--border-subtle); }
+.team-chatstrip__toggle { display: flex; align-items: center; gap: var(--space-2); width: 100%; padding: var(--space-2) var(--space-4); border: 0; background: transparent; color: var(--text-2); font-size: var(--text-sm); font-weight: var(--weight-medium); text-align: start; cursor: pointer; }
+.team-chatstrip__toggle:hover { background: var(--surface-2); color: var(--text-1); }
+.team-chatstrip__toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.team-chatstrip__body { display: flex; flex-direction: column; height: 18em; min-height: 0; }
+
+/* Shared commit list. */
+.team-commits { flex: none; max-height: 16em; overflow-y: auto; display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1); padding: var(--space-2) var(--space-4); box-shadow: inset 0 -1px 0 var(--border-subtle); }
+.team-commits__head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.team-commits__title { margin: 0; color: var(--text-1); font-size: var(--text-sm); font-weight: var(--weight-semibold); }
+.team-commits__list { align-self: stretch; display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.team-commit { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-1) var(--space-2); border-radius: var(--radius-2); min-width: 0; }
+.team-commit:hover { background: var(--surface-2); }
+.team-commit[data-unpushed] { box-shadow: inset 2px 0 0 var(--warn, var(--accent)); }
+.team-commit__oid { flex: none; color: var(--text-3); font-size: var(--text-xs); }
+.team-commit__main { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; }
+.team-commit__subject { color: var(--text-1); font-size: var(--text-sm); }
+.team-commit__meta { display: flex; align-items: center; gap: var(--space-2); color: var(--text-3); font-size: var(--text-xs); min-width: 0; }
+.team-commitspane { padding-bottom: var(--space-4); }
+.team-commitspane__targets { display: flex; flex-direction: column; gap: var(--space-2); margin: 0; padding: var(--space-3) var(--space-4); list-style: none; }
+.team-commitspane__target { display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-2) var(--space-3); border-radius: var(--radius-3); background: var(--surface-1); box-shadow: inset 0 0 0 1px var(--border-subtle); min-width: 0; }
+.team-commitspane__who, .team-commitspane__line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-width: 0; }
+.team-commitspane__timeline { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1); padding: 0 var(--space-4); }

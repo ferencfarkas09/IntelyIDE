@@ -452,3 +452,28 @@ fn invite_codes_with_odd_ids_are_refused() {
     assert!(InviteCode::parse(&link.replace(&admin.member_id, "pair-abc")).is_err());
     assert!(InviteCode::parse(&link.replace(&admin.member_id, "a b")).is_err());
 }
+
+/// The biggest chat history answer the owner's store can produce, with the text escaping as badly as it can, is still one frame of the
+/// relay (`TEAM_MAX_FRAME`: 64 KiB of JSON text, wrapper included).
+#[test]
+fn the_largest_chat_history_fits_one_relay_frame() {
+    use intely_team::chat::{ChatEntry, ChatStore};
+    use intely_team::collab::CollabMsg;
+    let (admin, mut a) = team();
+    let (bob, mut b) = join(&admin, &mut a, "Bob");
+    // short messages carry the most id and author per byte of text; quotes and newlines take two bytes each in JSON
+    for text in ["\"", "\"\"\"\"\"\"\"\"\"\"", &"\"".repeat(300), &"\"".repeat(1900), &format!("{}x", "x\n".repeat(949)), &"\u{1F600}".repeat(1900)] {
+        let mut store = ChatStore::default();
+        for i in 0..250u64 {
+            store.push("o", "r", ChatEntry { msg_id: format!("{}.{i:011}", bob.member_id), author: bob.member_id.clone(), text: text.to_string(), at: 1_700_000_000_000 + i });
+        }
+        let msgs = store.history("o", "r");
+        assert!(!msgs.is_empty());
+        let msg = CollabMsg::ChatHistory { run_id: "r".repeat(80), msgs };
+        assert!(CollabMsg::parse(&msg.encode()).is_some(), "the answer is a valid message");
+        let env = b.seal(&bob, &msg.encode()).unwrap();
+        let wire = env.encode().len();
+        assert!(wire + 1024 < 64 * 1024, "a history answer of {} bytes of JSON takes {wire} bytes on the wire", msg.encode().len());
+        assert!(a.open(&env).is_ok());
+    }
+}

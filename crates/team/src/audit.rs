@@ -22,6 +22,9 @@ pub mod event {
     pub const NOTE_RECEIVED: &str = "team.note.received";
     pub const NOTE_ACCEPTED: &str = "team.note.accepted";
     pub const NOTE_REJECTED: &str = "team.note.rejected";
+    pub const FOLLOWUP_RECEIVED: &str = "team.followup.received";
+    pub const FOLLOWUP_ACCEPTED: &str = "team.followup.accepted";
+    pub const FOLLOWUP_REJECTED: &str = "team.followup.rejected";
     pub const WORKSPACE_SERVED: &str = "team.workspace.served";
     pub const MEMORY_WRITE: &str = "team.memory.write";
 }

@@ -5,11 +5,13 @@
 //! - [`invite`]: the admin's one-time offer and the joiner's side of the `Noise_IKpsk2` handshake (6-digit SAS on both screens).
 //! - [`keyring`] + [`envelope`]: team key epochs (XChaCha20-Poly1305) and the signed, replay-protected envelope.
 //! - [`roster`]: the admin-signed member list; [`state`]: everything a member keeps, including revoke with key rotation.
-//! - [`collab`]: notes into a teammate's run (T3) and workspace snapshots (T4); the only requests a teammate can make.
+//! - [`collab`]: notes and follow-ups into a teammate's run (T3), workspace snapshots with the commit list (T4), chat in a shared run
+//!   (T6); the only requests a teammate can make. [`chat`]: the chat message type and the bounded thread store.
 //! - [`audit`]: the team's own hash-chained log (reuses `intely_remote::audit`).
 //! - [`wire`] + [`client`]: framing of what the relay forwards, and the WebSocket client (inherits the Remote host jail/trust).
 
 pub mod audit;
+pub mod chat;
 pub mod client;
 pub mod collab;
 pub mod envelope;
