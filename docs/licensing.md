@@ -1,6 +1,6 @@
 # Licensing
 
-This page explains under which licence IntelyIDE is released, how that is recorded in the files, which commands check it, and what is deliberately not part of the distribution. Applies to version 1.4.1.
+This page explains under which licence IntelyIDE is released, how that is recorded in the files, which commands check it, and what is deliberately not part of the distribution. Applies to version 1.5.0.
 
 This is a description of the project's practice, not legal advice.
 

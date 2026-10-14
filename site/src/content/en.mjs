@@ -162,7 +162,7 @@ export default {
     faq: {
       title: 'Quick answers',
       items: [
-        ['Which Macs do the apps support?', 'IntelyIDE is built for Intel Macs (macOS 13.5 or later) and runs on Apple silicon under Rosetta 2. IntelyOpti is built for Intel Macs and needs macOS 26 or later.'],
+        ['Which Macs do the apps support?', 'IntelyIDE is one universal build for Intel and Apple Silicon Macs (macOS 13.5 or later). IntelyOpti is built for Intel Macs and needs macOS 26 or later.'],
         ['What costs money?', 'IntelyIDE is free and open source. IntelyOpti has a free tier that stays free, a {{trial}}-day free trial of everything, then {{yearly}} per year or {{lifetime}} lifetime, per Mac.'],
         ['Do the apps phone home?', 'IntelyIDE has no analytics and checks GitHub once a day for a newer version. IntelyOpti asks for an e-mail address to start its trial, and its AI Advisor sends nothing until you press Share.'],
         ['Who is behind it?', 'IntelyHome is Ferenc Farkas, a developer. Questions and bug reports go to GitHub Issues and Discussions.'],
@@ -485,7 +485,7 @@ export default {
         'Yes. Agents are optional. The multi-repo Changes tree, editor, terminal, search, diff and the rest work without one.',
       ],
       ['What do I need for the agents?', 'Your own Claude Code setup. The app guides you through connecting it. Other agent tools, such as Codex or Gemini, can be added as experimental providers. IntelyIDE ships none of them.'],
-      ['Does it run on Apple Silicon?', 'Yes. The current build is for Intel Macs (x64) and runs on Apple Silicon under Rosetta 2. See the architecture note next to the download button for the current state.'],
+      ['Does it run on Apple Silicon?', 'Yes. The current build is universal, so it runs natively on Intel and Apple Silicon Macs. The architecture note next to the download button always shows what the current release is.'],
       ['What about Windows and Linux?', 'Not right now. IntelyIDE is built and tested on macOS only.'],
       ['How do I report a problem?', 'Open an issue on GitHub. Say which version you use and what you did before it happened. Questions go to GitHub Discussions. Report security problems privately through GitHub’s private vulnerability reporting.'],
       ['Is it affiliated with Anthropic?', 'No. IntelyIDE is an independent project and is not affiliated with or endorsed by Anthropic.'],

@@ -161,7 +161,7 @@ export default {
     faq: {
       title: 'Gyors válaszok',
       items: [
-        ['Mely Mac-eket támogatják az alkalmazások?', 'Az IntelyIDE Intel Mac-ekre (macOS 13.5 vagy újabb) készült, és Apple Siliconon a Rosetta 2-n fut. Az IntelyOpti Intel Mac-ekre épült, és macOS {{minMac}} vagy újabb kell hozzá.'],
+        ['Mely Mac-eket támogatják az alkalmazások?', 'Az IntelyIDE egyetlen univerzális build Intel és Apple Silicon Mac-ekre (macOS 13.5 vagy újabb). Az IntelyOpti Intel Mac-ekre épült, és macOS {{minMac}} vagy újabb kell hozzá.'],
         ['Mi kerül pénzbe?', 'Az IntelyIDE ingyenes és nyílt forráskódú. Az IntelyOptinak van egy ingyenes szintje, amely ingyenes marad, egy {{trial}} napos ingyenes próbája mindenre, utána {{yearly}} évente vagy {{lifetime}} élethosszra, Mac-enként.'],
         ['Hazatelefonálnak az alkalmazások?', 'Az IntelyIDE-ben nincs analitika, naponta egyszer megnézi a GitHubon, van-e újabb verzió. Az IntelyOpti e-mail-címet kér a próba indításához, és az MI-tanácsadója semmit sem küld el, amíg meg nem nyomod a Megosztást.'],
         ['Ki áll mögötte?', 'Az IntelyHome Farkas Ferenc, egy fejlesztő. A kérdések és hibajelentések a GitHub Issues és Discussions felületére mennek.'],
@@ -484,7 +484,7 @@ export default {
         'Igen. Az ügynökök opcionálisak. A több repós Változások fa, a szerkesztő, a terminál, a keresés, a diff és a többi ügynök nélkül is működik.',
       ],
       ['Mi kell az ügynökökhöz?', 'A saját Claude Code beállításod. Az app végigvezet a csatlakoztatáson. További ügynökeszközök, például a Codex vagy a Gemini kísérleti providerként adhatók hozzá. Az IntelyIDE egyiket sem tartalmazza.'],
-      ['Fut Apple Siliconon?', 'Igen. A jelenlegi build Intel Mac-ekre (x64) készült, és Apple Siliconon a Rosetta 2-n keresztül fut. Az aktuális állapotot a letöltés gomb melletti architektúra-megjegyzés mutatja.'],
+      ['Fut Apple Siliconon?', 'Igen. A jelenlegi build univerzális, ezért natívan fut Intel és Apple Silicon Mac-eken is. Az aktuális állapotot mindig a letöltés gomb melletti architektúra-megjegyzés mutatja.'],
       ['És Windows vagy Linux?', 'Most nem. Az IntelyIDE csak macOS-en készül és tesztelt.'],
       ['Hogyan jelezhetek problémát?', 'Nyiss egy hibajegyet GitHubon. Írd meg, melyik verziót használod, és mit tettél előtte. A kérdések a GitHub Discussionsbe valók. A biztonsági hibákat privátban jelezd a GitHub privát sebezhetőség-bejelentésén keresztül.'],
       ['Köze van az Anthropichoz?', 'Nincs. Az IntelyIDE független projekt, nem áll kapcsolatban az Anthropickal, és az nem támogatja.'],

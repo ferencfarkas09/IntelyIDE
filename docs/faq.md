@@ -1,6 +1,6 @@
 # FAQ and troubleshooting
 
-This page answers the questions people ask first and lists the fixes for the problems they hit first. Applies to version 1.4.1. Statements about files and behaviour were checked against the source; where something is not verified, the text says so.
+This page answers the questions people ask first and lists the fixes for the problems they hit first. Applies to version 1.5.0. Statements about files and behaviour were checked against the source; where something is not verified, the text says so.
 
 ## About the project
 
@@ -50,7 +50,7 @@ The Claude provider needs the Anthropic Agent SDK. It is not distributed with In
 
 ### Which Macs and macOS versions are supported?
 
-macOS 13.5 or later. There are two DMGs. The `aarch64` DMG is for Apple silicon (first launch untested on hardware until the release notes say otherwise). The `x64` DMG is for Intel Macs and also runs on Apple silicon under Rosetta 2, more slowly; Apple may remove Rosetta in a future macOS. Windows and Linux are not supported.
+macOS 13.5 or later, on an Intel or an Apple Silicon Mac. A release is one universal disk image (`IntelyIDE_<version>_universal.dmg`) that runs natively on both; it has been used mostly on an Intel Mac, so the Apple Silicon half has had less use. Windows and Linux are not supported.
 
 ## Installing and starting
 

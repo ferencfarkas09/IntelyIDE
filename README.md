@@ -117,7 +117,7 @@ The full layer table, the enforcement suite and its results are in [docs/safety.
 
 ## Status and known limitations
 
-This is version 1.4.1. It has been used mostly by its author, on an Intel Mac.
+This is version 1.5.0. It has been used mostly by its author, on an Intel Mac.
 
 - Write mode is not judged suitable for unattended daily use on repositories you cannot restore.
 - The agent protections are best-effort. See the safety model above.
@@ -125,7 +125,7 @@ This is version 1.4.1. It has been used mostly by its author, on an Intel Mac.
 - The embedded preview has not been checked on every macOS version.
 - The contract detector is heuristic.
 - The non-English interface languages other than Hungarian are machine-translated.
-- The release is an Intel (x64) build. Apple Silicon Macs run it under Rosetta 2, which is slower. A native Apple Silicon build is not available yet.
+- The release is one universal build (Intel and Apple Silicon in one app). It has been used mostly on an Intel Mac, so the Apple Silicon half has had less use.
 - From 1.3.0 on the app is signed with a Developer ID and notarized by Apple. Builds older than 1.3.0 are ad-hoc signed and not notarized, so macOS asks you to confirm the first launch (see Install).
 - The app tells you when a newer release exists (a notice with a link to the release page, checked once a day; see Settings > Updates). It does not download or install updates itself: you replace the app with the new disk image.
 - Runs on servers were tried against a Linux container through a real `ssh` and against a scripted stand-in, not against many real servers. MCP servers, attachments, Rewind, other providers, the History view of server sessions and the Changes tree of the server's copy are not available for them yet.
@@ -137,7 +137,7 @@ This is version 1.4.1. It has been used mostly by its author, on an Intel Mac.
 <!--dmg:available-->
 ### macOS installer (DMG)
 
-1. Download `IntelyIDE_1.4.1_x64.dmg` from the Releases page of this repository. It is built for Intel Macs and also runs on Apple Silicon under Rosetta 2, more slowly. Apple may remove Rosetta in a future macOS. If you are unsure which Mac you have: Apple menu > About This Mac.
+1. Download `IntelyIDE_1.5.0_universal.dmg` from the Releases page of this repository. It is one universal app that runs natively on Intel and Apple Silicon Macs. If you are unsure which Mac you have: Apple menu > About This Mac.
 2. Check the download. `shasum -a 256 --ignore-missing -c SHA256SUMS` in the download folder detects a corrupted download only; the checksums come from the same page as the file, so they cannot prove where it came from.
 3. Open the DMG and drag IntelyIDE to Applications, then open it from there.
 4. First launch. <!--dmg:v:adhoc,developer-id--><!--This build is not notarized, so macOS refuses the first launch: on macOS 15 and later open System Settings > Privacy & Security, scroll to the message about IntelyIDE, choose Open Anyway and confirm; on macOS 13 and 14 right-click the app and choose Open. Do this only for a file you downloaded from this repository's Releases page.--><!--/dmg:v--><!--dmg:v:notarized-->The app is notarized and opens normally.<!--/dmg:v-->
@@ -166,7 +166,7 @@ A macOS installer (DMG) is built from this repository and attached to the Releas
 
 ## Requirements
 
-- macOS 13.5 or later. Intel x64 build for now; Apple Silicon runs it under Rosetta 2.
+- macOS 13.5 or later, on an Intel or an Apple Silicon Mac (one universal build).
 - `git` 2.30 or newer (the push path uses `--force-if-includes`), for example from the Xcode Command Line Tools.
 - For agent features: Node.js 24 or newer, and your own Claude Code (`claude` command-line tool) installed and logged in. Claude Code is not bundled and is not part of this project.
 - For agent features: the Claude Agent SDK, which you install yourself under Anthropic's terms. See [docs/getting-started.md](docs/getting-started.md).
@@ -201,7 +201,7 @@ IntelyIDE has no telemetry: no usage data, no analytics, no crash reports and no
 - **Can the agent push?** It is fenced off by layered, best-effort protections, not by a guarantee. See the safety model above.
 - **What does it send over the network?** See Privacy above.
 - **Why does macOS say it cannot verify the app?** Builds before 1.3.0 are ad-hoc signed and not notarized. From 1.3.0 on the app is signed with a Developer ID and notarized, and opens normally. See Install.
-- **Does it run on Apple Silicon?** Yes, under Rosetta 2, more slowly. A native build is not available yet.
+- **Does it run on Apple Silicon?** Yes. The disk image is universal, so it runs natively on Apple Silicon too. It has been used mostly on an Intel Mac; please report what you meet on Apple Silicon.
 - **Why does it need my own Claude installation?** It drives your local `claude` and does not bundle or proxy it.
 - **Is it affiliated with Anthropic?** No. See License.
 - **How do I report a vulnerability?** Privately, as described in [SECURITY.md](SECURITY.md).
@@ -213,7 +213,7 @@ More questions and troubleshooting: [docs/faq.md](docs/faq.md).
 | Document | What it covers |
 |---|---|
 | [Getting started](docs/getting-started.md) | Run modes, workspaces, a first commit in a scratch repository, agent setup |
-| [Install on macOS](docs/install-macos.md) | The DMG, the first-launch prompt, Rosetta 2, uninstall |
+| [Install on macOS](docs/install-macos.md) | The DMG, the first-launch prompt, uninstall |
 | [FAQ and troubleshooting](docs/faq.md) | Common questions, logs, resetting state |
 | [Safety model](docs/safety.md) | The layers, their limits and how they are tested |
 | [Privacy](docs/privacy.md) | What is stored and what leaves your machine |

@@ -1,18 +1,18 @@
 # Install on macOS
 
-This page explains how to install the IntelyIDE disk image on a Mac, what to expect on the first launch, where the app keeps its data, how to remove it and how to report problems. Applies to version 1.4.1.
+This page explains how to install the IntelyIDE disk image on a Mac, what to expect on the first launch, where the app keeps its data, how to remove it and how to report problems. Applies to version 1.5.0.
 
 The installed app starts in normal (writable) mode, so read the [safety model](safety.md) and use it on repositories you can restore.
 
 ## Which download
 
-Releases are listed on the Releases page of the repository (`ferencfarkas09/IntelyIDE` on GitHub). Version 1.2.0 ships one disk image:
+Releases are listed on the Releases page of the repository (`ferencfarkas09/IntelyIDE` on GitHub). Each release ships one disk image:
 
 | File | For | Notes |
 |---|---|---|
-| `IntelyIDE_1.2.0_x64.dmg` | Intel Macs | Also runs on Apple Silicon under Rosetta 2 |
+| `IntelyIDE_<version>_universal.dmg` | Intel and Apple Silicon Macs | One universal app that runs natively on both |
 
-There is no native Apple Silicon build yet. On an Apple Silicon Mac the app runs under Rosetta 2, Apple's translation layer. It works, but it is slower, and Apple may remove Rosetta in a future macOS. If macOS asks you to install Rosetta the first time, accept. If you are unsure which Mac you have: Apple menu > About This Mac.
+The app has been used mostly on an Intel Mac, so the Apple Silicon half has had less use; please report what you meet. If you are unsure which Mac you have: Apple menu > About This Mac.
 
 Requirements: macOS 13.5 or later and `git` 2.30 or newer (install the Xcode Command Line Tools with `xcode-select --install` if you have no Git). Agent features need more; see [getting-started.md](getting-started.md).
 
