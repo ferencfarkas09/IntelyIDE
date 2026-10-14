@@ -11,7 +11,7 @@ publish = false
 name = "intely_team"
 
 [dependencies]
-chacha20poly1305 = { version = "0.10.1", default-features = false, features = ["alloc"] }
+chacha20poly1305 = { version = "0.11.0", default-features = false, features = ["alloc"] }
 futures-util = { version = "0.3.34", default-features = false, features = ["sink", "std"] }
 hex = "0.4.3"
 intely-agent-core = { version = "0.0.0", path = "../agent_core" }
