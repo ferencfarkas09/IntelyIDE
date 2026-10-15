@@ -320,7 +320,7 @@ export default {
           'A csapattársak soha nem válaszolhatnak engedélykártyára és nem indíthatnak futást. Tag eltávolításakor kulcscsere történik.',
         ],
         pill: 'Béta',
-        shots: [['team', 'A Csapat fül: egy kolléga futása csak olvashatóan, jóváhagyásra váró jegyzettel.'], ['team-memory', 'Közös Claude memória függő CLAUDE.md változással és ütközési másolattal.']],
+        shots: [['team', 'A Csapat fül: egy kolléga futása csak olvashatóan, jóváhagyásra váró jegyzettel.'], ['team-chat', 'Csevegés a kolléga megosztott futásában: a szál az embereké, az ügynök sosem látja.'], ['team-commits', 'A csapat commitjai és módosításai egy helyen, mindenki legutóbbi commitjaival egy idővonalon.'], ['team-memory', 'Közös Claude memória függő CLAUDE.md változással és ütközési másolattal.']],
       },
       {
         id: 'servers',

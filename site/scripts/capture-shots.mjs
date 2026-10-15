@@ -36,7 +36,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ---------- helpers ----------------------------------------------------------------------------------------------
 const text = (c) => c.eval(`document.body.innerText`);
-const waitText = (c, s, t = 20000) => c.waitFor(`document.body.innerText.includes(${JSON.stringify(s)})`, t, `text "${s}"`);
+// SHOTS_WAIT (ms) lengthens every wait on a slow or busy machine; the default is what a quiet one needs
+const WAIT = Number(process.env.SHOTS_WAIT) || 20000;
+const waitText = (c, s, t = WAIT) => c.waitFor(`document.body.innerText.includes(${JSON.stringify(s)})`, t, `text "${s}"`);
 const clickRail = async (c, label) => (await c.clickEl("button", label), await c.settle());
 /** Clicks a row of the Changes tree / any tree by its visible text. */
 async function clickRow(c, label) {
@@ -289,6 +291,34 @@ SHOTS["team-memory"] = async (c) => {
   await dismissToasts(c);
 };
 SHOTS["team-memory"].meta = { query: "team=on" };
+
+/** Team (Beta): chat in a teammate's run. The mock owner "Jordan" shares an idle run; the thread is filled through the dev handle. */
+SHOTS["team-chat"] = async (c) => {
+  await openTeamTab(c);
+  await clickText(c, "Fix the cart total", ".team-tab__list, body");
+  await c.eval(`[...document.querySelectorAll('[role="radio"]')].find((e) => e.textContent.trim().startsWith("Chat"))?.click()`);
+  await waitText(c, "never sees the chat"); // the empty thread's note; the composer's hint is a placeholder, which innerText does not hold
+  const min = 60000;
+  await c.eval(`(() => {
+    const sim = window.__intelyIpc.team.sim; const now = Date.now();
+    sim.chatIn("m_jo", "r_jo1", { author: "m_jo", authorName: "Jordan", text: "The total ignores quantities. I asked Claude to fix it and it passes now.", at: now - 14 * ${min} });
+    sim.chatIn("m_jo", "r_jo1", { author: "m_ri", authorName: "Riley", text: "Nice. Can you also round the receipt to cents? I saw 12.500000001 on the printout.", at: now - 11 * ${min} });
+    sim.chatIn("m_jo", "r_jo1", { author: "m_me", authorName: "Sam", mine: true, text: "I will suggest it as a follow-up so Jordan can send it to the agent.", at: now - 8 * ${min} });
+    sim.chatIn("m_jo", "r_jo1", { author: "m_jo", authorName: "Jordan", text: "Good idea, I will accept it when it arrives.", at: now - 6 * ${min} });
+  })()`);
+  await waitText(c, "I will accept it when it arrives");
+  await dismissToasts(c);
+};
+SHOTS["team-chat"].meta = { query: "team=on" };
+/** Team (Beta): the team's commits and edits, with the timeline of the recent commits of everybody. */
+SHOTS["team-commits"] = async (c) => {
+  await openTeamTab(c);
+  await clickText(c, "Team commits", ".team-tab__list, body");
+  await waitText(c, "Team timeline");
+  await sleep(600);
+  await dismissToasts(c);
+};
+SHOTS["team-commits"].meta = { query: "team=on" };
 
 // ---------- runner -----------------------------------------------------------------------------------------------
 mkdirSync(OUT, { recursive: true });

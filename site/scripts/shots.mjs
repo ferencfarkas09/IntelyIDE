@@ -13,6 +13,8 @@ export const SHOTS = {
   'mongo-studio': 'MongoDB Studio, read-only, with an AI-generated query',
   team: 'Team (Beta): a teammate\'s shared run, read-only, with a note waiting for approval',
   'team-memory': 'Team (Beta): shared Claude memory with a pending CLAUDE.md change and a conflict copy',
+  'team-chat': 'Team (Beta): the chat in a teammate\'s shared run',
+  'team-commits': 'Team (Beta): the commits and edits of the whole team, with a team timeline',
   providers: 'Settings > Providers: provider cards and the Experimental providers switch',
   'api-contract': 'API contract view: contract-drift findings',
   appearance: 'Settings > Appearance: themes and accent colors',
@@ -38,6 +40,6 @@ export const OPTI_WIDTHS = [720, 1440, 2400];
 /** Intrinsic size (w, h) the <img> declares at the 1440 variant, to avoid layout shift. */
 export const DEFAULT_DIMS = [1440, 923];
 export const DIMS = {
-  team: [1440, 900], 'team-memory': [1440, 900], 'api-explorer': [1440, 900],
+  team: [1440, 900], 'team-memory': [1440, 900], 'team-chat': [1440, 900], 'team-commits': [1440, 900], 'api-explorer': [1440, 900],
 };
 export const OPTI_DIMS = [1440, 960];

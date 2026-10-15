@@ -321,7 +321,7 @@ export default {
           'Teammates can never answer permission cards or start runs. Removing a member rotates the key.',
         ],
         pill: 'Beta',
-        shots: [['team', 'The Team tab: a teammate\'s run read-only, with a note waiting for your approval.'], ['team-memory', 'Shared Claude memory with a pending CLAUDE.md change and a conflict copy.']],
+        shots: [['team', 'The Team tab: a teammate\'s run read-only, with a note waiting for your approval.'], ['team-chat', 'Chat in a teammate\'s shared run: the thread belongs to the people, the agent never sees it.'], ['team-commits', 'The commits and edits of the whole team, with a timeline of everybody\'s recent commits.'], ['team-memory', 'Shared Claude memory with a pending CLAUDE.md change and a conflict copy.']],
       },
       {
         id: 'servers',
