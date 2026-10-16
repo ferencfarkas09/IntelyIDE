@@ -255,7 +255,7 @@ fn data_dir(app: &AppHandle) -> Res<PathBuf> {
 }
 
 /// Relay hosts this person acknowledged while joining a team (`team.trustedRelayHosts`), as `host[:port]` in lower case.
-fn trusted_relay_hosts(team: &serde_json::Map<String, Value>) -> Vec<String> {
+fn acknowledged_relay_hosts(team: &serde_json::Map<String, Value>) -> Vec<String> {
     team.get("trustedRelayHosts").and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_str).map(str::to_ascii_lowercase).collect()).unwrap_or_default()
 }
 
@@ -266,24 +266,24 @@ fn relay_base(settings: &SettingsStore) -> (String, RelayTrust) {
     let remote = settings.get("remote").unwrap_or_default();
     let url = team.get("relayUrl").and_then(Value::as_str).filter(|s| !s.is_empty()).or_else(|| remote.get("relayUrl").and_then(Value::as_str)).unwrap_or(DEFAULT_RELAY).to_string();
     let mut allowed_hosts: Vec<String> = remote.get("trust").and_then(|t| t.get("allowedHosts")).and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_str).map(str::to_ascii_lowercase).collect()).unwrap_or_default();
-    allowed_hosts.extend(trusted_relay_hosts(&team));
+    allowed_hosts.extend(acknowledged_relay_hosts(&team));
     (url, RelayTrust { allowed_hosts, jail: super::remote::relay_jail(), resolver: None })
 }
 
 /// At most this many relay hosts are kept as acknowledged by joins.
-const MAX_TRUSTED_RELAYS: usize = 16;
+const MAX_ACKNOWLEDGED_RELAYS: usize = 16;
 
 /// Remembers a relay host the person acknowledged while joining. `Ok(true)` when it was not there before.
 fn remember_relay_host(settings: &SettingsStore, authority: &str) -> Res<bool> {
-    let mut hosts = trusted_relay_hosts(&settings.get(NS).unwrap_or_default());
+    let mut hosts = acknowledged_relay_hosts(&settings.get(NS).unwrap_or_default());
     let host = authority.to_ascii_lowercase();
     if hosts.contains(&host) {
         return Ok(false);
     }
     hosts.push(host);
-    while hosts.len() > MAX_TRUSTED_RELAYS {
-        hosts.remove(0);
-    }
+    // the newest ones stay
+    let skip = hosts.len().saturating_sub(MAX_ACKNOWLEDGED_RELAYS);
+    let hosts: Vec<String> = hosts.into_iter().skip(skip).collect();
     let mut patch = serde_json::Map::new();
     patch.insert("trustedRelayHosts".into(), Value::from(hosts));
     settings.set(NS, patch).map_err(|e| err("settings", e.to_string()))?;
@@ -294,7 +294,7 @@ fn remember_relay_host(settings: &SettingsStore, authority: &str) -> Res<bool> {
 fn forget_relay_host(settings: &SettingsStore, relay: &str) {
     let Ok(parsed) = parse_relay(relay) else { return };
     let host = parsed.authority().to_ascii_lowercase();
-    let mut hosts = trusted_relay_hosts(&settings.get(NS).unwrap_or_default());
+    let mut hosts = acknowledged_relay_hosts(&settings.get(NS).unwrap_or_default());
     let before = hosts.len();
     hosts.retain(|h| *h != host);
     if hosts.len() != before {
@@ -1275,11 +1275,11 @@ mod tests {
     #[test]
     fn the_list_of_acknowledged_hosts_stays_small() {
         let (_d, s) = store();
-        for i in 0..(MAX_TRUSTED_RELAYS + 5) {
+        for i in 0..(MAX_ACKNOWLEDGED_RELAYS + 5) {
             remember_relay_host(&s, &format!("relay{i}.example.workers.dev")).unwrap();
         }
-        let hosts = trusted_relay_hosts(&s.get(NS).unwrap());
-        assert_eq!(hosts.len(), MAX_TRUSTED_RELAYS);
-        assert_eq!(hosts.last().map(String::as_str), Some(format!("relay{}.example.workers.dev", MAX_TRUSTED_RELAYS + 4).as_str()), "the newest stay");
+        let hosts = acknowledged_relay_hosts(&s.get(NS).unwrap());
+        assert_eq!(hosts.len(), MAX_ACKNOWLEDGED_RELAYS);
+        assert_eq!(hosts.last().map(String::as_str), Some(format!("relay{}.example.workers.dev", MAX_ACKNOWLEDGED_RELAYS + 4).as_str()), "the newest stay");
     }
 }
