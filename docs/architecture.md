@@ -149,7 +149,7 @@ On the Rust side each feature has its own file in `src-tauri/src/modules/`. Mong
 ## Data flow of an agent run
 
 1. The runs module starts a run through its `ipc` namespace; the Tauri command passes the request to `AgentHost` in `agent_host`.
-2. The host builds the run's environment from an allow-list, takes a lease from the process gate in `agent_gate`, takes a Rewind snapshot of the working tree under `refs/intely/snapshots/` and prepares a per-run Git shim that only permits allow-listed Git commands.
+2. The host builds the run's environment from an allow-list, takes a lease from the process gate in `agent_gate` (how many runs, how many writers per repository and how much memory come from the `agents` settings at every start), takes a Rewind snapshot of the working tree under `refs/intely/snapshots/` and prepares a per-run Git shim that only permits allow-listed Git commands.
 3. The host starts the sidecar if it is not running and sends the run over NDJSON on stdio. The sidecar loads the chosen provider adapter (the Claude SDK, an ACP client or the mock) and streams provider messages back.
 4. `agent_core` normalises those messages into provider-neutral events. When an agent wants to use a tool, the permission broker decides in a fixed order: hard stop, role deny, saved allow, ask. Anything it cannot judge becomes a question for you; a broken channel becomes a denial.
 5. Every event is appended to the run log first and published second (`EventBus`), so no subscriber sees an event the log does not hold.

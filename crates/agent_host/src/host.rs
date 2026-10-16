@@ -351,6 +351,10 @@ impl AgentHost {
                 Gate::new(cfg.gate.clone())
             }
         };
+        // the limits of the settings (runs at once, writers per repository, memory) apply from the next admission on
+        if let Some(supplier) = cfg.limits.clone() {
+            gate.set_limits_supplier(supplier);
+        }
         sweep_plan_dirs(&cfg.data_dir.join(crate::run::PLANS_DIR), PLAN_DIR_MAX_AGE);
         let book_path = cfg.data_dir.join("enforcement.json");
         let book = (file_mtime(&book_path), EnforcementBook::load(&book_path).unwrap_or_default());
@@ -1264,7 +1268,14 @@ impl AgentHost {
             if run.state.turn_open {
                 return Err(err("agentRunning", "stop the agent before rewinding"));
             }
-            run.meta.snapshots.clone()
+            let snapshots = run.meta.snapshots.clone();
+            // Several runs may share a repository, and a restore puts the whole working tree back: it would overwrite the files of a
+            // run that is working there right now.
+            let working_there = st.agents.iter().find(|(id, other)| id.as_str() != agent_id && other.state.turn_open && other.meta.repos.iter().any(|r| snapshots.iter().any(|s| s.repo_id == r.id))).map(|(id, _)| id.clone());
+            if let Some(other) = working_there {
+                return Err(err("repoBusy", format!("run {other} is still working in this repository; stop it before rewinding, because a rewind would overwrite its files")));
+            }
+            snapshots
         };
         if snapshots.is_empty() {
             return Err(err("noSnapshot", "no Rewind snapshot was taken for this run"));

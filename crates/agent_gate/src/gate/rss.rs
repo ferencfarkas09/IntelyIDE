@@ -71,3 +71,39 @@ pub fn tree_rss(roots: &[pid_t], pgids: &[pid_t]) -> TreeRss {
         procs: acc.procs + 1,
     })
 }
+
+/// The physical memory of this machine in bytes; `None` where it cannot be read (an unsupported platform). The default memory budget of
+/// the runs is a share of it.
+pub fn physical_memory_bytes() -> Option<u64> {
+    #[cfg(target_os = "macos")]
+    {
+        let mut size: u64 = 0;
+        let mut len = std::mem::size_of::<u64>();
+        // SAFETY: the name is NUL-terminated; `size` and `len` are valid for the call and `len` is the size of `size`.
+        let rc = unsafe { libc::sysctlbyname(c"hw.memsize".as_ptr(), (&mut size as *mut u64).cast(), &mut len, std::ptr::null_mut(), 0) };
+        (rc == 0 && size > 0).then_some(size)
+    }
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        // SAFETY: `sysconf` has no preconditions.
+        let (pages, page) = unsafe { (libc::sysconf(libc::_SC_PHYS_PAGES), libc::sysconf(libc::_SC_PAGESIZE)) };
+        (pages > 0 && page > 0).then(|| pages as u64 * page as u64)
+    }
+    #[cfg(not(unix))]
+    {
+        None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_physical_memory_is_known_on_the_platforms_that_run_agents() {
+        if cfg!(unix) {
+            let bytes = physical_memory_bytes().expect("macOS and Linux can tell");
+            assert!((256 << 20..64 << 40).contains(&bytes), "{bytes} bytes is not a plausible amount of memory");
+        }
+    }
+}

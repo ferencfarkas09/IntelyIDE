@@ -33,7 +33,7 @@ describe("run modes", () => {
   });
 
   it("words the host's mode errors, and falls back to its own message", () => {
-    expect(modeErrorText("writeLease")).toBe("Another run is writing to this repository. Wait for it, or pick Ask.");
+    expect(modeErrorText("writeLease")).toBe("This repository already has as many runs changing it as are allowed. Wait for one to finish, pick Ask, or change the limits under Settings > Roles > Runs at the same time.");
     expect(modeErrorText("modeChanged")).toBe("The rules changed while this was waiting, so the request was withdrawn.");
     expect(modeErrorText("zzz", "own message")).toBe("own message");
     expect(modeErrorText(undefined)).toBe("That did not go through.");

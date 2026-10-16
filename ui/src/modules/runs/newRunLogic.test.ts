@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ProviderEnforcement } from "../../ipc/providers";
 import type { PermissionMode } from "../../store/agent-types";
-import { chosenProvider, clampMode, DEFAULT_MODE_UNTIL_AG1, defaultRepos, initialMode, providerBlocker, providerChoices, startBlocker, startErrorText, startRequest, toggleRepo } from "./newRunLogic";
+import { chosenProvider, clampMode, DEFAULT_MODE_UNTIL_AG1, defaultRepos, failureLines, initialMode, providerBlocker, providerChoices, startBlocker, startErrorText, startRequest, toggleRepo } from "./newRunLogic";
 
 const ROLES = [{ name: "developer" }, { name: "reviewer" }];
 
@@ -183,8 +183,8 @@ describe("run mode", () => {
 
 describe("start errors", () => {
   it("words the host's mode refusals", () => {
-    expect(startErrorText({ code: "writeLease", message: "x" })).toBe("Another run is writing to this repository. Wait for it, or pick Ask.");
-    expect(startErrorText({ code: "noSlot" })).toBe("All writer slots are busy right now.");
+    expect(startErrorText({ code: "writeLease", message: "x" })).toBe("This repository already has as many runs changing it as are allowed. Wait for one to finish, pick Ask, or change the limits under Settings > Roles > Runs at the same time.");
+    expect(startErrorText({ code: "noSlot" })).toBe("The limit of runs at the same time is reached. Wait for one to finish, or raise it under Settings > Roles > Runs at the same time.");
     expect(startErrorText({ code: "modeNotSupported" })).toBe("This provider cannot run in that mode.");
     expect(startErrorText({ code: "modeDisabled" })).toBe("Automatic and Bypass are switched off in this build.");
     expect(startErrorText({ code: "bypassNotConfirmed" })).toBe("Bypass needs your confirmation.");
@@ -200,5 +200,24 @@ describe("start errors", () => {
     expect(startErrorText({ code: "mcpSecretMissing", message: "raw" })).not.toBe("raw");
     expect(startErrorText({ code: "confirmationRequired", message: "raw" })).not.toBe("raw");
     expect(startErrorText({ code: "mcpSecretMissing" })).not.toMatch(/^mcp\./);
+  });
+});
+
+describe("failureLines", () => {
+  const lease = { code: "writeLease" };
+  it("shows one distinct failure once", () => {
+    expect(failureLines([{ name: "This Mac", error: new Error("boom") }])).toEqual(["This Mac: boom"]);
+  });
+  it("shows the same message for the same place once, with the count", () => {
+    expect(failureLines([{ name: "This Mac", error: new Error("boom") }, { name: "This Mac", error: new Error("boom") }, { name: "This Mac", error: new Error("boom") }])).toEqual(["This Mac (3 runs): boom"]);
+  });
+  it("keeps different messages and different places apart, in first-seen order", () => {
+    expect(failureLines([
+      { name: "This Mac", error: new Error("a") },
+      { name: "Build server", error: new Error("a") },
+      { name: "This Mac", error: new Error("b") },
+      { name: "This Mac", error: new Error("a") },
+      { name: "Build server", error: lease },
+    ])).toEqual(["This Mac (2 runs): a", "Build server: a", "This Mac: b", expect.stringMatching(/^Build server: This repository already has/)]);
   });
 });

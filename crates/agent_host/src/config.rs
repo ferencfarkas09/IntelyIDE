@@ -9,7 +9,7 @@ use intely_agent_core::delegates::DelegateResolver;
 use intely_agent_core::mcp::{McpRulesSupplier, McpScrubSupplier, McpSupplier};
 use intely_agent_core::peer::PeerMode;
 use intely_agent_core::providers::Effort;
-use intely_agent_gate::{CancelPlan, GateConfig};
+use intely_agent_gate::{CancelPlan, GateConfig, Limits, LimitsSupplier};
 
 use crate::roles::RoleDef;
 use crate::run::RepoRef;
@@ -67,6 +67,38 @@ pub type DefaultsSupplier = Arc<dyn Fn() -> AgentDefaults + Send + Sync>;
 
 /// `agents.includeUserMemory` as it is now (read at every start).
 pub type UserMemorySupplier = Arc<dyn Fn() -> bool + Send + Sync>;
+
+/// Live runs at once when `agents.maxRuns` is not set. Every one of them may change files.
+pub const DEFAULT_MAX_RUNS: usize = 12;
+/// The most `agents.maxRuns` can ask for.
+pub const MAX_RUNS_CEILING: u64 = 64;
+const MIB: u64 = 1024 * 1024;
+
+/// The admission limits of the process gate as the `agents` settings say right now (read at every admission, so a change applies to the
+/// next start). Anything invalid falls back to the defaults, never an error.
+///
+/// - `maxRuns` (1..=64, default 12): live runs of all providers on this machine; it is also the cap on those that change files.
+/// - `sharedRepoWrites` (default on): several runs may change files in the same repository at once, the person starting them being the
+///   one who keeps the tasks apart. Off = one writer per repository, the original rule.
+/// - `memoryBudgetMb` (at least 512, default automatic): the memory the runs may use together. Automatic is 35 % of the physical memory,
+///   at least 1.5 GB and at most 16 GB (3 GB when the physical memory is not known).
+pub fn limits_from_settings(ns: &serde_json::Map<String, serde_json::Value>, physical_memory: Option<u64>) -> Limits {
+    let max_runs = ns.get("maxRuns").and_then(serde_json::Value::as_u64).map_or(DEFAULT_MAX_RUNS, |n| n.clamp(1, MAX_RUNS_CEILING) as usize);
+    let shared = ns.get("sharedRepoWrites").and_then(serde_json::Value::as_bool).unwrap_or(true);
+    let budget = ns.get("memoryBudgetMb").and_then(serde_json::Value::as_u64).filter(|mb| *mb >= 512).map_or_else(|| automatic_memory_budget(physical_memory), |mb| mb.min(1 << 20) * MIB);
+    Limits { max_agents: max_runs, max_per_provider: Vec::new(), max_writers: max_runs, writers_per_repo: if shared { max_runs } else { 1 }, rss_budget_bytes: budget }
+}
+
+/// 35 % of the physical memory, between 1.5 GB and 16 GB; 3 GB when it is not known.
+pub fn automatic_memory_budget(physical_memory: Option<u64>) -> u64 {
+    physical_memory.map_or(3 * 1024 * MIB, |ram| (ram / 100 * 35).clamp(1536 * MIB, 16 * 1024 * MIB))
+}
+
+/// A supplier of the limits over a reader of the `agents` settings; the physical memory is read once.
+pub fn limits_supplier(read_agents: impl Fn() -> serde_json::Map<String, serde_json::Value> + Send + Sync + 'static) -> LimitsSupplier {
+    let ram = intely_agent_gate::gate::rss::physical_memory_bytes();
+    Arc::new(move || limits_from_settings(&read_agents(), ram))
+}
 
 /// Test and e2e switch that damages the policy channel on purpose. Only ever set from `INTELY_E2E=1` runs or tests.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -129,6 +161,8 @@ pub struct HostConfig {
     /// Speed factor of the mock scenarios (1 = as recorded).
     pub mock_speed: f64,
     pub gate: GateConfig,
+    /// Where the admission limits come from while the app runs (the `agents` settings); `None` = those of `gate` stay (tests).
+    pub limits: Option<LimitsSupplier>,
     pub cancel: CancelPlan,
     pub policy_fault: Option<PolicyFault>,
     /// The Roles layer (`intely-roles`); runs of a role it does not know use the built-in table.
@@ -180,6 +214,7 @@ impl HostConfig {
             max_budget_usd: None,
             mock_speed: 1.0,
             gate: GateConfig::default(),
+            limits: None,
             cancel: CancelPlan::default(),
             policy_fault: None,
             role_resolver: None,
@@ -255,6 +290,48 @@ pub fn find_on_path(name: &str, vars: &HashMap<String, String>) -> Option<PathBu
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn ns(v: serde_json::Value) -> serde_json::Map<String, serde_json::Value> {
+        v.as_object().cloned().unwrap_or_default()
+    }
+
+    #[test]
+    fn the_limits_default_to_many_runs_that_may_all_write_and_a_share_of_the_memory() {
+        let gib = 1024 * MIB;
+        let l = limits_from_settings(&ns(serde_json::json!({})), Some(32 * gib));
+        assert_eq!((l.max_agents, l.max_writers, l.writers_per_repo), (12, 12, 12), "a repository may have as many writers as there are runs");
+        assert!(l.max_per_provider.is_empty());
+        assert_eq!(l.rss_budget_bytes, 32 * gib / 100 * 35, "35 % of 32 GB");
+        // the automatic budget stays between 1.5 GB and 16 GB, and 3 GB when the machine cannot tell
+        assert_eq!(automatic_memory_budget(Some(2 * gib)), 1536 * MIB);
+        assert_eq!(automatic_memory_budget(Some(256 * gib)), 16 * gib);
+        assert_eq!(automatic_memory_budget(None), 3 * gib);
+    }
+
+    #[test]
+    fn the_settings_set_the_number_of_runs_the_repository_rule_and_the_memory() {
+        let gib = 1024 * MIB;
+        let l = limits_from_settings(&ns(serde_json::json!({ "maxRuns": 5, "sharedRepoWrites": false, "memoryBudgetMb": 4096 })), Some(32 * gib));
+        assert_eq!((l.max_agents, l.max_writers, l.writers_per_repo, l.rss_budget_bytes), (5, 5, 1, 4 * gib));
+        // a number out of range is held to it; anything that is not a number, a boolean or enough memory reads as unset
+        let l = limits_from_settings(&ns(serde_json::json!({ "maxRuns": 1000 })), Some(8 * gib));
+        assert_eq!(l.max_agents, 64);
+        assert_eq!(limits_from_settings(&ns(serde_json::json!({ "maxRuns": 0 })), None).max_agents, 1);
+        let junk = limits_from_settings(&ns(serde_json::json!({ "maxRuns": "many", "sharedRepoWrites": "no", "memoryBudgetMb": 100 })), Some(8 * gib));
+        assert_eq!((junk.max_agents, junk.writers_per_repo, junk.rss_budget_bytes), (12, 12, automatic_memory_budget(Some(8 * gib))));
+    }
+
+    #[test]
+    fn a_supplier_reads_the_settings_every_time() {
+        use std::sync::Mutex;
+        let current = Arc::new(Mutex::new(ns(serde_json::json!({ "maxRuns": 3 }))));
+        let read = current.clone();
+        let supplier = limits_supplier(move || read.lock().unwrap().clone());
+        assert_eq!(supplier().max_agents, 3);
+        *current.lock().unwrap() = ns(serde_json::json!({ "maxRuns": 9, "sharedRepoWrites": false }));
+        let l = supplier();
+        assert_eq!((l.max_agents, l.writers_per_repo), (9, 1));
+    }
 
     #[test]
     fn the_sidecar_never_sees_ide_switches_or_credentials() {

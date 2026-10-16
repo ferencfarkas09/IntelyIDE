@@ -8,6 +8,7 @@ import { Badge, Button, CircleAlert, CircleCheck, Dialog, EmptyState, Input, Rep
 import { changeText, confirmPhrase, groupByRepo, restoreGate } from "./logic";
 
 const message = (e: unknown): string => (e instanceof Error ? e.message : String((e as { message?: string }).message ?? e));
+const codeOf = (e: unknown): string | undefined => (e as { code?: string } | null)?.code;
 
 export interface RewindDialogProps {
   open: boolean;
@@ -83,7 +84,8 @@ export function RewindDialog(props: RewindDialogProps) {
       setResult(done);
       props.onRestored?.(done);
     } catch (e) {
-      setError(message(e));
+      // another run is working in the same repository: the host refuses, and says what to do in the person's words
+      setError(codeOf(e) === "repoBusy" ? t("inspector.rewind.repoBusy") : message(e));
     } finally {
       setBusy(false);
     }

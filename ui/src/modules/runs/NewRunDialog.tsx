@@ -24,7 +24,7 @@ import { AutoCard, type UntrustedRole } from "./AutoCard";
 import { PERMISSION_TITLES } from "../roles/rolesLogic";
 import { loadServers, servers } from "../servers/store";
 import { McpRunPicker, mcpStartIds } from "./mcpSeam";
-import { autoReasonText, chosenProvider, clampCounts, clampMode, defaultRepos, initialMode, neutralRole, numberedPrompt, placementRows, placementSummary, planRuns, providerBlocker, providerChoices, startBlocker, startErrorText, startRequest, THIS_MAC, toggleRepo, totalRuns, type RunMode } from "./newRunLogic";
+import { autoReasonText, chosenProvider, clampCounts, clampMode, defaultRepos, failureLines, MAC_MAX, initialMode, neutralRole, numberedPrompt, placementRows, placementSummary, planRuns, providerBlocker, providerChoices, startBlocker, startErrorText, startRequest, THIS_MAC, toggleRepo, totalRuns, type RunMode } from "./newRunLogic";
 import { roleColor } from "./roleColors";
 import { newRunOpen, setCentreView, setNewRunOpen } from "./state";
 import { WhereToRun } from "./WhereToRun";
@@ -77,7 +77,9 @@ export function NewRunDialog() {
   // Where the runs go: how many on this Mac and on each server. Shown only when a server is enabled; with none the dialog starts one run here, as ever.
   const [counts, setCounts] = createSignal<Record<string, number>>({ [THIS_MAC]: 1 });
   const [numbering, setNumbering] = createSignal<boolean | undefined>(undefined);
-  const rows = createMemo(() => placementRows(servers(), t("runs.where.thisMac")));
+  // Runs this Mac may take at once (`agents.maxRuns`), read when the dialog opens.
+  const [macMax, setMacMax] = createSignal(MAC_MAX);
+  const rows = createMemo(() => placementRows(servers(), t("runs.where.thisMac"), macMax()));
   const whereShown = () => servers().some((s) => s.cfg.enabled);
   const placed = createMemo(() => clampCounts(counts(), rows()));
   const total = () => totalRuns(placed(), rows());
@@ -219,6 +221,7 @@ export function NewRunDialog() {
       setNumbering(undefined);
       void loadServers();
       loadGroups();
+      void ipc.settings.get("agents").then((v) => setMacMax(typeof v.maxRuns === "number" && Number.isInteger(v.maxRuns) ? Math.max(1, Math.min(MAC_MAX, v.maxRuns)) : MAC_MAX), () => setMacMax(MAC_MAX));
       void ipc.settings.get("roles").then((v) => setNoticeDone(v.derivationNoticeDone === true), () => {});
       // The mode used last is this dialog's default (Bypass never is); a read failure leaves the initial default.
       void ipc.settings.get("runs").then((v) => setLastMode(typeof v.lastMode === "string" ? (v.lastMode as PermissionMode) : undefined), () => {});
@@ -287,16 +290,16 @@ export function NewRunDialog() {
           failures.push({ name: job.name, error: e });
         }
       }
-      const failureLines = failures.map((f) => t("runs.where.failedLine", { name: f.name, message: startErrorText(f.error) }));
+      const lines = failureLines(failures);
       if (started.length === 0) {
         // Nothing started: the dialog stays, with the reason (a single run shows the host's text as before).
         setNoNet((failures[0].error as { code?: string } | null)?.code === "noSafetyNet");
-        setError(jobs.length === 1 ? startErrorText(failures[0].error) : failureLines.join(" "));
+        setError(jobs.length === 1 ? startErrorText(failures[0].error) : lines.join(" "));
         return;
       }
       const run = started[0];
       if (started.length > 1) void selectAgent(run.agentId);
-      if (failures.length > 0) toast.error(t("runs.where.someFailed", { count: failures.length }), failureLines.join("\n"));
+      if (failures.length > 0) toast.error(t("runs.where.someFailed", { count: failures.length }), lines.join("\n"));
       void ipc.settings.set("runs", { lastMode: permission() }).catch(() => {});
       if (wanted && run.provider !== wanted) toast.warn(t("runs.new.otherProvider", { actual: run.provider, wanted }), t("runs.new.otherProviderDesc"));
       setPrompt("");

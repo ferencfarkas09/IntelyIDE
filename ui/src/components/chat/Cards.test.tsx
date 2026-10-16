@@ -222,7 +222,7 @@ describe("<PermissionCard> allow always in this session", () => {
 
   it("stays pending and says why when the host refused the answer", () => {
     render(() => <PermissionCard item={offered({ sessionAllow: { kind: "write", scope: "" }, error: { code: "writeLease" } })} onAnswer={() => {}} />);
-    expect(screen.getByRole("alert").textContent).toBe("Another run is writing to this repository. Wait for it, or pick Ask.");
+    expect(screen.getByRole("alert").textContent).toBe("This repository already has as many runs changing it as are allowed. Wait for one to finish, pick Ask, or change the limits under Settings > Roles > Runs at the same time.");
     expect(screen.getByRole("button", { name: "Allow always in this session" })).toBeTruthy();
   });
 

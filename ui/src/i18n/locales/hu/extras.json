@@ -965,5 +965,6 @@
   "runs.where.pick": "Válaszd ki, hol fusson",
   "runs.where.someFailed": "{count, plural, one {# futtatás nem indult el} other {# futtatás nem indult el}}",
   "runs.where.failedLine": "{name}: {message}",
+  "runs.where.failedMany": "{name} ({count} futás): {message}",
   "runs.where.chip": "Itt fut: {name}"
 }

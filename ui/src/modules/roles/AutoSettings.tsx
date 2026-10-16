@@ -17,6 +17,12 @@ export interface AgentsSettings {
   includeUserMemory?: boolean;
   /** Messages between the person's own runs: a card once per pair (default), no card, or off (the tools are not offered). */
   peerMessages?: "ask" | "auto" | "off";
+  /** Live runs at once, also the cap on runs that change files (default 12). */
+  maxRuns?: number;
+  /** Several runs may change the same repository at once (default on). */
+  sharedRepoWrites?: boolean;
+  /** Memory the runs may use together, MB; absent = automatic. */
+  memoryBudgetMb?: number;
 }
 
 export const DEFAULT_CAP = 12;

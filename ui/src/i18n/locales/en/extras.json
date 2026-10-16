@@ -965,5 +965,6 @@
   "runs.where.pick": "Choose where to run",
   "runs.where.someFailed": "{count, plural, one {# run did not start} other {# runs did not start}}",
   "runs.where.failedLine": "{name}: {message}",
+  "runs.where.failedMany": "{name} ({count} runs): {message}",
   "runs.where.chip": "Runs on {name}"
 }

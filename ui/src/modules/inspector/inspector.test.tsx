@@ -203,6 +203,17 @@ describe("<RewindDialog>", () => {
     expect(screen.getByRole("button", { name: /Restore/ }).getAttribute("disabled")).not.toBeNull();
   });
 
+  it("says in plain words that another run is still working in the repository when the host refuses the restore", async () => {
+    const client = createMockIpc("normal", { delayScale: 0 });
+    client.runs.rewindRestore = () => Promise.reject({ code: "repoBusy", message: "run a-2 is still working in this repository; stop it before rewinding" });
+    render(() => <RewindDialog open onClose={() => {}} runId="run-dev" runActive={false} client={client} />);
+    fireEvent.click(within(await screen.findByRole("radiogroup", { name: "Snapshots" })).getAllByRole("radio")[0]);
+    await screen.findByText(/Dry run/);
+    fireEvent.input(screen.getByRole("textbox", { name: "Confirm the rewind" }), { target: { value: "admin" } });
+    fireEvent.click(screen.getByRole("button", { name: /Restore 2 files/ }));
+    expect(await screen.findByText(/Another run is still working in this repository/)).toBeTruthy();
+  });
+
   it("shows an empty state for a run without snapshots", async () => {
     render(() => <RewindDialog open onClose={() => {}} runId="run-rev" runActive={false} client={createMockIpc("normal", { delayScale: 0 })} />);
     expect(await screen.findByText("No snapshots for this run")).toBeTruthy();

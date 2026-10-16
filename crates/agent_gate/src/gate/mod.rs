@@ -9,7 +9,7 @@ pub mod rss;
 
 pub use cancel::{CancelPlan, CancelReport, CancelSink, CancelTracker};
 pub use lease::{
-    AcquireReq, AdmissionError, AdmissionKind, Gate, GateConfig, Lease, LeaseInfo, ReclaimReason, Reclaimed,
-    RenewError, RenewOk,
+    AcquireReq, AdmissionError, AdmissionKind, Gate, GateConfig, Lease, LeaseInfo, Limits, LimitsSupplier, ReclaimReason,
+    Reclaimed, RenewError, RenewOk,
 };
 pub use orphans::{OrphanRegistry, SweepReport};

@@ -152,7 +152,7 @@ describe("<PlanApprovalCard> pending", () => {
 
   it("shows the reason when the host refused the approval and keeps the choice editable", () => {
     render(() => <PlanApprovalCard item={plan({ error: { code: "writeLease" } })} onAnswer={() => {}} />);
-    expect(screen.getByRole("alert").textContent).toBe("Another run is writing to this repository. Wait for it, or pick Ask.");
+    expect(screen.getByRole("alert").textContent).toBe("This repository already has as many runs changing it as are allowed. Wait for one to finish, pick Ask, or change the limits under Settings > Roles > Runs at the same time.");
     // Ask needs no writer lease: it can be picked and sent.
     fireEvent.click(radio("Ask"));
     expect(checked()).toEqual(["ask"]);
