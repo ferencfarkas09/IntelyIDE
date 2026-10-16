@@ -8,6 +8,16 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 
 - Work in progress, not released: the code compiles for Linux (x86_64, webkit2gtk 4.1), Windows 10/11 (x86_64, WebView2) and Apple Silicon Macs, in addition to Intel Macs. Linux passes its tests; on Windows the permission checks and many tests are not yet verified. No Linux or Windows package is published; see `docs/install-linux.md` and `docs/install-windows.md` for what works and what is different. Secrets use Windows Credential Manager and the Linux Secret Service (one vault entry, split over several Credential Manager entries when it is large), banners use a Windows toast and `notify-send`, files and links open with `explorer.exe` and `xdg-open`, the terminal starts PowerShell on Windows, and connections to servers are not shared on Windows (OpenSSH for Windows has no `ControlMaster`). Process groups, the process table and the disk-space check are macOS and Linux features; the update swap of the app bundle stays macOS only.
 
+## [1.5.1] - 2026-10-16
+
+### Fixed
+
+- **The app could close by itself while a run was working**, most often in Bypass mode, where runs go on the longest. When a command's output or a prompt had a letter outside plain English (for example `ú` or `ő`), a non-breaking space or a long dash right in front of a name or a colon, the filter that hides secrets in what is shared with the phone (Remote) and with teammates (Team) cut the text in the middle of that character. Such a cut ends the whole application at once, and the run with it. The filters now cut only between characters. The same slip was fixed in the cut of a very long line in the Team stream filter, in the list of names in the Mongo schema summary and in the check of a `curl` option that begins with a wide character, and new tests feed all of them with accents, wide spaces and emoji in tens of thousands of random texts.
+- **Joining a team on another Mac.** An invite link was refused on a Mac that had never used that relay (the relay host was not on its list), and the form did not say why. The join form now shows the relay's host and asks once, with a box to tick, whether you trust it (a relay on this Mac needs no question). The answer is kept in the `team.trustedRelayHosts` setting and removed again when you leave the team or the join ends without one. The code is also read more forgivingly: spaces, line breaks or quotes around it, `%` escapes, upper case in the scheme, and a plain `wss://...` form without the `intely-team://join#` part. Every refusal now says in plain words what is wrong with the code or the relay. The person who joins needs 1.5.1 for this.
+- The first-run installer of the Claude agent SDK failed on Node 25 with `ERR_ACCESS_DENIED` and the word "network". Since Node 25 the permission model also guards the network, and the installer's sandboxed helper now asks for exactly that where Node knows the option (Node 20 and 24 are unchanged). The error text names this case as well.
+- In Automatic mode a run stopped at two prompts of the Claude CLI itself. "Multiple directory changes in one command require approval for clarity" is a clarity prompt, and the IDE already judged every `cd` and every path of that command, so it is answered from that verdict. "Parser aborted" came with long quoted heredocs that only write a file, and is answered under the same conditions as the other parser notes. A run may also read the Claude memory notes of its own folders (`~/.claude/projects/<folder>/memory/*.md`, your own notes about the project, which the CLI loads anyway). The rest of `~/.claude`, the notes of other projects and every write there stay refused. The card for a refused CLI prompt now says "Blocked: the Claude CLI asked for approval" instead of "Hard stop", which it was not.
+- The Push results dialog showed an English sentence from git under a Hungarian explanation of a rejected push (and the other way round). For the failures the app explains itself (not a fast-forward, a hook, a lock, sign-in, network, a conflict, nothing to commit, refused by the remote) it now shows only the explanation in your language, and the raw text stays under "Show output".
+
 ## [1.5.0] - 2026-10-14
 
 ### Added
@@ -204,7 +214,8 @@ First public release. This is alpha software.
 - Providers other than Claude, Happy, MongoDB Studio and Remote are proven only against mocks or on a local machine.
 - Version 0.1.0 still stores its state in the folder `IntelySwitchIDE` and uses Keychain services named after the earlier bundle identifier; a switch to `com.intelyhome.intelyide` with a migration is planned.
 
-[Unreleased]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.5.1...HEAD
+[1.5.1]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.4.1...v1.5.0
 [1.4.1]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.3.3...v1.4.0
