@@ -20,6 +20,10 @@ Several best-effort layers are meant to stop it: a `git` shim first on the agent
 
 Git operations you start use your normal Git remotes. Agents talk to the provider you configure. Runs on a server you added go through your own `ssh`. The app has no telemetry. A notification for new versions is planned; no update check is implemented in this version. What each feature sends is listed in [privacy.md](privacy.md).
 
+### How many runs can work at once?
+
+As many as Settings > Roles > Runs at the same time allows: 12 by default (1 to 64), on this Mac and, separately, up to the limit of each server. Several runs may also change the same repository when the tasks differ; they share one working tree, so give them different tasks, and read the note about it in [safety.md](safety.md). The runs share a memory budget (about a third of the Mac's memory unless you set one); a start over a limit is refused with a message that names the setting.
+
 ### Can agents run on my own server?
 
 Yes, over `ssh`. Add the server in Settings > Servers, let the IDE set it up, and choose it under "Where to run" when you start a run; one dialog can start, for example, three agents there and two on your Mac. The permission rules keep running in the IDE and judge the server's files. MCP servers, attachments, Rewind and the Changes tree of the server's copy are not available for such runs yet. See [remote-servers.md](remote-servers.md).

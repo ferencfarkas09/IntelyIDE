@@ -24,6 +24,8 @@ pub struct GateConfig {
     pub max_per_provider: Vec<(String, usize)>,
     /// At most this many leases with `writer: true` (PLAN: 2).
     pub max_writers: usize,
+    /// At most this many writers on one repository (1 = one writer per repository, the original rule).
+    pub writers_per_repo: usize,
     /// Combined tree-RSS budget: a start is admitted if `sum(current tree RSS) + request budget <= this`.
     pub rss_budget_bytes: u64,
     pub default_ttl: Duration,
@@ -37,12 +39,44 @@ impl Default for GateConfig {
             max_agents: 3,
             max_per_provider: vec![("claude".into(), 3)],
             max_writers: 2,
+            writers_per_repo: 1,
             rss_budget_bytes: 1536 * 1024 * 1024,
             default_ttl: Duration::from_secs(15),
             term_grace: Duration::from_secs(3),
         }
     }
 }
+
+impl GateConfig {
+    /// The limits of this configuration, as [`Gate::limits`] answers them when no supplier is set.
+    pub fn limits(&self) -> Limits {
+        Limits {
+            max_agents: self.max_agents,
+            max_per_provider: self.max_per_provider.clone(),
+            max_writers: self.max_writers,
+            writers_per_repo: self.writers_per_repo,
+            rss_budget_bytes: self.rss_budget_bytes,
+        }
+    }
+}
+
+/// What the gate admits right now. The app gives the gate a supplier ([`Gate::set_limits_supplier`]) that reads the settings, and the
+/// gate asks it at every admission, so a change in the settings applies to the next start without a restart.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Limits {
+    /// Live agents across all providers.
+    pub max_agents: usize,
+    /// Per-provider cap; providers not listed fall back to `max_agents`.
+    pub max_per_provider: Vec<(String, usize)>,
+    /// Live agents that may change files.
+    pub max_writers: usize,
+    /// Writers on one repository at once (1 = a repository has one writer; a value below 1 reads as 1).
+    pub writers_per_repo: usize,
+    /// Combined tree-RSS budget in bytes.
+    pub rss_budget_bytes: u64,
+}
+
+pub type LimitsSupplier = Arc<dyn Fn() -> Limits + Send + Sync>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -177,6 +211,7 @@ pub struct Gate {
     kills: Mutex<Vec<JoinHandle<TermOutcome>>>,
     listener: Mutex<Option<Listener>>,
     orphans: Option<Arc<OrphanRegistry>>,
+    limits: Mutex<Option<LimitsSupplier>>,
 }
 
 impl Gate {
@@ -187,6 +222,7 @@ impl Gate {
             kills: Mutex::new(Vec::new()),
             listener: Mutex::new(None),
             orphans: None,
+            limits: Mutex::new(None),
         })
     }
 
@@ -198,11 +234,23 @@ impl Gate {
             kills: Mutex::new(Vec::new()),
             listener: Mutex::new(None),
             orphans: Some(orphans),
+            limits: Mutex::new(None),
         })
     }
 
     pub fn config(&self) -> &GateConfig {
         &self.cfg
+    }
+
+    /// Where the limits come from from now on (the settings of the app); without one they are those of the configuration.
+    pub fn set_limits_supplier(&self, supplier: LimitsSupplier) {
+        *lock(&self.limits) = Some(supplier);
+    }
+
+    /// The limits that apply now. Asked before the state is locked: a supplier may read files.
+    pub fn limits(&self) -> Limits {
+        let supplier = lock(&self.limits).clone();
+        supplier.map_or_else(|| self.cfg.limits(), |f| f())
     }
 
     /// Called (from the sweeping thread) for every lease the gate reclaims on its own, so the adapter side can
@@ -220,42 +268,40 @@ impl Gate {
     }
 
     pub fn acquire(&self, req: AcquireReq) -> Result<Lease, AdmissionError> {
+        let lim = self.limits();
         let ttl = req.ttl_ms.map(Duration::from_millis).unwrap_or(self.cfg.default_ttl);
         let mut st = lock(&self.state);
         if req.writer {
             let Some(repo) = req.repo_id.as_deref() else {
                 return Err(AdmissionError::new(AdmissionKind::WriteLease, "a writer needs a repoId"));
             };
-            if let Some(held) = st.leases.iter().find(|l| l.req.writer && l.req.repo_id.as_deref() == Some(repo)) {
-                return Err(AdmissionError::new(
-                    AdmissionKind::WriteLease,
-                    format!("repo {repo} is already being written by agent {}", held.req.agent_id),
-                ));
+            if let Some(e) = repo_is_full(&st, &lim, repo, None) {
+                return Err(e);
             }
         }
         if let Some(held) = st.leases.iter().find(|l| l.req.agent_id == req.agent_id) {
             return Err(AdmissionError::new(AdmissionKind::NoSlot, format!("agent {} already holds lease {}", req.agent_id, held.id)));
         }
-        if st.leases.len() >= self.cfg.max_agents {
-            return Err(AdmissionError::new(AdmissionKind::NoSlot, format!("{} agents are running (cap {})", st.leases.len(), self.cfg.max_agents)));
+        if st.leases.len() >= lim.max_agents {
+            return Err(AdmissionError::new(AdmissionKind::NoSlot, format!("{} agents are running (cap {})", st.leases.len(), lim.max_agents)));
         }
-        let provider_cap = self.cfg.max_per_provider.iter().find(|(p, _)| *p == req.provider).map_or(self.cfg.max_agents, |(_, n)| *n);
+        let provider_cap = lim.max_per_provider.iter().find(|(p, _)| *p == req.provider).map_or(lim.max_agents, |(_, n)| *n);
         let provider_live = st.leases.iter().filter(|l| l.req.provider == req.provider).count();
         if provider_live >= provider_cap {
             return Err(AdmissionError::new(AdmissionKind::NoSlot, format!("{provider_live} {} agents are running (cap {provider_cap})", req.provider)));
         }
         if req.writer {
             let writers = st.leases.iter().filter(|l| l.req.writer).count();
-            if writers >= self.cfg.max_writers {
-                return Err(AdmissionError::new(AdmissionKind::NoSlot, format!("{writers} writers are running (cap {})", self.cfg.max_writers)));
+            if writers >= lim.max_writers {
+                return Err(AdmissionError::new(AdmissionKind::NoSlot, format!("{writers} writers are running (cap {})", lim.max_writers)));
             }
         }
         let used: u64 = st.leases.iter().map(|l| committed_bytes(l)).sum();
         let want = req.rss_budget_mb * 1024 * 1024;
-        if used + want > self.cfg.rss_budget_bytes {
+        if used + want > lim.rss_budget_bytes {
             return Err(AdmissionError::new(
                 AdmissionKind::RssBudget,
-                format!("{} MB in use + {} MB requested exceeds the {} MB budget", used >> 20, req.rss_budget_mb, self.cfg.rss_budget_bytes >> 20),
+                format!("{} MB in use + {} MB requested exceeds the {} MB budget", used >> 20, req.rss_budget_mb, lim.rss_budget_bytes >> 20),
             ));
         }
         st.next_id += 1;
@@ -273,6 +319,7 @@ impl Gate {
     /// frees the slot; `writer = true` applies the writer admission of [`Self::acquire`] (one writer per repository, `max_writers`),
     /// excluding the lease itself, and takes `repo_id` when the lease has none. Nothing changes on an error.
     pub fn set_writer(&self, lease_id: &str, writer: bool, repo_id: Option<&str>) -> Result<(), AdmissionError> {
+        let lim = self.limits();
         let mut st = lock(&self.state);
         let Some(i) = st.leases.iter().position(|l| l.id == lease_id) else {
             return Err(AdmissionError::new(AdmissionKind::NoSlot, format!("unknown or reclaimed lease {lease_id}")));
@@ -287,12 +334,12 @@ impl Gate {
         let Some(repo) = repo_id.map(str::to_owned).or_else(|| st.leases[i].req.repo_id.clone()) else {
             return Err(AdmissionError::new(AdmissionKind::WriteLease, "a writer needs a repoId"));
         };
-        if let Some(held) = st.leases.iter().enumerate().find(|(j, l)| *j != i && l.req.writer && l.req.repo_id.as_deref() == Some(repo.as_str())) {
-            return Err(AdmissionError::new(AdmissionKind::WriteLease, format!("repo {repo} is already being written by agent {}", held.1.req.agent_id)));
+        if let Some(e) = repo_is_full(&st, &lim, &repo, Some(i)) {
+            return Err(e);
         }
         let writers = st.leases.iter().enumerate().filter(|(j, l)| *j != i && l.req.writer).count();
-        if writers >= self.cfg.max_writers {
-            return Err(AdmissionError::new(AdmissionKind::NoSlot, format!("{writers} writers are running (cap {})", self.cfg.max_writers)));
+        if writers >= lim.max_writers {
+            return Err(AdmissionError::new(AdmissionKind::NoSlot, format!("{writers} writers are running (cap {})", lim.max_writers)));
         }
         st.leases[i].req.writer = true;
         st.leases[i].req.repo_id = Some(repo);
@@ -518,6 +565,18 @@ impl Gate {
 }
 
 /// What a lease counts against the budget: its measured tree, or its reservation while it has no live process yet.
+/// The repository already has as many writers as `lim.writers_per_repo` allows (not counting the lease at index `except`, which is
+/// the one that wants to become a writer).
+fn repo_is_full(st: &State, lim: &Limits, repo: &str, except: Option<usize>) -> Option<AdmissionError> {
+    let holders: Vec<&LeaseState> = st.leases.iter().enumerate().filter(|(j, l)| Some(*j) != except && l.req.writer && l.req.repo_id.as_deref() == Some(repo)).map(|(_, l)| l).collect();
+    let cap = lim.writers_per_repo.max(1);
+    let first = holders.first()?;
+    (holders.len() >= cap).then(|| {
+        let more = if holders.len() > 1 { format!(" and {} more (at most {cap} at once)", holders.len() - 1) } else { String::new() };
+        AdmissionError::new(AdmissionKind::WriteLease, format!("repo {repo} is already being written by agent {}{more}", first.req.agent_id))
+    })
+}
+
 fn committed_bytes(l: &LeaseState) -> u64 {
     let pgids: Vec<pid_t> = l.pgids.iter().copied().collect();
     let measured = rss::tree_rss(&pgids, &pgids);

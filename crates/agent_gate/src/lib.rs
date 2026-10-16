@@ -8,6 +8,6 @@ pub mod rewind;
 pub mod shim;
 
 pub use gate::{
-    AcquireReq, AdmissionError, AdmissionKind, CancelPlan, Gate, GateConfig, Lease, OrphanRegistry, ReclaimReason,
-    Reclaimed,
+    AcquireReq, AdmissionError, AdmissionKind, CancelPlan, Gate, GateConfig, Lease, Limits, LimitsSupplier, OrphanRegistry,
+    ReclaimReason, Reclaimed,
 };

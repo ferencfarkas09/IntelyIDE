@@ -122,6 +122,19 @@ export function startErrorText(e: unknown): string {
   return err?.message ?? String(e);
 }
 
+/** The failed starts as dialog/toast lines: one line per distinct (location, message), with the count when the same one repeats. */
+export function failureLines(failures: readonly { name: string; error: unknown }[]): string[] {
+  const groups = new Map<string, { name: string; message: string; count: number }>();
+  for (const f of failures) {
+    const message = startErrorText(f.error);
+    const key = JSON.stringify([f.name, message]);
+    const g = groups.get(key);
+    if (g) g.count += 1;
+    else groups.set(key, { name: f.name, message, count: 1 });
+  }
+  return [...groups.values()].map((g) => (g.count > 1 ? t("runs.where.failedMany", g) : t("runs.where.failedLine", g)));
+}
+
 /** Why the chosen provider cannot start this role, or undefined. Read-only roles on an enabled provider are never blocked. */
 export const providerBlocker = (provider: string | undefined, choices: readonly ProviderChoice[]): string | undefined => {
   const c = choices.find((x) => x.id === provider);
@@ -166,8 +179,8 @@ export const hasDelegates = (info: Pick<AutoInfo, "delegates"> | undefined): boo
 
 /** The key of "This Mac" in the counts; a server's key is its id. */
 export const THIS_MAC = "";
-/** Most runs one New run starts on this Mac. */
-export const MAC_MAX = 6;
+/** Most runs one New run starts on this Mac; the setting `agents.maxRuns` can lower it. */
+export const MAC_MAX = 12;
 
 export type WhyNot = "unchecked" | "unreachable" | "needsSetup" | "full";
 
@@ -175,7 +188,7 @@ export interface PlaceRow {
   /** `THIS_MAC` or the server id; also the `location` of the request (empty = omitted). */
   key: string;
   name: string;
-  /** The most runs the stepper allows: this Mac's 6, or the free slots of a ready server. */
+  /** The most runs the stepper allows: this Mac's cap, or the free slots of a ready server. */
   max: number;
   /** Total slots of a server (for "2 of 6 free"). */
   capacity?: number;
@@ -186,8 +199,8 @@ export interface PlaceRow {
 export type PlaceCounts = Readonly<Record<string, number>>;
 
 /** One row for this Mac and one per enabled server; a server that is not ready, or is full, is listed with the reason. */
-export function placementRows(servers: readonly Pick<ServerView, "cfg" | "status" | "running">[], macName: string): PlaceRow[] {
-  const rows: PlaceRow[] = [{ key: THIS_MAC, name: macName, max: MAC_MAX }];
+export function placementRows(servers: readonly Pick<ServerView, "cfg" | "status" | "running">[], macName: string, macMax: number = MAC_MAX): PlaceRow[] {
+  const rows: PlaceRow[] = [{ key: THIS_MAC, name: macName, max: macMax }];
   for (const s of servers) {
     if (!s.cfg.enabled) continue;
     const free = Math.max(0, s.cfg.maxAgents - s.running);

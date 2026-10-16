@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 use common::{spawn_owner, wait_until, Group};
 use intely_agent_gate::gate::reaper::{self, Reaper, ReaperConfig};
 use intely_agent_gate::gate::{procinfo, rss};
-use intely_agent_gate::{AcquireReq, AdmissionKind, Gate, GateConfig, ReclaimReason};
+use intely_agent_gate::{AcquireReq, AdmissionKind, Gate, GateConfig, Limits, ReclaimReason};
 
 fn req(agent: &str, provider: &str, writer: bool, repo: Option<&str>) -> AcquireReq {
     AcquireReq {
@@ -351,4 +351,64 @@ fn spawn_noise_is_cleaned_up() {
         g.pgid()
     };
     assert!(wait_until(Duration::from_secs(3), || procinfo::live_group_pids(pgid).is_empty()));
+}
+
+#[test]
+fn several_writers_may_share_a_repository_up_to_the_cap_of_the_limits() {
+    let gate = Gate::new(GateConfig { max_agents: 8, max_per_provider: vec![], max_writers: 8, writers_per_repo: 3, ..GateConfig::default() });
+    for n in 1..=3 {
+        gate.acquire(req(&format!("w{n}"), "claude", true, Some("admin"))).unwrap_or_else(|e| panic!("writer {n}: {e}"));
+    }
+    let e = gate.acquire(req("w4", "claude", true, Some("admin"))).unwrap_err();
+    assert_eq!(e.kind, AdmissionKind::WriteLease, "{e}");
+    assert!(e.detail.contains("w1") && e.detail.contains("2 more") && e.detail.contains("at most 3"), "{}", e.detail);
+    // another repository has its own count, and readers never count
+    gate.acquire(req("w5", "claude", true, Some("backend"))).unwrap();
+    gate.acquire(req("r1", "claude", false, Some("admin"))).unwrap();
+    // a reader that wants to start writing on the full repository is refused like a start
+    let r = gate.acquire(req("r2", "claude", false, Some("admin"))).unwrap();
+    assert_eq!(gate.set_writer(&r.lease_id, true, Some("admin")).unwrap_err().kind, AdmissionKind::WriteLease);
+    // one writer leaves: the next may come, and so may the switch
+    let first = gate.leases().into_iter().find(|l| l.agent_id == "w1").unwrap().lease_id;
+    gate.release(&first);
+    gate.set_writer(&r.lease_id, true, Some("admin")).unwrap();
+    assert_eq!(gate.acquire(req("w6", "claude", true, Some("admin"))).unwrap_err().kind, AdmissionKind::WriteLease);
+}
+
+#[test]
+fn a_cap_below_one_writer_per_repository_reads_as_one() {
+    let gate = Gate::new(GateConfig { writers_per_repo: 0, max_agents: 4, max_writers: 4, ..GateConfig::default() });
+    gate.acquire(req("w1", "claude", true, Some("admin"))).unwrap();
+    assert_eq!(gate.acquire(req("w2", "claude", true, Some("admin"))).unwrap_err().kind, AdmissionKind::WriteLease);
+}
+
+#[test]
+fn the_limits_come_from_the_supplier_at_every_admission() {
+    let gate = Gate::new(GateConfig::default());
+    assert_eq!(gate.limits(), GateConfig::default().limits());
+    for n in 1..=3 {
+        gate.acquire(req(&format!("a{n}"), "claude", false, None)).unwrap();
+    }
+    assert_eq!(gate.acquire(req("a4", "claude", false, None)).unwrap_err().kind, AdmissionKind::NoSlot, "the default cap is three");
+    // the settings raise the cap while the gate runs: the next admission sees it
+    let cap = Arc::new(AtomicUsize::new(5));
+    let seen = cap.clone();
+    gate.set_limits_supplier(Arc::new(move || Limits { max_agents: seen.load(Ordering::SeqCst), max_per_provider: vec![], max_writers: 5, writers_per_repo: 5, rss_budget_bytes: 8 << 30 }));
+    gate.acquire(req("a4", "claude", false, None)).unwrap();
+    gate.acquire(req("a5", "claude", false, None)).unwrap();
+    assert_eq!(gate.acquire(req("a6", "claude", false, None)).unwrap_err().kind, AdmissionKind::NoSlot);
+    // ... and lowering it again does not touch the runs that live, it only stops the next ones
+    cap.store(2, Ordering::SeqCst);
+    assert_eq!(gate.live_count(), 5);
+    assert_eq!(gate.acquire(req("a7", "claude", false, None)).unwrap_err().kind, AdmissionKind::NoSlot);
+}
+
+#[test]
+fn the_memory_budget_of_the_limits_is_the_one_that_counts() {
+    let gate = Gate::new(GateConfig::default());
+    let mut want = req("big", "claude", false, None);
+    want.rss_budget_mb = 2000;
+    assert_eq!(gate.acquire(want.clone()).unwrap_err().kind, AdmissionKind::RssBudget, "1.5 GB by default");
+    gate.set_limits_supplier(Arc::new(|| Limits { max_agents: 3, max_per_provider: vec![], max_writers: 2, writers_per_repo: 1, rss_budget_bytes: 4 << 30 }));
+    gate.acquire(want).unwrap();
 }

@@ -183,6 +183,34 @@ fn a_run_is_snapshotted_before_it_starts_and_rewind_restores_the_tree() {
 }
 
 #[test]
+fn a_rewind_waits_while_another_run_works_in_the_same_repository() {
+    let dir = tempfile::tempdir().unwrap();
+    let repo = fixture_repo(dir.path());
+    let mut cfg = config(&dir.path().join("data"), sidecar_js());
+    cfg.gate.writers_per_repo = 2; // several runs may share the repository
+    let (host, sink) = host_with(cfg);
+    let first = start(&host, "mock-plain-reply", &repo).unwrap().agent_id;
+    sink.wait_turn_end(&first);
+    std::fs::write(repo.path.join("a.txt"), "changed by the first run\n").unwrap();
+
+    // a second run works in the same repository: it waits for an answer, so its turn stays open
+    let second = start(&host, "mock-tool-permission", &repo).expect("a second run may share the repository");
+    let req = sink.wait_kind(&second.agent_id, "permission.request");
+    let EventKind::PermissionRequest { req_id, .. } = &req.kind else { unreachable!() };
+    let err = host.rewind(&first).expect_err("a restore would overwrite the files of the second run");
+    assert_eq!(err.code, "repoBusy", "{}", err.message);
+    assert!(err.message.contains(&second.agent_id), "{}", err.message);
+    assert_eq!(std::fs::read_to_string(repo.path.join("a.txt")).unwrap(), "changed by the first run\n", "nothing was restored");
+
+    // once the second run has stopped working the restore goes through
+    host.answer_permission(&second.agent_id, req_id, PermissionDecision::Deny).unwrap();
+    sink.wait_turn_end(&second.agent_id);
+    host.rewind(&first).expect("rewind after the other run stopped");
+    assert_eq!(std::fs::read_to_string(repo.path.join("a.txt")).unwrap(), "one\n");
+    host.shutdown();
+}
+
+#[test]
 fn a_run_without_a_rewind_snapshot_is_refused_unless_the_user_opts_out_for_that_run() {
     use intely_agent_host::{RepoRef, StartOptions, NO_SAFETY_NET};
     let dir = tempfile::tempdir().unwrap();

@@ -129,6 +129,9 @@ impl AgentSlot {
             // the user's own ~/.claude/CLAUDE.md rides on every Claude session unless `agents.includeUserMemory` is switched off (read at each start)
             let memory_store = store.clone();
             cfg.user_memory = Some(Arc::new(move || intely_settings::agents::include_user_memory_in(&memory_store.get("agents").unwrap_or_default())));
+            // runs at once, writers per repository and the memory of the runs come from the `agents` settings at every admission
+            let limits_store = store.clone();
+            cfg.limits = Some(intely_agent_host::limits_supplier(move || limits_store.get("agents").unwrap_or_default()));
             cfg.agent_defaults = Some(defaults_supplier(store));
         }
         // MCP servers a run selects: resolved (secrets included) only when a session opens; absent in a build without the module

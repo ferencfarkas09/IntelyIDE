@@ -400,6 +400,12 @@ impl Supervisor {
         if snapshots.is_empty() {
             return Err(err("noSnapshot", "no Rewind snapshot was taken for this run"));
         }
+        // Several runs may share a repository, and a restore puts the whole working tree back: it would overwrite the files of a run
+        // that is working there right now.
+        let working_there = inner.records().into_iter().find(|r| r.agent_id != run_id && matches!(r.status, RunState::Running | RunState::NeedsYou) && r.repo_ids.iter().any(|id| snapshots.iter().any(|s| s.repo_id == *id)));
+        if let Some(other) = working_there {
+            return Err(err("repoBusy", format!("run {} is still working in this repository; stop it before rewinding, because a rewind would overwrite its files", other.agent_id)));
+        }
         for s in &snapshots {
             Jail::global().check_op("agent rewind", &s.path)?;
         }
@@ -487,18 +493,19 @@ impl Inner {
 
     /// [`Self::blocked`] as data, for the New run card: which run (or which limit) a start would wait for.
     fn blocker(&self, _def: &RoleDef, primary_repo: &str, mode: PermissionMode) -> Option<AutoQueue> {
-        let cfg = self.host.gate().config();
+        let lim = self.host.gate().limits();
         let busy: Vec<_> = self.host.leases().into_iter().filter(|l| l.busy).collect();
         if mode.is_writer() {
-            if let Some(l) = busy.iter().find(|l| l.writer && l.repo_id.as_deref() == Some(primary_repo)) {
+            let in_repo: Vec<_> = busy.iter().filter(|l| l.writer && l.repo_id.as_deref() == Some(primary_repo)).collect();
+            if let (true, Some(l)) = (in_repo.len() >= lim.writers_per_repo.max(1), in_repo.first()) {
                 let title = self.host.list().into_iter().find(|s| s.agent_id == l.agent_id).map(|s| s.title).unwrap_or_default();
                 return Some(AutoQueue { kind: "repoWriter".into(), agent_id: l.agent_id.clone(), title });
             }
-            if busy.iter().filter(|l| l.writer).count() >= cfg.max_writers {
+            if busy.iter().filter(|l| l.writer).count() >= lim.max_writers {
                 return Some(AutoQueue { kind: "writers".into(), agent_id: String::new(), title: String::new() });
             }
         }
-        (busy.len() >= cfg.max_agents).then(|| AutoQueue { kind: "slots".into(), agent_id: String::new(), title: String::new() })
+        (busy.len() >= lim.max_agents).then(|| AutoQueue { kind: "slots".into(), agent_id: String::new(), title: String::new() })
     }
 
     fn meta_of(&self, id: &str) -> Result<Meta, EngineError> {
@@ -512,17 +519,23 @@ impl Inner {
     /// Why a start would be refused right now (a busy writer on the repo, all writer or agent slots busy), if it would.
     /// Idle sessions do not count: the host reclaims them to make room.
     fn blocked(&self, _def: &RoleDef, primary_repo: &str, mode: PermissionMode) -> Option<String> {
-        let cfg = self.host.gate().config();
+        let lim = self.host.gate().limits();
         let busy: Vec<_> = self.host.leases().into_iter().filter(|l| l.busy).collect();
         if mode.is_writer() {
-            if let Some(l) = busy.iter().find(|l| l.writer && l.repo_id.as_deref() == Some(primary_repo)) {
-                return Some(format!("waiting for {} to finish writing to this repository", l.agent_id));
+            let in_repo: Vec<_> = busy.iter().filter(|l| l.writer && l.repo_id.as_deref() == Some(primary_repo)).collect();
+            let cap = lim.writers_per_repo.max(1);
+            if let (true, Some(l)) = (in_repo.len() >= cap, in_repo.first()) {
+                return Some(if cap == 1 {
+                    format!("waiting for {} to finish writing to this repository", l.agent_id)
+                } else {
+                    format!("{} runs are writing to this repository (at most {cap} at once); waiting for one to finish", in_repo.len())
+                });
             }
-            if busy.iter().filter(|l| l.writer).count() >= cfg.max_writers {
-                return Some(format!("{} writers are working; waiting for one to finish", cfg.max_writers));
+            if busy.iter().filter(|l| l.writer).count() >= lim.max_writers {
+                return Some(format!("{} writers are working; waiting for one to finish", lim.max_writers));
             }
         }
-        (busy.len() >= cfg.max_agents).then(|| format!("{} agents are working; waiting for a free slot", cfg.max_agents))
+        (busy.len() >= lim.max_agents).then(|| format!("{} agents are working; waiting for a free slot", lim.max_agents))
     }
 
     fn enqueue(&self, def: RoleDef, req: RunsStartRequest, repos: &[RepoRef], note: String) -> RunRecord {

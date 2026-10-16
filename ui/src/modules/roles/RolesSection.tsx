@@ -14,6 +14,7 @@ import { repos } from "../../store/workspace";
 import { confirmDialog } from "../editor/dialogs";
 import { Badge, Button, ChevronRight, EmptyState, Eye, EyeOff, Icon, IconButton, Info, Input, Plus, Select, ShieldAlert, Skeleton, Sparkles, TextArea, toast, TriangleAlert } from "../../ui-kit";
 import { AutoSettings, OPTIMAL_AGENTS } from "./AutoSettings";
+import { ParallelSettings } from "./ParallelSettings";
 import { DeleteRoleDialog, type DeleteRequest } from "./DeleteRoleDialog";
 import {
   canDelete,
@@ -615,6 +616,7 @@ export default function RolesSection() {
             </Button>
           </div>
           <AutoSettings caps={caps()} version={autoVersion()} />
+          <ParallelSettings version={autoVersion()} />
           <DeleteRoleDialog
             request={deleting()}
             onClose={() => setDeleting(undefined)}

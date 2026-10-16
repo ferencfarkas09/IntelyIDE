@@ -297,6 +297,33 @@ fn rewind_restores_only_with_an_explicit_confirmation() {
     r.sup.host().shutdown();
 }
 
+#[test]
+fn rewind_waits_while_another_run_works_in_the_same_repository() {
+    let r = rig_with(|cfg| cfg.gate.writers_per_repo = 2);
+    let repo = fixture_repo(r.dir.path(), "repo");
+    let repos = [repo.clone()];
+    let first = start(&r.sup, "mock-plain-reply", &repo, &repos);
+    r.sink.wait_turn_end(&first.agent_id);
+    std::fs::write(repo.path.join("a.txt"), "changed by the first run\n").unwrap();
+
+    // a second run works in the same repository and waits for an answer
+    let second = start(&r.sup, "mock-tool-permission", &repo, &repos);
+    assert_ne!(second.status, RunState::Queued, "the repository may have two writers here");
+    let req = r.sink.wait(&second.agent_id, "permission.request", 20, |e| matches!(e.kind, EventKind::PermissionRequest { .. }));
+    let EventKind::PermissionRequest { req_id, .. } = req.kind else { unreachable!() };
+    let err = r.sup.rewind_restore(&first.agent_id, true, None).unwrap_err();
+    assert_eq!(err.code, "repoBusy", "{}", err.message);
+    assert!(err.message.contains(&second.agent_id), "{}", err.message);
+    assert_eq!(std::fs::read_to_string(repo.path.join("a.txt")).unwrap(), "changed by the first run\n", "nothing was restored");
+
+    // the other run stops working: the restore goes through
+    r.sup.host().answer_permission(&second.agent_id, &req_id, PermissionDecision::Deny).expect("answer");
+    r.sink.wait_turn_end(&second.agent_id);
+    wait_until("the second run is no longer working", 20, || r.sup.rewind_restore(&first.agent_id, true, None).is_ok());
+    assert_eq!(std::fs::read_to_string(repo.path.join("a.txt")).unwrap(), "one\n");
+    r.sup.host().shutdown();
+}
+
 // ---- Auto / delegation ((design notes: roles-orchestration-spec) 4.2, 8.2) ----
 
 fn names(set: &[intely_agent_core::delegates::DelegateInfo]) -> Vec<String> {

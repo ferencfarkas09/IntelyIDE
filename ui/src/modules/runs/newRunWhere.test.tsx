@@ -79,11 +79,15 @@ describe("placement logic", () => {
   });
   const rows = placementRows([view("b", "Build server", 6, 2, {}), view("g", "GPU box", 2, 0, { ready: false }), view("o", "Old", 2, 0, { reachable: false, ready: false }), view("n", "Never", 2, 0), view("f", "Full", 2, 2, {}), view("x", "Off", 2, 0, {}, false)], "This Mac");
 
-  it("has This Mac up to 6 and a ready server up to its free slots; the others are listed with the reason", () => {
+  it("has This Mac up to its cap (12 by default, or the one given) and a ready server up to its free slots; the others are listed with the reason", () => {
     expect(rows.map((r) => [r.name, r.max, r.why])).toEqual([["This Mac", MAC_MAX, undefined], ["Build server", 4, undefined], ["GPU box", 0, "needsSetup"], ["Old", 0, "unreachable"], ["Never", 0, "unchecked"], ["Full", 0, "full"]]);
   });
+  it("takes this Mac's cap as the optional third argument", () => {
+    expect(placementRows([], "This Mac", 3)[0].max).toBe(3);
+    expect(placementRows([], "This Mac")[0].max).toBe(MAC_MAX);
+  });
   it("clamps counts to the capacity and counts what is placed", () => {
-    expect(clampCounts({ [THIS_MAC]: 9, b: 7, g: 1 }, rows)).toMatchObject({ [THIS_MAC]: 6, b: 4, g: 0 });
+    expect(clampCounts({ [THIS_MAC]: 15, b: 7, g: 1 }, rows)).toMatchObject({ [THIS_MAC]: 12, b: 4, g: 0 });
     expect(totalRuns({ [THIS_MAC]: 1, b: 2, g: 3 }, rows)).toBe(3);
   });
   it("summarizes as '3 runs: 1 on This Mac, 2 on Build server'", () => {
@@ -119,14 +123,14 @@ describe("<NewRunDialog> where to run", () => {
 
   it("keeps each stepper inside its capacity", async () => {
     const d = await open();
-    more(d, "This Mac", 9);
-    expect(count(d, "This Mac")).toBe("6");
+    more(d, "This Mac", 15);
+    expect(count(d, "This Mac")).toBe("12");
     more(d, "Build server", 9);
     expect(count(d, "Build server")).toBe("5");
     expect(row(d, "Build server").getByRole("button", { name: "One more run on Build server" }).getAttribute("aria-disabled")).toBe("true");
     fewer(d, "Build server");
     expect(count(d, "Build server")).toBe("4");
-    for (let i = 0; i < 9; i++) fewer(d, "This Mac");
+    for (let i = 0; i < 15; i++) fewer(d, "This Mac");
     expect(count(d, "This Mac")).toBe("0");
   });
 

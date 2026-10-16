@@ -142,7 +142,7 @@ describe("<RunHeader> mode chip", () => {
     show(live());
     await openMenu();
     await pick(/^Edit automatically/);
-    await waitFor(() => expect(lastToast()).toMatchObject({ tone: "danger", title: "Could not change the mode", description: "Another run is writing to this repository. Wait for it, or pick Ask." }));
+    await waitFor(() => expect(lastToast()).toMatchObject({ tone: "danger", title: "Could not change the mode", description: "This repository already has as many runs changing it as are allowed. Wait for one to finish, pick Ask, or change the limits under Settings > Roles > Runs at the same time." }));
   });
 
   it("says the IDE already enforces a tighter mode when the agent could not follow it", async () => {
