@@ -1,6 +1,6 @@
 # Releasing
 
-This is the maintainer's guide to publishing IntelyIDE: how versions and the changelog work, which checks run before a release, how the repository is first published, what the threat model and the trust roots are, and what to do when something goes wrong. Applies to version 1.5.1.
+This is the maintainer's guide to publishing IntelyIDE: how versions and the changelog work, which checks run before a release, how the repository is first published, what the threat model and the trust roots are, and what to do when something goes wrong. Applies to version 1.6.0.
 
 **Status of this guide.** The workflow files under `.github/workflows` (the pull-request workflow with its single required check `ci-ok`, the release workflow, the CodeQL and audit workflows) are not in the repository yet. Every passage below that describes what those workflows do, the action inventory and the repository controls is the planned setup and becomes true when they land; until then the same checks run locally through `scripts/release/gate.sh`. A local `--release` run counts only when its summary table shows no SKIP.
 

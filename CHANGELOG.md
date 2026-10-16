@@ -6,8 +6,13 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 
 ### Added
 
-- **Team invite links open the app.** An invite is a link (`intely-team://join#...`); the app now registers that address with macOS, so a click in a chat, a mail or a web page opens IntelyIDE, brings it forward and goes straight to Settings > Team with the code in the join form and the preview of the relay below it. The link only fills the form: the person still ticks the trust box for a relay this Mac does not know, gives a name and presses Join, and an install that is in a team ignores the link and says so. The link is never written to a log, and anything that is not exactly `intely-team://join#...` (other hosts, a query, credentials, control characters, over 2 KB) is ignored. macOS learns the address when the app has been opened once from where it is installed. The release check of the app bundle now fails when the address is missing from its `Info.plist`.
 - Work in progress, not released: the code compiles for Linux (x86_64, webkit2gtk 4.1), Windows 10/11 (x86_64, WebView2) and Apple Silicon Macs, in addition to Intel Macs. Linux passes its tests; on Windows the permission checks and many tests are not yet verified. No Linux or Windows package is published; see `docs/install-linux.md` and `docs/install-windows.md` for what works and what is different. Secrets use Windows Credential Manager and the Linux Secret Service (one vault entry, split over several Credential Manager entries when it is large), banners use a Windows toast and `notify-send`, files and links open with `explorer.exe` and `xdg-open`, the terminal starts PowerShell on Windows, and connections to servers are not shared on Windows (OpenSSH for Windows has no `ControlMaster`). Process groups, the process table and the disk-space check are macOS and Linux features; the update swap of the app bundle stays macOS only.
+
+## [1.6.0] - 2026-10-16
+
+### Added
+
+- **Team invite links open the app.** An invite is a link (`intely-team://join#...`); the app now registers that address with macOS, so a click in a chat, a mail or a web page opens IntelyIDE, brings it forward and goes straight to Settings > Team with the code in the join form and the preview of the relay below it. The link only fills the form: the person still ticks the trust box for a relay this Mac does not know, gives a name and presses Join, and an install that is in a team ignores the link and says so. The link is never written to a log, and anything that is not exactly `intely-team://join#...` (other hosts, a query, credentials, control characters, over 2 KB) is ignored. macOS learns the address when the app has been opened once from where it is installed. The release check of the app bundle now fails when the address is missing from its `Info.plist`.
 
 ### Changed
 
@@ -219,7 +224,8 @@ First public release. This is alpha software.
 - Providers other than Claude, Happy, MongoDB Studio and Remote are proven only against mocks or on a local machine.
 - Version 0.1.0 still stores its state in the folder `IntelySwitchIDE` and uses Keychain services named after the earlier bundle identifier; a switch to `com.intelyhome.intelyide` with a migration is planned.
 
-[Unreleased]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.5.1...HEAD
+[Unreleased]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.5.1...v1.6.0
 [1.5.1]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.4.1...v1.5.0
 [1.4.1]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.4.0...v1.4.1

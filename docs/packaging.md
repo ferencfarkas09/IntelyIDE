@@ -1,6 +1,6 @@
 # Packaging
 
-This page describes how a release is built today: the macOS app and its disk image on the maintainer's own Mac, the Windows and Linux installers on GitHub Actions, and which parts of a fuller release pipeline do not exist yet. Applies to version 1.5.1.
+This page describes how a release is built today: the macOS app and its disk image on the maintainer's own Mac, the Windows and Linux installers on GitHub Actions, and which parts of a fuller release pipeline do not exist yet. Applies to version 1.6.0.
 
 It is written for the maintainer. Users want [install-macos.md](install-macos.md).
 
