@@ -8,7 +8,7 @@ import { after, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 import { assetNames } from "./assets.mjs";
 import { main as stageMain, stage } from "./stage-artifacts.mjs";
-import { buildSums, checkApp, finalize, main, neutralPrefix, parseSums, patchApp, patchBuffer, plistVersion, renderNotes, siteRelease, verifyOut } from "./pack-release.mjs";
+import { buildSums, checkApp, finalize, main, neutralPrefix, parseSums, patchApp, patchBuffer, plistUrlSchemes, plistVersion, renderNotes, siteRelease, verifyOut } from "./pack-release.mjs";
 
 const REAL = join(dirname(fileURLToPath(import.meta.url)), "../..");
 const VERSION = JSON.parse(readFileSync(join(REAL, "package.json"), "utf8")).version;
@@ -36,7 +36,8 @@ const SOURCES = {
   "Contents/Resources/relay-kit/remote-web/package.json": "remote-web/package.json",
   "Contents/Resources/relay-kit/remote-web/dist/index.html": "remote-web/dist/index.html",
 };
-const plist = (v) => `<?xml version="1.0"?><plist><dict><key>CFBundleShortVersionString</key><string>${v}</string></dict></plist>`;
+const plist = (v, schemes = ["intely-team"]) =>
+  `<?xml version="1.0"?><plist><dict><key>CFBundleShortVersionString</key><string>${v}</string><key>CFBundleURLTypes</key><array><dict><key>CFBundleURLSchemes</key><array>${schemes.map((x) => `<string>${x}</string>`).join("")}</array></dict></array></dict></plist>`;
 
 /** A fake source tree and a bundle built from it. */
 function fixture({ version = "9.9.9", exe = "plain executable bytes" } = {}) {
@@ -115,6 +116,20 @@ describe("check-app", () => {
   it("reads the version from an Info.plist", () => {
     assert.equal(plistVersion(plist("1.2.3")), "1.2.3");
     assert.equal(plistVersion("<plist/>"), null);
+  });
+
+  it("reads the URL schemes of an Info.plist, as Tauri writes it with tabs and line breaks too", () => {
+    assert.deepEqual(plistUrlSchemes(plist("1.2.3", ["intely-team", "other"])), ["intely-team", "other"]);
+    assert.deepEqual(plistUrlSchemes("<plist/>"), []);
+    const tauri = "<dict>\n\t<key>CFBundleURLTypes</key>\n\t<array>\n\t\t<dict>\n\t\t\t<key>CFBundleURLSchemes</key>\n\t\t\t<array>\n\t\t\t\t<string>intely-team</string>\n\t\t\t</array>\n\t\t</dict>\n\t</array>\n</dict>";
+    assert.deepEqual(plistUrlSchemes(tauri), ["intely-team"]);
+  });
+
+  it("fails a bundle that does not register the team invite links", () => {
+    const f = fixture();
+    writeFileSync(join(f.app, "Contents/Info.plist"), plist("9.9.9", ["something-else"]));
+    const p = checkApp({ app: f.app, version: "9.9.9", home: "/Users/alice", root: f.root, run: f.lipo });
+    assert.match(p.join("\n"), /does not register the intely-team:\/\/ links/);
   });
 });
 

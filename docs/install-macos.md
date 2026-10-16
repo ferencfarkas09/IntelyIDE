@@ -57,6 +57,8 @@ Builds older than 1.3.0 are signed ad hoc and are not notarized, so macOS refuse
 
 After that the app opens normally. Do not turn off Gatekeeper or change other security settings for this app. An ad-hoc build gets a new identity with every release, so macOS may ask again for Keychain and folder access after you replace it.
 
+The app also claims the `intely-team://` links of team invites: macOS learns that once the app has been opened from where it is installed, and a clicked invite link then opens IntelyIDE on Settings > Team (see [team.md](team.md)). The link only fills the join form; nothing is joined by it.
+
 What happens next is described in [getting-started.md](getting-started.md): the Welcome screen, workspaces and a first commit in a scratch repository.
 
 ## Updating

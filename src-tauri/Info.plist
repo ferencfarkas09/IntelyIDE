@@ -12,5 +12,18 @@
 	<string>IntelyIDE lists the folders on external drives so you can choose a Git repository to open. It does not change anything there.</string>
 	<key>NSNetworkVolumesUsageDescription</key>
 	<string>IntelyIDE lists the folders on network drives so you can choose a Git repository to open. It does not change anything there.</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>IntelyIDE team invite</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>intely-team</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

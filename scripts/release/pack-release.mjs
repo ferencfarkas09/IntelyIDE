@@ -58,6 +58,18 @@ export function plistVersion(xml) {
   return m ? m[1] : null;
 }
 
+/** The URL schemes an XML Info.plist registers (`CFBundleURLSchemes`), in the order written. */
+export function plistUrlSchemes(xml) {
+  const out = [];
+  for (const block of xml.matchAll(/<key>CFBundleURLSchemes<\/key>\s*<array>([\s\S]*?)<\/array>/g)) {
+    for (const m of block[1].matchAll(/<string>([^<]*)<\/string>/g)) out.push(m[1]);
+  }
+  return out;
+}
+
+/** The URL scheme of the team invite links: the app must register it, or a clicked link opens nothing. */
+export const INVITE_SCHEME = "intely-team";
+
 /** A same-length stand-in for `<home>/`: the Users/build path for the usual 13 bytes (what the 0.1.0 disk image used), else a `/build___/` path. */
 export function neutralPrefix(home) {
   const n = Buffer.byteLength(home.replace(/\/+$/, "") + "/");
@@ -120,8 +132,10 @@ export function checkApp({ app, version, home = os.homedir(), forbid = [], root 
   const problems = [];
   if (!existsSync(app)) return [`no bundle at ${app}`];
   const plist = join(app, "Contents/Info.plist");
-  const v = existsSync(plist) ? plistVersion(readFileSync(plist, "utf8")) : null;
+  const xml = existsSync(plist) ? readFileSync(plist, "utf8") : "";
+  const v = plistVersion(xml);
   if (v !== version) problems.push(`Info.plist says version ${v ?? "(none)"}, expected ${version}`);
+  if (!plistUrlSchemes(xml).includes(INVITE_SCHEME)) problems.push(`Info.plist does not register the ${INVITE_SCHEME}:// links of team invites (CFBundleURLSchemes)`);
   for (const [inApp, source] of RESOURCE_SOURCES) {
     const a = join(app, inApp);
     const b = join(root, source);

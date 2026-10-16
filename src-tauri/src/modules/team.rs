@@ -33,6 +33,7 @@ use tokio::sync::mpsc;
 use super::settings::SettingsState;
 
 pub mod collab;
+pub mod invitelink;
 pub mod memsync;
 pub mod share;
 

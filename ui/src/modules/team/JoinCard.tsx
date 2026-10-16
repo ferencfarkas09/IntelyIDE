@@ -4,6 +4,7 @@ import { ipc } from "../../ipc";
 import type { TeamJoinPreview } from "../../ipc/team";
 import { Button, Checkbox, Input, Spinner, TextArea, UserPlus } from "../../ui-kit";
 import { openSettings } from "../../platform/settings";
+import { consumeInvite, pendingInvite } from "./inviteLink";
 import { isRelayOld, joinMessageOf, joinTeam } from "./store";
 
 const DEBOUNCE_MS = 300;
@@ -45,6 +46,13 @@ export function JoinCard(props: { name: string; onName: (v: string) => void }) {
       }, DEBOUNCE_MS);
     }),
   );
+
+  // an invite link that was clicked (or opened the app): its code goes into the field, and the preview below reads it like a pasted one
+  createEffect(() => {
+    if (pendingInvite() === undefined) return;
+    const text = consumeInvite();
+    if (text) setCode(text);
+  });
 
   const info = () => {
     const p = preview();

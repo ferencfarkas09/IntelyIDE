@@ -409,6 +409,7 @@ pub fn run() {
             modules::team::team_invite,
             modules::team::team_join,
             modules::team::team_join_preview,
+            modules::team::invitelink::team_take_invite_link,
             modules::team::team_join_confirm,
             modules::team::team_join_decide,
             modules::team::team_revoke,
@@ -685,6 +686,12 @@ pub fn run() {
         if let RunEvent::WindowEvent { event: tauri::WindowEvent::Focused(focused), .. } = &event {
             modules::happy::set_focus(handle, *focused);
             modules::updates::set_focus(handle, *focused);
+        }
+        // An invite link (`intely-team://join#...`) opened the app or was clicked while it runs: the window comes forward and the page
+        // opens Settings > Team with the code. Only macOS delivers links this way.
+        #[cfg(target_os = "macos")]
+        if let RunEvent::Opened { urls } = &event {
+            modules::team::invitelink::on_opened(handle, urls);
         }
         // Dropped folders: validated in Rust and handed to the screen that declared itself a drop target.
         if let RunEvent::WindowEvent { label, event: WindowEvent::DragDrop(drop), .. } = &event {

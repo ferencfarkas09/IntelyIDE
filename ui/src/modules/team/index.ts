@@ -5,12 +5,15 @@ import { registerRailItem } from "../../platform/rail";
 import { registerSettingsSection } from "../../platform/settings";
 import { openTab, registerTabType } from "../../platform/tabs";
 import { Users } from "../../ui-kit";
+import { startInviteLinks } from "./inviteLink";
 
 const tabTitle = () => `${t("team.tab.title")} (${t("team.beta")})`;
 const openTeam = () => void openTab({ type: "team", id: "team", title: tabTitle() });
 
 // Registry calls only: nothing is read or connected until the section or the tab is opened (the backend resumes an existing team by itself).
+// The one exception is the listener for invite links (`intely-team://join#...`): a link can be clicked at any time and must open Settings > Team.
 export function register(): void {
+  startInviteLinks();
   registerSettingsSection({
     id: "team",
     get title() {

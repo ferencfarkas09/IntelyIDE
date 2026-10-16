@@ -298,6 +298,10 @@ export interface TeamIpc {
   onRunEvents(cb: (e: TeamRunEvents) => void): Unsubscribe;
   onChanged(cb: (view: TeamView) => void): Unsubscribe;
   onPresence(cb: (p: TeamPresence) => void): Unsubscribe;
+  /** The `intely-team://join#...` link that opened the app, or was clicked while it runs; handed over once (`null` when there is none). */
+  takeInviteLink(): Promise<string | null>;
+  /** An invite link reached the app: ask for it with `takeInviteLink`. */
+  onInviteLink(cb: () => void): Unsubscribe;
 }
 
 export function createTauriTeam(): TeamIpc {
@@ -345,5 +349,7 @@ export function createTauriTeam(): TeamIpc {
     onRunEvents: (cb) => subscribe<TeamRunEvents>("team:run-events", cb),
     onChanged: (cb) => subscribe<TeamView>("team:changed", cb),
     onPresence: (cb) => subscribe<TeamPresence>("team:presence", cb),
+    takeInviteLink: () => call("team_take_invite_link"),
+    onInviteLink: (cb) => subscribe<null>("team:invite-link", () => cb()),
   };
 }

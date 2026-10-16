@@ -17,6 +17,8 @@ export interface MockTeamSim {
   setOnline(id: string, online: boolean): void;
   /** This Mac trusts that relay host from now on. */
   trustRelay(host: string): void;
+  /** The person clicked an `intely-team://join#...` link: the app comes forward and the page asks for the text. */
+  inviteLink(text: string): void;
   /** The relay closed the socket as "removed". */
   removedByRelay(): void;
   setAuditError(message: string | null): void;
@@ -177,6 +179,8 @@ export function createMockTeam(options: MockTeamOptions = {}): MockTeamHandle {
   let seq = 0;
   const changed = new Set<(v: TeamView) => void>();
   const presence = new Set<(p: TeamPresence) => void>();
+  const linkListeners = new Set<() => void>();
+  let pendingLink: string | null = null;
   const set = (patch: Partial<TeamView>): TeamView => {
     view = { ...view, ...patch };
     for (const cb of changed) cb(view);
@@ -411,9 +415,22 @@ export function createMockTeam(options: MockTeamOptions = {}): MockTeamHandle {
       presence.add(cb);
       return () => void presence.delete(cb);
     },
+    async takeInviteLink() {
+      const link = pendingLink;
+      pendingLink = null;
+      return link;
+    },
+    onInviteLink(cb) {
+      linkListeners.add(cb);
+      return () => void linkListeners.delete(cb);
+    },
     sim: {
       trustRelay(host) {
         trustedRelays.add(host.toLowerCase());
+      },
+      inviteLink(text) {
+        pendingLink = text;
+        linkListeners.forEach((cb) => cb());
       },
       someoneArrives(name) {
         seq++;
