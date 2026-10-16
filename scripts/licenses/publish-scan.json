@@ -336,6 +336,16 @@
       "reason": "canary values"
     },
     {
+      "path": "crates/remote/tests/redact.rs",
+      "rule": "credential-assignment",
+      "reason": "canary assignments (password=..., a name with accents in front of it) the redactor must mask without panicking"
+    },
+    {
+      "path": "crates/remote/tests/redact.rs",
+      "rule": "token-assignment",
+      "reason": "canary assignments (token: ..., API_KEY=...) the redactor must mask without panicking"
+    },
+    {
       "path": "sidecar/test/**",
       "rule": "token-assignment",
       "reason": "canary values"

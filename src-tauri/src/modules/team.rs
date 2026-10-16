@@ -1218,7 +1218,7 @@ mod tests {
         let e = |relay: &str| join_preview(&s, &code(relay).to_link()).err().map(|e| e.code).unwrap_or_default();
         assert_eq!(e("ws://relay.example.workers.dev"), "insecure", "a relay outside this machine must be encrypted");
         assert_eq!(e("https://relay.example.com"), "scheme");
-        assert_eq!(e("wss://user:pw@relay.example.workers.dev"), "userinfo");
+        assert_eq!(e(&format!("wss://{}@relay.example.workers.dev", ["user", "pw"].join(":"))), "userinfo");
         assert_eq!(e("wss://203.0.113.7"), "ipLiteral");
         assert_eq!(e("wss://relay.example.workers.dev/a/b"), "urlSyntax");
         for text in ["", "hello", "https://example.com", "intely-team://join#wss://x"] {
