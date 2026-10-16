@@ -23,6 +23,8 @@ export function JoinCard(props: { name: string; onName: (v: string) => void }) {
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal<string | undefined>(undefined);
   const [relayOld, setRelayOld] = createSignal(false);
+  /** The code came from a clicked link, not from the person's own paste: it always asks for the tick, even for a relay this Mac knows. */
+  const [fromLink, setFromLink] = createSignal(false);
 
   let timer: ReturnType<typeof setTimeout> | undefined;
   let ticket = 0;
@@ -51,7 +53,9 @@ export function JoinCard(props: { name: string; onName: (v: string) => void }) {
   createEffect(() => {
     if (pendingInvite() === undefined) return;
     const text = consumeInvite();
-    if (text) setCode(text);
+    if (!text) return;
+    setCode(text);
+    setFromLink(true);
   });
 
   const info = () => {
@@ -63,7 +67,7 @@ export function JoinCard(props: { name: string; onName: (v: string) => void }) {
     return p.state === "invalid" ? p.message : undefined;
   };
   /** Whether the person has to say they trust the relay. */
-  const needsTrust = () => !!info() && (!info()!.trusted || forceTrust());
+  const needsTrust = () => !!info() && (!info()!.trusted || forceTrust() || fromLink());
   const ready = () => !!props.name.trim() && !!info() && (!needsTrust() || trust());
 
   const go = async () => {
@@ -85,7 +89,7 @@ export function JoinCard(props: { name: string; onName: (v: string) => void }) {
     <div class="team-card">
       <h5 class="team-card__title">{t("team.join.title")}</h5>
       <p class="team-note">{t("team.join.body")}</p>
-      <TextArea aria-label={t("team.join.code")} placeholder={t("team.join.codePh")} minRows={2} maxRows={4} spellcheck={false} value={code()} onInput={(e) => setCode(e.currentTarget.value)} />
+      <TextArea aria-label={t("team.join.code")} placeholder={t("team.join.codePh")} minRows={2} maxRows={4} spellcheck={false} value={code()} onInput={(e) => (setFromLink(false), setCode(e.currentTarget.value))} />
       <Show when={preview().state === "checking"}>
         <p class="team-wait" data-testid="join-checking"><Spinner size={12} />{t("team.join.checking")}</p>
       </Show>
@@ -97,6 +101,9 @@ export function JoinCard(props: { name: string; onName: (v: string) => void }) {
           <div class="team-preview" data-testid="join-preview">
             <p class="team-preview__relay">{t("team.join.relay", { host: i().relayHost })}</p>
             <p class="team-note">{t("team.join.team", { team: i().teamId, admin: i().adminId })}</p>
+            <Show when={fromLink()}>
+              <p class="team-note" data-testid="join-from-link">{t("team.join.fromLink")}</p>
+            </Show>
             <Show
               when={needsTrust()}
               fallback={<p class="team-note" data-testid="join-trusted">{t(i().local ? "team.join.local" : "team.join.trusted")}</p>}

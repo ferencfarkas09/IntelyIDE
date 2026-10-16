@@ -14,6 +14,7 @@
   "team.join.code": "Meghívókód",
   "team.join.codePh": "intely-team://join#...",
   "team.join.go": "Belépés",
+  "team.join.fromLink": "Ez a kód egy rákattintott linkből jött. Csak akkor lépj be, ha vártál meghívót ettől a személytől, és egyeztesd vele a nevét.",
   "team.link.inTeam": "Már egy csapatban vagy",
   "team.link.inTeamDesc": "Ha ezzel a meghívóval másik csapatba lépnél, előbb lépj ki ebből a Beállítások > Csapat alatt.",
   "team.joining.title": "Belépés a csapatba",

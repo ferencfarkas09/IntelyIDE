@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@solidjs/testing-library";
+import { cleanup, fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../ipc", async (orig) => {
@@ -86,6 +86,26 @@ describe("a clicked invite link", () => {
     expect(settingsOpen()).toBe(true);
     expect(activeSettingsSection()?.id).toBe("team");
     expect(toast.toasts().map((x) => x.title)).toContain("You are already in a team");
+  });
+
+  it("asks for the tick even for a relay this Mac already trusts, because a link is not the person's own paste", async () => {
+    install("off");
+    mock.sim.trustRelay("relay.example.workers.dev");
+    render(() => <TeamSection />);
+    await screen.findByText("Join a team");
+    startInviteLinks();
+    mock.sim.inviteLink(LINK);
+    await screen.findByTestId("join-from-link");
+    const tick = screen.getByRole("checkbox") as HTMLInputElement;
+    fireEvent.input(screen.getAllByLabelText("Your name in the team")[1]!, { target: { value: "Sam" } });
+    const join = screen.getByRole("button", { name: "Join team" });
+    expect(join.hasAttribute("disabled")).toBe(true);
+    fireEvent.click(tick);
+    await waitFor(() => expect(join.hasAttribute("disabled")).toBe(false));
+    // the person's own typing makes it an ordinary code again: a known relay needs no tick and the note is gone
+    fireEvent.input(screen.getByLabelText("Invite code"), { target: { value: LINK } });
+    await waitFor(() => expect(screen.queryByTestId("join-from-link")).toBeNull());
+    await waitFor(() => expect(screen.queryByRole("checkbox")).toBeNull());
   });
 
   it("ignores a start with no link waiting", async () => {

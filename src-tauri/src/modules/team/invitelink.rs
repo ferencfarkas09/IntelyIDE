@@ -6,6 +6,7 @@
 //! page takes it (`team_take_invite_link`): a link that starts the app arrives before the page has loaded.
 
 use std::sync::{Mutex, PoisonError};
+use std::time::{Duration, Instant};
 
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -14,7 +15,11 @@ pub const SCHEME: &str = "intely-team";
 /// An invite link is a few hundred characters; anything much longer is not one.
 const MAX_LINK_BYTES: usize = 2048;
 
+/// A link brings the window forward at most once in this time: a page that opens link after link must not keep stealing the focus.
+const FOCUS_GAP: Duration = Duration::from_secs(2);
+
 static PENDING: Mutex<Option<String>> = Mutex::new(None);
+static LAST_FOCUS: Mutex<Option<Instant>> = Mutex::new(None);
 
 fn slot() -> std::sync::MutexGuard<'static, Option<String>> {
     PENDING.lock().unwrap_or_else(PoisonError::into_inner)
@@ -39,12 +44,22 @@ pub fn invite_from_url(link: &str) -> Option<String> {
     plain.then(|| link.to_owned())
 }
 
+/// Whether a link may bring the window forward now; the time is noted when it may.
+fn may_take_focus(now: Instant, last: &mut Option<Instant>) -> bool {
+    if last.is_some_and(|t| now.saturating_duration_since(t) < FOCUS_GAP) {
+        return false;
+    }
+    *last = Some(now);
+    true
+}
+
 /// The system opened the app with these URLs (macOS only). The last invite link wins; every other URL is ignored.
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub fn on_opened(app: &AppHandle, urls: &[tauri::Url]) {
     let Some(code) = urls.iter().rev().find_map(|u| invite_from_url(u.as_str())) else { return };
     *slot() = Some(code);
-    if let Some(window) = app.get_webview_window("main") {
+    let focus = may_take_focus(Instant::now(), &mut LAST_FOCUS.lock().unwrap_or_else(PoisonError::into_inner));
+    if let Some(window) = app.get_webview_window("main").filter(|_| focus) {
         let _ = window.show();
         let _ = window.unminimize();
         let _ = window.set_focus();
@@ -106,6 +121,17 @@ mod tests {
         assert_eq!(invite_from_url("intely-team://join#abc\u{0}def"), None);
         assert_eq!(invite_from_url("intely-team://join#abc\ndef"), None);
         assert_eq!(invite_from_url("intely-team://join#abc\u{7f}def"), None);
+    }
+
+    #[test]
+    fn a_link_that_follows_another_one_at_once_does_not_take_the_focus_again() {
+        let t0 = Instant::now();
+        let mut last = None;
+        assert!(may_take_focus(t0, &mut last), "the first link may");
+        assert!(!may_take_focus(t0 + Duration::from_millis(300), &mut last), "a second one right behind it may not");
+        assert!(!may_take_focus(t0 + FOCUS_GAP - Duration::from_millis(1), &mut last));
+        assert!(may_take_focus(t0 + FOCUS_GAP, &mut last), "after the gap it may again");
+        assert!(!may_take_focus(t0, &mut last), "a clock that went back is not a reason to take the focus");
     }
 
     #[test]

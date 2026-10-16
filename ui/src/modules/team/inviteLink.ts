@@ -22,7 +22,7 @@ export function consumeInvite(): string | undefined {
  * is told so.
  */
 export async function receiveInviteLink(text: string): Promise<void> {
-  if (!loaded()) await loadTeam();
+  if (!loaded()) await loadTeam().catch(() => undefined);
   if (view().state === "none") setPendingInvite(text);
   else toast.info(t("team.link.inTeam"), t("team.link.inTeamDesc"));
   openSettings("team");
@@ -37,6 +37,8 @@ export function startInviteLinks(): void {
   const pull = () => void ipc.team.takeInviteLink().then((text) => (text ? receiveInviteLink(text) : undefined), () => undefined);
   ipc.team.onInviteLink(pull);
   pull();
+  // the subscription completes a moment later: a link that arrived in between is asked for again once
+  setTimeout(pull, 1500);
 }
 
 /** For tests: forgets the waiting link and lets `startInviteLinks` run again. */

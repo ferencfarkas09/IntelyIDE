@@ -14,6 +14,7 @@
   "team.join.code": "Invite code",
   "team.join.codePh": "intely-team://join#...",
   "team.join.go": "Join team",
+  "team.join.fromLink": "This code came from a link you clicked. Join only if you expected an invite from this person, and check their name with them.",
   "team.link.inTeam": "You are already in a team",
   "team.link.inTeamDesc": "Leave it in Settings > Team first if you want to join another one with this invite.",
   "team.joining.title": "Joining the team",
