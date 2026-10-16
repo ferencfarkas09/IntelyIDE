@@ -97,6 +97,12 @@ export interface FailureView {
   title: string;
   hint?: string;
   actions: RowAction[];
+  /**
+   * The engine's own one-line message is shown under the title. `false` for the failure kinds whose message is a fixed English sentence
+   * (the title and the hint already say it in the user's language, and the raw output stays under "Show output"); the kinds that carry
+   * details of their own (the files a guard refused, why a selection is invalid) keep it.
+   */
+  showMessage?: boolean;
 }
 
 /** Human wording and the recovery actions offered for each failure kind. */
@@ -108,25 +114,26 @@ export function describeFailure(kind: FailureKind, run: OpKind): FailureView {
         title: run === "push" ? t("results.fail.hookPush") : t("results.fail.hookCommit"),
         hint: t("results.fail.hookHint"),
         actions: ["retry", "retryNoHooks"],
+        showMessage: false,
       };
     case "nonFastForward":
-      return { title: t("results.fail.nff"), hint: t("results.fail.nffHint"), actions: ["pullThenPush", "retry"] };
+      return { title: t("results.fail.nff"), hint: t("results.fail.nffHint"), actions: ["pullThenPush", "retry"], showMessage: false };
     case "lockBusy":
-      return { title: t("results.fail.lock"), hint: t("results.fail.lockHint"), actions: retry };
+      return { title: t("results.fail.lock"), hint: t("results.fail.lockHint"), actions: retry, showMessage: false };
     case "headMoved":
       return { title: t("results.fail.headMoved"), hint: t("results.fail.headMovedHint"), actions: retry };
     case "auth":
-      return { title: t("results.fail.auth"), hint: t("results.fail.authHint"), actions: retry };
+      return { title: t("results.fail.auth"), hint: t("results.fail.authHint"), actions: retry, showMessage: false };
     case "network":
-      return { title: t("results.fail.network"), hint: t("results.fail.networkHint"), actions: retry };
+      return { title: t("results.fail.network"), hint: t("results.fail.networkHint"), actions: retry, showMessage: false };
     case "remoteDeclined":
-      return { title: t("results.fail.declined"), hint: t("results.fail.declinedHint"), actions: retry };
+      return { title: t("results.fail.declined"), hint: t("results.fail.declinedHint"), actions: retry, showMessage: false };
     case "emptyMessage":
       return { title: t("results.fail.emptyMessage"), actions: [] };
     case "nothingToCommit":
-      return { title: t("results.fail.nothing"), hint: t("results.fail.nothingHint"), actions: [] };
+      return { title: t("results.fail.nothing"), hint: t("results.fail.nothingHint"), actions: [], showMessage: false };
     case "conflict":
-      return { title: t("results.fail.conflict"), hint: t("results.fail.conflictHint"), actions: [] };
+      return { title: t("results.fail.conflict"), hint: t("results.fail.conflictHint"), actions: [], showMessage: false };
     case "guardBlocked":
       return { title: t("results.fail.guard"), hint: t("results.fail.guardHint"), actions: [] };
     case "invalidSelection":

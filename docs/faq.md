@@ -1,6 +1,6 @@
 # FAQ and troubleshooting
 
-This page answers the questions people ask first and lists the fixes for the problems they hit first. Applies to version 1.5.0. Statements about files and behaviour were checked against the source; where something is not verified, the text says so.
+This page answers the questions people ask first and lists the fixes for the problems they hit first. Applies to version 1.5.1. Statements about files and behaviour were checked against the source; where something is not verified, the text says so.
 
 ## About the project
 
@@ -36,6 +36,8 @@ The relay needs the `Team` Durable Object that came with version 1.3.0. Update i
 
 An invite works once and for 10 minutes, and three wrong attempts burn it. Make a new one with Invite. Both screens must show the same six digits before you press "Let them in"; if they differ, stop and start again.
 
+The person joining needs version 1.5.1 or newer: older versions refused an invite from a relay they had not acknowledged and offered no way to trust it. In the join form the code is checked as soon as it is pasted: the form says whether it is an invite, which relay it points to and, for a relay this Mac does not know yet, asks to tick that the person trusts it. Paste the whole line (it starts with `intely-team://join#`); line breaks and words around it are fine.
+
 ### I get no notification banners
 
 Banners appear only while the IDE window is in the background, at most once per kind and run within the gap set in Settings > Notifications, and macOS decides whether to show them: allow the app in System Settings > Notifications and check your Focus mode. A development build is not an app bundle, so macOS shows its banners as the Script Editor. See [notifications.md](notifications.md).
@@ -46,7 +48,7 @@ No. It can drive Claude through the Claude Agent SDK, and "Claude" is a trademar
 
 ### What is the Agent SDK, and how do I install it?
 
-The Claude provider needs the Anthropic Agent SDK. It is not distributed with IntelyIDE: you install it once yourself with the installer inside the app (see [getting-started.md](getting-started.md)), and until then a Claude run stops at the start and names the exact command. Other providers listed in Settings are detected but have not been run in this release.
+The Claude provider needs the Anthropic Agent SDK. It is not distributed with IntelyIDE: you install it once yourself with the installer inside the app (see [getting-started.md](getting-started.md)), and until then a Claude run stops at the start and names the exact command. If the installer stops with `network ... ERR_ACCESS_DENIED` you are on a version before 1.5.1 with Node 25 or newer: update the app, or run the installer with Node 24 until then. Other providers listed in Settings are detected but have not been run in this release.
 
 ### Which Macs and macOS versions are supported?
 

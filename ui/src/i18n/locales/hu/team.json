@@ -261,5 +261,21 @@
   "team.commits.offline": "{name} offline. Az utolsó pillanatkép látszik, ha van.",
   "team.commits.noFiles": "Nincs módosított fájl",
   "team.commits.files": "{n} módosított fájl",
-  "team.commits.recent": "{n} friss commit"
+  "team.commits.recent": "{n} friss commit",
+  "team.join.checking": "A meghívó beolvasása...",
+  "team.join.invalid": "Ez nem meghívó kód. Illeszd be a teljes sort, amely így kezdődik: intely-team://join# (a sortörések és a körülötte lévő szöveg nem zavarnak).",
+  "team.join.relay": "Relé: {host}",
+  "team.join.team": "Csapat: {team} · meghívta: {admin}",
+  "team.join.trusted": "Ezt a relét ezen a Macen már megbízhatónak jelölted.",
+  "team.join.local": "Relé ezen a számítógépen.",
+  "team.join.trust": "Ezt a kódot valakitől kaptam, akiben megbízom, és megbízom a relé ({host}) üzemeltetőjében is.",
+  "team.join.trustNote": "A relé csak titkosított üzeneteket ad tovább, el nem olvashatja őket, de látja, hogy csatlakozol. Csak akkor bízz meg benne, ha a meghívó személy üzemelteti.",
+  "team.err.invalidCode": "Ez nem meghívó kód. Illeszd be a teljes sort, amely így kezdődik: intely-team://join#.",
+  "team.err.hostNotAllowed": "Ez a Mac még nem bízik a meghívóban megadott relében. Pipáld be, hogy megbízol benne, majd csatlakozz újra.",
+  "team.err.relayAddress": "A meghívóban lévő relécím hibásnak tűnik, vagy nem titkosított (wss://-sel kell kezdődnie). Kérj új meghívót.",
+  "team.err.readOnly": "Ez a telepítés csak olvasható módban van, ezért nem csatlakozhat csapathoz.",
+  "team.err.testJail": "Ez a telepítés korlátozott tesztmódban fut, amely letiltja a külső reléket.",
+  "team.err.inviteSpent": "A meghívó lejárt, vagy már felhasználták. A kód csak egyszer és csak 10 percig érvényes: kérj újat.",
+  "team.err.full": "A csapat megtelt.",
+  "team.err.alreadyInTeam": "Ez a telepítés már egy csapat tagja. Előbb lépj ki belőle, ha másikhoz szeretnél csatlakozni."
 }

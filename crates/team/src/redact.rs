@@ -110,7 +110,7 @@ fn mask_assignments(s: &str) -> String {
         }
         let before = s[..i].trim_end_matches(' ');
         let spaced = before.len() != i;
-        let name_start = before.rfind(|c: char| !(c.is_ascii_alphanumeric() || matches!(c, '_' | '-'))).map_or(0, |p| p + 1);
+        let name_start = base::start_of_name(before, |c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-'));
         let name = before[name_start..].to_ascii_lowercase();
         let after = &s[i + 1..];
         let ws = after.len() - after.trim_start_matches(' ').len();
@@ -252,7 +252,8 @@ impl StreamScrub {
             self.raw.len()
         } else if tail > HOLD_LINE {
             // a very long line: cut at the last whitespace, a token never contains one
-            self.raw.rfind(char::is_whitespace).map_or(nl, |i| (i + 1).max(nl))
+            // (after the white space character, which can take more than one byte: no-break and ideographic spaces do)
+            self.raw.char_indices().rev().find(|(_, c)| c.is_whitespace()).map_or(nl, |(i, c)| (i + c.len_utf8()).max(nl))
         } else {
             nl
         };
@@ -610,5 +611,92 @@ mod tests {
         let mut r = Redactor::with_home(Some("/Users/alice".into()));
         let v = r.event(&ev(EventKind::Error { class: intely_agent_core::events::ErrorClass::Internal, message: "cannot open /Users/alice/work/a.txt".into(), retryable: false })).unwrap();
         assert_eq!(v["message"], "cannot open ~/work/a.txt");
+    }
+
+    /// What text going to a teammate really contains: the punctuation the scrubbers look for, the names of secrets, and letters, white space
+    /// and symbols that take two, three or four bytes. The scrubbers cut text by byte positions, and the build aborts on a panic.
+    const PIECES: &[&str] = &[
+        ":", "=", "\"", "'", " ", "\n", "/", "@", "?", "&", ",", ";", "{", "}", "(", ")", "_", "-", ".", "#", "%", "password", "PASSWORD", "token", "api_key", "secret", "Secret_Key", "Bearer ",
+        "Authorization: ", "eyJ", "AKIA", "sk-", "ghp_", "http://", "https://u:p@host/", "?token=", "-----BEGIN PRIVATE KEY-----", "-----END PRIVATE KEY-----", "-----BEGIN ", "-----END ",
+        "a", "Z", "9", "é", "á", "ő", "ű", "Ú", "ß", "ñ", "—", "“", "€", "😀", "日本", "\u{200b}", "\u{202e}", "\t", "név", "Új", "fájl", "számla", "É", "\u{a0}", "\u{2003}", "\u{3000}",
+        "\u{2028}", "\u{85}", ".env", "id_rsa", "j@corp", ".com",
+    ];
+
+    struct Rng(u64);
+    impl Rng {
+        fn next(&mut self) -> u64 {
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            self.0
+        }
+        fn below(&mut self, n: usize) -> usize {
+            (self.next() % n as u64) as usize
+        }
+        fn text(&mut self, pieces: usize) -> String {
+            (0..pieces).map(|_| PIECES[self.below(PIECES.len())]).collect()
+        }
+    }
+
+    /// The same text cut into pieces of random size, never inside a character.
+    fn chunks(rng: &mut Rng, s: &str) -> Vec<String> {
+        let mut out = Vec::new();
+        let mut cur = String::new();
+        for c in s.chars() {
+            cur.push(c);
+            if rng.below(40) == 0 {
+                out.push(std::mem::take(&mut cur));
+            }
+        }
+        out.push(cur);
+        out
+    }
+
+    #[test]
+    fn accents_in_front_of_names_and_long_lines_with_a_wide_space_do_not_panic() {
+        for s in ["Új: valami", "név=Péter", "jelszó—password: hunter2hunter2", "ő=1", "x é=1"] {
+            let _ = scrub(s);
+        }
+        // a line over the holding limit whose last white space is a no-break space (two bytes): the cut after it used to be inside it
+        let mut st = StreamScrub::default();
+        let line = format!("{}\u{a0}{}", "a".repeat(600), "b".repeat(30));
+        let out = st.push(&line);
+        assert!(out.len() <= line.len());
+        let _ = st.finish();
+        let mut st = StreamScrub::default();
+        let wide = format!("{}\u{3000}tail", "ő".repeat(300));
+        let _ = st.push(&wide);
+        let _ = st.finish();
+    }
+
+    #[test]
+    fn no_text_makes_a_team_scrubber_panic() {
+        let mut rng = Rng(0x2545_F491_4F6C_DD1D);
+        for round in 0..30_000 {
+            let n = 1 + rng.below(40);
+            let s = rng.text(n);
+            let r = std::panic::catch_unwind(|| (scrub(&s), mask_emails(&s), clip(&s, 25), base::display(&s, 30)));
+            assert!(r.is_ok(), "a scrubber panicked on {s:?}");
+            // a streamed answer and a growing tool output, in pieces, over lines long enough to reach the holding rules
+            let (long, short) = (150 + rng.below(250), 5 + rng.below(80));
+            let big = if round % 3 == 0 { rng.text(long).replace('\n', " ") } else { rng.text(short) };
+            let parts = chunks(&mut rng, &big);
+            let r = std::panic::catch_unwind(|| {
+                let mut st = StreamScrub::default();
+                let mut out = String::new();
+                for p in &parts {
+                    out.push_str(&st.push(p));
+                }
+                out.push_str(&st.finish());
+                let mut o = OutputScrub::default();
+                let mut acc = String::new();
+                for p in &parts {
+                    acc.push_str(p);
+                    let _ = o.push(&acc);
+                }
+                out
+            });
+            assert!(r.is_ok(), "a streaming scrubber panicked on {big:?} in {parts:?}");
+        }
     }
 }

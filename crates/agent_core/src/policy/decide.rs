@@ -679,6 +679,17 @@ fn decide_read(eff: &Eff, intent: &ToolIntent, jail: &Jail) -> PolicyDecision {
             }
         }
     }
+    // The run may read the Claude memory notes of its own folders (`~/.claude/projects/<folder>/memory/*.md`): the user's own notes about the
+    // project, which the CLI loads into every session anyway. A note is read by name; the folder itself only for a tool that lists names
+    // (`Glob`, `LS`), not for `Grep`, which would go into subfolders and other kinds of file. Before the never-read list, which keeps the
+    // rest of `~/.claude`, and before the folder boundary of Automatic. Reads only: a write there is a protected path, whatever this says.
+    let lists_names = matches!(intent.tool.as_deref(), Some("Glob" | "LS"));
+    if !resolved.is_empty() && resolved.iter().all(|p| jail.is_claude_memory_note(p) || (lists_names && jail.is_claude_memory_folder(p))) {
+        if let Some(d) = denied_by_role_list(eff, intent) {
+            return d;
+        }
+        return allow("read.memory-note", "a Claude memory note of one of this run's folders");
+    }
     if let Some((p, why)) = resolved.iter().find_map(|p| jail.never_read_reason(p).map(|w| (p, w))) {
         return hard_stop("read.never-read", format!("{why}: {} is on the agent never-read list", p.display()));
     }

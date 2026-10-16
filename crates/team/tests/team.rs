@@ -441,6 +441,69 @@ fn queued_frames_are_acknowledged_only_after_they_were_applied() {
     assert_eq!(g.handled(Some(3), true), Verdict::Ack(3));
 }
 
+/// The invite goes through chats, mail and terminals before it is pasted: the link comes back wrapped, quoted, in other words, with its
+/// characters encoded or its scheme in capitals. All of that must still be the same code, and nothing broken may pass as one.
+#[test]
+fn an_invite_is_read_as_people_really_hand_it_over() {
+    let (admin, a) = team();
+    let code = Offer::new(NOW).code(&a, &admin);
+    let link = code.to_link();
+    let same = |text: &str| assert_eq!(InviteCode::parse(text).ok().as_ref(), Some(&code), "{text:?}");
+    same(&link);
+    same(&format!("  \n{link}\r\n "));
+    // a sentence around it, before and after, with and without a full stop glued to the code
+    same(&format!("Join my team: {link} (valid 10 minutes)"));
+    same(&format!("{link}."));
+    same(&format!("Hi!\n\n{link}, thanks"));
+    same(&format!("<{link}>"));
+    same(&format!("\"{link}\""));
+    same(&format!("`{link}`"));
+    same(&format!("[invite]({link})"));
+    // the scheme as people retype or auto-correct it
+    same(&link.replace("intely-team://join#", "INTELY-TEAM://JOIN#"));
+    same(&link.replace("intely-team://join#", "Intely-Team://Join/#"));
+    same(&link.replace("intely-team://join#", "intely-team:join#"));
+    same(&link.replace("intely-team://join#", "intely-team:///join#"));
+    // a long line broken by the chat, anywhere: inside the relay address and inside the fields
+    for cut in [10, 24, 40, 70, 100, 130, link.len() - 5] {
+        let (l, r) = link.split_at(cut);
+        same(&format!("{l}\n{r}"));
+        same(&format!("{l} \u{200b} {r}"));
+        same(&format!("{l}\n  {r}"));
+    }
+    // commas and colons encoded by a mail client or a link shortener
+    same(&link.replace(',', "%2C"));
+    same(&link.replace(',', "%2c").replace("://", "%3A%2F%2F"));
+    // invisible characters from an editor
+    same(&format!("\u{feff}{}\u{200b}", link.replace("join#", "join\u{200d}#")));
+    // the bare part after the `#`, which is what a person copies by hand when a chat swallows the scheme
+    let bare = link.strip_prefix("intely-team://join#").unwrap();
+    same(bare);
+    same(&format!(" \"{bare}\" "));
+
+    // nothing broken is accepted, and the refusal has the code the app shows its hint for
+    let tail = &link[link.len() - 6..];
+    let broken = [
+        String::new(),
+        "hello".into(),
+        "https://example.com/join#abc".into(),
+        "intely-team://join#".into(),
+        "intely-team://join#wss://relay.example".into(),
+        link[..link.len() - 1].to_string(),                   // the last character of the code is missing
+        link.replacen(',', ";", 1),                            // a separator changed
+        link.replace(tail, "!!!!!!"),                          // the one-time code is not base64url
+        format!("{link},extra").replace(&format!("{},", code.admin_id), ""), // a field is missing
+        link.replace("intely-team://join#", "intely-team://leave#"),
+        link.replace("intely-team://join#", "intely://join#"),
+        format!("x://join#{bare}"),                            // another scheme in front of the relay address
+        format!("code: {bare}"),                               // words in front of a code that has no scheme
+    ];
+    for text in &broken {
+        let e = InviteCode::parse(text).expect_err(text);
+        assert!(e.to_string().contains("invalidCode"), "{text:?}: {e}");
+    }
+}
+
 #[test]
 fn invite_codes_with_odd_ids_are_refused() {
     let (admin, a) = team();
@@ -450,7 +513,8 @@ fn invite_codes_with_odd_ids_are_refused() {
     assert!(InviteCode::parse(&link.replace(team_id.as_str(), "short")).is_err());
     assert!(InviteCode::parse(&link.replace(team_id.as_str(), &format!("{}../x", &team_id[..20]))).is_err());
     assert!(InviteCode::parse(&link.replace(&admin.member_id, "pair-abc")).is_err());
-    assert!(InviteCode::parse(&link.replace(&admin.member_id, "a b")).is_err());
+    assert!(InviteCode::parse(&link.replace(&admin.member_id, "a/b")).is_err());
+    assert!(InviteCode::parse(&link.replace(&admin.member_id, "a.b")).is_err());
 }
 
 /// The biggest chat history answer the owner's store can produce, with the text escaping as badly as it can, is still one frame of the

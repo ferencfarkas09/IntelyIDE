@@ -133,6 +133,13 @@ fn scrub_urls(s: &str) -> String {
     out
 }
 
+/// Where the name that ends `before` begins: just after the last character that cannot be part of a name. The position is a character
+/// boundary. (A letter with an accent in front of the name takes more than one byte; cutting one byte after its start was a panic, and the
+/// build aborts on a panic, so a colon after an accented word in a file shown to a teammate closed the whole app.)
+pub fn start_of_name(before: &str, in_name: impl Fn(char) -> bool) -> usize {
+    before.char_indices().rev().find(|&(_, c)| !in_name(c)).map_or(0, |(p, c)| p + c.len_utf8())
+}
+
 /// `NAME=value`, `export NAME=value`, `Authorization: ...`, and JSON/YAML `"name": "value"` lines.
 fn scrub_line(line: &str) -> String {
     let (body, nl) = match line.strip_suffix('\n') {
@@ -154,7 +161,7 @@ fn scrub_line(line: &str) -> String {
     let mut last = 0;
     while i < bytes.len() {
         if bytes[i] == b'=' && i > 0 {
-            let name_start = rest[..i].rfind(|c: char| !(c.is_ascii_alphanumeric() || c == '_')).map_or(0, |p| p + 1);
+            let name_start = start_of_name(&rest[..i], |c| c.is_ascii_alphanumeric() || c == '_');
             let name = &rest[name_start..i];
             if !name.is_empty() && name.chars().any(|c| c.is_ascii_uppercase() || c == '_') && name_is_secret(name) {
                 let vstart = i + 1;
@@ -196,7 +203,7 @@ fn scrub_keyed_values(line: &str) -> String {
         let Some(colon) = rest.find(':') else { break };
         let before = &rest[..colon];
         let key_end = before.trim_end_matches(['"', '\'', ' ']).len();
-        let key_start = before[..key_end].rfind(|c: char| !(c.is_ascii_alphanumeric() || matches!(c, '_' | '-'))).map_or(0, |p| p + 1);
+        let key_start = start_of_name(&before[..key_end], |c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-'));
         let key = &before[key_start..key_end];
         let after = &rest[colon + 1..];
         let after_trim = after.trim_start();

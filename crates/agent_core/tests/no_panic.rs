@@ -25,6 +25,8 @@ impl Lcg {
 const PIECES: &[&str] = &[
     " ", " ", " ", "\n", "\t", ";", "&&", "||", "|", "&", "(", ")", "{", "}", "<", ">", ">>", "<<", "<<<", "<<EOF\n", "EOF\n", "'", "\"", "`", "$", "$(", "${", "$'", "\\", "#", "*", "?", "[", "]", "=", "-", "--", ".", "/",
     "git", "commit", "push", "add", "-A", "-c", "-C", "env", "sh", "-c", "bash", "eval", "xargs", "find", "-exec", "sudo", "cd", "echo", "x", "é", "日本", "\u{0}", "\r", "~", ".git", "$X", "{a,b}", "2>&1", "gh", "pr", "merge", "npm", "publish",
+    // text of other alphabets takes two to four bytes a character; a model writes it into commands, messages and file names
+    "ő", "ű", "Ú", "—", "–", "“", "…", "😀", "\u{a0}", "\u{3000}", "\u{2028}", "curl", "-X", "-d", "-H", "-o", "--data", "-—", "-ő", "https://", "@",
 ];
 
 /// `echo`, `true`, the tests `[` and `test`, and a `find` without predicates read and run nothing, so a random string whose every command is one of them is a legitimate low-risk read.
@@ -123,4 +125,17 @@ fn a_plain_commit_or_push_is_a_hard_stop_in_any_surrounding() {
         }
     }
     let _ = c;
+}
+
+/// A word that starts with a letter or a dash of more than one byte is not a glued short option (`-XPOST`); the analyser used to cut every
+/// longer word after two bytes, which is inside such a letter, and the build aborts on a panic.
+#[test]
+fn a_curl_argument_that_starts_with_a_wide_character_is_not_cut_inside_it() {
+    let fx = fx();
+    for mode in [PermissionMode::ReadOnly, PermissionMode::Ask, PermissionMode::Edit, PermissionMode::Automatic, PermissionMode::Bypass] {
+        let c = ctx(&fx, mode);
+        for cmd in ["curl https://e.example/ —abc", "curl -d —abc https://e.example/", "curl -H “x: y” https://e.example/", "curl -X😀POST https://e.example/", "curl —o out https://e.example/", "curl -o ő https://e.example/", "curl -XPOST https://e.example/"] {
+            let _ = bash(&c, cmd);
+        }
+    }
 }

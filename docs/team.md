@@ -18,7 +18,7 @@ Settings > Team.
 
 1. **Create a team.** Give yourself a name. You become the admin. The team lives on the relay configured in Settings > Remote (or the local development relay). **Update the deployed relay once first** (Settings > Remote > update relay): Team adds a Durable Object class (`Team`) to the Worker, and an older relay does not have it.
 2. **Invite.** The admin presses Invite: a one-time code and a QR code appear. It works once and for 10 minutes.
-3. **Join.** The new member pastes the code and gives a name. Both screens then show the same six digits. Only if they match does the admin press "Let them in".
+3. **Join.** The new member pastes the code and gives a name. The code is read as people really hand it over: a line wrapped by a chat or a mail client, words around it, capital letters in the scheme and encoded commas are fine. The form shows what the code points to (the relay host and the first characters of the team and admin ids, read on this Mac, no connection yet). A relay this Mac has not acknowledged yet has to be trusted first: the person ticks "I got this code from someone I trust, and I trust their relay" (a relay only passes on encrypted messages, but it sees that you connect). The host is then kept (`team.trustedRelayHosts`) so the team still connects after a restart, and it is forgotten again when the team is left or when the join ends without a team (the codes do not match, the admin says no). Both screens then show the same six digits. Only if they match does the admin press "Let them in".
 4. **Members.** The list shows who is online. The admin can remove a member. Anyone can leave; an admin can leave only a team of one.
 
 ## Sharing runs
@@ -47,7 +47,7 @@ What does **not** leave:
 
 Streamed text is coalesced in 250 ms batches, and at most 6 messages go out per batch, so a busy run cannot flood the relay's rate limit. Messages are live only: nothing is queued for an offline member; they ask for a snapshot when they connect.
 
-**Settings** (namespace `team`): `shareProjects` (`{ "<projectKey>": true }`, default empty = nothing shared), `unsharedRuns` (`{ "<runId>": true }`), `workspaceProjects` (same shape, default empty) and `autoAcceptNotesFrom` (`["<memberId>"]`, default empty). All are plain settings and can be edited in Settings > Team.
+**Settings** (namespace `team`): `trustedRelayHosts` (`["host[:port]"]`, the relays the person acknowledged while joining, at most 16), `shareProjects` (`{ "<projectKey>": true }`, default empty = nothing shared), `unsharedRuns` (`{ "<runId>": true }`), `workspaceProjects` (same shape, default empty) and `autoAcceptNotesFrom` (`["<memberId>"]`, default empty). All are plain settings and can be edited in Settings > Team.
 
 ## Notes into a teammate's run
 
@@ -134,7 +134,7 @@ Only four requests exist (a note, a follow-up, a chat message, a snapshot), plus
 - **Roster.** The member list (names, roles, public keys, key epoch) is signed by an admin. A member accepts a new roster only if an admin of the roster it already trusts signed it and the version is higher.
 - **Removing a member = a new epoch.** The admin generates a fresh key and sends it to every remaining member separately (`Noise_X`, one message that can wait in the relay's queue for an offline member), together with the new signed roster. The relay drops the removed member's token and closes the socket. The removed person never gets the new key. What they already saw stays with them; that cannot be undone.
 - **Audit.** `team-audit.jsonl` in the app data folder is a hash-chained log (the Remote audit code, its own file and head): joins, removals, key rotations, rejected messages. No keys, no content.
-- **Network rules.** The client is built on the Remote relay client: the host must be acknowledged, never a non-local host under the read-only or test jail, `wss://` off this machine, DNS answers in private ranges are refused.
+- **Network rules.** The client is built on the Remote relay client: the host must be acknowledged (Remote's list, or the confirmation the person gives when joining), never a non-local host under the read-only or test jail, `wss://` off this machine, DNS answers in private ranges are refused.
 - **Boundaries.** A team member can never answer a permission card, answer a question, send a prompt or start or stop a run on another machine. The only requests are a note or a follow-up (the owner accepts it), a chat message (human to human, never given to an agent) and a workspace snapshot (the owner switched the project on). Run data and snapshots are read-only for the receiver and in memory only.
 
 ## Relay protocol (for the curious)

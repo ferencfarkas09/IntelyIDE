@@ -66,6 +66,14 @@ describe("failure wording", () => {
     expect(describeFailure("nonFastForward", "push").actions[0]).toBe("pullThenPush");
     expect(describeFailure("lockBusy", "commit").actions).toEqual(["retry"]);
     expect(describeFailure("emptyMessage", "commit").actions).toEqual([]);
+    // the failures whose engine message is a fixed English sentence are told in the user's words only; the ones with details keep the message
+    for (const kind of ["hookRejected", "nonFastForward", "lockBusy", "auth", "network", "remoteDeclined", "nothingToCommit", "conflict"] as const) {
+      expect(describeFailure(kind, "push").showMessage, kind).toBe(false);
+    }
+    for (const kind of ["guardBlocked", "invalidSelection", "headMoved", "emptyMessage"] as const) {
+      expect(describeFailure(kind, "commit").showMessage, kind).not.toBe(false);
+    }
+    expect(describeFailure("unknown" as never, "push").showMessage).not.toBe(false);
   });
   it("maps statuses to tones", () => {
     expect(statusTone("done")).toBe("ok");

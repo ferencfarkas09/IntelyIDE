@@ -1,11 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { cliPromptMessage, heredocFalsePositive, judgeCliPrompt, stripQuotedHeredocBodies } from '../src/adapters/claude-sdk/cli-prompts.js';
+import os from 'node:os';
+import path from 'node:path';
+import { claudeProjectSlug, cliPromptMessage, heredocFalsePositive, isClaudeMemoryNote, judgeCliPrompt, stripQuotedHeredocBodies } from '../src/adapters/claude-sdk/cli-prompts.js';
 
 const BRACE = 'Contains brace with quote character (expansion obfuscation)';
 const RANGE = 'Contains zsh <N-M> numeric-range glob';
 const SUBST = 'Contains command_substitution';
 const SKIPPED = 'Parser skipped input between top-level statements';
 const REDIRECT = 'Redirect has multiple targets - post-redirect args swallowed';
+const MULTI_CD = 'Multiple directory changes in one command require approval for clarity';
+const ABORTED = 'Parser aborted (timeout, resource limit, or over-length)';
+const BOUNDARY = 'Path is outside allowed working directories';
 
 describe('stripQuotedHeredocBodies', () => {
   it('cuts the body of a quoted heredoc that only writes a file, keeping the command around it', () => {
@@ -86,6 +91,73 @@ describe('the reasons measured in the owner\'s Automatic run', () => {
     expect(judgeCliPrompt({ mode: 'automatic', reason: SKIPPED, command: `${longWrite}\nls {a,b}` })).toEqual({ reason: SKIPPED });
     // a sed program with a template literal is shell syntax in the command itself: that stays a refusal, the model has the Edit tool
     expect(judgeCliPrompt({ mode: 'automatic', reason: BRACE, command: "sed -i 's/t(`a_${w.s}`/t(`a_${x}`/' src/a.js" })).toEqual({ reason: BRACE });
+  });
+});
+
+describe('the reasons measured in the owner\'s Automatic runs of 2026-10-15 and 16', () => {
+  const cdEdit = "cd /w/admin/src/features/Chat/components; python3 - <<'EOF'\np='Modal.jsx'\ns=open(p).read()\nopen(p,'w').write(s.replace('a', 'b'))\nEOF";
+  const cdRead = 'cd /w/admin/src/features/Chat; sed -n 315,350p components/Workspace.jsx; sed -n 155,185p components/View.jsx';
+  const longProgram = "mkdir -p /tmp/loc && cat > /tmp/loc/add.py <<'E'\nimport json\nbase='/w/admin/src/localization/modules/'\nL=['en','hu']\nfor l in L:\n    d = {'k': [1, 2, 3]}\nE\npython3 /tmp/loc/add.py";
+  it('answers the clarity prompt for a command with several directory changes, in Automatic and Bypass', () => {
+    for (const mode of ['automatic', 'bypass'] as const) {
+      expect(judgeCliPrompt({ mode, reason: MULTI_CD, command: cdEdit }), mode).toBeNull();
+      expect(judgeCliPrompt({ mode, reason: MULTI_CD, command: cdRead }), mode).toBeNull();
+    }
+    // the CLI appends text to some reasons: matched by prefix
+    expect(judgeCliPrompt({ mode: 'automatic', reason: `${MULTI_CD} (3 cd)`, command: cdRead })).toBeNull();
+  });
+  it('does not make a path outside the run\'s folders benign just because the reason is', () => {
+    expect(judgeCliPrompt({ mode: 'automatic', reason: MULTI_CD, blockedPath: '/other/repo/x.js', intentPaths: ['/w/admin/x.js'], cwd: '/w/admin', runDirs: ['/w/admin'] })).toEqual({ reason: MULTI_CD });
+    expect(judgeCliPrompt({ mode: 'automatic', blockedPath: '/other/repo/x.js', intentPaths: ['/other/repo/x.js'], cwd: '/w/admin', runDirs: ['/w/admin'] })).toEqual({ reason: "path outside the run's folders: /other/repo/x.js" });
+  });
+  it('answers an aborted parse when what is left without the quoted heredoc bodies is simple, and refuses the rest', () => {
+    const heredocOnly = "mkdir -p /tmp/loc && cat > /tmp/loc/add.py <<'E'\nimport json\nbase={'k': 1}\nE";
+    expect(judgeCliPrompt({ mode: 'automatic', reason: ABORTED, command: heredocOnly })).toBeNull();
+    expect(judgeCliPrompt({ mode: 'bypass', reason: ABORTED, command: heredocOnly })).toBeNull();
+    expect(judgeCliPrompt({ mode: 'automatic', reason: ABORTED, command: "python3 - <<'EOF'\nprint({'a': 1})\nEOF" })).toBeNull();
+    // a command with no heredoc, an unquoted one, a shell fed by one, or a feature outside the bodies: the refusal stays
+    expect(judgeCliPrompt({ mode: 'automatic', reason: ABORTED, command: 'echo ' + 'a'.repeat(5000) })).toEqual({ reason: ABORTED });
+    expect(judgeCliPrompt({ mode: 'automatic', reason: ABORTED })).toEqual({ reason: ABORTED });
+    expect(judgeCliPrompt({ mode: 'automatic', reason: ABORTED, command: "cat > a <<EOF\nx\nEOF" })).toEqual({ reason: ABORTED });
+    expect(judgeCliPrompt({ mode: 'automatic', reason: ABORTED, command: "bash <<'EOF'\nls\nEOF" })).toEqual({ reason: ABORTED });
+    expect(judgeCliPrompt({ mode: 'automatic', reason: ABORTED, command: `${longProgram}\necho $(id)` })).toEqual({ reason: ABORTED });
+  });
+});
+
+describe('Claude memory notes of the run\'s own folders', () => {
+  const home = '/h/user';
+  const repo = '/w/Shop.backend';
+  const slug = claudeProjectSlug(repo);
+  const note = (name: string, s = slug) => `${home}/.claude/projects/${s}/memory/${name}`;
+  it('names a project folder the way the CLI does', () => {
+    expect(slug).toBe('-w-Shop-backend');
+    expect(claudeProjectSlug('/Users/me/My App/api_v2')).toBe('-Users-me-My-App-api-v2');
+  });
+  it('knows the memory folder of a run folder and the .md files directly in it, nothing else of ~/.claude', () => {
+    expect(isClaudeMemoryNote(note('MEMORY.md'), [repo], repo, home)).toBe(true);
+    expect(isClaudeMemoryNote(note('team-chat.md'), [repo], repo, home)).toBe(true);
+    expect(isClaudeMemoryNote(`${home}/.claude/projects/${slug}/memory`, [repo], repo, home)).toBe(true);
+    expect(isClaudeMemoryNote(`~/.claude/projects/${slug}/memory/a.md`, [repo], repo, home)).toBe(true);
+    for (const no of [
+      note('a.jsonl'), note('a.md.bak'), note('.hidden.md'), note('sub/a.md'), note('a.md', claudeProjectSlug('/w/other')), // a transcript, another file type, a hidden file, a subfolder, another project
+      `${home}/.claude/projects/${slug}/a.md`, `${home}/.claude/projects/${slug}/a.jsonl`, `${home}/.claude/settings.json`, `${home}/.claude/.credentials.json`, `${home}/.claude/plans/a.md`,
+      `${home}/.claude/projects/${slug}/memory/../a.jsonl`, `${home}/.claude/projects/${slug}/memory/../../x/memory/a.md`, `${home}/.claude/projects/-/memory/a.md`,
+    ]) expect(isClaudeMemoryNote(no, [repo], repo, home), no).toBe(false);
+  });
+  it('covers the added folders of the run as well, not folders that are not part of it', () => {
+    const other = '/w/admin';
+    expect(isClaudeMemoryNote(note('a.md', claudeProjectSlug(other)), [repo, other], repo, home)).toBe(true);
+    expect(isClaudeMemoryNote(note('a.md', claudeProjectSlug(other)), [repo], repo, home)).toBe(false);
+  });
+  it('lets Automatic read such a note after the CLI\'s own boundary prompt, and keeps refusing other paths outside the folders', () => {
+    const h = os.homedir();
+    const cwd = path.join(h, 'proj', 'api');
+    const mine = path.join(h, '.claude', 'projects', claudeProjectSlug(cwd), 'memory', 'topic.md');
+    const base = { mode: 'automatic' as const, reason: BOUNDARY, cwd, runDirs: [cwd] };
+    expect(judgeCliPrompt({ ...base, blockedPath: mine, intentPaths: [mine] })).toBeNull();
+    expect(judgeCliPrompt({ ...base, blockedPath: mine.replace('topic.md', 'topic.jsonl'), intentPaths: [mine.replace('topic.md', 'topic.jsonl')] })).toEqual({ reason: BOUNDARY });
+    expect(judgeCliPrompt({ ...base, blockedPath: path.join(h, '.claude', 'settings.json'), intentPaths: [path.join(h, '.claude', 'settings.json')] })).toEqual({ reason: BOUNDARY });
+    expect(judgeCliPrompt({ ...base, blockedPath: path.join(h, 'other', 'x.js'), intentPaths: [path.join(h, 'other', 'x.js')] })).toEqual({ reason: BOUNDARY });
   });
 });
 

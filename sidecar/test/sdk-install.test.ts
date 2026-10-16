@@ -15,7 +15,7 @@ import zlib from 'node:zlib';
 import { build } from 'esbuild';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
-  childEnv, DEFAULT_LIMITS, installSdk, InstallError, makeScrub, planSdk, readLockPlan, readTar, repairSdkState, resolvedProblem, runCli, sandboxFlags, stateDirOf,
+  childEnv, DEFAULT_LIMITS, installSdk, InstallError, makeScrub, nodeSupportsAllowNet, planSdk, readLockPlan, readTar, repairSdkState, resolvedProblem, runCli, sandboxFlags, stateDirOf,
   uninstallSdk, unsafeEnv, type CliIo, type InstallOptions, type ProgressEvent,
 } from '../src/sdk-install.js';
 import { SDK_NAME, stateDirOf as loaderStateDirOf } from '../src/sdk.js';
@@ -510,6 +510,43 @@ describe('network', () => {
     expect(e.code).toBe('cancelled');
     expect(existsSync(finalDir())).toBe(false);
     expectClean();
+  });
+});
+
+describe('a download the Node permission model refuses (Node 25 has a network permission)', () => {
+  it('says what is wrong in the message of the error instead of only ERR_ACCESS_DENIED', async () => {
+    const f = fixture([{ key: 'node_modules/a', files: { 'a': 'a' } }]);
+    const fetchImpl: typeof fetch = () => Promise.reject(Object.assign(new TypeError('fetch failed'), { cause: Object.assign(new Error('Access to this API has been restricted'), { code: 'ERR_ACCESS_DENIED', permission: 'Network' }) }));
+    const e = await fails(installSdk(options(f, { fetchImpl })));
+    expect(e.code).toBe('network');
+    expect(e.message).toContain('ERR_ACCESS_DENIED');
+    expect(e.message).toMatch(/permission model refused the connection.*--allow-net/);
+    expectClean();
+  });
+});
+
+describe('the sandbox flags and the network permission of newer Node', () => {
+  const p = { script: '/app/sdk-install.js', pinDir: '/app/sdk-pin', stateDir: '/h/state/sdk', home: '/h', env: {} as NodeJS.ProcessEnv };
+  it('asks for --allow-net, and silences its experimental warning, where this Node has the flag', () => {
+    const flags = sandboxFlags(p, true);
+    expect(flags).toContain('--allow-net');
+    expect(flags).toContain('--disable-warning=ExperimentalWarning');
+  });
+  it('does not pass a flag that older Node rejects as "bad option"', () => {
+    expect(sandboxFlags(p, false).some((f) => f.includes('allow-net') || f.includes('disable-warning'))).toBe(false);
+  });
+  it('knows the flag from the Node it runs on, and from a list it is given', () => {
+    expect(nodeSupportsAllowNet(new Set(['--allow-net', '--permission']))).toBe(true);
+    expect(nodeSupportsAllowNet(new Set(['--permission', '--allow-fs-read']))).toBe(false);
+    expect(sandboxFlags(p).includes('--allow-net')).toBe(process.allowedNodeEnvironmentFlags.has('--allow-net'));
+  });
+  it('never widens the filesystem or process limits, whatever the network flag does', () => {
+    for (const net of [true, false]) {
+      const flags = sandboxFlags(p, net);
+      expect(flags[0]).toBe('--permission');
+      expect(flags.filter((f) => f.startsWith('--allow-')).every((f) => f === '--allow-net' || f.startsWith('--allow-fs-read=') || f.startsWith('--allow-fs-write='))).toBe(true);
+      expect(flags.filter((f) => f.startsWith('--allow-fs-write='))).toEqual(['--allow-fs-write=/h/state/sdk', '--allow-fs-write=/h/state/sdk/*']);
+    }
   });
 });
 

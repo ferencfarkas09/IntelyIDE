@@ -3,6 +3,8 @@
 .team-note { margin: 0; color: var(--text-3); font-size: var(--text-sm); }
 .team-note--warn { display: flex; align-items: flex-start; gap: var(--space-2); color: var(--text-2); }
 .team-note--warn > svg { flex: none; margin-top: 2px; color: var(--warn, var(--text-2)); }
+.team-preview { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-2) var(--space-3); border-radius: var(--radius-2); background: var(--surface-2); min-width: 0; }
+.team-preview__relay { margin: 0; color: var(--text-1); font-size: var(--text-sm); font-weight: var(--weight-medium); overflow-wrap: anywhere; }
 .team-error { margin: 0; color: var(--danger); font-size: var(--text-sm); overflow-wrap: anywhere; }
 .team-start { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--space-3); }
 .team-card { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3) var(--space-4); border-radius: var(--radius-3); background: var(--surface-1); box-shadow: inset 0 0 0 1px var(--border-subtle); min-width: 0; }

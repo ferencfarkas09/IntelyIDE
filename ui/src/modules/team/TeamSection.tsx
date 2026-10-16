@@ -3,10 +3,11 @@ import { t } from "../../i18n";
 import type { TeamInvite, TeamMember } from "../../ipc/team";
 import { ipc } from "../../ipc";
 import type { TeamProject } from "../../ipc/team";
-import { Badge, Button, Copy, Dialog, Input, LogOut, ShieldCheck, Spinner, StatusDot, Switch, TextArea, toast, TriangleAlert, UserMinus, UserPlus, Users } from "../../ui-kit";
+import { Badge, Button, Copy, Dialog, Input, LogOut, ShieldCheck, Spinner, StatusDot, Switch, toast, TriangleAlert, UserMinus, UserPlus, Users } from "../../ui-kit";
 import { openSettings } from "../../platform/settings";
 import { encodeQr, qrPath } from "../remote/qr";
-import { confirmJoin, createTeam, decideJoin, forgetTeam, joinTeam, isRelayOld, leaveTeam, loadError, loaded, loadTeam, messageOf, openInvite, revokeMember, view } from "./store";
+import { JoinCard } from "./JoinCard";
+import { confirmJoin, createTeam, decideJoin, forgetTeam, isRelayOld, leaveTeam, loadError, loaded, loadTeam, messageOf, openInvite, revokeMember, view } from "./store";
 import "./team.css";
 
 const sasText = (s: string) => `${s.slice(0, 3)} ${s.slice(3)}`;
@@ -60,9 +61,7 @@ function useAction() {
 
 function Start() {
   const [name, setName] = createSignal("");
-  const [code, setCode] = createSignal("");
   const create = useAction();
-  const join = useAction();
   return (
     <div class="team-start">
       <div class="team-card">
@@ -77,19 +76,7 @@ function Start() {
         <Show when={create.error()}>{(m) => <p class="team-error" role="alert">{m()}</p>}</Show>
         <Show when={create.relayOld()}><Button size="sm" variant="secondary" onClick={() => openSettings("remote")}>{t("team.err.openRemote")}</Button></Show>
       </div>
-      <div class="team-card">
-        <h5 class="team-card__title">{t("team.join.title")}</h5>
-        <p class="team-note">{t("team.join.body")}</p>
-        <TextArea aria-label={t("team.join.code")} placeholder={t("team.join.codePh")} minRows={2} maxRows={4} spellcheck={false} value={code()} onInput={(e) => setCode(e.currentTarget.value)} />
-        <Input size="sm" aria-label={t("team.name.label")} placeholder={t("team.name.ph")} maxLength={60} value={name()} onInput={(e) => setName(e.currentTarget.value)} />
-        <div class="team-actions">
-          <Button size="sm" variant="primary" icon={UserPlus} loading={join.busy()} disabled={!name().trim() || !code().trim()} onClick={() => void join.run(() => joinTeam(code(), name()))}>
-            {t("team.join.go")}
-          </Button>
-        </div>
-        <Show when={join.error()}>{(m) => <p class="team-error" role="alert">{m()}</p>}</Show>
-        <Show when={join.relayOld()}><Button size="sm" variant="secondary" onClick={() => openSettings("remote")}>{t("team.err.openRemote")}</Button></Show>
-      </div>
+      <JoinCard name={name()} onName={setName} />
     </div>
   );
 }

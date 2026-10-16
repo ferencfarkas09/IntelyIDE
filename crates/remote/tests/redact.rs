@@ -150,3 +150,57 @@ fn scrubbing_is_bounded_and_does_not_panic_on_hostile_input() {
         let _ = display(s, 100);
     }
 }
+
+/// A tiny deterministic generator (xorshift): no dependency, and the same strings on every run.
+struct Rng(u64);
+
+impl Rng {
+    fn next(&mut self) -> u64 {
+        self.0 ^= self.0 << 13;
+        self.0 ^= self.0 >> 7;
+        self.0 ^= self.0 << 17;
+        self.0
+    }
+
+    fn below(&mut self, n: usize) -> usize {
+        (self.next() % n as u64) as usize
+    }
+}
+
+/// What text that goes through the scrubbers really contains: the punctuation they look for, the names of secrets, URLs, and letters of
+/// other alphabets and symbols that take two, three or four bytes (a Hungarian file, a table of prices, an emoji in a commit message).
+const PIECES: &[&str] = &[
+    ":", "=", "\"", "'", " ", "\n", "/", "//", "@", "?", "&", ",", ";", "{", "}", "(", ")", "_", "-", ".", "#", "%", "password", "PASSWORD", "token", "TOKEN", "api_key", "API_KEY", "secret",
+    "Secret_Key", "Bearer ", "Authorization: ", "eyJ", "AKIA", "sk-", "ghp_", "http://", "https://u:p@host/", "?token=", "&sig=", "-----BEGIN ", "-----END ", "a", "Z", "9", "x=1", "é", "á", "ő", "ű",
+    "Ú", "ß", "ø", "ñ", "ç", "—", "“", "”", "€", "😀", "日本", "\u{200b}", "\u{202e}", "\u{00ad}", "\t", "név", "Új", "fájl", "számla", "ár", "É", "\u{a0}", "\u{2003}", "\u{3000}", "\u{2028}", "\u{85}",
+];
+
+fn random_text(rng: &mut Rng) -> String {
+    (0..1 + rng.below(40)).map(|_| PIECES[rng.below(PIECES.len())]).collect()
+}
+
+/// An accented letter in front of a key, a colon after a word with an accent, a name with an accent in front of `=`: the scrubbers once cut
+/// the text one byte after the last character that was not part of the name, which is inside a letter that takes two bytes. That aborted the
+/// whole app (the build panics by aborting) while a Hungarian file was shown to a teammate.
+#[test]
+fn text_with_accents_around_keys_and_values_is_scrubbed_and_never_panics() {
+    for s in ["Új: valami", "Fájl: x", "// Törlés: a rekord", "{\"név\": \"x\"}", "számla: 12", "ő: 1", "é=1", "ár=100", "név=Péter", "x é=1", "token: é", "\"jelszó\": \"titok\"", "PÁSSWORD=x", "Új_token: abc12345", "—password: hunter2hunter2", "😀secret=abcd1234abcd"] {
+        let out = scrub_text(s);
+        assert!(!out.is_empty(), "{s}");
+        let _ = display(s, 40);
+    }
+    // the secret next to the accent is still masked
+    assert!(scrub_text("jelszó—password: hunter2hunter2").contains("[redacted]"));
+    assert!(scrub_text("név=Péter API_KEY=abcd1234abcd").contains("API_KEY=[redacted]"));
+}
+
+#[test]
+fn no_text_makes_a_scrubber_panic() {
+    let mut rng = Rng(0x9E37_79B9_7F4A_7C15);
+    for _ in 0..60_000 {
+        let s = random_text(&mut rng);
+        let text = s.clone();
+        let r = std::panic::catch_unwind(move || (scrub_text(&text), display(&text, 30), cap(&text, 20), escape_invisible(&text)));
+        assert!(r.is_ok(), "a scrubber panicked on {s:?}");
+    }
+}

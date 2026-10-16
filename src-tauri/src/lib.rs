@@ -408,6 +408,7 @@ pub fn run() {
             modules::team::team_create,
             modules::team::team_invite,
             modules::team::team_join,
+            modules::team::team_join_preview,
             modules::team::team_join_confirm,
             modules::team::team_join_decide,
             modules::team::team_revoke,

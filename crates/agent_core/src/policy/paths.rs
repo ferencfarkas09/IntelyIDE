@@ -494,6 +494,21 @@ fn glob_match(pattern: &str, text: &str) -> bool {
     }
 }
 
+/// The folder name Claude Code gives a project directory under `~/.claude/projects`: every character that is not an ASCII letter or digit
+/// becomes `-` (`/Users/me/My App` is `-Users-me-My-App`). The CLI replaces per UTF-16 unit (a JavaScript regex), so a character outside the
+/// basic plane, an emoji for example, gives two dashes.
+pub fn claude_project_slug(dir: &Path) -> String {
+    let mut slug = String::new();
+    for c in dir.to_string_lossy().chars() {
+        if c.is_ascii_alphanumeric() {
+            slug.push(c);
+        } else {
+            (0..c.len_utf16()).for_each(|_| slug.push('-'));
+        }
+    }
+    slug
+}
+
 /// The scratch roots every run gets (see [`Jail::in_scratch`]): where an agent keeps a temporary file.
 pub fn default_scratch_dirs() -> Vec<PathBuf> {
     #[cfg(unix)]
@@ -547,6 +562,34 @@ impl Jail {
     pub fn with_scratch(mut self, dirs: &[PathBuf]) -> Self {
         self.scratch = dirs.iter().map(|d| canonical_lossy(&abs_or_lexical(d))).collect();
         self
+    }
+
+    /// The memory folder of one of the run's OWN folders: `~/.claude/projects/<slug of a run folder>/memory`, for tools that only list names
+    /// (`Glob`, `LS`). `resolved` is canonical, so a link that leads elsewhere is judged by where it leads.
+    pub fn is_claude_memory_folder(&self, resolved: &Path) -> bool {
+        self.claude_memory_folders().any(|memory| self.same_path(resolved, &memory))
+    }
+
+    /// A Claude memory note of one of the run's OWN folders: a `.md` file directly in that memory folder, not hidden. They are the user's own
+    /// notes about the project, which the CLI loads into every session anyway; the rest of `~/.claude` (transcripts, plans, settings,
+    /// credentials) stays on the never-read list, other projects' memory too, and nothing under `~/.claude` becomes writable (`.claude/**` is
+    /// a protected path). A file is read by name: the folder is not searched (`Grep` would go into subfolders and other kinds of file).
+    pub fn is_claude_memory_note(&self, resolved: &Path) -> bool {
+        let is_note = |p: &Path| p.extension().is_some_and(|e| e.eq_ignore_ascii_case("md")) && p.file_name().is_some_and(|n| !n.to_string_lossy().starts_with('.'));
+        is_note(resolved) && resolved.parent().is_some_and(|dir| self.claude_memory_folders().any(|memory| self.same_path(dir, &memory)))
+    }
+
+    fn claude_memory_folders(&self) -> impl Iterator<Item = PathBuf> + '_ {
+        let home = self.home_real.as_deref().map(Path::to_path_buf);
+        self.roots.iter().filter_map(move |root| home.as_ref().map(|h| h.join(".claude").join("projects").join(claude_project_slug(root)).join("memory")))
+    }
+
+    fn same_path(&self, a: &Path, b: &Path) -> bool {
+        if PathStyle::host().fold_case {
+            a.to_string_lossy().to_lowercase() == b.to_string_lossy().to_lowercase()
+        } else {
+            a == b
+        }
     }
 
     /// The path is inside a scratch root, below its first level: the root itself, hidden entries and the folders of other tools that
@@ -769,6 +812,15 @@ fn user_persistence_reason(path: &Path) -> Option<&'static str> {
 mod tests {
     fn reason(home: &str, path: &str, style: PathStyle) -> Option<&'static str> {
         rel_to_home(home, path, style).and_then(|c| home_secret_reason(&c))
+    }
+
+    #[test]
+    fn the_project_folder_name_is_made_the_way_the_cli_makes_it() {
+        let slug = |p: &str| claude_project_slug(std::path::Path::new(p));
+        assert_eq!(slug("/Users/me/My App/api_v2"), "-Users-me-My-App-api-v2");
+        assert_eq!(slug("/Users/me/Árvíz"), "-Users-me--rv-z", "a letter with an accent is one unit: one dash");
+        // outside the basic plane a character is two UTF-16 units, and the CLI's regex works per unit: two dashes
+        assert_eq!(slug("/w/\u{1F4C1}x"), "-w---x");
     }
 
     #[test]

@@ -1,5 +1,5 @@
 import { createSignal } from "solid-js";
-import { t } from "../../i18n";
+import { t, type MessageKey } from "../../i18n";
 import { ipc } from "../../ipc";
 import type { TeamInvite, TeamPresence, TeamView } from "../../ipc/team";
 
@@ -25,6 +25,29 @@ export function messageOf(e: unknown): string {
   if (http) return t("team.err.relayHttp", { status: http[1] });
   if (raw === "timeout" || raw === "offline") return t("team.err.timeout");
   return t("team.err.unreachable");
+}
+
+/** The join failures a person can act on, in plain words. */
+const JOIN_ERRORS: Record<string, MessageKey> = {
+  invalidCode: "team.err.invalidCode",
+  hostNotAllowed: "team.err.hostNotAllowed",
+  scheme: "team.err.relayAddress",
+  insecure: "team.err.relayAddress",
+  urlSyntax: "team.err.relayAddress",
+  userinfo: "team.err.relayAddress",
+  ipLiteral: "team.err.relayAddress",
+  idn: "team.err.relayAddress",
+  readOnly: "team.err.readOnly",
+  testJail: "team.err.testJail",
+  inviteSpent: "team.err.inviteSpent",
+  full: "team.err.full",
+  alreadyInTeam: "team.err.alreadyInTeam",
+};
+
+/** Text for a failed join: a plain sentence for the known codes, else `messageOf`. */
+export function joinMessageOf(e: unknown): string {
+  const key = JOIN_ERRORS[codeOf(e) ?? ""];
+  return key ? t(key) : messageOf(e);
 }
 
 let watching: (() => void) | undefined;
@@ -56,7 +79,7 @@ async function act(f: () => Promise<TeamView>): Promise<void> {
 }
 
 export const createTeam = (name: string) => act(() => ipc.team.create(name));
-export const joinTeam = (code: string, name: string) => act(() => ipc.team.join(code, name));
+export const joinTeam = (code: string, name: string, trustRelay = false) => act(() => ipc.team.join(code, name, trustRelay));
 export const confirmJoin = (accept: boolean) => act(() => ipc.team.joinConfirm(accept));
 export const decideJoin = (accept: boolean) => act(() => ipc.team.joinDecide(accept));
 export const revokeMember = (id: string) => act(() => ipc.team.revoke(id));

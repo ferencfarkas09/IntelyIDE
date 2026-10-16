@@ -154,7 +154,9 @@ function ResultRow(props: { row: SheetRow; onRetryWithoutHooks: (row: SheetRow) 
         {(f) => (
           <div class="results-row__failure" role="group" aria-label={t("results.failure")}>
             <p class="results-row__failure-title">{view()?.title}</p>
-            <p class="results-row__failure-text">{f().message}</p>
+            <Show when={view()?.showMessage !== false}>
+              <p class="results-row__failure-text">{f().message}</p>
+            </Show>
             <Show when={view()?.hint}>
               <p class="results-row__hint">{view()?.hint}</p>
             </Show>

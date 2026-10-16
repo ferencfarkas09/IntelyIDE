@@ -15,6 +15,8 @@ export interface MockTeamSim {
   /** An admin accepted the joiner (joiner side). */
   adminWelcomes(): void;
   setOnline(id: string, online: boolean): void;
+  /** This Mac trusts that relay host from now on. */
+  trustRelay(host: string): void;
   /** The relay closed the socket as "removed". */
   removedByRelay(): void;
   setAuditError(message: string | null): void;
@@ -77,6 +79,16 @@ export function mockSnapshot(projectKey: string, takenAt: number): TeamSnapshot 
 export type MockTeamHandle = TeamIpc & { sim: MockTeamSim };
 
 const MIN = 60_000;
+/** The pieces of `intely-team://join#<relay>,<team>,<admin>,<x>,<y>`; whitespace anywhere is tolerated. */
+function parseInvite(text: string): { relayHost: string; local: boolean; teamId: string; adminId: string } | undefined {
+  const m = /intely-team:\/\/join#([^,]+),([^,]+),([^,]+),([^,]+),([^,]+)/i.exec(text.replace(/\s+/g, ""));
+  if (!m) return undefined;
+  const relayHost = m[1]!.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "").replace(/[/?#].*$/, "").toLowerCase();
+  if (!relayHost) return undefined;
+  const hostOnly = relayHost.replace(/:\d+$/, "");
+  return { relayHost, local: ["localhost", "127.0.0.1", "[::1]"].includes(hostOnly), teamId: m[2]!.slice(0, 8), adminId: m[3]!.slice(0, 8) };
+}
+
 const reject = (code: string, message: string): Promise<never> => Promise.reject({ code, message });
 
 const ev = (runId: string, seq: number, kind: Record<string, unknown>): AgentEvent => ({ agentId: runId, seq, ts: 1_700_000_000_000 + seq * 4000, provider: "claude", ...kind }) as unknown as AgentEvent;
@@ -173,6 +185,7 @@ export function createMockTeam(options: MockTeamOptions = {}): MockTeamHandle {
   const code = () => String(100000 + ((seq * 7919) % 900000));
   let invite: TeamInvite | null = null;
   let sas = "";
+  const trustedRelays = new Set<string>();
 
   return {
     async status() {
@@ -194,10 +207,20 @@ export function createMockTeam(options: MockTeamOptions = {}): MockTeamHandle {
       set({ invite });
       return invite;
     },
-    async join(codeText, name) {
+    async joinPreview(codeText) {
+      const p = parseInvite(codeText);
+      if (!p) return reject("invalidCode", "that is not a team invite code");
+      return { relayHost: p.relayHost, local: p.local, trusted: p.local || trustedRelays.has(p.relayHost), teamId: p.teamId, adminId: p.adminId };
+    },
+    async join(codeText, name, trustRelay) {
       if (view.state !== "none") return reject("alreadyInTeam", "this install is already in a team");
-      if (!codeText.startsWith("intely-team://join#")) return reject("team", "that is not a team invite code");
+      const p = parseInvite(codeText);
+      if (!p) return reject("invalidCode", "that is not a team invite code");
       if (!name.trim()) return reject("name", "give yourself a name the team can see");
+      if (!p.local && !trustedRelays.has(p.relayHost)) {
+        if (trustRelay !== true) return reject("hostNotAllowed", "this relay host has not been acknowledged");
+        trustedRelays.add(p.relayHost);
+      }
       seq++;
       sas = code();
       return set({ state: "joining", teamId: "mock-team", joining: { stage: "confirm", sas } });
@@ -389,6 +412,9 @@ export function createMockTeam(options: MockTeamOptions = {}): MockTeamHandle {
       return () => void presence.delete(cb);
     },
     sim: {
+      trustRelay(host) {
+        trustedRelays.add(host.toLowerCase());
+      },
       someoneArrives(name) {
         seq++;
         sas = code();

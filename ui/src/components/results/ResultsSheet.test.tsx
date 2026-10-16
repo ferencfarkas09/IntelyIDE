@@ -47,6 +47,9 @@ describe("<ResultsSheet> (mock scenario failures)", () => {
     expect(services.getByText("Another git process is running")).not.toBeNull();
     expect(services.queryByRole("button", { name: "Retry without hooks" })).toBeNull();
     expect(screen.getByText("Commit finished: 0 done, 2 failed")).not.toBeNull();
+    // the engine's English sentence is not repeated under a title that already says it in the user's language
+    expect(row("backend").querySelector(".results-row__failure-text")).toBeNull();
+    expect(row("services").querySelector(".results-row__failure-text")).toBeNull();
   });
 
   it("asks before retrying without hooks and then commits with --no-verify", async () => {

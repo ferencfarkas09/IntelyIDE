@@ -524,3 +524,82 @@ fn recursive_search_that_follows_symlinks_is_not_low_risk() {
         assert!(low_risk(&fx, ok), "{ok}");
     }
 }
+
+/// The owner's agents were refused the Claude memory notes of the project they work in (`~/.claude/projects/<folder>/memory/*.md`) as
+/// "Claude Code user data". Those notes, and only those, are readable; the rest of `~/.claude` and every write stay refused.
+#[test]
+fn a_run_may_read_the_claude_memory_notes_of_its_own_folders_and_nothing_else_of_dot_claude() {
+    use intely_agent_core::policy::paths::claude_project_slug;
+    use serde_json::json;
+    use std::path::Path;
+
+    let fx = mfx();
+    let home = fx.cwd.join("home");
+    let projects = home.join(".claude").join("projects");
+    let memory = projects.join(claude_project_slug(&fx.cwd)).join("memory");
+    let other = projects.join(claude_project_slug(Path::new("/somewhere/else"))).join("memory");
+    for d in [&memory, &other, &memory.join("sub"), &home.join(".claude").join("plans")] {
+        std::fs::create_dir_all(d).unwrap();
+    }
+    for p in [memory.join("topic.md"), memory.join("MEMORY.md"), memory.join("notes.jsonl"), memory.join(".hidden.md"), memory.join("sub").join("a.md"), other.join("topic.md"), projects.join(claude_project_slug(&fx.cwd)).join("session.jsonl"), home.join(".claude").join("settings.json"), home.join(".claude").join(".credentials.json"), home.join(".claude").join("plans").join("p.md")] {
+        std::fs::write(p, "x").unwrap();
+    }
+    std::os::unix::fs::symlink(home.join(".claude").join("settings.json"), memory.join("link.md")).unwrap();
+
+    let all = [PermissionMode::ReadOnly, PermissionMode::Ask, PermissionMode::Edit, PermissionMode::Automatic, PermissionMode::Bypass];
+    let read = |mode: PermissionMode, p: &Path| decide_tool(&ctx(&fx, mode), "Read", json!({ "file_path": p }));
+    for mode in all {
+        for p in [memory.join("topic.md"), memory.join("MEMORY.md")] {
+            let d = read(mode, &p);
+            assert_eq!((d.decision, d.rule.as_deref()), (Decision::Allow, Some("read.memory-note")), "{mode:?} {p:?}");
+        }
+        // a note by name, for the search tool as well
+        let d = decide_tool(&ctx(&fx, mode), "Grep", json!({ "pattern": "x", "path": memory.join("topic.md") }));
+        assert_eq!((d.decision, d.rule.as_deref()), (Decision::Allow, Some("read.memory-note")), "{mode:?} Grep of a note");
+        // the folder itself is listed, not searched: a search would go into subfolders and other kinds of file
+        for tool in [("Glob", json!({ "pattern": "*.md", "path": memory })), ("LS", json!({ "path": memory }))] {
+            let d = decide_tool(&ctx(&fx, mode), tool.0, tool.1);
+            assert_eq!((d.decision, d.rule.as_deref()), (Decision::Allow, Some("read.memory-note")), "{mode:?} {}", tool.0);
+        }
+        for tool in [("Grep", json!({ "pattern": "x", "path": memory })), ("Read", json!({ "file_path": memory }))] {
+            let d = decide_tool(&ctx(&fx, mode), tool.0, tool.1);
+            assert_eq!((d.decision, d.rule.as_deref()), (Decision::Deny, Some("read.never-read")), "{mode:?} {} of the folder", tool.0);
+        }
+    }
+
+    // what stays on the never-read list, in every mode
+    let never = [
+        memory.join("notes.jsonl"),                                   // a transcript-like file
+        memory.join(".hidden.md"),                                    // a hidden file
+        memory.join("sub").join("a.md"),                              // a subfolder of the notes
+        memory.join("link.md"),                                       // a link that leads out: judged by where it leads
+        memory.join("..").join("session.jsonl"),                      // `..` out of the notes folder
+        memory.join("..").join("..").join(claude_project_slug(Path::new("/somewhere/else"))).join("memory").join("topic.md"),
+        other.join("topic.md"),                                       // the notes of a project this run does not work in
+        projects.join(claude_project_slug(&fx.cwd)).join("session.jsonl"),
+        home.join(".claude").join("settings.json"),
+        home.join(".claude").join(".credentials.json"),
+        home.join(".claude").join("plans").join("p.md"),
+    ];
+    for mode in all {
+        for p in &never {
+            let d = read(mode, p);
+            assert_eq!((d.decision, d.rule.as_deref()), (Decision::Deny, Some("read.never-read")), "{mode:?} {p:?}");
+        }
+    }
+    // a read that names one note and one forbidden file is judged as a whole
+    let both = decide_tool(&ctx(&fx, AUTO), "Read", json!({ "file_path": memory.join("topic.md").join("..").join("notes.jsonl") }));
+    assert_eq!(both.decision, Decision::Deny);
+
+    // nothing under `~/.claude` becomes writable, and a shell command that reads a note is still judged by the shell rules
+    for mode in all {
+        for tool in ["Write", "Edit"] {
+            let d = decide_tool(&ctx(&fx, mode), tool, json!({ "file_path": memory.join("topic.md"), "content": "x", "old_string": "x", "new_string": "y" }));
+            assert_eq!((d.decision, d.rule.as_deref()), (Decision::Deny, Some("fs.protected")), "{mode:?} {tool}");
+        }
+    }
+    for mode in [PermissionMode::ReadOnly, PermissionMode::Automatic] {
+        let d = bash(&ctx(&fx, mode), &format!("cat {}", memory.join("topic.md").display()));
+        assert_eq!(d.decision, Decision::Deny, "{mode:?}: a command is not the Read tool");
+    }
+}

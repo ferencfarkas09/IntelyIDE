@@ -854,7 +854,9 @@ fn curl_operands(rest: &[Word], out: &mut dyn FnMut(&str, bool)) {
                 Some((n, v)) => (format!("--{n}"), Some(v.to_string())),
                 None => (t.to_string(), None),
             },
-            None if t.len() > 2 => (t[..2].to_string(), Some(t[2..].to_string())),
+            // `-XPOST` is `-X` with a glued value; an argument that starts with a letter that takes more than one byte is not an option (and
+            // cutting it after two bytes would be inside that letter)
+            None if t.len() > 2 && t.is_char_boundary(2) => (t[..2].to_string(), Some(t[2..].to_string())),
             None => (t.to_string(), None),
         };
         if !CURL_VALUE_OPTS.contains(&name.as_str()) {

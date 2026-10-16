@@ -261,5 +261,21 @@
   "team.commits.offline": "{name} is offline. The last snapshot, if any, is shown.",
   "team.commits.noFiles": "No files edited",
   "team.commits.files": "{n} files edited",
-  "team.commits.recent": "{n} recent commits"
+  "team.commits.recent": "{n} recent commits",
+  "team.join.checking": "Reading the invite...",
+  "team.join.invalid": "This is not an invite code. Paste the whole line that starts with intely-team://join# (line breaks and extra text around it are fine).",
+  "team.join.relay": "Relay: {host}",
+  "team.join.team": "Team {team} · invited by {admin}",
+  "team.join.trusted": "This relay is already trusted on this Mac.",
+  "team.join.local": "A relay on this computer.",
+  "team.join.trust": "I got this code from someone I trust, and I trust their relay {host}.",
+  "team.join.trustNote": "A relay only passes on encrypted messages and cannot read them, but it sees that you connect. Trust it only if the person who invited you runs it.",
+  "team.err.invalidCode": "This is not an invite code. Paste the whole line that starts with intely-team://join#.",
+  "team.err.hostNotAllowed": "This Mac does not trust the relay in the invite yet. Tick the box that says you trust it, then join again.",
+  "team.err.relayAddress": "The relay address in the invite looks wrong or is not encrypted (it must start with wss://). Ask for a new invite.",
+  "team.err.readOnly": "This install is read-only, so it cannot join a team.",
+  "team.err.testJail": "This install runs in a restricted test mode that blocks outside relays.",
+  "team.err.inviteSpent": "The invite expired or was already used. A code works once and only for 10 minutes: ask for a new one.",
+  "team.err.full": "The team is full.",
+  "team.err.alreadyInTeam": "This install is already in a team. Leave it first to join another."
 }

@@ -157,11 +157,31 @@ pub fn others_section_in(selected: &str, names: &[String], question: &str, gloss
         out.push_str(&format!("- also: {}\n", rest.join(", ")));
     }
     if out.len() > OTHERS_BUDGET_CHARS {
-        out.truncate(OTHERS_BUDGET_CHARS);
-        while !out.is_char_boundary(out.len()) {
-            out.pop();
+        // `truncate` panics inside a character (a collection called "számlák" takes two bytes for its accents): find the boundary first
+        let mut cut = OTHERS_BUDGET_CHARS;
+        while !out.is_char_boundary(cut) {
+            cut -= 1;
         }
+        out.truncate(cut);
         out.push('\n');
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_long_list_of_names_with_accents_is_cut_on_a_character_boundary() {
+        // whatever byte the budget falls on, the cut must not be inside a character
+        for lead in 0..4 {
+            for width in 1..=6 {
+                let names: Vec<String> = std::iter::once("selected".to_string()).chain((0..400).map(|i| format!("{}a{}{i}", "x".repeat(lead), "é".repeat(width)))).collect();
+                let out = others_section_in("selected", &names, "kérdés", &[], &BTreeMap::new(), &[]);
+                assert!(out.len() <= OTHERS_BUDGET_CHARS + 1, "{lead} {width}: {}", out.len());
+                assert!(out.ends_with('\n'));
+            }
+        }
+    }
 }

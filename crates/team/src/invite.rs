@@ -23,6 +23,51 @@ pub const MAX_FAILED_ATTEMPTS: u32 = 3;
 pub const HELLO_TIMEOUT_MS: u64 = 15_000;
 const HELLO: &[u8] = b"intely-team/hello/v1";
 const SCHEME: &str = "intely-team://join#";
+/// What the scheme looks like in a pasted line once case, the slashes and the `join` word are left out.
+const SCHEME_NAME: &str = "intely-team:";
+/// The one-time code is 16 bytes: 22 characters of base64url without padding.
+const OTP_CHARS: usize = 22;
+
+/// What carries no meaning in a pasted line: every kind of white space (a chat, a mail client or a terminal wraps a long line) and the
+/// invisible characters some editors and chats add (zero-width space and joiner, directional marks, word joiner, byte order mark, soft hyphen).
+fn invisible(c: char) -> bool {
+    c.is_whitespace() || matches!(c, '\u{200b}'..='\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2060}' | '\u{feff}' | '\u{00ad}')
+}
+
+/// `%XX` escapes undone (and nothing else): a chat or a mail client may encode the commas and colons of a link. A sequence that is not two
+/// hexadecimal digits stays as it is.
+fn unescape(s: &str) -> String {
+    let b = s.as_bytes();
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'%' && i + 2 < b.len() && b[i + 1].is_ascii_hexdigit() && b[i + 2].is_ascii_hexdigit() {
+            out.push(u8::from_str_radix(&s[i + 1..i + 3], 16).unwrap_or(b'%'));
+            i += 3;
+        } else {
+            out.push(b[i]);
+            i += 1;
+        }
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+/// The code inside whatever was pasted: the text after the scheme (any case, the two slashes, a slash before the `#` and the `join` word as
+/// people retype them), or a bare code that is the whole text and starts with the relay address. `None` when the text holds neither.
+fn fragment(text: &str) -> Option<String> {
+    let clean: String = text.chars().filter(|c| !invisible(*c)).collect();
+    let clean = if clean.contains('%') { unescape(&clean) } else { clean };
+    let lower = clean.to_ascii_lowercase(); // ASCII only: every byte offset is the same in both
+    if let Some(at) = lower.find(SCHEME_NAME) {
+        let rest = clean[at + SCHEME_NAME.len()..].trim_start_matches('/');
+        let rest = rest.get(..4).filter(|w| w.eq_ignore_ascii_case("join")).map(|_| &rest[4..])?;
+        return rest.trim_start_matches('/').strip_prefix('#').map(str::to_string);
+    }
+    // a bare code is the part after the `#`: it starts with the relay address, maybe inside quotes or brackets, and nothing comes before it
+    let bare = clean.trim_start_matches(['<', '"', '\'', '`', '(', '[', '{']);
+    let head = bare.get(..6).unwrap_or(bare).to_ascii_lowercase();
+    (head.starts_with("wss://") || head.starts_with("ws://")).then(|| bare.to_string())
+}
 
 fn id_chars(s: &str) -> bool {
     s.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
@@ -53,12 +98,17 @@ impl InviteCode {
         format!("{SCHEME}{},{},{},{},{}", self.relay, self.team_id, self.admin_id, b64u(&self.admin_noise_pub), b64u(&self.otp))
     }
 
+    /// Reads a code as people really hand it over: the link `to_link` makes, but also with its line wrapped or surrounded by other words
+    /// ("Join us: intely-team://join#..."), in any case of the scheme, with `%2C`-style escapes, in quotes or angle brackets, or as the bare
+    /// `wss://relay,...` part. Nothing is guessed: every field still has to be exactly what the relay and the handshake need.
     pub fn parse(text: &str) -> Result<Self> {
-        let bad = || TeamError::Invalid("that is not a team invite code".into());
-        let frag = text.trim().strip_prefix(SCHEME).ok_or_else(bad)?;
-        let parts: Vec<&str> = frag.split(',').collect();
-        let [relay, team_id, admin_id, noise, otp] = parts[..] else { return Err(bad()) };
-        if !valid_team_id(team_id) || !valid_member_id(admin_id) {
+        let bad = || TeamError::Invalid("invalidCode: that is not a team invite code".into());
+        let frag = fragment(text).ok_or_else(bad)?;
+        let parts: Vec<&str> = frag.splitn(5, ',').collect();
+        let [relay, team_id, admin_id, noise, rest] = parts[..] else { return Err(bad()) };
+        // the last field has a fixed length: whatever follows it (a full stop, a closing bracket, more words) is not part of the code
+        let otp: String = rest.chars().take_while(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_')).take(OTP_CHARS).collect();
+        if relay.is_empty() || !valid_team_id(team_id) || !valid_member_id(admin_id) {
             return Err(bad());
         }
         Ok(Self {
@@ -66,7 +116,7 @@ impl InviteCode {
             team_id: team_id.to_string(),
             admin_id: admin_id.to_string(),
             admin_noise_pub: b64u_decode(noise).and_then(|b| b.try_into().ok()).ok_or_else(bad)?,
-            otp: b64u_decode(otp).and_then(|b| b.try_into().ok()).ok_or_else(bad)?,
+            otp: b64u_decode(&otp).and_then(|b| b.try_into().ok()).ok_or_else(bad)?,
         })
     }
 

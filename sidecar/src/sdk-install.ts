@@ -474,7 +474,8 @@ async function download(p: LockPackage, o: { fetchImpl: typeof fetch; signal: Ab
     } catch (e) {
       if (signal.aborted) throw abortError(signal);
       const cause = (e as { cause?: { code?: string; message?: string } })?.cause;
-      throw new InstallError('network', `cannot download ${p.name} (${cause?.code ?? cause?.message ?? (e as Error)?.message ?? 'error'})`);
+      const denied = cause?.code === 'ERR_ACCESS_DENIED' ? ": Node's permission model refused the connection, this Node version needs --allow-net" : '';
+      throw new InstallError('network', `cannot download ${p.name} (${cause?.code ?? cause?.message ?? (e as Error)?.message ?? 'error'}${denied})`);
     }
     arm();
     const drop = () => res.body?.cancel().catch(() => undefined);
@@ -748,8 +749,17 @@ export async function runCli(argv: string[], io: CliIo, restricted: boolean): Pr
   } catch (e) { return fail(e); }
 }
 
+/**
+ * Node 25 added a NETWORK permission: a child started with `--permission` may not open a connection unless it is given `--allow-net`
+ * (without it every download fails with `ERR_ACCESS_DENIED`, which is what a 25.9 user saw). Older Node has no such gate and rejects the flag
+ * ("bad option"), so it is asked for only where this Node knows it.
+ */
+export function nodeSupportsAllowNet(flags: ReadonlySet<string> = process.allowedNodeEnvironmentFlags): boolean {
+  return flags.has('--allow-net');
+}
+
 /** The Node flags of the sandboxed re-execution. Paths containing a comma are not supported by the permission flags. */
-export function sandboxFlags(p: RestrictedPaths): string[] {
+export function sandboxFlags(p: RestrictedPaths, allowNet: boolean = nodeSupportsAllowNet()): string[] {
   const abs = (k: string) => { const v = p.env[k]; return v && path.isAbsolute(v) ? v : null; };
   const files = ['SSL_CERT_FILE', 'NODE_EXTRA_CA_CERTS'].map(abs).filter((v): v is string => v !== null);
   const dirs = ['SSL_CERT_DIR'].map(abs).filter((v): v is string => v !== null);
@@ -763,6 +773,8 @@ export function sandboxFlags(p: RestrictedPaths): string[] {
     `--allow-fs-write=${p.stateDir}`, `--allow-fs-write=${p.stateDir}/*`,
   ];
   if (PROXY_VARS.some((k) => p.env[k])) flags.push('--use-env-proxy'); // fetch() honours HTTPS_PROXY / NO_PROXY only with this
+  // the child downloads the SDK itself; the filesystem and process limits above are the sandbox. The flag is still experimental and says so on stderr.
+  if (allowNet) flags.push('--allow-net', '--disable-warning=ExperimentalWarning');
   return flags;
 }
 

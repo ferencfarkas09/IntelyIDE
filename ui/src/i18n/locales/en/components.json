@@ -86,6 +86,7 @@
   "chat.withEsc": "{tip} (Esc)",
   "chat.resolved.cancelled": "Cancelled",
   "chat.resolved.hardStop": "Blocked by a hard stop",
+  "chat.resolved.cliPrompt": "Blocked: the Claude CLI asked for approval",
   "chat.resolved.roleDeny": "Denied by the role",
   "chat.resolved.failClosed": "Denied: the policy check was unavailable",
   "chat.resolved.savedAllow": "Allowed by a saved rule",

@@ -12,7 +12,7 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use intely_core::EngineError;
-use intely_remote::relay_ws::RelayTrust;
+use intely_remote::relay_ws::{parse_relay, RelayTrust};
 use intely_settings::{SecretStore, SettingsStore};
 use intely_team::audit::{event, TeamAudit};
 use intely_team::client::{out, In, LinkHandle, ServerMsg, TeamWs};
@@ -62,7 +62,7 @@ fn team_err(e: TeamError) -> EngineError {
         TeamError::Transport(c) => err("relay", c),
         // the relay refusal codes of the Remote link (`hostNotAllowed`, `readOnly`, ...) arrive as `code: message`
         TeamError::Crypto(m) | TeamError::Invalid(m) => match m.split_once(": ") {
-            Some((code @ ("urlSyntax" | "scheme" | "userinfo" | "ipLiteral" | "idn" | "insecure" | "readOnly" | "testJail" | "hostNotAllowed"), rest)) => err(code, rest.to_string()),
+            Some((code @ ("invalidCode" | "urlSyntax" | "scheme" | "userinfo" | "ipLiteral" | "idn" | "insecure" | "readOnly" | "testJail" | "hostNotAllowed"), rest)) => err(code, rest.to_string()),
             _ => err("team", m),
         },
         other => err("team", other.to_string()),
@@ -160,6 +160,8 @@ struct Joining {
     sas: Option<String>,
     welcome: Option<Vec<u8>>,
     confirmed: bool,
+    /// This join added the relay host to `team.trustedRelayHosts` (the person ticked the box): a join that ends without a team takes it back.
+    acknowledged: bool,
 }
 
 struct AdminJoin {
@@ -196,6 +198,8 @@ struct Inner {
     ui: Vec<(&'static str, Value)>,
     share: Arc<share::Share>,
     last_save: Option<std::time::Instant>,
+    /// For the one thing a join that ends without a team must undo: the relay host the person acknowledged for it (`Joining::acknowledged`).
+    settings: Option<Arc<SettingsStore>>,
 }
 
 pub struct TeamModState {
@@ -214,7 +218,7 @@ pub fn setup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     };
     let share = Arc::new(share::Share::default());
     share::init(&share, settings.as_ref());
-    app.manage(TeamModState { inner: Mutex::new(Inner { share: share.clone(), ..Inner::default() }), share, settings, secrets });
+    app.manage(TeamModState { inner: Mutex::new(Inner { share: share.clone(), settings: settings.clone(), ..Inner::default() }), share, settings, secrets });
     memsync::start(app.handle());
     let handle = app.handle().clone();
     tauri::async_runtime::spawn(async move {
@@ -250,14 +254,54 @@ fn data_dir(app: &AppHandle) -> Res<PathBuf> {
     app.try_state::<crate::agents::AgentSlot>().map(|a| a.data_dir().to_path_buf()).ok_or_else(|| err("unavailable", "the agent host is not ready yet"))
 }
 
+/// Relay hosts this person acknowledged while joining a team (`team.trustedRelayHosts`), as `host[:port]` in lower case.
+fn trusted_relay_hosts(team: &serde_json::Map<String, Value>) -> Vec<String> {
+    team.get("trustedRelayHosts").and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_str).map(str::to_ascii_lowercase).collect()).unwrap_or_default()
+}
+
 /// The relay the team lives on: `team.relayUrl` if set, else the Remote relay, else the local development relay. The host rules
-/// (acknowledged hosts, jails) are the Remote ones.
+/// (acknowledged hosts, jails) are the Remote ones, plus the hosts the person acknowledged when joining a team.
 fn relay_base(settings: &SettingsStore) -> (String, RelayTrust) {
     let team = settings.get(NS).unwrap_or_default();
     let remote = settings.get("remote").unwrap_or_default();
     let url = team.get("relayUrl").and_then(Value::as_str).filter(|s| !s.is_empty()).or_else(|| remote.get("relayUrl").and_then(Value::as_str)).unwrap_or(DEFAULT_RELAY).to_string();
-    let allowed_hosts = remote.get("trust").and_then(|t| t.get("allowedHosts")).and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_str).map(str::to_ascii_lowercase).collect()).unwrap_or_default();
+    let mut allowed_hosts: Vec<String> = remote.get("trust").and_then(|t| t.get("allowedHosts")).and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_str).map(str::to_ascii_lowercase).collect()).unwrap_or_default();
+    allowed_hosts.extend(trusted_relay_hosts(&team));
     (url, RelayTrust { allowed_hosts, jail: super::remote::relay_jail(), resolver: None })
+}
+
+/// At most this many relay hosts are kept as acknowledged by joins.
+const MAX_TRUSTED_RELAYS: usize = 16;
+
+/// Remembers a relay host the person acknowledged while joining. `Ok(true)` when it was not there before.
+fn remember_relay_host(settings: &SettingsStore, authority: &str) -> Res<bool> {
+    let mut hosts = trusted_relay_hosts(&settings.get(NS).unwrap_or_default());
+    let host = authority.to_ascii_lowercase();
+    if hosts.contains(&host) {
+        return Ok(false);
+    }
+    hosts.push(host);
+    while hosts.len() > MAX_TRUSTED_RELAYS {
+        hosts.remove(0);
+    }
+    let mut patch = serde_json::Map::new();
+    patch.insert("trustedRelayHosts".into(), Value::from(hosts));
+    settings.set(NS, patch).map_err(|e| err("settings", e.to_string()))?;
+    Ok(true)
+}
+
+/// The inverse: the host of this relay URL is no longer acknowledged by a join (it stays acknowledged when Remote lists it).
+fn forget_relay_host(settings: &SettingsStore, relay: &str) {
+    let Ok(parsed) = parse_relay(relay) else { return };
+    let host = parsed.authority().to_ascii_lowercase();
+    let mut hosts = trusted_relay_hosts(&settings.get(NS).unwrap_or_default());
+    let before = hosts.len();
+    hosts.retain(|h| *h != host);
+    if hosts.len() != before {
+        let mut patch = serde_json::Map::new();
+        patch.insert("trustedRelayHosts".into(), Value::from(hosts));
+        let _ = settings.set(NS, patch);
+    }
 }
 
 fn remember_name(settings: &SettingsStore, name: &str) {
@@ -424,6 +468,11 @@ fn reset(inner: &mut Inner, secrets: &Arc<dyn SecretStore>) {
     }
     inner.tx = None;
     inner.team = None;
+    if let (Some(j), Some(settings)) = (inner.joining.as_ref(), inner.settings.as_ref()) {
+        if j.acknowledged {
+            forget_relay_host(settings, &j.code.relay);
+        }
+    }
     inner.joining = None;
     inner.admin_join = None;
     inner.connected = false;
@@ -935,8 +984,57 @@ fn send_after(inner: &Inner, id: &str, welcome: &[u8]) {
     send(inner, out::member_join(id));
 }
 
+/// What the join form shows once an invite code is pasted: the relay the code points to and whether this Mac already trusts it. It
+/// reads nothing but the code and the settings: no connection is made.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JoinPreview {
+    /// `host` or `host:port`, lower case: what the person is asked to trust.
+    relay_host: String,
+    /// The host is acknowledged already (Remote's list, an earlier join) or the relay is on this machine.
+    trusted: bool,
+    local: bool,
+    /// The first characters of the team id and of the inviting admin's id, to read aloud.
+    team_id: String,
+    admin_id: String,
+}
+
+fn join_preview(settings: &SettingsStore, code: &str) -> Res<JoinPreview> {
+    let code = InviteCode::parse(code).map_err(team_err)?;
+    let (_, trust) = relay_base(settings);
+    // the same rules as the join itself, so what the form says is what the join will do
+    let trusted = match TeamWs::new_with(&code.relay, &trust) {
+        Ok(_) => true,
+        Err(e) => {
+            let e = team_err(e);
+            if e.code != "hostNotAllowed" {
+                return Err(e);
+            }
+            false
+        }
+    };
+    let parsed = parse_relay(&code.relay).map_err(|_| err("urlSyntax", "the relay address in the invite looks wrong"))?;
+    let short = |s: &str| s.chars().take(8).collect::<String>();
+    Ok(JoinPreview { relay_host: parsed.authority(), trusted, local: parsed.local, team_id: short(&code.team_id), admin_id: short(&code.admin_id) })
+}
+
 #[tauri::command]
-pub async fn team_join(app: AppHandle, state: State<'_, TeamModState>, code: String, name: String) -> Res<TeamView> {
+pub fn team_join_preview(state: State<'_, TeamModState>, code: String) -> Res<JoinPreview> {
+    let settings = state.settings.as_ref().ok_or_else(|| err("unavailable", "Settings are unavailable, so Team cannot start"))?;
+    join_preview(settings, &code)
+}
+
+/// The relay host an invite names, to be acknowledged when the person said so (`trust_relay`). A relay on this machine needs no
+/// acknowledgement. The caller still builds the connection with the normal host rules (a restricted mode refuses it all the same).
+fn host_to_acknowledge(code: &InviteCode, trust_relay: Option<bool>) -> Option<String> {
+    if trust_relay != Some(true) {
+        return None;
+    }
+    parse_relay(&code.relay).ok().filter(|p| !p.local).map(|p| p.authority())
+}
+
+#[tauri::command]
+pub async fn team_join(app: AppHandle, state: State<'_, TeamModState>, code: String, name: String, trust_relay: Option<bool>) -> Res<TeamView> {
     let name = clean_name(&name)?;
     let (secrets, settings) = prepare(&app, &state)?;
     let code = InviteCode::parse(&code).map_err(team_err)?;
@@ -946,16 +1044,36 @@ pub async fn team_join(app: AppHandle, state: State<'_, TeamModState>, code: Str
             return Err(err("alreadyInTeam", "this install is already in a team"));
         }
     }
-    let (_, trust) = relay_base(&settings);
+    let (_, mut trust) = relay_base(&settings);
+    // The person ticked "I trust this relay": that acknowledgement is theirs and is kept, so the team still connects after a restart.
+    let acknowledge = host_to_acknowledge(&code, trust_relay);
+    if let Some(h) = &acknowledge {
+        trust.allowed_hosts.push(h.clone());
+    }
     let ws = TeamWs::new_with(&code.relay, &trust).map_err(team_err)?;
     let identity = Identity::load_or_create(&secrets).map_err(team_err)?;
-    ws.redeem_invite(&code.team_id, &code.relay_token(), &identity).await.map_err(team_err)?;
+    // the host is written last of what can fail before the redeem; from here every way out of the join takes it back (`reset`)
+    let added = match &acknowledge {
+        Some(h) => remember_relay_host(&settings, h)?,
+        None => false,
+    };
+    if let Err(e) = ws.redeem_invite(&code.team_id, &code.relay_token(), &identity).await {
+        // a host that did not answer like a team relay is not kept as trusted
+        if added {
+            forget_relay_host(&settings, &code.relay);
+        }
+        return Err(team_err(e));
+    }
     remember_name(&settings, &name);
     let mut inner = lock(&state.inner);
     inner.identity = Some(identity);
     let team_id = code.team_id.clone();
-    inner.joining = Some(Joining { code, name, stage: Stage::Connecting, joiner: None, joined: None, sas: None, welcome: None, confirmed: false });
-    start_link(&app, &mut inner, ws, &team_id)?;
+    inner.joining = Some(Joining { code, name, stage: Stage::Connecting, joiner: None, joined: None, sas: None, welcome: None, confirmed: false, acknowledged: added });
+    if let Err(e) = start_link(&app, &mut inner, ws, &team_id) {
+        let inner = &mut *inner;
+        reset(inner, &secrets);
+        return Err(e);
+    }
     emit_changed(&app, &inner);
     Ok(view(&inner))
 }
@@ -996,11 +1114,14 @@ pub fn team_revoke(app: AppHandle, state: State<'_, TeamModState>, member_id: St
 /// Never called by the app on its own, and refused for an admin while other members remain.
 #[tauri::command]
 pub fn team_forget(app: AppHandle, state: State<'_, TeamModState>) -> Res<TeamView> {
-    let (secrets, _) = prepare(&app, &state)?;
+    let (secrets, settings) = prepare(&app, &state)?;
     let mut inner = lock(&state.inner);
     let inner = &mut *inner;
     if inner.team.as_ref().is_some_and(|t| t.is_admin() && t.body().members.len() > 1) {
         return Err(err("adminLeave", "an admin cannot forget the team while other members remain; revoke them first"));
+    }
+    if let Some(t) = inner.team.as_ref() {
+        forget_relay_host(&settings, &t.relay);
     }
     if let Some(dir) = inner.state_dir.clone() {
         let _ = TeamState::forget(&dir, &secrets);
@@ -1015,7 +1136,7 @@ pub fn team_forget(app: AppHandle, state: State<'_, TeamModState>) -> Res<TeamVi
 /// team of one (there is no hand-over of the admin role yet).
 #[tauri::command]
 pub async fn team_leave(app: AppHandle, state: State<'_, TeamModState>) -> Res<TeamView> {
-    let (secrets, _) = prepare(&app, &state)?;
+    let (secrets, settings) = prepare(&app, &state)?;
     let said_leave = {
         let inner = lock(&state.inner);
         match inner.team.as_ref() {
@@ -1033,6 +1154,9 @@ pub async fn team_leave(app: AppHandle, state: State<'_, TeamModState>) -> Res<T
     }
     let mut inner = lock(&state.inner);
     let inner = &mut *inner;
+    if let Some(t) = inner.team.as_ref() {
+        forget_relay_host(&settings, &t.relay);
+    }
     if let Some(dir) = inner.state_dir.clone() {
         let _ = TeamState::forget(&dir, &secrets);
     }
@@ -1040,4 +1164,122 @@ pub async fn team_leave(app: AppHandle, state: State<'_, TeamModState>) -> Res<T
     reset(inner, &secrets);
     emit_changed(&app, inner);
     Ok(view(inner))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn store() -> (tempfile::TempDir, SettingsStore) {
+        let dir = tempfile::tempdir().unwrap();
+        let s = SettingsStore::open(dir.path().join("settings.json")).unwrap();
+        (dir, s)
+    }
+
+    fn code(relay: &str) -> InviteCode {
+        InviteCode { relay: relay.into(), team_id: "CEx5c2s4WAO1kx7iTVzL9g".into(), admin_id: "gKAK926tlsM_abcdef".into(), admin_noise_pub: [7; 32], otp: [9; 16] }
+    }
+
+    fn put(s: &SettingsStore, ns: &str, v: Value) {
+        s.set(ns, v.as_object().unwrap().clone()).unwrap();
+    }
+
+    #[test]
+    fn a_relay_host_nobody_acknowledged_is_shown_as_not_trusted_and_trusted_once_the_person_said_so() {
+        let (_d, s) = store();
+        let link = code("wss://Relay.Example.workers.dev").to_link();
+        let p = join_preview(&s, &link).unwrap();
+        assert_eq!((p.relay_host.as_str(), p.trusted, p.local), ("relay.example.workers.dev", false, false));
+        assert_eq!((p.team_id.as_str(), p.admin_id.as_str()), ("CEx5c2s4", "gKAK926t"), "the first eight characters, to read aloud");
+        // the person trusts it while joining: the next preview says so, and a restart still connects (relay_base carries the host)
+        assert!(remember_relay_host(&s, "relay.example.workers.dev").unwrap());
+        assert!(!remember_relay_host(&s, "RELAY.example.workers.dev").unwrap(), "a second time (any case) changes nothing");
+        assert!(join_preview(&s, &link).unwrap().trusted);
+        assert!(relay_base(&s).1.allowed_hosts.contains(&"relay.example.workers.dev".to_string()));
+        // another host is still not trusted
+        assert!(!join_preview(&s, &code("wss://other.example.workers.dev").to_link()).unwrap().trusted);
+    }
+
+    #[test]
+    fn hosts_acknowledged_for_remote_count_as_well_and_a_relay_on_this_machine_needs_none() {
+        let (_d, s) = store();
+        put(&s, "remote", json!({ "trust": { "allowedHosts": ["Mine.workers.dev"] } }));
+        assert!(join_preview(&s, &code("wss://mine.workers.dev").to_link()).unwrap().trusted);
+        for local in ["ws://127.0.0.1:8787", "ws://localhost:8787", "ws://[::1]:8787"] {
+            let p = join_preview(&s, &code(local).to_link()).unwrap();
+            assert!(p.trusted && p.local, "{local}");
+        }
+    }
+
+    #[test]
+    fn a_preview_refuses_what_a_join_would_refuse_and_says_why_in_a_code_the_form_knows() {
+        let (_d, s) = store();
+        let e = |relay: &str| join_preview(&s, &code(relay).to_link()).err().map(|e| e.code).unwrap_or_default();
+        assert_eq!(e("ws://relay.example.workers.dev"), "insecure", "a relay outside this machine must be encrypted");
+        assert_eq!(e("https://relay.example.com"), "scheme");
+        assert_eq!(e("wss://user:pw@relay.example.workers.dev"), "userinfo");
+        assert_eq!(e("wss://203.0.113.7"), "ipLiteral");
+        assert_eq!(e("wss://relay.example.workers.dev/a/b"), "urlSyntax");
+        for text in ["", "hello", "https://example.com", "intely-team://join#wss://x"] {
+            assert_eq!(join_preview(&s, text).err().map(|e| e.code).as_deref(), Some("invalidCode"), "{text:?}");
+        }
+    }
+
+    #[test]
+    fn only_a_ticked_box_acknowledges_a_host_and_never_a_local_one() {
+        let c = code("wss://Relay.Example.workers.dev:8443");
+        assert_eq!(host_to_acknowledge(&c, Some(true)).as_deref(), Some("relay.example.workers.dev:8443"));
+        assert_eq!(host_to_acknowledge(&c, Some(false)), None);
+        assert_eq!(host_to_acknowledge(&c, None), None);
+        assert_eq!(host_to_acknowledge(&code("ws://127.0.0.1:8787"), Some(true)), None);
+    }
+
+    #[test]
+    fn leaving_forgets_the_acknowledgement_that_a_join_made_and_only_that() {
+        let (_d, s) = store();
+        put(&s, "remote", json!({ "trust": { "allowedHosts": ["mine.workers.dev"] } }));
+        remember_relay_host(&s, "relay.example.workers.dev").unwrap();
+        remember_relay_host(&s, "mine.workers.dev").unwrap();
+        forget_relay_host(&s, "wss://relay.example.workers.dev");
+        let hosts = relay_base(&s).1.allowed_hosts;
+        assert!(!hosts.contains(&"relay.example.workers.dev".to_string()));
+        assert!(hosts.contains(&"mine.workers.dev".to_string()), "Remote's own list is not touched");
+        forget_relay_host(&s, "not a url");
+        forget_relay_host(&s, "wss://never-was.example.workers.dev");
+    }
+
+    #[test]
+    fn a_join_that_ends_without_a_team_takes_back_the_host_it_acknowledged_and_only_that() {
+        let (_d, s) = store();
+        let s = Arc::new(s);
+        put(&s, "remote", json!({ "trust": { "allowedHosts": ["mine.workers.dev"] } }));
+        let secrets: Arc<dyn SecretStore> = Arc::new(intely_settings::MemorySecretStore::new());
+        let joining = |ack: bool| Joining { code: code("wss://relay.example.workers.dev"), name: "N".into(), stage: Stage::Connecting, joiner: None, joined: None, sas: None, welcome: None, confirmed: false, acknowledged: ack };
+        let trusted = |s: &SettingsStore, host: &str| relay_base(s).1.allowed_hosts.contains(&host.to_string());
+        remember_relay_host(&s, "relay.example.workers.dev").unwrap();
+
+        // this join added nothing (the host was acknowledged by an earlier one): ending it leaves the host in place
+        let mut inner = Inner { settings: Some(s.clone()), joining: Some(joining(false)), ..Inner::default() };
+        reset(&mut inner, &secrets);
+        assert!(trusted(&s, "relay.example.workers.dev"));
+
+        // this join added it: a refused code, a declined comparison or any other end without a team takes it back
+        inner.joining = Some(joining(true));
+        reset(&mut inner, &secrets);
+        assert!(!trusted(&s, "relay.example.workers.dev"));
+        assert!(trusted(&s, "mine.workers.dev"), "Remote's own list is not touched");
+        assert!(inner.joining.is_none());
+    }
+
+    #[test]
+    fn the_list_of_acknowledged_hosts_stays_small() {
+        let (_d, s) = store();
+        for i in 0..(MAX_TRUSTED_RELAYS + 5) {
+            remember_relay_host(&s, &format!("relay{i}.example.workers.dev")).unwrap();
+        }
+        let hosts = trusted_relay_hosts(&s.get(NS).unwrap());
+        assert_eq!(hosts.len(), MAX_TRUSTED_RELAYS);
+        assert_eq!(hosts.last().map(String::as_str), Some(format!("relay{}.example.workers.dev", MAX_TRUSTED_RELAYS + 4).as_str()), "the newest stay");
+    }
 }

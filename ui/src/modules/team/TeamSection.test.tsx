@@ -60,8 +60,9 @@ describe("no team yet", () => {
     install("off");
     render(() => <TeamSection />);
     await screen.findByText("Join a team");
-    fireEvent.input(screen.getByLabelText("Invite code"), { target: { value: "intely-team://join#ws://x,t,a,b,c" } });
+    fireEvent.input(screen.getByLabelText("Invite code"), { target: { value: "intely-team://join#ws://127.0.0.1:8787,teamteam1234,adminadmin12,b,c" } });
     fireEvent.input(screen.getAllByLabelText("Your name in the team")[1]!, { target: { value: "Robin" } });
+    await screen.findByText("A relay on this computer.");
     fireEvent.click(screen.getByRole("button", { name: "Join team" }));
     const sas = await screen.findByTestId("sas");
     expect(sas.textContent).toMatch(/^\d{3} \d{3}$/);
@@ -70,15 +71,176 @@ describe("no team yet", () => {
     mock.sim.adminWelcomes();
     await screen.findByRole("list", { name: "Team members" });
   });
+});
 
-  it("shows a refused code as text", async () => {
+const CODE = "intely-team://join#wss://relay.example.org,teamteam1234,adminadmin12,b,c";
+const typeCode = (v: string) => fireEvent.input(screen.getByLabelText("Invite code"), { target: { value: v } });
+const typeName = (v = "Robin") => fireEvent.input(screen.getAllByLabelText("Your name in the team")[1]!, { target: { value: v } });
+const joinBtn = () => screen.getByRole("button", { name: "Join team" }) as HTMLButtonElement;
+
+describe("join preview", () => {
+  it("says nothing for an empty field, shows a spinner while checking, then the card", async () => {
     install("off");
     render(() => <TeamSection />);
     await screen.findByText("Join a team");
-    fireEvent.input(screen.getByLabelText("Invite code"), { target: { value: "nonsense" } });
-    fireEvent.input(screen.getAllByLabelText("Your name in the team")[1]!, { target: { value: "Robin" } });
-    fireEvent.click(screen.getByRole("button", { name: "Join team" }));
-    expect((await screen.findByRole("alert")).textContent).toMatch(/not a team invite code/);
+    expect(screen.queryByTestId("join-preview")).toBeNull();
+    typeCode(CODE);
+    expect(screen.getByTestId("join-checking")).toBeTruthy();
+    const card = await screen.findByTestId("join-preview");
+    expect(card.textContent).toContain("Relay: relay.example.org");
+    expect(card.textContent).toContain("Team teamteam · invited by adminadm");
+    expect(screen.queryByTestId("join-checking")).toBeNull();
+  });
+
+  it("a trusted relay needs no box and the Join button follows the name", async () => {
+    install("off");
+    mock.sim.trustRelay("relay.example.org");
+    render(() => <TeamSection />);
+    await screen.findByText("Join a team");
+    typeCode(CODE);
+    await screen.findByText("This relay is already trusted on this Mac.");
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    expect(joinBtn().disabled).toBe(true);
+    typeName();
+    expect(joinBtn().disabled).toBe(false);
+  });
+
+  it("an untrusted relay needs the ticked box; join passes trustRelay true", async () => {
+    install("off");
+    const join = vi.spyOn(ipc.team, "join");
+    render(() => <TeamSection />);
+    await screen.findByText("Join a team");
+    typeCode(CODE);
+    typeName();
+    const box = (await screen.findByRole("checkbox")) as HTMLInputElement;
+    expect(screen.getByText(/only passes on encrypted messages/)).toBeTruthy();
+    expect(joinBtn().disabled).toBe(true);
+    fireEvent.click(box);
+    await waitFor(() => expect(joinBtn().disabled).toBe(false));
+    fireEvent.click(joinBtn());
+    await screen.findByTestId("sas");
+    expect(join).toHaveBeenCalledWith(CODE, "Robin", true);
+  });
+
+  it("a trusted relay joins with trustRelay false", async () => {
+    install("off");
+    const join = vi.spyOn(ipc.team, "join");
+    render(() => <TeamSection />);
+    await screen.findByText("Join a team");
+    typeCode("intely-team://join#ws://localhost:1,teamteam1234,adminadmin12,b,c");
+    typeName();
+    await screen.findByText("A relay on this computer.");
+    fireEvent.click(joinBtn());
+    await screen.findByTestId("sas");
+    expect(join).toHaveBeenCalledWith(expect.any(String), "Robin", false);
+  });
+
+  it("text that is not an invite shows the hint and keeps Join off", async () => {
+    install("off");
+    render(() => <TeamSection />);
+    await screen.findByText("Join a team");
+    typeCode("nonsense");
+    typeName();
+    expect((await screen.findByTestId("join-invalid")).textContent).toMatch(/not an invite code.*intely-team:\/\/join#/);
+    expect(joinBtn().disabled).toBe(true);
+  });
+
+  it("an invite whose relay address is refused says why instead of calling the text no invite", async () => {
+    install("off");
+    vi.spyOn(ipc.team, "joinPreview").mockRejectedValue({ code: "insecure", message: "raw" });
+    render(() => <TeamSection />);
+    await screen.findByText("Join a team");
+    typeCode(CODE);
+    typeName();
+    const msg = (await screen.findByTestId("join-invalid")).textContent ?? "";
+    expect(msg).toMatch(/relay address in the invite looks wrong/);
+    expect(msg).not.toMatch(/not an invite code/);
+    expect(joinBtn().disabled).toBe(true);
+  });
+
+  it("ignores a stale answer", async () => {
+    install("off");
+    let release!: (v: Awaited<ReturnType<typeof ipc.team.joinPreview>>) => void;
+    const slow = new Promise<Awaited<ReturnType<typeof ipc.team.joinPreview>>>((r) => (release = r));
+    vi.spyOn(ipc.team, "joinPreview").mockImplementationOnce(() => slow).mockRejectedValue({ code: "invalidCode", message: "x" });
+    render(() => <TeamSection />);
+    await screen.findByText("Join a team");
+    typeCode(CODE);
+    await waitFor(() => expect(ipc.team.joinPreview).toHaveBeenCalledTimes(1));
+    typeCode("changed");
+    await screen.findByTestId("join-invalid");
+    release({ relayHost: "old.example", trusted: true, local: false, teamId: "x", adminId: "y" });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.queryByTestId("join-preview")).toBeNull();
+    expect(screen.getByTestId("join-invalid")).toBeTruthy();
+  });
+
+  it("when the backend still says hostNotAllowed, the box comes back", async () => {
+    install("off");
+    vi.spyOn(ipc.team, "joinPreview").mockResolvedValue({ relayHost: "r.example", trusted: true, local: false, teamId: "t", adminId: "a" });
+    vi.spyOn(ipc.team, "join").mockRejectedValue({ code: "hostNotAllowed", message: "raw" });
+    render(() => <TeamSection />);
+    await screen.findByText("Join a team");
+    typeCode(CODE);
+    typeName();
+    await screen.findByTestId("join-trusted");
+    fireEvent.click(joinBtn());
+    expect((await screen.findByRole("alert")).textContent).toMatch(/does not trust the relay/);
+    expect(await screen.findByRole("checkbox")).toBeTruthy();
+    expect(joinBtn().disabled).toBe(true);
+  });
+
+  it.each([
+    ["invalidCode", /not an invite code/],
+    ["scheme", /must start with wss/],
+    ["insecure", /must start with wss/],
+    ["urlSyntax", /must start with wss/],
+    ["userinfo", /must start with wss/],
+    ["ipLiteral", /must start with wss/],
+    ["idn", /must start with wss/],
+    ["readOnly", /read-only/],
+    ["testJail", /restricted test mode/],
+    ["inviteSpent", /expired or was already used.*10 minutes/],
+    ["full", /team is full/],
+    ["alreadyInTeam", /already in a team/],
+  ])("shows %s in plain words", async (code, re) => {
+    install("off");
+    vi.spyOn(ipc.team, "joinPreview").mockResolvedValue({ relayHost: "r.example", trusted: true, local: false, teamId: "t", adminId: "a" });
+    vi.spyOn(ipc.team, "join").mockRejectedValue({ code, message: "raw message" });
+    render(() => <TeamSection />);
+    await screen.findByText("Join a team");
+    typeCode(CODE);
+    typeName();
+    await screen.findByTestId("join-trusted");
+    fireEvent.click(joinBtn());
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toMatch(re);
+    expect(alert.textContent).not.toContain("raw message");
+  });
+
+  it("an unknown code keeps the raw message", async () => {
+    install("off");
+    vi.spyOn(ipc.team, "joinPreview").mockResolvedValue({ relayHost: "r.example", trusted: true, local: false, teamId: "t", adminId: "a" });
+    vi.spyOn(ipc.team, "join").mockRejectedValue({ code: "weird", message: "something odd" });
+    render(() => <TeamSection />);
+    await screen.findByText("Join a team");
+    typeCode(CODE);
+    typeName();
+    await screen.findByTestId("join-trusted");
+    fireEvent.click(joinBtn());
+    expect((await screen.findByRole("alert")).textContent).toBe("something odd");
+  });
+});
+
+describe("mock join", () => {
+  it("previews, rejects an unacknowledged host and accepts it with trustRelay", async () => {
+    const m = createMockTeam({ preset: "off" });
+    await expect(m.joinPreview("nope")).rejects.toMatchObject({ code: "invalidCode" });
+    const p = await m.joinPreview(" INTELY-TEAM://join#\n wss://Relay.Example.org:8443,teamteam1234,adminadmin12,b,c ");
+    expect(p).toEqual({ relayHost: "relay.example.org:8443", trusted: false, local: false, teamId: "teamteam", adminId: "adminadm" });
+    await expect(m.join(CODE, "Robin")).rejects.toMatchObject({ code: "hostNotAllowed" });
+    await m.join(CODE, "Robin", true);
+    expect((await m.joinPreview(CODE)).trusted).toBe(true);
   });
 });
 

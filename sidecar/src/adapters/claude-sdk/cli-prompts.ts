@@ -5,6 +5,7 @@
 // live probe MEASURED as benign (this list, pinned by a unit test) and denies every other one with a message that names the reason,
 // so the list can be widened with evidence. Pure functions, no I/O beyond path canonicalisation.
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import type { PermissionMode } from '../../types.js';
 
@@ -53,7 +54,15 @@ export const CD_VCS_PREFIX = 'This command changes directory before running a ve
  * the run's folders was refused there), so nothing is hidden from the policy; the CLI's guard is only about its own rule matching.
  */
 export const REDIRECT_TARGETS_PREFIX = 'Redirect has multiple targets';
-export const CLI_BENIGN_PREFIXES: readonly string[] = [CD_VCS_PREFIX, REDIRECT_TARGETS_PREFIX];
+/**
+ * `Multiple directory changes in one command require approval for clarity` (measured: the owner's Automatic runs of 2026-10-15 and 16, a newer
+ * claude than the one the list above was measured on: a `cd <repo>; python3 - <<'EOF' ...` edit and a `cd <repo>; sed -n ...; sed -n ...` read). A
+ * clarity prompt, not a safety guard: the CLI wants a person to confirm a command that changes directory more than once. Rust parsed the
+ * same string and judged every operand from the directory each `cd` moved to (a `cd` out of the run's folders is refused there), so the
+ * cached allow stands.
+ */
+export const MULTI_CD_PREFIX = 'Multiple directory changes in one command';
+export const CLI_BENIGN_PREFIXES: readonly string[] = [CD_VCS_PREFIX, REDIRECT_TARGETS_PREFIX, MULTI_CD_PREFIX];
 /** `Claude requested permissions to edit <path> which is a sensitive file.` (measured L2/L5). */
 const SENSITIVE_FILE = /sensitive file/i;
 const benign = (reason: string): boolean => CLI_BENIGN_REASONS.includes(reason) || CLI_BENIGN_PREFIXES.some((p) => reason.startsWith(p));
@@ -68,12 +77,16 @@ const benign = (reason: string): boolean => CLI_BENIGN_REASONS.includes(reason) 
  * body does is judged by Rust (inline code is scanned like a script file). Anything else (an unquoted delimiter, a heredoc fed to
  * bash/sh, a here-string, an unterminated body, a feature that remains outside the bodies) keeps the refusal.
  */
+const SKIPPED_FEATURES = /[{}]|<\s*\d*\s*-\s*\d*\s*>|\$\(|\x60|<\(|>\(|\$\{/;
 const HEREDOC_REASONS: ReadonlyArray<{ reason: RegExp; feature: RegExp }> = [
   { reason: /^Contains brace with quote character/i, feature: /[{}]/ },
   { reason: /^Contains zsh <N-M> numeric-range glob/i, feature: /<\s*\d*\s*-\s*\d*\s*>/ },
   { reason: /^Contains command[ _]substitution/i, feature: /\$\(|\x60|<\(|>\(|\$\{/ },
   // the parser gave up somewhere: with the bodies cut away, none of the three features may be left for it to have stumbled on
-  { reason: /^Parser skipped input between top-level statements/i, feature: /[{}]|<\s*\d*\s*-\s*\d*\s*>|\$\(|\x60|<\(|>\(|\$\{/ },
+  { reason: /^Parser skipped input between top-level statements/i, feature: SKIPPED_FEATURES },
+  // measured in the owner's run of 2026-10-16: the parser gave up on the whole command ("timeout, resource limit, or over-length"), which a long
+  // heredoc body (a Python program that edits catalogs) causes; the same test as for a skipped parse applies to what is left without the bodies
+  { reason: /^Parser aborted/i, feature: SKIPPED_FEATURES },
 ];
 const SINK_PATH = String.raw`[^\s;&|<>$\x60()\\'"{}]+`;
 /** What is left of a heredoc line once the operator is cut out: only a plain write of the body into a file. */
@@ -178,6 +191,24 @@ export function coveredByVerdict(blockedPath: string, intentPaths: readonly stri
   });
 }
 
+/** The folder name the Claude CLI gives a project directory under `<config>/projects`: every character that is not a letter or digit becomes `-`. */
+export const claudeProjectSlug = (dir: string): string => dir.replace(/[^A-Za-z0-9]/g, '-');
+
+/**
+ * A Claude memory note of one of the run's own folders: `~/.claude/projects/<slug of a run folder>/memory` and the `.md` files directly in it.
+ * The user's own notes about the project, which the CLI loads into every session anyway; the rest of `~/.claude` (transcripts, plans, settings,
+ * credentials) stays a never-read location for an agent. The Rust policy has the same carve-out (`Jail::is_claude_memory_note`).
+ */
+export function isClaudeMemoryNote(p: string, runDirs: readonly string[], cwd: string | undefined, home: string = process.env.HOME || os.homedir()): boolean {
+  const fold = process.platform === 'darwin' || process.platform === 'win32' ? (s: string) => s.toLowerCase() : (s: string) => s;
+  const target = fold(canon(path.resolve(cwd ?? '/', p.startsWith('~') ? p.replace(/^~/, home) : p)));
+  const base = canon(path.resolve(home));
+  return runDirs.some((d) => {
+    const memory = fold(path.join(base, '.claude', 'projects', claudeProjectSlug(canon(path.resolve(cwd ?? '/', d))), 'memory'));
+    return target === memory || (path.dirname(target) === memory && target.endsWith('.md') && !path.basename(target).startsWith('.'));
+  });
+}
+
 const insideAny = (p: string, dirs: readonly string[], cwd: string | undefined): boolean => {
   const abs = (q: string) => path.resolve(cwd ?? '/', q);
   const a = abs(p);
@@ -216,7 +247,7 @@ export function judgeCliPrompt(i: CliPromptInput): { reason: string } | null {
   if (i.mode === 'automatic' && (reason === BOUNDARY_REASON || i.blockedPath)) {
     const paths = i.blockedPath ? [i.blockedPath] : [...(i.intentPaths ?? [])];
     const dirs = i.runDirs ?? (i.cwd ? [i.cwd] : []);
-    if (!paths.length || !paths.every((p) => insideAny(p, dirs, i.cwd))) return { reason: reason || `path outside the run's folders: ${i.blockedPath}` };
+    if (!paths.length || !paths.every((p) => insideAny(p, dirs, i.cwd) || isClaudeMemoryNote(p, dirs, i.cwd))) return { reason: reason || `path outside the run's folders: ${i.blockedPath}` };
   }
   return null;
 }

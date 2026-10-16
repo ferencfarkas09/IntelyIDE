@@ -31,6 +31,20 @@ export interface TeamJoinRequest {
   sas: string;
 }
 
+/** What an invite code points to, read on this Mac without any network access. */
+export interface TeamJoinPreview {
+  /** `host` or `host:port`, lowercase: the relay the invite points to. */
+  relayHost: string;
+  /** This Mac already trusts that relay host (or it is a local development relay). */
+  trusted: boolean;
+  /** A relay on this machine (loopback); `trusted` is then true. */
+  local: boolean;
+  /** First 8 characters of the team id (to read aloud). */
+  teamId: string;
+  /** First 8 characters of the inviting admin's member id. */
+  adminId: string;
+}
+
 /** The joiner's side: `confirm` shows `sas` and waits for the person. */
 export interface TeamJoining {
   stage: "connecting" | "waitingAdmin" | "confirm" | "waitingWelcome";
@@ -226,7 +240,9 @@ export interface TeamIpc {
   /** Admin: opens a one-time invite (10 minutes, one person). */
   invite(): Promise<TeamInvite>;
   /** Joiner: paste the code from an admin. The six digits appear in `joining.sas` once the handshake ran. */
-  join(code: string, name: string): Promise<TeamView>;
+  join(code: string, name: string, trustRelay?: boolean): Promise<TeamView>;
+  /** Joiner: reads the pasted text (no network). Rejects with code `invalidCode` when it is not an invite. */
+  joinPreview(code: string): Promise<TeamJoinPreview>;
   /** Joiner: the six digits match (`true`) or do not (`false`, the join is abandoned). */
   joinConfirm(accept: boolean): Promise<TeamView>;
   /** Admin: let the person who asked in (`true`) or send them away (`false`). */
@@ -290,7 +306,8 @@ export function createTauriTeam(): TeamIpc {
     members: () => call("team_members"),
     create: (name) => call("team_create", { name }),
     invite: () => call("team_invite"),
-    join: (code, name) => call("team_join", { code, name }),
+    join: (code, name, trustRelay) => call("team_join", { code, name, trustRelay }),
+    joinPreview: (code) => call("team_join_preview", { code }),
     joinConfirm: (accept) => call("team_join_confirm", { accept }),
     joinDecide: (accept) => call("team_join_decide", { accept }),
     revoke: (memberId) => call("team_revoke", { memberId }),

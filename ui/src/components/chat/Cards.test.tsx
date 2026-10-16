@@ -141,6 +141,8 @@ describe("<PermissionCard>", () => {
     expect(resolvedWording({ outcome: "deny", by: "roleDeny", refusal: { reason: "x", rule: "exec.auto.outside-jail" } })).toBe("Declined by the run's rules");
     expect(resolvedWording({ outcome: "deny", by: "roleDeny", refusal: { reason: "x", rule: "role.read-only" } })).toBe("Denied by the role");
     expect(resolvedWording({ outcome: "cancelled", by: "user" })).toBe("Cancelled");
+    expect(resolvedWording({ outcome: "deny", by: "hardStop", refusal: { reason: "x", rule: "git.commit" } })).toBe("Blocked by a hard stop");
+    expect(resolvedWording({ outcome: "deny", by: "hardStop", refusal: { reason: "x", rule: "cli.prompt-denied" } })).toBe("Blocked: the Claude CLI asked for approval");
   });
 });
 

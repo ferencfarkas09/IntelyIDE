@@ -53,6 +53,8 @@ export function resolvedWording(p: Pick<PermissionItem, "outcome" | "by" | "deci
   const allowed = p.outcome === "allow";
   switch (p.by) {
     case "hardStop":
+      // the CLI's own prompt that an unattended run cannot answer is not one of the IDE's hard stops
+      if (p.refusal?.rule === "cli.prompt-denied") return t("chat.resolved.cliPrompt");
       return t("chat.resolved.hardStop");
     case "roleDeny":
       // the run's own rules (what Automatic judges inside the run's folders) are not the role's: say which one declined

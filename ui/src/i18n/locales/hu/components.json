@@ -86,6 +86,7 @@
   "chat.withEsc": "{tip} (Esc)",
   "chat.resolved.cancelled": "Megszakítva",
   "chat.resolved.hardStop": "Hard stop blokkolta",
+  "chat.resolved.cliPrompt": "Letiltva: a Claude CLI jóváhagyást kért",
   "chat.resolved.roleDeny": "A szerep elutasította",
   "chat.resolved.failClosed": "Elutasítva: a szabályellenőrzés nem volt elérhető",
   "chat.resolved.savedAllow": "Mentett szabály engedélyezte",
