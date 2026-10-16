@@ -1,7 +1,8 @@
-import { createMemo, onMount, Show } from "solid-js";
+import { createMemo, Match, onMount, Show, Switch } from "solid-js";
 import { execute } from "../../platform/commands";
 import { isForeign } from "../../store/agentScope";
-import { agentAnnouncement, agentRow, agentRows, agentsError, agentsLoaded, agentView, bannerDismissed, dismissBanner, interruptRun, isInterrupting, needsYouCount, rewindRun, selectAgent, selectedAgentId, sendMessage, sendNote, startAgentStore } from "../../store/agents";
+import { agentAnnouncement, agentRow, agentRows, agentsError, agentsLoaded, agentView, bannerDismissed, dismissBanner, interruptRun, isInterrupting, needsYouCount, rewindRun, selectAgent, selectedAgentId, selectStartingRun, sendMessage, sendNote, startAgentStore } from "../../store/agents";
+import { startingInFront, startingRun, startingRuns } from "../../store/starting";
 import { ArrowLeft, Badge, Button, CircleAlert, EmptyState, Plus, Skeleton, toast } from "../../ui-kit";
 import { t, type MessageKey } from "../../i18n";
 import { AgentList } from "./AgentList";
@@ -12,6 +13,7 @@ import { TeamChatStrip } from "../../modules/team/TeamChatStrip";
 import { TeamNoteCards } from "../../modules/team/TeamNotes";
 import { noteFailure } from "./Notes";
 import { RunHeader } from "./RunHeader";
+import { StartingRunView } from "./Starting";
 import { Transcript } from "./Transcript";
 import "./chat.css";
 
@@ -70,7 +72,7 @@ export function ChatPanel() {
         {agentAnnouncement()}
       </div>
       <div class="chat__bar">
-        <Show when={selectedAgentId()} fallback={<span class="chat__title">{t("chat.runs")}</span>}>
+        <Show when={selectedAgentId() || startingInFront()} fallback={<span class="chat__title">{t("chat.runs")}</span>}>
           <Button size="sm" variant="ghost" icon={ArrowLeft} onClick={() => void selectAgent(null)}>
             {t("chat.runs")}
             <Show when={needsYouCount() > 0}>
@@ -99,9 +101,13 @@ export function ChatPanel() {
             </div>
           }
         >
-          <Show when={selectedAgentId()} fallback={<AgentList rows={agentRows()} onSelect={(id) => void selectAgent(id)} />}>
-            {(id) => <RunView agentId={id()} />}
-          </Show>
+          <Switch>
+            <Match when={startingRun(startingInFront())}>{(run) => <StartingRunView run={run()} />}</Match>
+            <Match when={selectedAgentId()}>{(id) => <RunView agentId={id()} />}</Match>
+            <Match when={true}>
+              <AgentList rows={agentRows()} onSelect={(id) => void selectAgent(id)} starting={startingRuns()} onSelectStarting={selectStartingRun} />
+            </Match>
+          </Switch>
         </Show>
       </Show>
     </div>

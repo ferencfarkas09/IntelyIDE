@@ -4,6 +4,7 @@ import { announcement } from "../components/chat/format";
 import { emptyView, markPermissionAnswered, markPermissionRefused, markQuestionAnswered, pendingPermissions, pendingQuestions, reduceEvents, runStatus, type AgentView } from "./agent-reducer";
 import type { FileSelection } from "../modules/attachments/types";
 import type { AgentAttachment, AgentEvent, AgentStartRequest, AgentSummary, McpServerInfo, PermissionDecision, PermissionMode, QuestionAnswer, RoleInfo, RunStatus } from "./agent-types";
+import { endStarting, resetStarting, setStartingFront, startingInFront, startingRun } from "./starting";
 
 export type { AgentView } from "./agent-reducer";
 
@@ -129,17 +130,35 @@ export function startAgentStore(ipc: Ipc = defaultIpc): void {
 }
 
 export async function selectAgent(agentId: string | null): Promise<void> {
-  setSelected(agentId);
+  batch(() => {
+    setStartingFront(null);
+    setSelected(agentId);
+  });
   if (agentId) await loadHistory(agentId);
 }
 
-export async function startRun(req: AgentStartRequest & { share?: boolean }, opts?: { runWithoutSafetyNet?: boolean; confirmBypass?: boolean }): Promise<AgentSummary> {
+/** Puts a run that is still starting in front (its card fills the middle); no run is selected meanwhile. */
+export function selectStartingRun(key: string): void {
+  batch(() => {
+    setSelected(null);
+    setStartingFront(key);
+  });
+}
+
+/**
+ * Starts a run. `key` names the starting card of this run (New run dialog): the card goes when the host answers, and the new run takes
+ * its place in front. A card the person has moved away from does not pull them back; a run started without a shown card is selected, as ever.
+ */
+export async function startRun(req: AgentStartRequest & { share?: boolean }, opts?: { runWithoutSafetyNet?: boolean; confirmBypass?: boolean }, key?: string): Promise<AgentSummary> {
   const summary = await client.agentStart(req, opts);
   batch(() => {
     pending.delete(summary.agentId);
     if (!views()[summary.agentId]) putView(emptyView(summary.agentId));
     upsertSummary(summary);
-    setSelected(summary.agentId);
+    const card = startingRun(key ?? null);
+    const take = !card?.shown || startingInFront() === card.key;
+    if (card) endStarting(card.key);
+    if (take) setSelected(summary.agentId);
   });
   return summary;
 }
@@ -222,6 +241,7 @@ export function resetAgents(): void {
     setLoaded(false);
     setSpoken("");
     setDismissed({});
+    resetStarting();
   });
   pending = new Map();
 }

@@ -4,6 +4,10 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 
 ## [Unreleased]
 
+### Changed
+
+- **A slow start opens the run at once.** Starting a run takes a while on a busy Mac (the Rewind snapshot of every repository, then the agent and its first message), and the New run window used to wait for all of it without a word, so you could not tell whether anything had started. When the host has not answered after about half a second, the window now closes and the run opens in its place as a card that counts the seconds and says what is going on; it becomes the run itself the moment the host answers, and it does not pull you away from another run you went to meanwhile. If the host refuses, the card keeps the reason and offers **Edit and retry** (the task comes back in the New run window, with the reason) or **Dismiss**. A quick answer, and a quick refusal, behave as before: the window closes on the run, or stays open with the reason.
+
 ### Added
 
 - Work in progress, not released: the code compiles for Linux (x86_64, webkit2gtk 4.1), Windows 10/11 (x86_64, WebView2) and Apple Silicon Macs, in addition to Intel Macs. Linux passes its tests; on Windows the permission checks and many tests are not yet verified. No Linux or Windows package is published; see `docs/install-linux.md` and `docs/install-windows.md` for what works and what is different. Secrets use Windows Credential Manager and the Linux Secret Service (one vault entry, split over several Credential Manager entries when it is large), banners use a Windows toast and `notify-send`, files and links open with `explorer.exe` and `xdg-open`, the terminal starts PowerShell on Windows, and connections to servers are not shared on Windows (OpenSSH for Windows has no `ControlMaster`). Process groups, the process table and the disk-space check are macOS and Linux features; the update swap of the app bundle stays macOS only.

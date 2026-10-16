@@ -91,7 +91,7 @@ The 0.1.0 pre-release disk image did not contain the agent sidecar; the disk ima
 
 ## Trying an agent safely
 
-Start with the same throwaway repository. Before an agent run starts, the IDE takes a Rewind snapshot of every repository the run touches; if a repository cannot be snapshotted, the run does not start unless you tick "Run without a safety net" for that single run. Rewind restores tracked and untracked files that are not ignored; files outside the repositories and ignored files are not covered. Read [safety.md](safety.md) before you run an agent on a real repository.
+Start with the same throwaway repository. Before an agent run starts, the IDE takes a Rewind snapshot of every repository the run touches; if a repository cannot be snapshotted, the run does not start unless you tick "Run without a safety net" for that single run. The snapshot and the start of the agent take a while on big repositories and a busy Mac; if the start has not finished after about half a second, the New run window closes and the run opens as a "Starting" card that counts the seconds, becomes the run itself when it is ready, and keeps the reason (with **Edit and retry**) if the start is refused. Rewind restores tracked and untracked files that are not ignored; files outside the repositories and ignored files are not covered. Read [safety.md](safety.md) before you run an agent on a real repository.
 
 ## Working in an agent run
 

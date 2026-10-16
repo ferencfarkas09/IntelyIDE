@@ -12,7 +12,8 @@ import type { RoleGroup } from "../../ipc/roles";
 import type { AgentSummary, AutoInfo, PermissionMode } from "../../store/agent-types";
 import { appMode } from "../../platform/mode";
 import { newRunPrefill, takeNewRunPrefill } from "../../platform/newRun";
-import { agentRoles, selectAgent, startRun } from "../../store/agents";
+import { agentRoles, selectAgent, selectStartingRun, startRun } from "../../store/agents";
+import { beginStarting, failStarting, showStarting } from "../../store/starting";
 import { repos } from "../../store/workspace";
 import { activeId } from "../../store/workspaces";
 import { Badge, Button, Checkbox, Dialog, Icon, Kbd, ListChecks, RepoBadge, TextArea, toast } from "../../ui-kit";
@@ -27,6 +28,7 @@ import { McpRunPicker, mcpStartIds } from "./mcpSeam";
 import { autoReasonText, chosenProvider, clampCounts, clampMode, defaultRepos, failureLines, MAC_MAX, initialMode, neutralRole, numberedPrompt, placementRows, placementSummary, planRuns, providerBlocker, providerChoices, startBlocker, startErrorText, startRequest, THIS_MAC, toggleRepo, totalRuns, type RunMode } from "./newRunLogic";
 import { roleColor } from "./roleColors";
 import { newRunOpen, setCentreView, setNewRunOpen } from "./state";
+import { REVEAL_AFTER_MS } from "./startingLogic";
 import { WhereToRun } from "./WhereToRun";
 import { NewRunShare } from "../team/RunShare";
 import { AttachButton, AttachmentChips } from "../attachments/Chips";
@@ -133,6 +135,8 @@ export function NewRunDialog() {
     if (!prefill) return;
     setPrompt(prefill.prompt);
     if (prefill.repoIds?.length) setRepoIds(prefill.repoIds);
+    if (prefill.error) setError(prefill.error);
+    if (prefill.noSafetyNet) setNoNet(true);
   };
 
   const pick = (name: string | undefined) => {
@@ -268,53 +272,100 @@ export function NewRunDialog() {
     }
   });
 
+  /** The form after a run has started, or has been handed to its starting card: empty for the next one. */
+  const resetForm = () => {
+    setPrompt("");
+    setNoNet(false);
+    setSkipNet(false);
+    setShareRun(true);
+    att.store.rotate();
+  };
+
   const start = async () => {
     if (blocker() || busy()) return;
     setBusy(true);
     setError(undefined);
+    // Everything the runs are made of is taken now: once the dialog has given way to the starting cards it can be opened and changed again
+    // while the host is still answering.
+    const wanted = provider();
+    const flags = { ...(skipNet() ? { runWithoutSafetyNet: true } : {}), ...(permission() === "bypass" && bypassOk() ? { confirmBypass: true } : {}) };
+    const form = draft();
+    const lead = current();
+    const share = shareRun();
+    const lastMode = permission();
+    const typed = prompt().trim();
+    const jobs = whereShown() ? planRuns(placed(), rows()) : [{ name: "", index: 1, of: 1 }];
+    const numbered = jobs.length > 1 && (numbering() ?? true);
+    const roleName = form.mode === "auto" ? "auto" : (form.role ?? "");
+    const cards: string[] = [];
+    let waited = false; // the host has not answered for REVEAL_AFTER_MS
+    let revealed = false; // the dialog has given way to the starting cards
+    // A start that takes a while must not leave the person guessing: the dialog closes and the run opens as a card that counts the time and
+    // becomes the run itself when the host answers. A quick answer (and every refusal that comes quickly) never gets here.
+    const reveal = () => {
+      if (!waited || revealed || cards.length === 0) return;
+      revealed = true;
+      setBusy(false);
+      resetForm();
+      setNewRunOpen(false);
+      setCentreView("run");
+      if (appMode() === "editor") openDockTab("agents");
+      cards.forEach(showStarting);
+      selectStartingRun(cards[0]);
+    };
+    const timer = setTimeout(() => {
+      waited = true;
+      reveal();
+    }, REVEAL_AFTER_MS);
     try {
-      const wanted = provider();
-      const flags = { ...(skipNet() ? { runWithoutSafetyNet: true } : {}), ...(permission() === "bypass" && bypassOk() ? { confirmBypass: true } : {}) };
-      const base = await promptWithAttachments(prompt().trim(), att.store);
-      const jobs = whereShown() ? planRuns(placed(), rows()) : [{ name: "", index: 1, of: 1 }];
-      const numbered = jobs.length > 1 && (numbering() ?? true);
+      const base = await promptWithAttachments(typed, att.store);
       // One after the other, never in parallel: each start takes the writer lease and the slots the next one looks at.
       const started: AgentSummary[] = [];
       const failures: { name: string; error: unknown }[] = [];
       for (const job of jobs) {
+        const key = beginStarting({ prompt: numbered ? numberedPrompt(typed, job) : typed, retryPrompt: base, repoIds: form.repoIds, role: roleName, shown: revealed });
+        cards.push(key);
+        reveal();
         try {
-          const request = startRequest({ ...draft(), prompt: numbered ? numberedPrompt(base, job) : base }, current(), wanted, "location" in job ? job.location : undefined);
+          const request = startRequest({ ...form, prompt: numbered ? numberedPrompt(base, job) : base }, lead, wanted, "location" in job ? job.location : undefined);
           // "share" off travels with the start: the host records the opt-out under the new run's id before the run can emit anything
-          started.push(await startRun(shareRun() ? request : { ...request, share: false }, Object.keys(flags).length ? flags : undefined));
+          started.push(await startRun(share ? request : { ...request, share: false }, Object.keys(flags).length ? flags : undefined, key));
         } catch (e) {
           failures.push({ name: job.name, error: e });
+          failStarting(key, { code: (e as { code?: string } | null)?.code, message: startErrorText(e) });
         }
       }
       const lines = failureLines(failures);
       if (started.length === 0) {
+        if (revealed) {
+          // The dialog is gone: the cards carry the reasons, and each one offers to edit and retry.
+          toast.error(t("runs.where.someFailed", { count: failures.length }), lines.join("\n"));
+          return;
+        }
         // Nothing started: the dialog stays, with the reason (a single run shows the host's text as before).
         setNoNet((failures[0].error as { code?: string } | null)?.code === "noSafetyNet");
         setError(jobs.length === 1 ? startErrorText(failures[0].error) : lines.join(" "));
         return;
       }
       const run = started[0];
-      if (started.length > 1) void selectAgent(run.agentId);
+      if (!revealed && started.length > 1) void selectAgent(run.agentId);
       if (failures.length > 0) toast.error(t("runs.where.someFailed", { count: failures.length }), lines.join("\n"));
-      void ipc.settings.set("runs", { lastMode: permission() }).catch(() => {});
+      void ipc.settings.set("runs", { lastMode }).catch(() => {});
       if (wanted && run.provider !== wanted) toast.warn(t("runs.new.otherProvider", { actual: run.provider, wanted }), t("runs.new.otherProviderDesc"));
-      setPrompt("");
-      setNoNet(false);
-      setSkipNet(false);
-      setShareRun(true);
-      att.store.rotate();
-      setNewRunOpen(false);
-      setCentreView("run");
-      if (appMode() === "editor") openDockTab("agents");
+      if (!revealed) {
+        resetForm();
+        setNewRunOpen(false);
+        setCentreView("run");
+        if (appMode() === "editor") openDockTab("agents");
+      }
     } catch (e) {
-      setNoNet((e as { code?: string } | null)?.code === "noSafetyNet");
-      setError(startErrorText(e));
+      if (!revealed) {
+        setNoNet((e as { code?: string } | null)?.code === "noSafetyNet");
+        setError(startErrorText(e));
+      }
     } finally {
-      setBusy(false);
+      clearTimeout(timer);
+      if (!revealed) setBusy(false);
     }
   };
 

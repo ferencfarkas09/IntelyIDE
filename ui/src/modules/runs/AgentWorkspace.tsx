@@ -1,9 +1,11 @@
 import { createEffect, lazy, Match, on, Switch } from "solid-js";
 import { RunView } from "../../components/chat/ChatPanel";
+import { StartingRunView } from "../../components/chat/Starting";
 import { t } from "../../i18n";
 import { execute } from "../../platform/commands";
 import { agentTabInstance, showTabInAgent } from "../../platform/mode";
 import { agentAnnouncement, agentRow, selectedAgentId } from "../../store/agents";
+import { startingInFront, startingRun } from "../../store/starting";
 import { Bot, Button, EmptyState, Plus, Splitter } from "../../ui-kit";
 import { InspectorSlot } from "./InspectorSlot";
 import { NeedsYouInbox } from "./NeedsYouInbox";
@@ -29,6 +31,13 @@ function Centre() {
         <Match when={agentTabInstance()}>{(tab) => <AgentTabView tab={tab()} />}</Match>
         <Match when={centreView() === "inbox"}>
           <NeedsYouInbox />
+        </Match>
+        <Match when={startingRun(startingInFront())}>
+          {(run) => (
+            <div class="chat agent-centre__run">
+              <StartingRunView run={run()} />
+            </div>
+          )}
         </Match>
         <Match when={selectedAgentId()}>
           {(id) => (

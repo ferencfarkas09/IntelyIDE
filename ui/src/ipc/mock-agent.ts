@@ -733,6 +733,12 @@ export function createMockAgents(scenarioName: string, scale: number): AgentApi 
       return autoInfo(mode);
     },
     agentStart: async (req, opts) => {
+      // Browser dry run: `?startDelay=6000` makes the host slow to answer (the starting card shows), and `&startFail=noSafetyNet` makes it refuse after that.
+      const query = new URLSearchParams(globalThis.location?.search);
+      const lag = Number(query.get("startDelay")) || 0;
+      if (lag > 0) await new Promise<void>((r) => setTimeout(r, lag));
+      const refusal = query.get("startFail");
+      if (refusal) throw { code: refusal, message: refusal === "noSafetyNet" ? "no Rewind snapshot could be taken for admin (a merge is in progress); the run would have no way back" : `the host refused the start (${refusal})` };
       const foreign = (req as StartRequest).provider ?? roleOf(req.role).provider;
       // A run on another provider plays ACP behaviour even in a plain scenario; the `acp-...` scenarios pick which.
       const script: ScriptKey = req.role === "auto" ? "agent-delegation" : req.role === "reviewer" && req.prompt.includes('"findings"') ? "agent-review" : foreign !== "claude" ? (isAcp(scenario) ? scenario : "acp-research") : isAcp(scenario) ? "agent-normal" : scenario;
