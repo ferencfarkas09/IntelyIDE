@@ -22,7 +22,7 @@
 .runs__more, .runs__closed { align-self: stretch; margin: 2px var(--space-1) 0; padding: 4px 10px; border: 0; border-radius: var(--radius-2); background: none; color: var(--text-3); font: inherit; font-size: var(--text-xs); text-align: left; cursor: pointer; }
 .runs__more:hover, .runs__closed:hover { background: var(--surface-hover); color: var(--text-1); }
 .runs__closed { margin-top: var(--space-1); box-shadow: inset 0 0 0 1px var(--border-subtle); text-align: center; }
-.runs__closed[aria-pressed="true"] { background: var(--accent-subtle); color: var(--accent-text); box-shadow: inset 0 0 0 1px var(--accent-border); }
+.runs__closed[data-on] { background: var(--accent-subtle); color: var(--accent-text); box-shadow: inset 0 0 0 1px var(--accent-border); }
 .runs__row .ui-tree-row__trailing { flex: none; }
 .runs__row .ui-tree-row__main { flex: 1 1 0; min-width: 0; }
 .runs__meta { flex: none; color: var(--text-3); font-size: var(--text-xs); white-space: nowrap; }

@@ -14,6 +14,8 @@ import { closedCount, filterChoices, groupSessions, isClosed, NO_FILTER, preview
 import { centreView, sessionFilter, setCentreView, setSessionFilter } from "./state";
 import { inboxCount } from "./inbox";
 
+const sameIds = (a: readonly string[], b: readonly string[]): boolean => a.length === b.length && a.every((id, i) => id === b[i]);
+
 /** The groups of runs that have stopped: compact rows, collapsible, closable. The live groups keep their full cards. */
 const finishedGroup = (id: SessionGroup) => id === "review" || id === "done";
 
@@ -33,6 +35,7 @@ export function SessionsSidebar() {
     put(next);
   };
   const groups = createMemo(() => groupSessions(scoped(), sessionFilter(), reviewedRuns(), Date.now(), { closed: closedRuns(), showClosed: showClosed() }));
+  const groupIds = createMemo(() => groups().map((g) => g.id), [], { equals: sameIds });
   const closedN = createMemo(() => closedCount(scoped(), sessionFilter(), closedRuns()));
   const filtered = () => sessionFilter().role !== "" || sessionFilter().repoId !== "";
   /** Closes every finished run of a group that is still open, and offers to take it back. */
@@ -94,11 +97,18 @@ export function SessionsSidebar() {
             icon={Bot}
             size="sm"
             title={filtered() ? t("runs.sessions.noMatch") : closedN() > 0 ? t("runs.closed.allTitle") : t("runs.sessions.none")}
-            description={filtered() ? t("runs.sessions.noMatchDesc") : closedN() > 0 ? t("runs.closed.allDesc", { count: closedN() }) : t("runs.sessions.noneDesc")}
+            description={filtered() ? (closedN() > 0 ? t("runs.closed.noMatchDesc") : t("runs.sessions.noMatchDesc")) : closedN() > 0 ? t("runs.closed.allDesc", { count: closedN() }) : t("runs.sessions.noneDesc")}
             action={
-              <Button size="sm" variant="secondary" onClick={() => (filtered() ? setSessionFilter(NO_FILTER) : closedN() > 0 ? setShowClosed(true) : void execute("runs.new"))}>
-                {filtered() ? t("runs.clearFilters") : closedN() > 0 ? t("runs.closed.show", { count: closedN() }) : t("runs.newRun")}
-              </Button>
+              <div class="sessions__empty-actions">
+                <Button size="sm" variant="secondary" onClick={() => (filtered() ? setSessionFilter(NO_FILTER) : closedN() > 0 ? setShowClosed(true) : void execute("runs.new"))}>
+                  {filtered() ? t("runs.clearFilters") : closedN() > 0 ? t("runs.closed.show", { count: closedN() }) : t("runs.newRun")}
+                </Button>
+                <Show when={filtered() && closedN() > 0}>
+                  <Button size="sm" variant="ghost" onClick={() => setShowClosed(true)}>
+                    {t("runs.closed.show", { count: closedN() })}
+                  </Button>
+                </Show>
+              </div>
             }
           />
         }
@@ -118,67 +128,82 @@ export function SessionsSidebar() {
                 </For>
               </section>
             </Show>
-            <For each={groups()}>
-              {(g) => {
-                const finished = finishedGroup(g.id);
-                const isFolded = () => finished && folded().has(g.id);
-                const preview = createMemo(() => previewRows(g.rows, g.id, expanded().has(g.id)));
-                const openRows = () => g.rows.filter((r) => !isClosed(r, closedRuns()));
+            {/* Keyed by id, not by row object: every event of a working run builds new row objects, and a list keyed by them would drop the keyboard focus. */}
+            <For each={groupIds()}>
+              {(gid) => {
+                const group = createMemo(() => groups().find((g) => g.id === gid));
+                const finished = finishedGroup(gid);
+                const isFolded = () => finished && folded().has(gid);
+                const rows = () => group()?.rows ?? [];
+                const preview = createMemo(() => previewRows(rows(), gid, expanded().has(gid)));
+                const shownIds = createMemo(() => preview().shown.map((r) => r.agentId), [], { equals: sameIds });
+                const openRows = () => rows().filter((r) => !isClosed(r, closedRuns()));
                 return (
-                  <section class="sessions__group" aria-label={g.title}>
-                    <div class="sessions__group-head">
-                      <h3 class="sessions__group-title">
-                        <Show
-                          when={finished}
-                          fallback={
-                            <>
-                              {g.title}
-                              <Badge numeric size="sm" tone={g.id === "needsYou" ? "warn" : "neutral"}>
-                                {g.rows.length}
-                              </Badge>
-                            </>
-                          }
-                        >
-                          <button type="button" class="sessions__group-toggle" aria-expanded={!isFolded()} title={isFolded() ? t("runs.group.expand", { title: g.title }) : t("runs.group.collapse", { title: g.title })} onClick={() => toggle(folded, setFolded, g.id)}>
-                            <Icon icon={isFolded() ? ChevronRight : ChevronDown} size={12} />
-                            {g.title}
-                            <Badge numeric size="sm">
-                              {g.rows.length}
-                            </Badge>
-                          </button>
+                  <Show when={group()}>
+                    {(g) => (
+                      <section class="sessions__group" aria-label={g().title}>
+                        <div class="sessions__group-head">
+                          <h3 class="sessions__group-title">
+                            <Show
+                              when={finished}
+                              fallback={
+                                <>
+                                  {g().title}
+                                  <Badge numeric size="sm" tone={gid === "needsYou" ? "warn" : "neutral"}>
+                                    {g().rows.length}
+                                  </Badge>
+                                </>
+                              }
+                            >
+                              <button type="button" class="sessions__group-toggle" aria-expanded={!isFolded()} title={isFolded() ? t("runs.group.expand", { title: g().title }) : t("runs.group.collapse", { title: g().title })} onClick={() => toggle(folded, setFolded, gid)}>
+                                <Icon icon={isFolded() ? ChevronRight : ChevronDown} size={12} />
+                                {g().title}
+                                <Badge numeric size="sm">
+                                  {g().rows.length}
+                                </Badge>
+                              </button>
+                            </Show>
+                          </h3>
+                          <Show when={finished && openRows().length > 0}>
+                            <IconButton class="sessions__group-close" size="sm" icon={X} label={t("runs.closed.closeAll", { title: g().title })} tooltip={t("runs.closed.closeAllTip")} tooltipPlacement="left" onClick={() => closeGroup(openRows())} />
+                          </Show>
+                        </div>
+                        <Show when={!isFolded()}>
+                          <For each={shownIds()}>
+                            {(id) => {
+                              const row = createMemo(() => rows().find((r) => r.agentId === id));
+                              return (
+                                <Show when={row()}>
+                                  {(r) =>
+                                    finished ? (
+                                      <RunRow row={r()} view={agentView(id)} detail={gid === "review"} closed={isClosed(r(), closedRuns())} selected={centreView() === "run" && selectedAgentId() === id} onSelect={() => open(id)} onClose={() => closeRuns([id])} onReopen={() => reopenRuns([id])} />
+                                    ) : (
+                                      <RunCard row={r()} view={agentView(id)} selected={centreView() === "run" && selectedAgentId() === id} onSelect={() => open(id)} />
+                                    )
+                                  }
+                                </Show>
+                              );
+                            }}
+                          </For>
+                          <Show when={preview().hidden > 0}>
+                            <button type="button" class="sessions__more" onClick={() => toggle(expanded, setExpanded, gid)}>
+                              {t("runs.group.more", { count: preview().hidden })}
+                            </button>
+                          </Show>
+                          <Show when={finished && expanded().has(gid) && rows().length > previewRows(rows(), gid, false).shown.length}>
+                            <button type="button" class="sessions__more" onClick={() => toggle(expanded, setExpanded, gid)}>
+                              {t("runs.group.fewer")}
+                            </button>
+                          </Show>
                         </Show>
-                      </h3>
-                      <Show when={finished && openRows().length > 0}>
-                        <IconButton class="sessions__group-close" size="sm" icon={X} label={t("runs.closed.closeAll", { title: g.title })} tooltip={t("runs.closed.closeAllTip")} tooltipPlacement="left" onClick={() => closeGroup(openRows())} />
-                      </Show>
-                    </div>
-                    <Show when={!isFolded()}>
-                      <For each={preview().shown}>
-                        {(row) =>
-                          finished ? (
-                            <RunRow row={row} view={agentView(row.agentId)} detail={g.id === "review"} closed={isClosed(row, closedRuns())} selected={centreView() === "run" && selectedAgentId() === row.agentId} onSelect={() => open(row.agentId)} onClose={() => closeRuns([row.agentId])} onReopen={() => reopenRuns([row.agentId])} />
-                          ) : (
-                            <RunCard row={row} view={agentView(row.agentId)} selected={centreView() === "run" && selectedAgentId() === row.agentId} onSelect={() => open(row.agentId)} />
-                          )
-                        }
-                      </For>
-                      <Show when={preview().hidden > 0}>
-                        <button type="button" class="sessions__more" onClick={() => toggle(expanded, setExpanded, g.id)}>
-                          {t("runs.group.more", { count: preview().hidden })}
-                        </button>
-                      </Show>
-                      <Show when={finished && expanded().has(g.id) && g.rows.length > previewRows(g.rows, g.id, false).shown.length}>
-                        <button type="button" class="sessions__more" onClick={() => toggle(expanded, setExpanded, g.id)}>
-                          {t("runs.group.fewer")}
-                        </button>
-                      </Show>
-                    </Show>
-                  </section>
+                      </section>
+                    )}
+                  </Show>
                 );
               }}
             </For>
             <Show when={closedN() > 0 || showClosed()}>
-              <button type="button" class="sessions__closed" aria-pressed={showClosed()} onClick={() => setShowClosed(!showClosed())}>
+              <button type="button" class="sessions__closed" data-on={showClosed() ? "" : undefined} onClick={() => setShowClosed(!showClosed())}>
                 {showClosed() ? t("runs.closed.hide") : t("runs.closed.show", { count: closedN() })}
               </button>
             </Show>

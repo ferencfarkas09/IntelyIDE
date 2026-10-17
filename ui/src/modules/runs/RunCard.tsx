@@ -8,7 +8,8 @@ import type { AgentRow } from "../../store/agents";
 import { foreignReason, isForeign } from "../../store/agentScope";
 import { repoConfig } from "../../store/workspace";
 import { LocationChip } from "../servers/LocationChip";
-import { Badge, IconButton, Icon, MessagesSquare, RepoBadge, ShieldCheck, StatusDot, Undo2, X } from "../../ui-kit";
+import { announce, Badge, IconButton, Icon, MessagesSquare, RepoBadge, ShieldCheck, StatusDot, Undo2, X } from "../../ui-kit";
+import { focusNeighbour } from "./listFocus";
 import { roleColor } from "./roleColors";
 import { activityLine } from "./sessionsLogic";
 
@@ -86,15 +87,23 @@ export function RunRow(props: { row: AgentRow; view: AgentView | undefined; sele
   const role = () => (r().role === "auto" ? t("runs.role.auto") : r().role);
   const status = () => ({ tone: TONE[r().status], label: t(LABEL[r().status]) });
   const tip = () => `${r().title} · ${role()} · ${modelLabel(r().model)}${foreign() ? ` · ${foreignReason(r().repoIds)}` : ""}`;
+  let box!: HTMLDivElement;
+  // Closing takes the row out of the list: the focus moves on first, and a screen reader is told what happened.
+  const toggle = () => {
+    focusNeighbour(box, ".run-row", ".sessions__group-toggle");
+    announce(t(props.closed ? "runs.closed.reopened" : "runs.closed.one", { title: r().title }));
+    if (props.closed) props.onReopen();
+    else props.onClose();
+  };
   return (
-    <div class="run-row" data-selected={props.selected ? "" : undefined} data-status={r().status} data-closed={props.closed ? "" : undefined} data-detail={props.detail ? "" : undefined} data-foreign={foreign() ? "" : undefined}>
+    <div ref={box} class="run-row" data-selected={props.selected ? "" : undefined} data-status={r().status} data-closed={props.closed ? "" : undefined} data-detail={props.detail ? "" : undefined} data-foreign={foreign() ? "" : undefined}>
       <button
         type="button"
         class="run-row__main"
         aria-current={props.selected ? "true" : undefined}
         title={tip()}
         onClick={props.onSelect}
-        onKeyDown={(e) => (e.key === "Delete" || e.key === "Backspace") && !e.metaKey && !e.ctrlKey && !e.altKey && (e.preventDefault(), props.closed ? props.onReopen() : props.onClose())}
+        onKeyDown={(e) => (e.key === "Delete" || e.key === "Backspace") && !e.metaKey && !e.ctrlKey && !e.altKey && (e.preventDefault(), toggle())}
       >
         <span class="run-row__top">
           <StatusDot tone={status().tone} label={status().label} />
@@ -108,7 +117,7 @@ export function RunRow(props: { row: AgentRow; view: AgentView | undefined; sele
           <span class="run-row__foreign">{foreignReason(r().repoIds)}</span>
         </Show>
       </button>
-      <IconButton class="run-row__close" size="sm" icon={props.closed ? Undo2 : X} label={props.closed ? t("runs.closed.reopen") : t("runs.closed.close")} tooltipPlacement="left" onClick={() => (props.closed ? props.onReopen() : props.onClose())} />
+      <IconButton class="run-row__close" size="sm" icon={props.closed ? Undo2 : X} label={t(props.closed ? "runs.closed.reopenRun" : "runs.closed.closeRun", { title: r().title })} tooltip={t(props.closed ? "runs.closed.reopen" : "runs.closed.close")} tooltipPlacement="left" onClick={toggle} />
     </div>
   );
 }

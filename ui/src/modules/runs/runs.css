@@ -164,7 +164,7 @@
 .sessions__more, .sessions__closed { align-self: stretch; margin: 2px var(--space-1) 0; padding: 4px 10px; border: 0; border-radius: var(--radius-2); background: none; color: var(--text-3); font: inherit; font-size: var(--text-xs); text-align: left; cursor: pointer; }
 .sessions__more:hover, .sessions__closed:hover { background: var(--surface-hover); color: var(--text-1); }
 .sessions__closed { margin-top: var(--space-2); box-shadow: inset 0 0 0 1px var(--border-subtle); text-align: center; }
-.sessions__closed[aria-pressed="true"] { background: var(--accent-subtle); color: var(--accent-text); box-shadow: inset 0 0 0 1px var(--accent-border); }
+.sessions__closed[data-on] { background: var(--accent-subtle); color: var(--accent-text); box-shadow: inset 0 0 0 1px var(--accent-border); }
 
 .run-row { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; border: 1px solid transparent; border-radius: var(--radius-2); transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease); }
 .run-row:hover, .run-row:focus-within { background: var(--surface-hover); }
@@ -181,3 +181,4 @@
 .run-row__close { margin-right: 4px; opacity: 0; transition: opacity var(--dur-fast) var(--ease); }
 .run-row:hover .run-row__close, .run-row:focus-within .run-row__close, .run-row[data-selected] .run-row__close, .run-row__close:focus-visible { opacity: 1; }
 @media (hover: none) { .run-row__close, .sessions__group-close { opacity: 0.7; } }
+.sessions__empty-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-1); }
