@@ -186,6 +186,12 @@ SHOTS.about = async (c) => {
   await c.clickEl("button", "About IntelyIDE");
   await sleep(600);
 };
+SHOTS.integrations = async (c) => {
+  await openSettings(c, "Integrations");
+  await waitText(c, "DeepPattern");
+  await sleep(600);
+  await dismissToasts(c);
+};
 SHOTS.providers = async (c) => {
   await openSettings(c, "Providers");
   // Experimental providers switch on: the Codex, Gemini, Copilot, ... cards appear.

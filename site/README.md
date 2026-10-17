@@ -64,6 +64,8 @@ node site/scripts/capture-shots.mjs [names] [--theme light|dark] [--quick]   # n
 sh site/scripts/make-images.sh                                              # 1440/720 PNG + WebP (+ AVIF if avifenc is installed)
 ```
 
+The capture script drives Google Chrome over CDP and expects the macOS path. On another machine point `SHOTS_CHROME` at a Chrome or Chromium binary, and add `SHOTS_NO_SANDBOX=1` in a container that runs as root.
+
 Files are `<name>-<light|dark>-<2880|1440|720>.<png|webp|avif>`; the build picks them up automatically.
 Every shot is shown as light and dark in one picture: the dark capture is drawn over the light one and masked to the lower right of a
 45 degree line through the middle, with a thin violet strip on the line (`.duo` in `style.css`, `picture()` in `src/lib.mjs`). It is a
@@ -72,7 +74,7 @@ always shown, whatever theme the visitor chose; the light picture carries the al
 A slot that has only one theme is shown as a plain picture, so capture both (`--theme light` and `--theme dark`) for every name.
 A slot without real files falls back to a generated SVG placeholder (`node scripts/gen-placeholders.mjs`).
 Names: `hero`, `changes-tree`, `push-dialog`, `agent-approval`, `rewind`, `workspaces-welcome`, `preview`,
-`remote`, `mongo-studio`, `providers`, `api-contract`, `api-explorer`. All shots are English.
+`remote`, `mongo-studio`, `providers`, `integrations`, `api-contract`, `api-explorer`. All shots are English.
 The About dialog shot is not used: it still shows "your Happy tools" copy, a dev version and the old lockup subline.
 
 `assets/img/og.png` (1200x630, Open Graph and Twitter) and `social-preview.png` (1280x640, for the GitHub

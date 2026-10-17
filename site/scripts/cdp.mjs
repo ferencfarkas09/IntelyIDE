@@ -5,7 +5,8 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-export const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+// SHOTS_CHROME points at another Chrome or Chromium (a Linux box); SHOTS_NO_SANDBOX=1 adds --no-sandbox for a container that runs as root.
+export const CHROME = process.env.SHOTS_CHROME ?? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const freePort = () =>
@@ -23,7 +24,7 @@ export async function launchChrome({ width = 1440, height = 900, dsf = 2 } = {})
   const dir = mkdtempSync(join(tmpdir(), "intely-shots-"));
   const proc = spawn(
     CHROME,
-    ["--headless=new", `--remote-debugging-port=${port}`, `--user-data-dir=${dir}`, "--lang=en-US", `--force-device-scale-factor=${dsf}`, `--window-size=${width},${height}`, "--hide-scrollbars", "--no-first-run", "--no-default-browser-check", "--disable-extensions", "about:blank"],
+    ["--headless=new", `--remote-debugging-port=${port}`, `--user-data-dir=${dir}`, "--lang=en-US", `--force-device-scale-factor=${dsf}`, `--window-size=${width},${height}`, "--hide-scrollbars", "--no-first-run", "--no-default-browser-check", "--disable-extensions", ...(process.env.SHOTS_NO_SANDBOX ? ["--no-sandbox"] : []), "about:blank"],
     { stdio: "ignore" },
   );
   let targets;
