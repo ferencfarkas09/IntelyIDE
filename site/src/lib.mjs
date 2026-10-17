@@ -100,49 +100,50 @@ export function relUrl(from, to) {
 const has = (file) => existsSync(join(IMG, file));
 
 /**
- * <picture> for a themed image. Real files named <name>-<theme>-<width>.<fmt> in img/shots win;
- * otherwise the SVG placeholder is used. The dark <source> carries data-theme="dark" so site.js
- * can follow the manual theme toggle (see applyTheme there). Light and dark are never shown together:
- * the dark source only matches in a dark scheme, otherwise the light <img> is the fallback.
+ * A screenshot as light and dark side by side: both themes are drawn on top of each other and the dark one is masked to the lower right of a
+ * 45 degree line through the middle, with a strip along the line (see .duo in style.css). Real files named <name>-<theme>-<width>.<fmt> in
+ * img/shots win; otherwise the SVG placeholders are used. The visitor's own theme does not matter here: both are always shown, so there are no
+ * media-dependent <source>s and site.js has nothing to switch. The light picture carries the alt text; the dark one repeats it, so it is hidden
+ * from assistive technology. A slot with only one theme is shown as a plain picture.
  * Slots named opti-* use the IntelyOpti widths and aspect ratio; any subset of widths is fine.
  */
 export function picture(root, name, alt, { eager = false, sizes = '(min-width: 1000px) 640px, 92vw' } = {}) {
   const opti = name.startsWith('opti-');
   const [w, h] = opti ? OPTI_DIMS : (DIMS[name] ?? DEFAULT_DIMS);
   const widths = opti ? OPTI_WIDTHS : WIDTHS;
-  const dark = '(prefers-color-scheme: dark)';
   const real = (theme, fmt) => widths.filter((x) => has(`shots/${name}-${theme}-${x}.${fmt}`));
-  const hasReal = real('light', 'png').length > 0;
   const loading = eager ? 'fetchpriority="high"' : 'loading="lazy" decoding="async"';
-  if (!hasReal) {
-    const src = (theme) => `${root}assets/img/placeholders/${name}-${theme}.svg`;
-    return `<picture><source media="${dark}" data-theme="dark" srcset="${src('dark')}" type="image/svg+xml"><img src="${src('light')}" alt="${esc(alt)}" width="${w}" height="${h}" ${loading}></picture>`;
-  }
-  const srcset = (theme, fmt) =>
-    real(theme, fmt).map((x) => `${root}assets/img/shots/${name}-${theme}-${x}.${fmt} ${x}w`).join(', ');
   const types = { avif: 'image/avif', webp: 'image/webp', png: 'image/png' };
-  const sources = (theme) =>
-    ['avif', 'webp', 'png']
+  const half = (theme) => {
+    const cls = `duo-${theme}`;
+    const hidden = theme === 'dark' ? ' aria-hidden="true"' : '';
+    const text = theme === 'dark' ? '' : esc(alt);
+    if (real(theme, 'png').length === 0) {
+      const src = `${root}assets/img/placeholders/${name}-${theme}.svg`;
+      return `<picture class="${cls}"${hidden}><img src="${src}" alt="${text}" width="${w}" height="${h}" ${loading}></picture>`;
+    }
+    const srcset = (fmt) => real(theme, fmt).map((x) => `${root}assets/img/shots/${name}-${theme}-${x}.${fmt} ${x}w`).join(', ');
+    const sources = ['avif', 'webp', 'png']
       .filter((fmt) => real(theme, fmt).length)
-      .map((fmt) => {
-        const media = theme === 'dark' ? ` media="${dark}" data-theme="dark"` : '';
-        return `<source${media} type="${types[fmt]}" srcset="${srcset(theme, fmt)}" sizes="${sizes}">`;
-      })
+      .map((fmt) => `<source type="${types[fmt]}" srcset="${srcset(fmt)}" sizes="${sizes}">`)
       .join('');
-  const lightWidths = real('light', 'png');
-  const fallback = `${root}assets/img/shots/${name}-light-${lightWidths[lightWidths.length - 1]}.png`;
-  return `<picture>${sources('dark')}${sources('light')}<img src="${fallback}" srcset="${srcset('light', 'png')}" sizes="${sizes}" alt="${esc(alt)}" width="${w}" height="${h}" ${loading}></picture>`;
+    const largest = real(theme, 'png');
+    const fallback = `${root}assets/img/shots/${name}-${theme}-${largest[largest.length - 1]}.png`;
+    return `<picture class="${cls}"${hidden}>${sources}<img src="${fallback}" srcset="${srcset('png')}" sizes="${sizes}" alt="${text}" width="${w}" height="${h}" ${loading}></picture>`;
+  };
+  const hasTheme = (theme) => real(theme, 'png').length > 0 || has(`placeholders/${name}-${theme}.svg`);
+  if (!hasTheme('dark')) return half('light');
+  return `<span class="duo">${half('light')}${half('dark')}</span>`;
 }
 
-/** Hero preload tags; one per colour scheme so only the matching image is fetched. */
+/** Hero preload tags: both themes, since the hero is shown as a split of the two. */
 export function preloadHero(root) {
   return ['light', 'dark']
     .map((theme) => {
       const real = WIDTHS.filter((x) => has(`shots/hero-${theme}-${x}.webp`));
-      const media = `(prefers-color-scheme: ${theme})`;
-      if (!real.length) return `<link rel="preload" as="image" href="${root}assets/img/placeholders/hero-${theme}.svg" media="${media}">`;
+      if (!real.length) return `<link rel="preload" as="image" href="${root}assets/img/placeholders/hero-${theme}.svg">`;
       const best = real[real.length - 1];
-      return `<link rel="preload" as="image" type="image/webp" href="${root}assets/img/shots/hero-${theme}-${best}.webp" imagesrcset="${real.map((x) => `${root}assets/img/shots/hero-${theme}-${x}.webp ${x}w`).join(', ')}" imagesizes="(min-width: 1000px) 1040px, 92vw" media="${media}">`;
+      return `<link rel="preload" as="image" type="image/webp" href="${root}assets/img/shots/hero-${theme}-${best}.webp" imagesrcset="${real.map((x) => `${root}assets/img/shots/hero-${theme}-${x}.webp ${x}w`).join(', ')}" imagesizes="(min-width: 1000px) 1040px, 92vw">`;
     })
     .join('\n');
 }
@@ -217,6 +218,7 @@ const ICON_PATHS = {
   power: '<path d="M18.4 6.6a9 9 0 1 1-12.8 0"/><path d="M12 2v10"/>',
   mail: '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/>',
   check: '<path d="m5 12 5 5L20 7"/>',
+  plug: '<path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8z"/>',
   heart: '<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21.2l7.8-7.7 1-1.1a5.5 5.5 0 0 0 0-7.8z"/>',
 };
 /** Decorative stroke icon by name (see ICON_PATHS). */

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activityLine, filterChoices, groupOf, groupSessions, matchesFilter, nextNeedsYou, NO_FILTER, REVIEW_WINDOW_MS } from "./sessionsLogic";
+import { activityLine, closedCount, filterChoices, FINISHED_PREVIEW, groupOf, groupSessions, isClosed, matchesFilter, nextNeedsYou, NO_FILTER, previewRows, REVIEW_WINDOW_MS } from "./sessionsLogic";
 import { PERMISSION, row, viewOf } from "./testing";
 
 const NOW = 10_000_000;
@@ -40,6 +40,54 @@ describe("groupSessions", () => {
 
   it("lists the roles and repos that occur", () => {
     expect(filterChoices(rows)).toEqual({ roles: ["developer", "reviewer"], repoIds: ["admin", "backend"] });
+  });
+});
+
+describe("closed runs", () => {
+  const rows = [
+    row({ agentId: "d1", status: "done", startedAt: NOW - 5000 }),
+    row({ agentId: "d2", status: "error", startedAt: NOW - 4000 }),
+    row({ agentId: "r1", status: "running", startedAt: NOW - 3000 }),
+    row({ agentId: "n1", status: "needsYou", startedAt: NOW - 2000 }),
+  ];
+  const ids = (groups: ReturnType<typeof groupSessions>) => groups.flatMap((g) => g.rows.map((r) => r.agentId)).sort();
+
+  it("leaves a closed finished run out of the list, and brings it back with showClosed", () => {
+    const closed = new Set(["d1"]);
+    expect(ids(groupSessions(rows, NO_FILTER, new Set(), NOW, { closed }))).toEqual(["d2", "n1", "r1"]);
+    expect(ids(groupSessions(rows, NO_FILTER, new Set(), NOW, { closed, showClosed: true }))).toEqual(["d1", "d2", "n1", "r1"]);
+  });
+
+  it("never hides a run that is working or waiting, whatever the closed set says", () => {
+    const closed = new Set(["r1", "n1", "d2"]);
+    expect(isClosed(rows[2], closed)).toBe(false);
+    expect(isClosed(rows[3], closed)).toBe(false);
+    expect(ids(groupSessions(rows, NO_FILTER, new Set(), NOW, { closed }))).toEqual(["d1", "n1", "r1"]);
+  });
+
+  it("counts the closed runs the filters would show again", () => {
+    const closed = new Set(["d1", "d2", "r1"]);
+    expect(closedCount(rows, NO_FILTER, closed)).toBe(2);
+    expect(closedCount(rows, { role: "nobody", repoId: "" }, closed)).toBe(0);
+  });
+});
+
+describe("previewRows", () => {
+  const many = (n: number) => Array.from({ length: n }, (_, i) => i);
+
+  it("shows the newest few of a finished group and says how many are hidden", () => {
+    expect(previewRows(many(12), "done", false)).toEqual({ shown: many(FINISHED_PREVIEW), hidden: 12 - FINISHED_PREVIEW });
+    expect(previewRows(many(12), "review", false).hidden).toBe(12 - FINISHED_PREVIEW);
+  });
+
+  it("shows everything once expanded, and for a live group", () => {
+    expect(previewRows(many(12), "done", true)).toEqual({ shown: many(12), hidden: 0 });
+    expect(previewRows(many(12), "running", false)).toEqual({ shown: many(12), hidden: 0 });
+  });
+
+  it("does not hide a single run behind a 'show 1 more' button", () => {
+    expect(previewRows(many(FINISHED_PREVIEW + 1), "done", false)).toEqual({ shown: many(FINISHED_PREVIEW + 1), hidden: 0 });
+    expect(previewRows(many(FINISHED_PREVIEW + 2), "done", false).hidden).toBe(2);
   });
 });
 

@@ -41,6 +41,23 @@ function merge(summary: AgentSummary, view: AgentView | undefined): AgentRow {
 }
 
 export const agentRows = (): AgentRow[] => summaries().map((s) => merge(s, views()[s.agentId]));
+/** The ids of every run the host knows. */
+export const agentIds = (): ReadonlySet<string> => new Set(summaries().map((s) => s.agentId));
+/** Which of `ids` are working or waiting for the person now. Looks at those runs only, without merging the live view of every run. */
+export function liveAmong(ids: ReadonlySet<string>): string[] {
+  if (ids.size === 0) return [];
+  const byId = new Map(summaries().map((s) => [s.agentId, s]));
+  const all = views();
+  const live: string[] = [];
+  for (const id of ids) {
+    const summary = byId.get(id);
+    if (!summary) continue;
+    const view = all[id];
+    const status = view && view.lastSeq > 0 ? runStatus(view) : summary.status;
+    if (status === "running" || status === "needsYou") live.push(id);
+  }
+  return live;
+}
 export const agentRow = (id: string | null): AgentRow | undefined => (id ? agentRows().find((r) => r.agentId === id) : undefined);
 export const agentView = (id: string): AgentView | undefined => views()[id];
 export const agentRoles = roleList;

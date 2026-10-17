@@ -8,13 +8,24 @@ import { PlanApprovalCard } from "./PlanApprovalCard";
 import { Markdown } from "./Markdown";
 import { ToolCard } from "./Tools";
 import { NoteRow, noteFailure } from "./Notes";
+import { AgentAvatar, CopyButton, MessageMeta, clock } from "./Bubbles";
 import { SharedPermission, SharedQuestion } from "./ReadOnlyCards";
 import { MessageAttachments } from "../../modules/attachments/Chips";
 import { t } from "../../i18n";
 
 const STICK_PX = 64;
 
-function RowView(props: { agentId: string; row: TranscriptRow; lastErrorKey: string | undefined; lastTurnKey: string | undefined; canRetry: boolean; retryText: string | undefined; readOnly?: boolean; who?: string }) {
+/** Which side of the conversation a row is on: the person's bubbles on the right, everything the agent does on the left, markers between. */
+type Side = "user" | "agent" | "aside";
+const sideOf = (item: TranscriptItem | undefined): Side => (item?.type === "user" ? "user" : !item || item.type === "note" || item.type === "turn" ? "aside" : "agent");
+
+/** Who the agent side speaks as: the run's provider and role (a teammate's shared run has neither, and gets a neutral mark). */
+interface Speaker {
+  provider?: string;
+  role?: string;
+}
+
+function RowView(props: { agentId: string; row: TranscriptRow; prev?: TranscriptRow; speaker: Speaker; lastErrorKey: string | undefined; lastTurnKey: string | undefined; canRetry: boolean; retryText: string | undefined; readOnly?: boolean; who?: string }) {
   // A note can be added while the run works and its provider takes notes (the capability of the session beats the static one of the run).
   const canNote = () => {
     const view = agentView(props.agentId);
@@ -38,25 +49,42 @@ function RowView(props: { agentId: string; row: TranscriptRow; lastErrorKey: str
     const item = props.row.item;
     return item.type === type ? (item as Extract<TranscriptItem, { type: K }>) : undefined;
   };
-  return (
+  /** The first row of a run of agent rows carries the avatar, the name and the time. */
+  const lead = () => sideOf(props.prev?.item) !== "agent";
+  const body = () => (
     <Switch>
       <Match when={of("user")}>
         {(u) => (
-          <div class="msg msg--user">
-            <div class="msg__who">{props.who ?? t("chat.you")}</div>
-            <Show when={u().text}>
-              <div class="msg__text ui-selectable">{u().text}</div>
-            </Show>
-            <Show when={u().attachments?.length}>
-              <MessageAttachments items={u().attachments!} />
-            </Show>
+          <div class="msg msg--user" data-self={props.who ? undefined : ""}>
+            <div class="msg__meta" data-align="end">
+              <span class="msg__who msg__name">{props.who ?? t("chat.you")}</span>
+              <Show when={clock(u().ts)}>
+                <time class="msg__time ui-tnum">{clock(u().ts)}</time>
+              </Show>
+            </div>
+            <div class="msg__bubble">
+              <Show when={u().text}>
+                <div class="msg__text ui-selectable">{u().text}</div>
+              </Show>
+              <Show when={u().attachments?.length}>
+                <MessageAttachments items={u().attachments!} />
+              </Show>
+              <Show when={u().text}>
+                <CopyButton text={() => u().text} />
+              </Show>
+            </div>
           </div>
         )}
       </Match>
       <Match when={of("text")}>
         {(m) => (
           <div class="msg msg--agent" data-streaming={m().done ? undefined : ""}>
-            <Markdown text={m().text} />
+            <div class="msg__bubble">
+              <Markdown text={m().text} />
+              <Show when={m().done && m().text.trim() !== ""}>
+                <CopyButton text={() => m().text} />
+              </Show>
+            </div>
           </div>
         )}
       </Match>
@@ -94,6 +122,23 @@ function RowView(props: { agentId: string; row: TranscriptRow; lastErrorKey: str
       </Match>
       <Match when={of("turn")}>{(turn) => <TurnMarker item={turn()} canContinue={props.canRetry && props.lastTurnKey === turn().key} onContinue={() => void sendMessage(props.agentId, CONTINUE_TEXT).catch(() => {})} />}</Match>
     </Switch>
+  );
+  return (
+    <Show when={sideOf(props.row.item) === "agent"} fallback={body()}>
+      <div class="msg-row" data-lead={lead() ? "" : undefined}>
+        <div class="msg-row__avatar">
+          <Show when={lead()}>
+            <AgentAvatar provider={props.speaker.provider} role={props.speaker.role} />
+          </Show>
+        </div>
+        <div class="msg-row__main">
+          <Show when={lead()}>
+            <MessageMeta name={props.speaker.role === "auto" ? t("runs.role.auto") : props.speaker.role} time={props.row.item.ts} />
+          </Show>
+          {body()}
+        </div>
+      </div>
+    </Show>
   );
 }
 
@@ -203,6 +248,23 @@ export function Transcript(props: { agentId: string; view: AgentView; readOnly?:
   });
   const lastRowKey = createMemo(() => rows().at(-1)?.key);
   const idle = () => !props.view.turnActive;
+  // (a memo: rows ask for it while they render, and looking a run up merges the live view of every run)
+  const speaker = createMemo<Speaker>(
+    () => {
+      const row = agentRow(props.agentId);
+      return { provider: row?.provider, role: row?.role };
+    },
+    { provider: undefined, role: undefined },
+    { equals: (a, b) => a.provider === b.provider && a.role === b.role },
+  );
+  // Below the list: the agent is at work and nothing is streaming into a message right now (a streaming message has its own caret).
+  const last = () => rows().at(-1)?.item;
+  const streaming = () => {
+    const item = last();
+    return item?.type === "text" && !item.done;
+  };
+  const working = () => props.view.turnActive && rows().length > 0 && !streaming();
+  const workingText = () => (needsYou() ? t("runs.activity.waiting") : props.view.state === "thinking" ? t("runs.activity.thinking") : t("runs.activity.working"));
 
   return (
     <div class="transcript" data-testid="transcript">
@@ -216,7 +278,9 @@ export function Transcript(props: { agentId: string; view: AgentView; readOnly?:
                   <Show when={rows()[index()]}>
                     {(row) => (
                       <div class="transcript__row" data-index={index()} ref={(el) => queueMicrotask(() => virt.measureElement(el))} style={{ transform: `translateY(${startOf(index())}px)` }}>
-                        <RowView agentId={props.agentId} row={row()} lastErrorKey={lastError()} lastTurnKey={lastRowKey()} canRetry={idle() && !props.readOnly} retryText={retryText()} readOnly={props.readOnly} who={props.who} />
+                        <div class="transcript__col">
+                          <RowView agentId={props.agentId} row={row()} prev={rows()[index() - 1]} speaker={speaker()} lastErrorKey={lastError()} lastTurnKey={lastRowKey()} canRetry={idle() && !props.readOnly} retryText={retryText()} readOnly={props.readOnly} who={props.who} />
+                        </div>
                       </div>
                     )}
                   </Show>
@@ -225,6 +289,22 @@ export function Transcript(props: { agentId: string; view: AgentView; readOnly?:
             </For>
           </div>
         </ScrollArea>
+      </Show>
+      <Show when={working()}>
+        <div class="transcript__typing" aria-hidden="true" data-waiting={needsYou() ? "" : undefined}>
+          <div class="transcript__col">
+            <span class="typing">
+              <Show when={!needsYou()}>
+                <span class="typing__dots">
+                  <i />
+                  <i />
+                  <i />
+                </span>
+              </Show>
+              <span class="typing__text">{workingText()}</span>
+            </span>
+          </div>
+        </div>
       </Show>
       <Show when={!stick() && rows().length > 0}>
         <div class="transcript__jump" data-tone={needsYou() ? "warn" : undefined}>

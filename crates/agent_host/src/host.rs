@@ -31,7 +31,7 @@ use intely_agent_core::providers::{supported_modes, switchable_modes, AuthMode, 
 use intely_agent_core::sidecar::{AcpLaunch, AuthHandoff, McpStatusReply, McpToggle, ResumeRef, SessionEnv, SessionStart, POLICY_REPLY_TIMEOUT_MS};
 use intely_agent_gate::gate::cancel::{self, CancelSink, CancelTracker};
 use intely_agent_gate::gate::reaper::{Reaper, ReaperConfig};
-use intely_agent_gate::rewind::Rewind;
+use intely_agent_gate::rewind::{Rewind, RewindError};
 use intely_agent_gate::{shim, AcquireReq, AdmissionKind, Gate, OrphanRegistry, ReclaimReason, Reclaimed};
 use intely_core::jail::Jail;
 use intely_core::EngineError;
@@ -123,6 +123,9 @@ struct Inner {
 
 /// Error code of a run that was refused because Rewind could not snapshot a repo.
 pub const NO_SAFETY_NET: &str = "noSafetyNet";
+
+/// How many repositories of one run are snapshotted at the same time.
+const SNAPSHOT_PARALLEL: usize = 4;
 
 /// Name of the role a Test run uses; never a user role.
 pub const PROBE_ROLE: &str = "probe";
@@ -672,21 +675,39 @@ impl AgentHost {
         // every repo. A repo that cannot be snapshotted (merge in progress, no commits, no git) refuses the run unless the
         // user ticked "run without safety net" for this run; then the run starts and Rewind has nothing for that repo.
         // (A run on a server works in the server's own copy: Rewind snapshots of the local repo would restore the wrong tree.)
-        for repo in &meta.repos.clone() {
-            if meta.remote.is_some() {
+        let local: &[RepoRef] = if meta.remote.is_some() { &[] } else { &meta.repos };
+        // The repositories are snapshotted a few at a time (each one is git work on its own repository), the answers are read in the order of
+        // the repositories, so the first refusal is the same as when they went one after the other.
+        let mut taken = Vec::with_capacity(local.len());
+        for batch in local.chunks(SNAPSHOT_PARALLEL) {
+            let answers: Vec<_> = std::thread::scope(|scope| {
+                let jobs: Vec<_> = batch.iter().map(|repo| scope.spawn(|| inner.rewind.snapshot(&repo.path, &agent_id))).collect();
+                jobs.into_iter().map(|job| job.join().unwrap_or_else(|_| Err(RewindError::Io(std::io::Error::other("the snapshot task panicked"))))).collect()
+            });
+            let refused = answers.iter().any(Result::is_err);
+            taken.extend(batch.iter().zip(answers));
+            // a run that will be refused does not snapshot the repositories that come after the one that cannot be (as when they went one by one)
+            if refused && !opts.run_without_safety_net {
                 break;
             }
-            match inner.rewind.snapshot(&repo.path, &agent_id) {
-                Ok(info) => meta.snapshots.push(SnapshotRef { repo_id: repo.id.clone(), path: repo.path.clone(), ref_name: info.ref_name, skipped: info.skipped.len() }),
+        }
+        let mut snapshots = Vec::new();
+        let mut refused = None;
+        for (repo, answer) in taken {
+            match answer {
+                Ok(info) => snapshots.push(SnapshotRef { repo_id: repo.id.clone(), path: repo.path.clone(), ref_name: info.ref_name, skipped: info.skipped.len() }),
                 Err(e) if opts.run_without_safety_net => eprintln!("agent host: no Rewind snapshot for {} (run without safety net): {e}", repo.id),
-                Err(e) => {
-                    for s in &meta.snapshots {
-                        let _ = inner.rewind.delete(&s.path, &agent_id);
-                    }
-                    return Err(err(NO_SAFETY_NET, format!("no Rewind snapshot could be taken for {} ({e}); the run would have no way back. Start it with \"run without safety net\" only if you accept that", repo.id)));
-                }
+                Err(e) if refused.is_none() => refused = Some((repo.id.clone(), e)),
+                Err(_) => {}
             }
         }
+        if let Some((repo_id, e)) = refused {
+            for s in &snapshots {
+                let _ = inner.rewind.delete(&s.path, &agent_id);
+            }
+            return Err(err(NO_SAFETY_NET, format!("no Rewind snapshot could be taken for {repo_id} ({e}); the run would have no way back. Start it with \"run without safety net\" only if you accept that")));
+        }
+        meta.snapshots.extend(snapshots);
         let (ctx, remote_fs) = inner.context_for_run(&meta, role_deny.to_vec());
         let resume = meta.native_id.clone();
         {

@@ -103,4 +103,51 @@ describe("mock happy", () => {
     const view = await createMockHappy({ preset: "connected" }).meet.list();
     expect(view.meetings.map((m) => m.status)).toEqual(["live", "scheduled", "scheduled"]);
   });
+
+  describe("notification categories", () => {
+    const connect = async () => {
+      const happy = createMockHappy({ preset: "connected" });
+      return happy;
+    };
+
+    it("folds the names of orders, delivery and invoices and leaves the rest as they are", async () => {
+      const { categoryOf } = await import("./happyNt");
+      expect(["order", "Orders", "orderCreated", "shipping", "deliveryDelayed", "billing", "invoice", "chat", "task"].map((k) => categoryOf(k, undefined))).toEqual(["order", "order", "order", "delivery", "delivery", "invoice", "invoice", "chat", "task"]);
+      expect(categoryOf(undefined, "order.created")).toBe("order");
+      expect(categoryOf("", "chat.message.mention")).toBe("chat");
+      expect([undefined, "", "two words", "a/b"].map((k) => categoryOf(k, undefined))).toEqual(["other", "other", "other", "other"]);
+    });
+
+    it("sets one category at a time: quiet is listed and not counted, off is hidden, alert is the default and is not stored", async () => {
+      const happy = await connect();
+      const seen = vi.fn();
+      happy.notifications.onChange(seen);
+      const before = await happy.notifications.current();
+      expect(before.items.map((i) => i.category)).toEqual(expect.arrayContaining(["mention", "task", "deploy", "chat"]));
+      await happy.setConfig({ notificationKind: { kind: "Task", mode: "quiet" } });
+      const quiet = await happy.notifications.current();
+      expect(quiet.items.find((i) => i.id === "n_2")?.quiet).toBe(true);
+      expect(quiet.unread).toBe(before.unread - 1);
+      expect(seen).toHaveBeenCalledTimes(1);
+      expect(seen.mock.calls[0][0].unread).toBe(before.unread - 1);
+      await happy.setConfig({ notificationKind: { kind: "chat", mode: "off" } });
+      const off = await happy.notifications.current();
+      expect(off.items.some((i) => i.category === "chat")).toBe(false);
+      expect(off.unread).toBe(before.unread - 1 - before.items.filter((i) => i.category === "chat" && !i.read).length);
+      expect((await happy.status()).config.notificationKinds).toEqual({ task: "quiet", chat: "off" });
+      await happy.setConfig({ notificationKind: { kind: "task", mode: "alert" } });
+      await happy.setConfig({ notificationKind: { kind: "chat", mode: "alert" } });
+      expect((await happy.status()).config.notificationKinds).toEqual({});
+      expect(await happy.notifications.current()).toEqual(before);
+    });
+
+    it("refuses a bad category and a sixty-fifth one, like the hub", async () => {
+      const happy = await connect();
+      await expect(happy.setConfig({ notificationKind: { kind: "two words", mode: "off" } })).rejects.toMatchObject({ code: "badCategory" });
+      for (let i = 0; i < 64; i++) await happy.setConfig({ notificationKind: { kind: `k${i}`, mode: "off" } });
+      await expect(happy.setConfig({ notificationKind: { kind: "one-too-many", mode: "off" } })).rejects.toMatchObject({ code: "tooManyCategories" });
+      await happy.setConfig({ notificationKind: { kind: "k0", mode: "quiet" } });
+      expect(Object.keys((await happy.status()).config.notificationKinds ?? {})).toHaveLength(64);
+    });
+  });
 });

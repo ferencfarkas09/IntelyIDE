@@ -233,6 +233,109 @@ fn a_run_without_a_rewind_snapshot_is_refused_unless_the_user_opts_out_for_that_
 }
 
 #[test]
+fn a_refusal_among_many_repositories_names_the_first_one_and_leaves_nothing_behind() {
+    use intely_agent_host::{RepoRef, NO_SAFETY_NET};
+    let dir = tempfile::tempdir().unwrap();
+    // six repositories (more than one batch of snapshots); the third and the sixth are plain folders that cannot be snapshotted
+    let mut repos = Vec::new();
+    for i in 0..6 {
+        let path = dir.path().join(format!("repo{i}"));
+        std::fs::create_dir_all(&path).unwrap();
+        if i != 2 && i != 5 {
+            git(&path, &["init", "-q", "-b", "main"]);
+            std::fs::write(path.join("a.txt"), format!("repo {i}\n")).unwrap();
+            git(&path, &["add", "a.txt"]);
+            git(&path, &["commit", "-q", "-m", "init"]);
+            std::fs::write(path.join("untracked.txt"), format!("not committed {i}\n")).unwrap(); // a snapshot would store a blob for it
+        }
+        repos.push(RepoRef { id: format!("repo{i}"), path: path.canonicalize().unwrap() });
+    }
+    // (the run never gets as far as the sidecar: Rewind refuses first)
+    let (host, _sink) = host_with(config(&dir.path().join("data"), fake_sidecar_js()));
+    let objects = |i: usize| git(&repos[i].path, &["count-objects", "-v"]);
+    let before = objects(4);
+    let req = AgentStartRequest { role: "mock-plain-reply".into(), repo_ids: repos.iter().map(|r| r.id.clone()).collect(), prompt: "go".into(), mode: None, mcp_servers: None };
+    let err = host.start(req, &repos).unwrap_err();
+    assert_eq!(err.code, NO_SAFETY_NET, "{err:?}");
+    assert!(err.message.contains("repo2"), "the first repository in the list that cannot be snapshotted is the one named: {}", err.message);
+    assert!(host.list().is_empty(), "a refused run leaves nothing behind");
+    for i in [0, 1, 3, 4] {
+        assert!(git(&repos[i].path, &["for-each-ref", "refs/intely/snapshots"]).is_empty(), "the snapshot of repo{i} was removed again");
+    }
+    // the refusal came from the first batch: the repositories of the next one were not touched (no snapshot objects left in them)
+    assert_eq!(objects(4), before, "repo4 was not snapshotted for a run that is refused");
+    host.shutdown();
+}
+
+/// The repositories of a run are snapshotted together: every one of them gets its ref, and a rewind puts every one back.
+#[test]
+fn a_run_on_several_repositories_snapshots_each_and_a_rewind_restores_each() {
+    use intely_agent_host::RepoRef;
+    let dir = tempfile::tempdir().unwrap();
+    let mut repos = Vec::new();
+    for i in 0..3 {
+        let path = dir.path().join(format!("repo{i}"));
+        std::fs::create_dir_all(&path).unwrap();
+        git(&path, &["init", "-q", "-b", "main"]);
+        std::fs::write(path.join("a.txt"), format!("committed {i}\n")).unwrap();
+        git(&path, &["add", "a.txt"]);
+        git(&path, &["commit", "-q", "-m", "init"]);
+        std::fs::write(path.join("a.txt"), format!("dirty before the run {i}\n")).unwrap();
+        repos.push(RepoRef { id: format!("repo{i}"), path: path.canonicalize().unwrap() });
+    }
+    let (host, sink) = host_with(config(&dir.path().join("data"), sidecar_js()));
+    let req = AgentStartRequest { role: "mock-plain-reply".into(), repo_ids: repos.iter().map(|r| r.id.clone()).collect(), prompt: "go".into(), mode: None, mcp_servers: None };
+    let id = host.start(req, &repos).expect("start").agent_id;
+    sink.wait_turn_end(&id);
+    for r in &repos {
+        assert!(!git(&r.path, &["rev-parse", "--verify", &format!("refs/intely/snapshots/{id}")]).is_empty(), "{} has its snapshot", r.id);
+        std::fs::write(r.path.join("a.txt"), "changed by the agent\n").unwrap();
+    }
+    host.rewind(&id).expect("rewind");
+    for (i, r) in repos.iter().enumerate() {
+        assert_eq!(std::fs::read_to_string(r.path.join("a.txt")).unwrap(), format!("dirty before the run {i}\n"), "{} is back as it was", r.id);
+    }
+    host.shutdown();
+}
+
+/// A repository and its linked worktree share one snapshot ref. Snapshotting both at once used to let the last writer win and a rewind
+/// then applied one repository's tree to the other. Now the run is refused (as before the snapshots went in parallel), or, when the
+/// person chose to run without a safety net, only one of the two has a snapshot and nothing of the other leaks into it.
+#[test]
+fn a_repository_and_its_linked_worktree_in_one_run_never_get_a_foreign_snapshot() {
+    use intely_agent_host::{RepoRef, StartOptions, NO_SAFETY_NET};
+    let dir = tempfile::tempdir().unwrap();
+    let main = fixture_repo(dir.path());
+    let wt_path = dir.path().join("wt");
+    git(&main.path, &["worktree", "add", "-q", "-b", "other", wt_path.to_str().unwrap()]);
+    let wt = RepoRef { id: "wt".into(), path: wt_path.canonicalize().unwrap() };
+    std::fs::write(main.path.join("only-main.txt"), "uncommitted work in main\n").unwrap();
+    std::fs::write(wt.path.join("only-wt.txt"), "uncommitted work in the worktree\n").unwrap();
+    let repos = vec![main.clone(), wt.clone()];
+    let (host, sink) = host_with(config(&dir.path().join("data"), sidecar_js()));
+    let ask = || AgentStartRequest { role: "mock-plain-reply".into(), repo_ids: vec![main.id.clone(), wt.id.clone()], prompt: "go".into(), mode: None, mcp_servers: None };
+
+    // the race has no fixed winner: it is refused every time, and leaves no ref behind
+    for round in 0..8 {
+        let err = host.start(ask(), &repos).unwrap_err();
+        assert_eq!(err.code, NO_SAFETY_NET, "round {round}: {err:?}");
+        assert!(git(&main.path, &["for-each-ref", "refs/intely/snapshots"]).is_empty(), "round {round}: no ref left behind");
+    }
+    assert!(host.list().is_empty());
+
+    let role = intely_agent_host::roles::builtin(&config(&dir.path().join("data"), sidecar_js())).into_iter().find(|r| r.name == "mock-plain-reply").unwrap();
+    let id = host.start_role_with(&role, ask(), &repos, StartOptions { run_without_safety_net: true, ..Default::default() }).expect("opt-out starts").agent_id;
+    sink.wait_turn_end(&id);
+    assert_eq!(git(&main.path, &["for-each-ref", "--format=%(refname)", "refs/intely/snapshots"]), format!("refs/intely/snapshots/{id}"), "one ref, shared by both folders");
+    std::fs::write(main.path.join("only-main.txt"), "changed by the agent\n").unwrap();
+    std::fs::write(wt.path.join("only-wt.txt"), "changed by the agent\n").unwrap();
+    host.rewind(&id).expect("rewind");
+    assert!(!main.path.join("only-wt.txt").exists(), "nothing of the worktree leaked into the main folder");
+    assert!(!wt.path.join("only-main.txt").exists(), "nothing of the main folder leaked into the worktree");
+    host.shutdown();
+}
+
+#[test]
 fn the_created_hook_gets_the_run_id_once_and_before_the_run_returns() {
     use intely_agent_host::{CreatedHook, RepoRef, StartOptions};
     use std::sync::{Arc, Mutex};

@@ -280,3 +280,213 @@ fn not_a_repo_and_subdirectories() {
     let snap = rewind().snapshot(&repo.path.join("src"), "from-sub").unwrap();
     assert!(snap.files >= 6);
 }
+
+/// Every path of the snapshot tree with the blob git would hash its file to now, next to the paths the snapshot must hold:
+/// an oracle that does not use the snapshot code (the quick snapshot trusts git's stat cache; this checks it was right to).
+fn assert_snapshot_matches_disk(repo: &Repo, tree: &str, want: &[&str]) {
+    let listing = repo.git(&["ls-tree", "-r", tree]);
+    let mut held: Vec<String> = Vec::new();
+    for line in listing.lines() {
+        let (meta, path) = line.split_once('\t').unwrap();
+        let mut parts = meta.split(' ');
+        let (mode, _kind, oid) = (parts.next().unwrap(), parts.next().unwrap(), parts.next().unwrap());
+        let on_disk = if mode == "120000" {
+            std::fs::read_link(repo.path.join(path)).unwrap().to_string_lossy().into_owned() // git stores a link's target
+        } else {
+            std::fs::read_to_string(repo.path.join(path)).unwrap()
+        };
+        let blob = repo.git(&["cat-file", "blob", oid]);
+        assert_eq!(blob.trim_end(), on_disk.trim_end(), "{path} in the snapshot is not what is on disk");
+        held.push(path.to_string());
+    }
+    held.sort();
+    let mut want: Vec<String> = want.iter().map(|s| s.to_string()).collect();
+    want.sort();
+    assert_eq!(held, want);
+}
+
+#[test]
+fn a_snapshot_holds_what_is_on_disk_whatever_git_thinks_of_its_stat_cache() {
+    let repo = Repo::new();
+    repo.write("same_size.txt", "AAAA\n");
+    repo.write("grown.txt", "short\n");
+    repo.write("gone.txt", "bye\n");
+    repo.write("quiet.txt", "quiet v1\n");
+    repo.write("sparse.txt", "sparse\n");
+    repo.write("exec.sh", "#!/bin/sh\n");
+    repo.write("link_me.txt", "target\n");
+    repo.write("kept/a.txt", "a\n");
+    repo.write("staged_only.txt", "staged v1\n");
+    repo.commit_all("init");
+    repo.git(&["status", "--porcelain"]); // the index now holds fresh stat data, as in a session that has run git status
+
+    // the cases in which a stat cache can mislead:
+    repo.write("same_size.txt", "BBBB\n"); // same length, newer content
+    repo.write("grown.txt", "much longer than before\n");
+    std::fs::remove_file(repo.path.join("gone.txt")).unwrap();
+    repo.git(&["update-index", "--assume-unchanged", "quiet.txt"]);
+    repo.write("quiet.txt", "quiet v2 behind assume-unchanged\n"); // git itself will not look at this file
+    repo.git(&["update-index", "--skip-worktree", "sparse.txt"]);
+    repo.write("untracked_new.txt", "new\n");
+    repo.write("added_later.txt", "intent\n");
+    repo.git(&["add", "-N", "added_later.txt"]);
+    repo.write("staged_only.txt", "staged v2\n");
+    repo.git(&["add", "staged_only.txt"]);
+    repo.write("staged_only.txt", "staged v3 on disk\n");
+    std::fs::remove_file(repo.path.join("link_me.txt")).unwrap();
+    std::os::unix::fs::symlink("exec.sh", repo.path.join("link_me.txt")).unwrap();
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(repo.path.join("exec.sh"), std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+
+    let snap = rewind().snapshot(&repo.path, "stat-1").unwrap();
+    assert_snapshot_matches_disk(&repo, &snap.tree, &["same_size.txt", "grown.txt", "quiet.txt", "exec.sh", "link_me.txt", "kept/a.txt", "staged_only.txt", "untracked_new.txt", "added_later.txt"]);
+    let modes = repo.git(&["ls-tree", &snap.tree, "exec.sh", "link_me.txt"]);
+    assert!(modes.contains("100755") && modes.contains("120000"), "{modes}");
+    assert_eq!(repo.git(&["show", &format!("{}:quiet.txt", snap.tree)]), "quiet v2 behind assume-unchanged");
+    assert_eq!(repo.git(&["show", &format!("{}:staged_only.txt", snap.index_tree)]), "staged v2", "the index tree is the index, not the disk");
+
+    // a restore plan reads the same quick tree: the untouched tree has nothing to restore
+    assert!(rewind().plan_restore(&repo.path, "stat-1").unwrap().is_empty());
+}
+
+#[test]
+fn a_snapshot_is_right_when_the_index_is_stale_or_missing() {
+    let repo = Repo::new();
+    repo.write("a.txt", "one\n");
+    repo.write("b.txt", "two\n");
+    repo.commit_all("init");
+    // touch every file so that no stat entry matches, then change one of them in a way the size does not show
+    repo.write("a.txt", "one\n");
+    repo.write("b.txt", "TWO\n");
+    let snap = rewind().snapshot(&repo.path, "stale").unwrap();
+    assert_snapshot_matches_disk(&repo, &snap.tree, &["a.txt", "b.txt"]);
+
+    std::fs::remove_file(repo.path.join(".git/index")).unwrap();
+    let snap = rewind().snapshot(&repo.path, "no-index").unwrap();
+    assert_snapshot_matches_disk(&repo, &snap.tree, &["a.txt", "b.txt"]);
+    assert!(!repo.path.join(".git").read_dir().unwrap().flatten().any(|e| e.file_name().to_string_lossy().starts_with("intely-")), "no temporary index is left");
+}
+
+/// Two snapshots of the same run id at the same moment: git refuses the second `update-ref`, so exactly one of them exists and the ref holds
+/// the tree of the one that won (a plain overwrite would let the last writer win and hand a restore the wrong tree).
+#[test]
+fn two_snapshots_of_one_run_taken_at_the_same_time_leave_one_ref_with_the_tree_of_the_winner() {
+    let repo = busy_repo();
+    for round in 0..15 {
+        let id = format!("race-{round}");
+        let gate = std::sync::Barrier::new(2);
+        let answers: Vec<_> = std::thread::scope(|scope| {
+            let jobs: Vec<_> = (0..2).map(|_| scope.spawn(|| (gate.wait(), rewind().snapshot(&repo.path, &id)).1)).collect();
+            jobs.into_iter().map(|j| j.join().unwrap()).collect()
+        });
+        let won: Vec<_> = answers.iter().filter_map(|a| a.as_ref().ok()).collect();
+        assert_eq!(won.len(), 1, "round {round}: exactly one snapshot may exist, got {answers:?}");
+        assert_eq!(repo.git(&["rev-parse", &won[0].ref_name]), won[0].commit, "round {round}: the ref holds the winner's commit");
+        assert!(answers.iter().any(|a| a.is_err()), "round {round}: the other one is refused");
+    }
+}
+
+/// Linked worktrees of one repository share `refs/intely/snapshots`: a run that covers the main folder and a worktree gets one snapshot
+/// of one of them and a refusal for the other, never two snapshots that fight over one ref.
+#[test]
+fn a_linked_worktree_shares_the_snapshot_ref_so_the_second_snapshot_of_a_run_is_refused() {
+    let repo = Repo::new();
+    repo.write("a.txt", "main\n");
+    repo.commit_all("init");
+    let wt = repo.root().join("wt");
+    repo.git(&["worktree", "add", "-q", "-b", "other", wt.to_str().unwrap()]);
+    std::fs::write(wt.join("only-in-wt.txt"), "wt\n").unwrap();
+    repo.write("only-in-main.txt", "main\n");
+
+    let first = rewind().snapshot(&repo.path, "shared").unwrap();
+    assert!(matches!(rewind().snapshot(&wt, "shared"), Err(RewindError::Exists(_))));
+    assert_eq!(repo.git(&["rev-parse", &first.ref_name]), first.commit, "the ref still holds the first snapshot");
+    let files = repo.git(&["ls-tree", "-r", "--name-only", &first.tree]);
+    assert!(files.contains("only-in-main.txt") && !files.contains("only-in-wt.txt"), "{files}");
+
+    // and at the same moment, from both folders
+    let gate = std::sync::Barrier::new(2);
+    let answers: Vec<_> = std::thread::scope(|scope| {
+        let jobs: Vec<_> = [repo.path.clone(), wt.clone()].into_iter().map(|dir| { let gate = &gate; scope.spawn(move || (gate.wait(), rewind().snapshot(&dir, "both")).1) }).collect();
+        jobs.into_iter().map(|j| j.join().unwrap()).collect()
+    });
+    assert_eq!(answers.iter().filter(|a| a.is_ok()).count(), 1, "{answers:?}");
+}
+
+/// Runs `f` on a thread and fails the test instead of hanging when it does not finish: a deadlock must not freeze the suite.
+fn within<T: Send + 'static>(secs: u64, f: impl FnOnce() -> T + Send + 'static) -> T {
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = tx.send(f());
+    });
+    rx.recv_timeout(std::time::Duration::from_secs(secs)).expect("did not finish: git and the parent are waiting for each other")
+}
+
+/// `update-index --add --stdin` writes a line-ending warning to stderr for every file it converts. With thousands of files that is far more
+/// than a pipe holds; a parent that writes all of stdin first stops there and git stops with it (a snapshot that never came back, so a run
+/// that never started).
+#[test]
+fn a_snapshot_of_thousands_of_files_that_make_git_warn_does_not_hang() {
+    let repo = Repo::new();
+    repo.git(&["config", "core.autocrlf", "true"]);
+    repo.git(&["config", "core.safecrlf", "warn"]);
+    repo.write("seed.txt", "seed\n");
+    repo.commit_all("init");
+    for dir in 0..40 {
+        for file in 0..120 {
+            repo.write(&format!("gen/d{dir}/file_number_{file}.txt"), "line one\nline two\n"); // LF files under autocrlf=true: a warning each
+        }
+    }
+    let path = repo.path.clone();
+    let snap = within(60, move || rewind().snapshot(&path, "warn-1")).expect("snapshot");
+    assert_eq!(snap.files, 4801);
+    let path = repo.path.clone();
+    within(60, move || rewind().plan_restore(&path, "warn-1")).expect("plan");
+}
+
+/// With `core.trustctime=false` git no longer sees a same-size rewrite that keeps the old mtime. The quick snapshot would take that blind
+/// spot for the content of the file, so such a repository is hashed in full, whatever way the boolean is spelled (`0`, `no`, `off` and an
+/// empty value mean false to git as well).
+#[test]
+fn a_repository_that_loosens_gits_file_check_is_hashed_in_full() {
+    for (key, value) in [("core.trustctime", "false"), ("core.trustctime", "False"), ("core.trustctime", "0"), ("core.trustctime", "no"), ("core.trustctime", "off"), ("core.trustctime", ""), ("core.checkStat", "minimal")] {
+        let repo = Repo::new();
+        repo.git(&["config", key, value]);
+        // The file is old enough for git to trust its times (a file as new as the index is "racily clean" and gets hashed again).
+        let old = std::time::SystemTime::now() - std::time::Duration::from_secs(3600);
+        let set_mtime = |at| std::fs::File::options().write(true).open(repo.path.join("f.txt")).unwrap().set_modified(at).unwrap();
+        repo.write("f.txt", "AAAA\n");
+        set_mtime(old);
+        repo.commit_all("init");
+        repo.git(&["status", "--porcelain"]);
+        repo.write("f.txt", "BBBB\n"); // the same length
+        set_mtime(old); // and the old mtime
+        assert!(repo.git(&["status", "--porcelain"]).is_empty(), "git itself cannot see the change with {key}={value:?}");
+        let snap = rewind().snapshot(&repo.path, "loose").unwrap();
+        assert_eq!(repo.git(&["show", &format!("{}:f.txt", snap.tree)]), "BBBB", "the snapshot holds the file as it is on disk with {key}={value:?}");
+    }
+}
+
+/// The settings that keep the quick path: git's own check sees a rewrite that changes the ctime, and the snapshot holds it.
+#[test]
+fn a_repository_with_gits_default_file_check_still_snapshots_what_is_on_disk() {
+    for config in [None, Some(("core.trustctime", "true")), Some(("core.trustctime", "yes")), Some(("core.checkStat", "default"))] {
+        let repo = Repo::new();
+        if let Some((key, value)) = config {
+            repo.git(&["config", key, value]);
+        }
+        let old = std::time::SystemTime::now() - std::time::Duration::from_secs(3600);
+        let set_mtime = |at| std::fs::File::options().write(true).open(repo.path.join("f.txt")).unwrap().set_modified(at).unwrap();
+        repo.write("f.txt", "AAAA\n");
+        set_mtime(old);
+        repo.commit_all("init");
+        std::thread::sleep(std::time::Duration::from_millis(1100)); // the rewrite gets a ctime in a later second than the index entry
+        repo.write("f.txt", "BBBB\n");
+        set_mtime(old);
+        assert!(!repo.git(&["status", "--porcelain"]).is_empty(), "git sees the rewrite through its ctime");
+        let snap = rewind().snapshot(&repo.path, "default").unwrap();
+        assert_eq!(repo.git(&["show", &format!("{}:f.txt", snap.tree)]), "BBBB", "{config:?}");
+    }
+}

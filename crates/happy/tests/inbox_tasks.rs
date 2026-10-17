@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use common::{wait_for, RecordingOpener, Req, Resp, Stub, JWT};
-use intely_happy::types::{ConfigPatch, Env, HappyStatus, MeetView, PrefsPatch, ProviderState, TimerView};
+use intely_happy::types::{ConfigPatch, Env, HappyStatus, KindPatch, MeetView, NotifyMode, PrefsPatch, ProviderState, TimerView};
 use intely_happy::notifications::NotificationsView;
 use intely_happy::tasks::TasksView;
 use intely_happy::{Hub, Opener, Sink};
@@ -76,6 +76,14 @@ impl Rig {
 
 /// Happy path for everything the two providers use. `unread` is the badge the stub reports.
 fn app(unread: Arc<AtomicU32>) -> impl Fn(&Req) -> Resp + Send + Sync + 'static {
+    app_with(unread, json!([
+        { "_id": "n_1", "title": "Anna mentioned you", "message": "szia", "type": "chat", "read": false, "createdAt": "2026-10-03T09:00:00Z", "metadata": { "channelId": "c_1", "messageId": "m_1", "threadRoot": "", "eventKey": "chat.message.mention" } },
+        { "_id": "n_2", "title": "Deploy finished", "type": "deploy", "read": true, "createdAt": "2026-10-03T08:00:00Z" }
+    ]))
+}
+
+/// [`app`] with the documents the list returns.
+fn app_with(unread: Arc<AtomicU32>, docs: serde_json::Value) -> impl Fn(&Req) -> Resp + Send + Sync + 'static {
     move |req| {
         if req.headers.get("authorization").map(String::as_str) != Some(&format!("Bearer {JWT}")) {
             return Resp::json(401, json!({ "code": "DEVICE_LOGGED_OUT", "message": "Session revoked" }));
@@ -83,12 +91,10 @@ fn app(unread: Arc<AtomicU32>) -> impl Fn(&Req) -> Resp + Send + Sync + 'static 
         match (req.method.as_str(), req.path.as_str()) {
             ("GET", "/api/user/me") => Resp::json(200, json!({ "id": "u_1", "name": "Teszt Elek", "effectiveRoles": ["admin"], "restaurants": [{ "id": "r_1", "name": "Demo Gastro" }] })),
             ("GET", "/api/notifications/badge") => Resp::json(200, json!({ "notifications": unread.load(Ordering::SeqCst), "mail": 5, "total": unread.load(Ordering::SeqCst) + 5 })),
-            ("GET", "/api/notifications") => Resp::json(200, json!({ "docs": [
-                { "_id": "n_1", "title": "Anna mentioned you", "message": "szia", "type": "chat", "read": false, "createdAt": "2026-10-03T09:00:00Z", "metadata": { "channelId": "c_1", "messageId": "m_1", "threadRoot": "", "eventKey": "chat.message.mention" } },
-                { "_id": "n_2", "title": "Deploy finished", "type": "deploy", "read": true, "createdAt": "2026-10-03T08:00:00Z" }
-            ], "total": 2, "limit": 30, "page": 1, "pages": 1 })),
+            ("GET", "/api/notifications") => Resp::json(200, json!({ "docs": docs.clone(), "total": 2, "limit": 30, "page": 1, "pages": 1 })),
             ("PATCH", "/api/notifications/n_1/read") | ("PATCH", "/api/notifications/n_1/unread") | ("PATCH", "/api/notifications/read-all") => Resp::json(200, json!({ "ok": true })),
             ("DELETE", "/api/notifications/n_1") => Resp::json(200, json!({ "ok": true })),
+            ("PATCH", path) if path.starts_with("/api/notifications/") => Resp::json(200, json!({ "ok": true })),
             ("GET", "/api/tasks") => Resp::json(200, json!({ "tasks": [
                 { "id": "t_1", "key": "HP-1", "title": "Receipts", "status": "s_doing", "project": { "id": "p_pos", "name": "Shop POS" } },
                 { "id": "t_2", "title": "Refunds", "status": "Review", "projectName": "Shop POS", "projectId": "p_pos" }
@@ -372,4 +378,111 @@ async fn the_hub_talks_to_the_mock_server_for_the_inbox_and_my_tasks() {
     assert_eq!(rig.hub.notifications_list().await.unwrap_err().kind, intely_happy::Kind::Forbidden);
     mock_post(&url, "/__mock/reset", json!({})).await;
     assert_eq!(rig.state_of("tasks").await, ProviderState::Ready);
+}
+
+fn business_docs() -> serde_json::Value {
+    json!([
+        { "_id": "o1", "title": "New order #41", "type": "order", "read": false, "createdAt": "2026-10-03T09:30:00Z" },
+        { "_id": "d1", "title": "Courier is late", "type": "deliveryDelayed", "read": false, "createdAt": "2026-10-03T09:20:00Z" },
+        { "_id": "i1", "title": "Invoice 2026/88 paid", "type": "invoice", "read": false, "createdAt": "2026-10-03T09:10:00Z" },
+        { "_id": "c1", "title": "Anna", "type": "chat", "read": true, "createdAt": "2026-10-03T09:00:00Z" }
+    ])
+}
+
+fn kind(kind: &str, mode: NotifyMode) -> ConfigPatch {
+    ConfigPatch { notification_kind: Some(KindPatch { kind: kind.to_owned(), mode }), ..Default::default() }
+}
+
+#[tokio::test]
+async fn a_category_set_to_quiet_or_off_changes_the_list_the_count_and_what_is_announced() {
+    let unread = Arc::new(AtomicU32::new(3));
+    let stub = Stub::start(app_with(Arc::clone(&unread), business_docs())).await;
+    let rig = Rig::new(&stub).await;
+    rig.give_token();
+    rig.switch(true, true, false, true).await;
+    rig.wait_state("notifications", ProviderState::Ready).await;
+    let lists = || stub.paths().iter().filter(|p| p.as_str() == "GET /api/notifications").count();
+    let view = rig.hub.notifications_current();
+    assert_eq!((view.items.len(), view.unread), (4, 3));
+    assert_eq!(view.items.iter().map(|i| i.category.as_str()).collect::<Vec<_>>(), vec!["order", "delivery", "invoice", "chat"]);
+    let events = || rig.sink.inbox.lock().unwrap().len();
+    let before = events();
+
+    // Orders go quiet: still listed, no longer counted, and the webview and the Dock are told at once (nothing was fetched).
+    rig.hub.set_config(kind("Order", NotifyMode::Quiet)).await.unwrap();
+    let view = rig.hub.notifications_current();
+    assert_eq!((view.items.len(), view.unread), (4, 2));
+    assert!(view.items[0].quiet && !view.items[1].quiet);
+    assert_eq!(events(), before + 1, "a settings change pushes the new view");
+    assert_eq!(rig.sink.inbox.lock().unwrap().last().unwrap().unread, 2);
+    assert_eq!(lists(), 1);
+
+    // Delivery is switched off: not listed, not counted.
+    rig.hub.set_config(kind("delivery", NotifyMode::Off)).await.unwrap();
+    let view = rig.hub.notifications_current();
+    assert_eq!(view.items.iter().map(|i| i.id.as_str()).collect::<Vec<_>>(), vec!["o1", "i1", "c1"]);
+    assert_eq!(view.unread, 1);
+
+    // The poll still compares the server's own numbers, so a settings change never makes it fetch the list again.
+    rig.hub.poll_inbox().await.unwrap();
+    assert_eq!(lists(), 1, "same badge: no list");
+    assert_eq!(rig.hub.notifications_current().unread, 1);
+
+    // The verbs answer with what is shown, not with what is hidden.
+    let marked = rig.hub.notifications_mark_read("i1").await.unwrap();
+    assert_eq!((marked.unread, marked.items.len()), (0, 3));
+    let all = rig.hub.notifications_mark_all_read().await.unwrap();
+    assert_eq!((all.unread, all.items.len()), (0, 3));
+    assert!(stub.paths().contains(&"PATCH /api/notifications/read-all".to_owned()), "read-all is the server's: it marks the hidden ones too");
+
+    // Back to alert: everything is shown again, with the server's count of the loaded list.
+    rig.hub.set_config(kind("order", NotifyMode::Alert)).await.unwrap();
+    rig.hub.set_config(kind("delivery", NotifyMode::Alert)).await.unwrap();
+    let view = rig.hub.notifications_current();
+    assert_eq!((view.items.len(), view.items.iter().any(|i| i.quiet)), (4, false));
+    assert!(rig.hub.status().await.config.notification_kinds.is_empty(), "alert is the default and is not stored");
+}
+
+#[tokio::test]
+async fn a_pushed_notification_of_a_hidden_category_is_neither_listed_nor_counted() {
+    let stub = Stub::start(app_with(Arc::new(AtomicU32::new(0)), json!([]))).await;
+    let rig = Rig::new(&stub).await;
+    rig.give_token();
+    rig.switch(true, true, false, true).await;
+    rig.wait_state("notifications", ProviderState::Ready).await;
+    rig.hub.set_config(kind("order", NotifyMode::Off)).await.unwrap();
+    rig.hub.set_config(kind("invoice", NotifyMode::Quiet)).await.unwrap();
+    for (id, kind) in [("p1", "order"), ("p2", "invoice"), ("p3", "delivery")] {
+        rig.hub.push_notification_for_test(&json!({ "_id": id, "title": id, "type": kind, "read": false, "createdAt": "2026-10-03T10:00:00Z" }));
+    }
+    let view = rig.hub.notifications_current();
+    assert_eq!(view.items.iter().map(|i| (i.id.as_str(), i.quiet)).collect::<Vec<_>>(), vec![("p2", true), ("p3", false)]);
+    assert_eq!(view.unread, 1, "only the delivery one counts: the order one is hidden and the invoice one is quiet");
+}
+
+#[tokio::test]
+async fn the_category_settings_are_saved_validated_and_bounded() {
+    let stub = Stub::start(app(Arc::new(AtomicU32::new(0)))).await;
+    let rig = Rig::new(&stub).await;
+    for bad in ["", "two words", "../x", "a/b", "ő", &"x".repeat(65)] {
+        let e = rig.hub.set_config(kind(bad, NotifyMode::Off)).await.unwrap_err();
+        assert_eq!(e.code, "badCategory", "{bad:?}");
+    }
+    assert!(rig.hub.status().await.config.notification_kinds.is_empty());
+    rig.hub.set_config(kind(" Order ", NotifyMode::Quiet)).await.unwrap();
+    assert_eq!(rig.hub.status().await.config.notification_kinds.get("order"), Some(&NotifyMode::Quiet), "keys are trimmed and lowercased");
+    for i in 0..63 {
+        rig.hub.set_config(kind(&format!("k{i}"), NotifyMode::Off)).await.unwrap();
+    }
+    let e = rig.hub.set_config(kind("one-too-many", NotifyMode::Off)).await.unwrap_err();
+    assert_eq!(e.code, "tooManyCategories");
+    rig.hub.set_config(kind("k0", NotifyMode::Quiet)).await.unwrap();
+    rig.hub.set_config(kind("order", NotifyMode::Alert)).await.unwrap();
+    rig.hub.set_config(kind("one-too-many", NotifyMode::Off)).await.unwrap();
+    // They survive a restart: a new hub reads the same settings file.
+    let kinds = rig.hub.status().await.config.notification_kinds;
+    assert_eq!((kinds.len(), kinds.get("k0")), (64, Some(&NotifyMode::Quiet)));
+    let settings = Arc::new(SettingsStore::open(&rig._dir.path().join("settings.json")).unwrap());
+    let again = Hub::new(settings, Arc::new(MemorySecretStore::new()) as Arc<dyn SecretStore>, Arc::new(NtSink::default()) as Arc<dyn Sink>, Arc::new(RecordingOpener::default()) as Arc<dyn Opener>);
+    assert_eq!(again.status().await.config.notification_kinds, kinds);
 }

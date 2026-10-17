@@ -8,7 +8,8 @@ import type { AgentRow } from "../../store/agents";
 import { foreignReason, isForeign } from "../../store/agentScope";
 import { repoConfig } from "../../store/workspace";
 import { LocationChip } from "../servers/LocationChip";
-import { Badge, Icon, MessagesSquare, RepoBadge, ShieldCheck, StatusDot } from "../../ui-kit";
+import { announce, Badge, IconButton, Icon, MessagesSquare, RepoBadge, ShieldCheck, StatusDot, Undo2, X } from "../../ui-kit";
+import { focusNeighbour } from "./listFocus";
 import { roleColor } from "./roleColors";
 import { activityLine } from "./sessionsLogic";
 
@@ -73,5 +74,50 @@ export function RunCard(props: { row: AgentRow; view: AgentView | undefined; sel
         </Badge>
       </span>
     </button>
+  );
+}
+
+/**
+ * A finished run in the sessions list: one line (what it was, who ran it, how long ago) and a button to close it. Closing only hides the
+ * run from the list; `detail` adds the last words of the run under the title (the review group, where that is what you are looking for).
+ */
+export function RunRow(props: { row: AgentRow; view: AgentView | undefined; selected: boolean; detail: boolean; closed: boolean; onSelect: () => void; onClose: () => void; onReopen: () => void }) {
+  const r = () => props.row;
+  const foreign = () => isForeign(r().repoIds);
+  const role = () => (r().role === "auto" ? t("runs.role.auto") : r().role);
+  const status = () => ({ tone: TONE[r().status], label: t(LABEL[r().status]) });
+  const tip = () => `${r().title} · ${role()} · ${modelLabel(r().model)}${foreign() ? ` · ${foreignReason(r().repoIds)}` : ""}`;
+  let box!: HTMLDivElement;
+  // Closing takes the row out of the list: the focus moves on first, and a screen reader is told what happened.
+  const toggle = () => {
+    focusNeighbour(box, ".run-row", ".sessions__group-toggle");
+    announce(t(props.closed ? "runs.closed.reopened" : "runs.closed.one", { title: r().title }));
+    if (props.closed) props.onReopen();
+    else props.onClose();
+  };
+  return (
+    <div ref={box} class="run-row" data-selected={props.selected ? "" : undefined} data-status={r().status} data-closed={props.closed ? "" : undefined} data-detail={props.detail ? "" : undefined} data-foreign={foreign() ? "" : undefined}>
+      <button
+        type="button"
+        class="run-row__main"
+        aria-current={props.selected ? "true" : undefined}
+        title={tip()}
+        onClick={props.onSelect}
+        onKeyDown={(e) => (e.key === "Delete" || e.key === "Backspace") && !e.metaKey && !e.ctrlKey && !e.altKey && (e.preventDefault(), toggle())}
+      >
+        <span class="run-row__top">
+          <StatusDot tone={status().tone} label={status().label} />
+          <span class="run-row__title ui-truncate">{r().title}</span>
+          <span class="run-row__ago ui-tnum">{ago(r().startedAt)}</span>
+        </span>
+        <Show when={props.detail}>
+          <span class="run-row__activity ui-truncate">{activityLine(r(), props.view)}</span>
+        </Show>
+        <Show when={foreign()}>
+          <span class="run-row__foreign">{foreignReason(r().repoIds)}</span>
+        </Show>
+      </button>
+      <IconButton class="run-row__close" size="sm" icon={props.closed ? Undo2 : X} label={t(props.closed ? "runs.closed.reopenRun" : "runs.closed.closeRun", { title: r().title })} tooltip={t(props.closed ? "runs.closed.reopen" : "runs.closed.close")} tooltipPlacement="left" onClick={toggle} />
+    </div>
   );
 }

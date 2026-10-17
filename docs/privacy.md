@@ -1,6 +1,6 @@
 # Privacy
 
-This page states what IntelyIDE stores on your Mac, what can leave it and when, and which of these statements a script re-checks. Applies to version 1.6.0.
+This page states what IntelyIDE stores on your Mac, what can leave it and when, and which of these statements a script re-checks. Applies to version 1.7.0.
 
 IntelyIDE has no telemetry: it sends no usage data, identifiers or crash reports to anyone, and there is no account. It does make a few network requests, only when you use the matching feature: your own `claude` installation talks to its vendor, `git` talks to your remotes, and the optional modules you switch on (MongoDB Studio, Remote, Happy) talk to the servers you configure.
 
@@ -34,7 +34,7 @@ The state folder in 1.2.0 is `~/Library/Application Support/IntelySwitchIDE/` (t
 
 | Where | What | Written when |
 |---|---|---|
-| `settings.json` in the state folder (`crates/settings/src/store.rs`, mode 0600) | Your settings: language, module switches, provider choices, update preferences, notification choices, the servers you added (name, ssh target, port, repository folder, limit) and non-secret connection details. Secret values are not written here; no ssh password or key is stored | When you change a setting |
+| `settings.json` in the state folder (`crates/settings/src/store.rs`, mode 0600) | Your settings: language, module switches, provider choices, update preferences, notification choices (also which kinds of Happy notification alert you), the servers you added (name, ssh target, port, repository folder, limit) and non-secret connection details. Secret values are not written here; no ssh password or key is stored | When you change a setting |
 | `workspaces.json`, `workspaces/`, `backups/`, `trust.json`, `live-floor.json` in the state folder (`crates/core/src/registry.rs`, files mode 0600) | The workspace registry: names, colours and the folder paths of your repositories, which folders you trusted, which branches you marked as live | During use |
 | `supervisor.json`, `usage-ledger.json`, `role-backups/` (`crates/roles/src/supervisor.rs`, `crates/roles/src/ledger.rs`, `crates/roles/src/store.rs`) | Agent supervisor extras, a usage ledger of agent runs and backups of role files you edited | When you use agent roles |
 | `enforcement.json`, `gate.json` (`crates/agent_host/src/host.rs`) | The record of the safety proof run and the registry of agent processes that may still be running | During agent runs |
@@ -47,7 +47,7 @@ The state folder in 1.2.0 is `~/Library/Application Support/IntelySwitchIDE/` (t
 | `devices.json`, `remote-audit.jsonl` (`crates/remote/src/devices.rs`, `crates/remote/src/audit.rs`, mode 0600) | With the Remote module on: the paired phones and an audit trail of remote actions | When you use Remote |
 | macOS Keychain, two services, `com.intelyhome.intelyide` for general secrets and `com.intelyhome.intelyide.mongo` for MongoDB (`crates/settings/src/secrets.rs`, `crates/mongo/src/profile.rs`) | Provider tokens, integration tokens and per-connection MongoDB credentials, one item per key. If the Keychain refuses (for example a development build without the entitlement), secrets are kept in memory for the session only. Secrets stored by earlier versions under the old service names (`hu.happygastro.intelyswitchide` and `.mongo`) are read once and copied to the new names; the old items are left in place, and you may delete them in Keychain Access by searching `intelyswitchide`. | When you enter them |
 | `refs/intely/snapshots/<run>` inside your repositories' `.git` (`crates/agent_gate/src/rewind.rs`) | Rewind snapshots: a Git ref capturing the working tree (tracked files and untracked files that are not ignored) before an agent run | Before each agent run |
-| The webview's local storage (`ui/src/i18n/index.ts`, `ui/src/modules/brief/toggle.ts`, `ui/src/modules/attachments/store.ts`) | Interface preferences such as the language (`intely.locale`), module panels switched on or off and attachment draft ids | During use |
+| The webview's local storage (`ui/src/i18n/index.ts`, `ui/src/modules/brief/toggle.ts`, `ui/src/modules/attachments/store.ts`, `ui/src/modules/whatsnew/state.ts`) | Interface preferences such as the language (`intely.locale`), module panels switched on or off, attachment draft ids, the runs you closed in the list and the version of the last What's new window you closed (`intely.whatsnew.seen`) | During use |
 | Your own `claude` installation, not IntelyIDE (`sidecar/src/history.ts`) | Session transcripts under `~/.claude/projects` (or the folder named by `CLAUDE_CONFIG_DIR`). IntelyIDE reads them for the History view and does not copy them | Written by `claude` |
 
 Notes on the table:

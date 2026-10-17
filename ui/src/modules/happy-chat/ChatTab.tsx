@@ -1,6 +1,6 @@
 import { createEffect, createMemo, createSignal, Match, onCleanup, onMount, Show, Switch, type JSX } from "solid-js";
 import { t } from "../../i18n";
-import { openSettings } from "../../platform/settings";
+import { openIntegration } from "../../platform/integrations";
 import { AtSign, Badge, Button, EmptyState, IconButton, Lock, MessageSquare, RefreshCw, Settings, Skeleton, StatusDot, TriangleAlert } from "../../ui-kit";
 import { providerState, refreshHappyStatus, happyStatus } from "../../store/happy";
 import { Conversation } from "./Conversation";
@@ -20,7 +20,7 @@ export const THREE_PX = 900;
 
 const openIntegrations = () => {
   void refreshHappyStatus();
-  openSettings("integrations");
+  openIntegration("happy");
 };
 
 /** Why the chat is not running, as an empty state: off, no token, signed out (401), not permitted (403), error. */

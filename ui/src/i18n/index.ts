@@ -159,6 +159,7 @@ export function t(key: MessageKey, params?: Params): string {
 export const fmt = {
   number: (n: number, style?: string) => (version(), formatNumber(n, intlLocale(lang()), style)),
   date: (d: Date | number, style: "short" | "medium" | "long" | "full" = "medium") => new Intl.DateTimeFormat(intlLocale(lang()), { dateStyle: style }).format(d),
+  time: (d: Date | number) => new Intl.DateTimeFormat(intlLocale(lang()), { timeStyle: "short" }).format(d),
   relative: (value: Date | number, unit?: string) => formatRelative(value, intlLocale(lang()), unit),
   list: (items: string[], type: "conjunction" | "disjunction" = "conjunction") => new Intl.ListFormat(intlLocale(lang()), { type }).format(items),
 };

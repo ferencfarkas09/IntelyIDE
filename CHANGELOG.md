@@ -4,13 +4,31 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 
 ## [Unreleased]
 
-### Changed
-
-- **A slow start opens the run at once.** Starting a run takes a while on a busy Mac (the Rewind snapshot of every repository, then the agent and its first message), and the New run window used to wait for all of it without a word, so you could not tell whether anything had started. When the host has not answered after about half a second, the window now closes and the run opens in its place as a card that counts the seconds and says what is going on; it becomes the run itself the moment the host answers, and it does not pull you away from another run you went to meanwhile. If the host refuses, the card keeps the reason and offers **Edit and retry** (the task comes back in the New run window, with the reason) or **Dismiss**. A quick answer, and a quick refusal, behave as before: the window closes on the run, or stays open with the reason.
-
 ### Added
 
 - Work in progress, not released: the code compiles for Linux (x86_64, webkit2gtk 4.1), Windows 10/11 (x86_64, WebView2) and Apple Silicon Macs, in addition to Intel Macs. Linux passes its tests; on Windows the permission checks and many tests are not yet verified. No Linux or Windows package is published; see `docs/install-linux.md` and `docs/install-windows.md` for what works and what is different. Secrets use Windows Credential Manager and the Linux Secret Service (one vault entry, split over several Credential Manager entries when it is large), banners use a Windows toast and `notify-send`, files and links open with `explorer.exe` and `xdg-open`, the terminal starts PowerShell on Windows, and connections to servers are not shared on Windows (OpenSSH for Windows has no `ControlMaster`). Process groups, the process table and the disk-space check are macOS and Linux features; the update swap of the app bundle stays macOS only.
+
+## [1.7.0] - 2026-10-17
+
+### Added
+
+- **A What's new window after an update.** The first start after an update opens a window with what came in and what was fixed since the version you had, newest release first (up to the last four if you skipped some), with the full changelog one click away. It is written by hand for people (a few lines per release, in English or Hungarian, other languages read the English text), ships inside the app and asks nothing from the network. It does not open on a first start of a fresh install, in a read-only or test run, or after a downgrade; the version of the last window you closed is the only thing it remembers (`intely.whatsnew.seen`, in the webview's storage). The command **What's new** opens it at any time. A unit test fails when the notes of the running version are missing or a version is not in this changelog, so a release cannot go out without them.
+
+- **Settings > Integrations is a catalog.** It lists the services the IDE connects to as cards (Happy and Sentry show whether they are connected): Happy (opens its own screen inside the tab, with the account, the environment, the token and the five tools; the Happy tabs and the sign-out notice take you straight there), MCP servers and Sentry (each opens its settings section), and DeepPattern, shown as planned: its connection is not built yet, so the card opens nothing. A module adds a card with one `registerIntegration` call (`platform/integrations.ts`, docs/architecture.md), so later integrations appear without a change to the tab. English and Hungarian.
+
+- **Notifications by category: orders, delivery, invoices and the rest.** In Settings > Integrations > Happy, under **Notification categories**, each kind of Happy notification can be **Alert** (inbox, count and toast, as before), **Quiet** (listed in the inbox, not counted and not announced) or **Off** (not shown here). Orders, delivery and invoices have their own rows from the start, and any other kind the server sends gets a row when its first notification arrives. The status bar count, the Dock count and the toasts follow the choice because the filter sits in the Rust hub, before anything is sent to the window; the inbox marks quiet items and has a button to its settings. The choices are kept in this app only (`happy.notificationKinds` in `settings.json`, at most 64 kinds); the notifications stay on the Happy server. English and Hungarian.
+
+### Fixed
+
+- **Starting a run no longer hangs on a large repository.** The Rewind snapshot that every run takes first (docs/safety.md, layer 8) read and hashed every file of every repository, one repository after the other, and all of it happened before the run could appear. On a 1.2 GB working tree that was 4 to 10 seconds per repository. The snapshot now builds its tree on a copy of your index, so git's own stat cache says which files are unchanged and only changed and untracked files are read again (0.1 seconds on the same tree, byte-for-byte the same snapshot); files marked assume-unchanged, skip-worktree, intent-to-add, deleted files and a missing or stale index are handled and tested, and a snapshot that cannot use the quick way falls back to the full one. The repositories of a run are also snapshotted four at a time instead of one by one, and a refusal still names the first repository of the list that cannot be snapshotted and removes the snapshots already made.
+- **The New run window cannot wait forever for the Auto preview.** Start waited for "Checking what Auto can use..." without a limit, so a slow host left it grey. After three seconds Start no longer waits for the preview (it still stays blocked when Settings say Claude is off, not installed or not signed in), and picking another repository does not start the wait again. Closing the window while a start is still waiting for the host moves the run to its starting card, so a refusal that comes later is shown instead of lost; while the prompt and its attachments are still being put together the window stays until the card exists.
+
+### Changed
+
+- **The agent screen is a chat.** Your messages are bubbles on the right; the agent speaks on the left under an avatar (the provider's mark in a ring of the role's colour) with its name and the time of its first message of a run of messages. Tool calls, requests, plans and notes line up with the agent's column, a message has a Copy button on hover or focus, the conversation keeps a readable width on a wide window, and a line of three dots (or "Waiting for you") shows under the conversation while the agent works and nothing is streaming. The message box is one rounded box around the field, the attachments and the buttons. Nothing changed in what the cards offer or in the keyboard shortcuts.
+- **Finished runs take less room, and you can close them.** In the Agent workspace and in the dock, Ready for review and Done show the newest five runs as one-line rows (Ready for review keeps the last words of the run under the title), with **Show n more**, a fold button on the group, a **Close** button on every finished run (also the Delete key) and **Close all** for a group, with an Undo. Closing only hides a run from the list: **Closed (n)** shows them again and **Reopen** puts one back; nothing is deleted, a run that works or waits for you is never hidden, and a closed run that works again comes back by itself. What is closed is remembered per workspace.
+- **A slow start opens the run at once.** Starting a run takes a while on a busy Mac (the Rewind snapshot of every repository, then the agent and its first message), and the New run window used to wait for all of it without a word, so you could not tell whether anything had started. When the host has not answered after about half a second, the window now closes and the run opens in its place as a card that counts the seconds and says what is going on; it becomes the run itself the moment the host answers, and it does not pull you away from another run you went to meanwhile. If the host refuses, the card keeps the reason and offers **Edit and retry** (the task comes back in the New run window, with the reason) or **Dismiss**. A quick answer, and a quick refusal, behave as before: the window closes on the run, or stays open with the reason.
+
 
 ## [1.6.0] - 2026-10-16
 
@@ -228,7 +246,8 @@ First public release. This is alpha software.
 - Providers other than Claude, Happy, MongoDB Studio and Remote are proven only against mocks or on a local machine.
 - Version 0.1.0 still stores its state in the folder `IntelySwitchIDE` and uses Keychain services named after the earlier bundle identifier; a switch to `com.intelyhome.intelyide` with a migration is planned.
 
-[Unreleased]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.6.0...HEAD
+[Unreleased]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.7.0...HEAD
+[1.7.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.5.1...v1.6.0
 [1.5.1]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.4.1...v1.5.0

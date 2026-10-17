@@ -1,0 +1,170 @@
+[
+  {
+    "version": "1.7.0",
+    "date": "2026-10-17",
+    "headline": {
+      "en": "Faster starts, a conversation-style Agent screen and a tidier list of runs.",
+      "hu": "Gyorsabb indítás, beszélgetés-stílusú Agent képernyő és rendezettebb futáslista."
+    },
+    "notes": [
+      {
+        "kind": "fixed",
+        "title": { "en": "Runs start much faster", "hu": "A futások sokkal gyorsabban indulnak" },
+        "text": {
+          "en": "The safety snapshot taken before a run now reads only the files that changed, and the repositories of a run are snapshotted together. On a large repository this took seconds per repository and made starts look stuck; now it takes a fraction of a second. The snapshot itself is the same.",
+          "hu": "A futás előtti biztonsági pillanatkép most csak a megváltozott fájlokat olvassa be, és a futás repóiról egyszerre készül. Nagy repónál ez repónként másodpercekig tartott, és az indítás megakadtnak látszott; most a másodperc törtrésze. Maga a pillanatkép ugyanaz."
+        }
+      },
+      {
+        "kind": "fixed",
+        "title": { "en": "The New run window no longer gets stuck", "hu": "Az Új futás ablak nem ragad el" },
+        "text": {
+          "en": "Start no longer waits more than three seconds for the Auto preview. If you close the window while a run is starting, the run shows as a starting card, so a refusal is never lost.",
+          "hu": "A Start gomb legfeljebb három másodpercig vár az Auto előnézetre. Ha az ablakot bezárod, miközben a futás indul, a futás indítási kártyaként marad meg, így egy elutasítás sosem vész el."
+        }
+      },
+      {
+        "kind": "improved",
+        "title": { "en": "The Agent screen is a conversation", "hu": "Az Agent képernyő beszélgetés lett" },
+        "text": {
+          "en": "Your messages are bubbles on the right; the agent answers on the left with an avatar, its name and the time. Tool calls and requests line up under it, messages can be copied, three dots show while it works, and the message box is one rounded box.",
+          "hu": "Az üzeneteid jobbra, buborékban jelennek meg; az ügynök balra válaszol avatarral, névvel és idővel. Az eszközhívások és a kérések alatta sorakoznak, az üzenetek másolhatók, munka közben három pont látszik, az üzenetmező pedig egy lekerekített doboz."
+        }
+      },
+      {
+        "kind": "new",
+        "title": { "en": "Close finished runs", "hu": "Lefutott futások lezárása" },
+        "text": {
+          "en": "Ready for review and Done show the newest five runs as one line each. Close a run with the x (or the Delete key), or a whole group with Undo; Closed (n) brings them back. Nothing is deleted.",
+          "hu": "Az Átnézésre kész és a Kész csoport a legfrissebb öt futást egy-egy sorban mutatja. Egy futást az x-szel (vagy a Delete billentyűvel) zárhatsz be, egy egész csoportot visszavonással együtt; a Lezárt (n) gomb visszahozza őket. Semmi nem törlődik."
+        }
+      },
+      {
+        "kind": "new",
+        "title": { "en": "Integrations catalog", "hu": "Integrációk katalógusa" },
+        "text": {
+          "en": "Settings > Integrations now lists Happy, MCP servers and Sentry as cards (Happy and Sentry show whether they are connected), so connecting a service starts in one place. Happy opens its own screen inside the tab. DeepPattern is shown as planned.",
+          "hu": "A Beállítások > Integrációk most kártyákon mutatja a Happy-t, az MCP-szervereket és a Sentryt (a Happy és a Sentry a csatlakozás állapotát is), így egy szolgáltatás csatlakoztatása egy helyen indul. A Happy a lapon belül saját képernyőn nyílik meg. A DeepPattern tervezettként látszik."
+        }
+      },
+      {
+        "kind": "new",
+        "title": { "en": "Notifications by category", "hu": "Értesítések kategóriánként" },
+        "text": {
+          "en": "In Settings > Integrations > Happy you choose for each kind of notification (orders, delivery, invoices, chat and more) whether it alerts you, shows quietly in the inbox, or is hidden. The count and the toasts follow.",
+          "hu": "A Beállítások > Integrációk > Happy alatt minden értesítésfajtára (rendelés, szállítás, számla, csevegés és más) megadhatod, hogy riasszon, csendben megjelenjen a postaládában, vagy rejtve maradjon. A számláló és a felugró értesítések követik."
+        }
+      },
+      {
+        "kind": "improved",
+        "title": { "en": "A slow start opens the run at once", "hu": "A lassú indítás azonnal megnyitja a futást" },
+        "text": {
+          "en": "If the host has not answered after half a second, the run opens as a card that counts the seconds and becomes the run when it is ready. A refusal keeps its reason, with Edit and retry.",
+          "hu": "Ha a gazda fél másodperc után sem válaszol, a futás egy másodperceket számláló kártyaként nyílik meg, és kész állapotban maga a futás lesz belőle. Elutasításnál az ok megmarad, a Szerkesztés és újra gombbal."
+        }
+      },
+      {
+        "kind": "new",
+        "title": { "en": "This What's new window", "hu": "Ez az Újdonságok ablak" },
+        "text": {
+          "en": "It opens once after an update and lists what came in and what was fixed. Open it again any time from the command palette: What's new.",
+          "hu": "Frissítés után egyszer megnyílik, és felsorolja, mi került bele és mit javítottunk. Bármikor újra megnyithatod a parancspalettáról: Újdonságok."
+        }
+      }
+    ]
+  },
+  {
+    "version": "1.6.0",
+    "date": "2026-10-16",
+    "headline": {
+      "en": "Invite links open the app, and several runs can work at once.",
+      "hu": "A meghívó linkek megnyitják az appot, és több futás dolgozhat egyszerre."
+    },
+    "notes": [
+      {
+        "kind": "new",
+        "title": { "en": "Team invite links open the app", "hu": "A csapatmeghívó linkek megnyitják az appot" },
+        "text": {
+          "en": "Click an intely-team://join link and IntelyIDE opens on Settings > Team with the code filled in. You still tick the trust box and press Join yourself.",
+          "hu": "Egy intely-team://join linkre kattintva az IntelyIDE a Beállítások > Csapat oldalon nyílik meg, a kóddal kitöltve. A bizalmi jelölőnégyzetet és a Csatlakozás gombot továbbra is te nyomod meg."
+        }
+      },
+      {
+        "kind": "improved",
+        "title": { "en": "Several runs can work at once", "hu": "Több futás dolgozhat egyszerre" },
+        "text": {
+          "en": "The limits are settings now (Settings > Roles > Runs at the same time): 12 runs by default, several runs may change one repository, and the memory budget is automatic.",
+          "hu": "A korlátok beállításokká váltak (Beállítások > Szerepek > Egyidejű futások): alapból 12 futás, több futás is módosíthatja ugyanazt a repót, a memóriakeret pedig automatikus."
+        }
+      }
+    ]
+  },
+  {
+    "version": "1.5.1",
+    "date": "2026-10-16",
+    "headline": {
+      "en": "Fixes for a crash on accented text, joining a team on a new Mac and Node 25.",
+      "hu": "Javítások: összeomlás ékezetes szövegnél, csatlakozás csapathoz új Macen, Node 25."
+    },
+    "notes": [
+      {
+        "kind": "fixed",
+        "title": { "en": "The app could close by itself during a run", "hu": "Az app futás közben magától bezárulhatott" },
+        "text": {
+          "en": "A letter such as a or o with an accent right in front of a name or a colon in shared output could end the whole application. The filters now cut text only between characters.",
+          "hu": "Egy ékezetes betű a megosztott kimenetben egy név vagy kettőspont előtt az egész alkalmazást leállíthatta. A szűrők már csak karakterek között vágnak."
+        }
+      },
+      {
+        "kind": "fixed",
+        "title": { "en": "Joining a team on another Mac", "hu": "Csatlakozás csapathoz másik Macen" },
+        "text": {
+          "en": "The join form now shows the relay's host and asks once whether you trust it, and every refusal says in plain words what is wrong.",
+          "hu": "A csatlakozási űrlap megmutatja a relay gazdáját, és egyszer rákérdez, megbízol-e benne; minden elutasítás érthetően megmondja, mi a baj."
+        }
+      },
+      {
+        "kind": "fixed",
+        "title": { "en": "First-run installer on Node 25", "hu": "Az első indítási telepítő Node 25-ön" },
+        "text": {
+          "en": "The installer of the Claude agent SDK no longer fails with ERR_ACCESS_DENIED on Node 25.",
+          "hu": "A Claude agent SDK telepítője Node 25-ön már nem fut ERR_ACCESS_DENIED hibára."
+        }
+      }
+    ]
+  },
+  {
+    "version": "1.5.0",
+    "date": "2026-10-14",
+    "headline": {
+      "en": "Team chat, follow-ups to stopped runs and a commit list.",
+      "hu": "Csapatchat, utólagos kérések leállt futásokhoz és commit-lista."
+    },
+    "notes": [
+      {
+        "kind": "new",
+        "title": { "en": "Team chat in a run", "hu": "Csapatchat egy futásban" },
+        "text": {
+          "en": "Every shared run has a thread for the people looking at it, with unread counts and a banner. Chat is human to human: nothing in it is ever given to an agent.",
+          "hu": "Minden megosztott futásnak van egy beszélgetése az azt nézőknek, olvasatlan számlálóval és értesítéssel. A chat emberek között zajlik: semmi nem jut el belőle az ügynökhöz."
+        }
+      },
+      {
+        "kind": "new",
+        "title": { "en": "Follow-ups into a stopped run", "hu": "Utólagos kérés leállt futásba" },
+        "text": {
+          "en": "A teammate can suggest a follow-up to a run that has stopped. It waits for the owner's click before anything is sent.",
+          "hu": "Egy csapattárs utólagos kérést javasolhat egy leállt futáshoz. A küldés előtt a tulajdonos kattintására vár."
+        }
+      },
+      {
+        "kind": "new",
+        "title": { "en": "Commit list in Team", "hu": "Commit-lista a Csapatban" },
+        "text": {
+          "en": "The Workspace tab lists the newest commits of the checked-out branch, and a new Commits view shows one timeline for every online teammate.",
+          "hu": "A Munkaterület fül az aktuális ág legfrissebb commitjait listázza, az új Commitok nézet pedig egy közös idővonalat mutat minden elérhető csapattársról."
+        }
+      }
+    ]
+  }
+]

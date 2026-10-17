@@ -2,7 +2,7 @@
 
 This document explains how IntelyIDE is put together: which crates and packages exist, how a commit and an agent run travel through them, what is stored on disk and how the test suites are organised.
 
-Applies to version 1.6.0.
+Applies to version 1.7.0.
 
 IntelyIDE is a desktop app built with Tauri. A Rust engine does the Git work, a SolidJS interface shows it, and a lazily started Node process (the sidecar) talks to AI coding agents. The safety rules that constrain every layer are described in [safety.md](safety.md).
 
@@ -119,7 +119,7 @@ The interface is in `ui/src`:
 | Folder | Role |
 |---|---|
 | `app/`, `shell/` | Application root, window layout, rail, title bar and close guard. |
-| `platform/` | Registries a module adds to: rail items, tabs, commands, keyboard shortcuts, settings sections, status bar items, editor extensions, overlays and the Inspector panels. |
+| `platform/` | Registries a module adds to: rail items, tabs, commands, keyboard shortcuts, settings sections, status bar items, editor extensions, overlays, the Inspector panels and the catalog of Settings > Integrations. |
 | `modules/` | One folder per feature module. |
 | `ipc/` | The typed bridge to Rust. Each namespace has a Tauri implementation and a deterministic mock used in the browser and in tests. |
 | `bindings/` | Types generated from Rust by `pnpm bindings`. |
@@ -134,6 +134,8 @@ A feature module is a folder under `ui/src/modules/` whose `index.ts` exports a 
 - `register()` only fills registries. It does no IPC, starts no timers and opens no sockets, so a module that is switched off costs nothing at startup.
 - Visibility is reactive. Modules such as Remote and the integrations hide their commands and status items with a `when` condition that reads settings, so they appear only when turned on.
 - A module that throws while registering is logged and skipped; the rest of the app starts.
+
+The catalog in Settings > Integrations is one more registry (`platform/integrations.ts`). A module adds a card with `registerIntegration({ id, name, order, icon, summary, status?, load?, detail? | section?, planned? })`: `detail` is a screen shown inside the tab with a way back (Happy), `section` points at a settings section that already holds the settings (MCP servers, Sentry), `status` is the chip on the card, and `planned` shows a card that opens nothing. `openIntegration(id)` takes a person straight to one of them, which is what the Happy tabs do when they ask for a token. A new integration is one `registerIntegration` call in its own module; the catalog needs no change.
 
 On the Rust side each feature has its own file in `src-tauri/src/modules/`. MongoDB Studio is additionally behind the `mongo-studio` cargo feature, which is on by default. A build without it leaves out the driver and its TLS stack.
 

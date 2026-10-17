@@ -4,12 +4,15 @@
 //! mail), `PATCH /api/notifications/{id}/read|unread`, `PATCH /api/notifications/read-all`, `DELETE /api/notifications/{id}`,
 //! and the Socket.IO event `notification:new` (one document). Unknown fields are ignored, a missing one defaults.
 
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 #[cfg(feature = "specta")]
 use specta_typescript::Number;
 
 use crate::parse::{list, millis, number, text};
+use crate::types::NotifyMode;
 
 /// Longest body kept per notification; the inbox shows a short preview and bodies are never logged.
 const BODY_MAX: usize = 400;
@@ -46,6 +49,60 @@ pub struct NotificationItem {
     #[serde(default)]
     #[cfg_attr(feature = "specta", specta(optional))]
     pub event_key: Option<String>,
+    /// What the settings group it under (see [`category`]): `order`, `delivery`, `invoice`, `chat`, `task`, ..., or `other`.
+    #[serde(default)]
+    pub category: String,
+    /// The settings say Quiet for its category: shown in the inbox, not counted and not announced.
+    #[serde(default)]
+    pub quiet: bool,
+}
+
+/// The most categories the settings keep, so a server that sends a new type every time cannot fill `settings.json`.
+pub const KINDS_MAX: usize = 64;
+const KIND_LEN: usize = 64;
+
+/// The settings key of a category: lowercase, at most 64 characters of letters, digits, `.`, `_` and `-`. Anything else is refused.
+pub fn clean_kind(raw: &str) -> Option<String> {
+    let kind = raw.trim().to_lowercase();
+    let fine = !kind.is_empty() && kind.chars().count() <= KIND_LEN && kind.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'));
+    fine.then_some(kind)
+}
+
+/// Types that are one category whatever they are called: the start decides (`orderCreated`, `orders`, `shipping`, `billing`).
+const SAME: &[(&str, &[&str])] = &[("order", &["order"]), ("delivery", &["deliver", "shipping", "shipment"]), ("invoice", &["invoice", "billing"])];
+
+/// The category of a notification: its server `type`, else the first part of its event key (`order.created` -> `order`), else
+/// `other`. A type that cannot be a settings key counts as `other`; the names for orders, delivery and invoices are folded.
+pub fn category(kind: Option<&str>, event_key: Option<&str>) -> String {
+    let raw = kind.filter(|k| !k.trim().is_empty()).or_else(|| event_key.and_then(|e| e.split('.').next()));
+    let Some(kind) = raw.and_then(clean_kind) else { return "other".to_owned() };
+    for (name, starts) in SAME {
+        if starts.iter().any(|s| kind.starts_with(s)) {
+            return (*name).to_owned();
+        }
+    }
+    kind
+}
+
+/// What the person sees of `raw` under their settings. A category set to Off is left out, one set to Quiet is marked `quiet`, and
+/// neither counts as unread. The server's badge is a total, so the count is lowered by the unread ones of the loaded list.
+pub fn shown(raw: &NotificationsView, modes: &BTreeMap<String, NotifyMode>) -> NotificationsView {
+    if modes.is_empty() {
+        return raw.clone();
+    }
+    let mut silent = 0u32;
+    let mut items = Vec::with_capacity(raw.items.len());
+    for item in &raw.items {
+        match modes.get(&item.category) {
+            None | Some(NotifyMode::Alert) => items.push(item.clone()),
+            Some(NotifyMode::Quiet) => {
+                silent += u32::from(!item.read);
+                items.push(NotificationItem { quiet: true, ..item.clone() });
+            }
+            Some(NotifyMode::Off) => silent += u32::from(!item.read),
+        }
+    }
+    NotificationsView { items, unread: raw.unread.saturating_sub(silent), loaded: raw.loaded, stale: raw.stale }
 }
 
 /// Event `happy:notifications` carries the same shape. `loaded` is false until the list was fetched once; the badge count
@@ -102,6 +159,8 @@ pub fn item(n: &Value) -> Option<NotificationItem> {
         message_id: text(meta, &["messageId"]),
         thread_root: text(meta, &["threadRoot"]),
         event_key: text(meta, &["eventKey"]),
+        category: category(text(n, &["type"]).as_deref(), text(meta, &["eventKey"]).as_deref()),
+        quiet: false,
     })
 }
 
@@ -188,5 +247,73 @@ mod tests {
         let counted = view(None, Some(vec![]), &first);
         assert_eq!(counted.unread, 0);
         assert!(!view(Some(4), None, &NotificationsView::empty()).loaded);
+    }
+
+    fn row(id: &str, kind: &str, read: bool) -> NotificationItem {
+        item(&json!({ "_id": id, "title": id, "type": kind, "read": read, "createdAt": "2026-10-03T08:00:00Z" })).unwrap()
+    }
+
+    #[test]
+    fn a_category_is_the_type_with_the_names_for_orders_delivery_and_invoices_folded() {
+        for (kind, want) in [("order", "order"), ("Orders", "order"), ("orderCreated", "order"), ("new_order", "new_order"), ("delivery", "delivery"), ("deliveryDelayed", "delivery"), ("shipping", "delivery"), ("shipment_sent", "delivery"), ("invoice", "invoice"), ("invoices", "invoice"), ("billing", "invoice"), ("chat", "chat"), ("TASK", "task")] {
+            assert_eq!(category(Some(kind), None), want, "{kind}");
+        }
+        assert_eq!(category(None, Some("order.created")), "order", "no type: the first part of the event key");
+        assert_eq!(category(Some("  "), Some("chat.message.mention")), "chat");
+        assert_eq!(category(Some("invoice"), Some("order.created")), "invoice", "the type wins over the event key");
+        for odd in [None, Some(""), Some("two words"), Some("ő"), Some("a/b")] {
+            assert_eq!(category(odd, None), "other", "{odd:?}");
+        }
+        assert_eq!(category(Some(&"x".repeat(65)), None), "other", "too long to be a settings key");
+    }
+
+    #[test]
+    fn a_settings_key_is_lowercase_and_plain() {
+        assert_eq!(clean_kind("  Order-2.x_y "), Some("order-2.x_y".to_owned()));
+        for bad in ["", "   ", "a b", "a/b", "a\u{0}b", "ő", &"x".repeat(65)] {
+            assert_eq!(clean_kind(bad), None, "{bad:?}");
+        }
+        assert!(clean_kind(&"x".repeat(64)).is_some());
+    }
+
+    #[test]
+    fn the_items_carry_their_category_and_start_out_loud() {
+        let order = row("o1", "orderCreated", false);
+        assert_eq!((order.category.as_str(), order.quiet), ("order", false));
+        assert_eq!(item(&json!({ "_id": "x", "title": "t", "metadata": { "eventKey": "invoice.paid" } })).unwrap().category, "invoice");
+        assert_eq!(item(&json!({ "_id": "x", "title": "t" })).unwrap().category, "other");
+    }
+
+    fn base() -> NotificationsView {
+        let items = vec![row("o1", "order", false), row("d1", "delivery", false), row("d2", "delivery", true), row("i1", "invoice", false), row("c1", "chat", false), row("m1", "weird", false)];
+        NotificationsView { items, unread: 7, loaded: true, stale: false }
+    }
+
+    #[test]
+    fn without_settings_the_view_is_what_the_server_said() {
+        assert_eq!(shown(&base(), &BTreeMap::new()), base());
+        let alert: BTreeMap<String, NotifyMode> = [("order".to_owned(), NotifyMode::Alert)].into();
+        assert_eq!(shown(&base(), &alert), base(), "an explicit alert changes nothing");
+    }
+
+    #[test]
+    fn quiet_keeps_the_item_but_not_the_count_and_off_hides_it() {
+        let modes: BTreeMap<String, NotifyMode> = [("order".to_owned(), NotifyMode::Quiet), ("delivery".to_owned(), NotifyMode::Off), ("unlisted".to_owned(), NotifyMode::Off)].into();
+        let v = shown(&base(), &modes);
+        assert_eq!(v.items.iter().map(|i| (i.id.as_str(), i.quiet)).collect::<Vec<_>>(), vec![("o1", true), ("i1", false), ("c1", false), ("m1", false)]);
+        // 7 on the server; o1 (quiet, unread) and d1 (off, unread) are taken off; d2 was read and takes nothing off.
+        assert_eq!((v.unread, v.loaded, v.stale), (5, true, false));
+        let all_off: BTreeMap<String, NotifyMode> = ["order", "delivery", "invoice", "chat", "other", "weird"].iter().map(|k| ((*k).to_owned(), NotifyMode::Off)).collect();
+        let none = shown(&base(), &all_off);
+        assert!(none.items.is_empty());
+        assert_eq!(none.unread, 2, "the server count is a total: the 5 unread ones of the loaded list come off, 2 are beyond it");
+    }
+
+    #[test]
+    fn the_count_never_goes_below_zero() {
+        let mut raw = base();
+        raw.unread = 1;
+        let modes: BTreeMap<String, NotifyMode> = [("order".to_owned(), NotifyMode::Off), ("delivery".to_owned(), NotifyMode::Off)].into();
+        assert_eq!(shown(&raw, &modes).unread, 0);
     }
 }

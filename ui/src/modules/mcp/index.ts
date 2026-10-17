@@ -1,6 +1,7 @@
 import { lazy } from "solid-js";
 import { Plug } from "../../ui-kit";
 import { t } from "../../i18n";
+import { registerIntegration } from "../../platform/integrations";
 import { registerSettingsSection } from "../../platform/settings";
 
 export function register(): void {
@@ -12,6 +13,16 @@ export function register(): void {
     component: lazy(() => import("./McpSection")),
     get title() {
       return t("mcp.title");
+    },
+  });
+  registerIntegration({
+    id: "mcp",
+    name: "MCP",
+    order: 20,
+    icon: Plug,
+    section: "mcp",
+    get summary() {
+      return t("integrations.catalog.mcp.summary");
     },
   });
 }

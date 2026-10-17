@@ -32,3 +32,9 @@
 .ib__row:hover:not([data-unread]) { background: var(--surface-hover); }
 .ib__row:hover .ib__action, .ib__row:focus-within .ib__action { opacity: 1; }
 .ib__empty { padding: var(--space-3); }
+
+/* A quiet category is listed but neither counted nor announced, so an unread one does not look unread: a ring instead of the filled dot */
+.ib__row[data-quiet][data-unread] { background: none; }
+.ib__row[data-quiet][data-unread] .ib__dot { background: transparent; box-shadow: inset 0 0 0 1.5px var(--text-3); }
+.ib__row[data-quiet][data-unread] .ib__name { font-weight: var(--weight-regular); }
+.ib__row[data-quiet] .ib__name, .ib__row[data-quiet] .ib__body { color: var(--text-2); }

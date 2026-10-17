@@ -153,3 +153,32 @@
 .where__stepper { display: inline-flex; align-items: center; gap: var(--space-1); margin-left: auto; }
 .where__count { min-width: 2ch; text-align: center; color: var(--text-1); font-size: var(--text-sm); }
 .where__summary { margin: 0; color: var(--text-2); font-size: var(--text-sm); }
+
+/* Finished runs: folded groups, one-line rows, a close button that shows on hover or focus. */
+.sessions__group-head { display: flex; align-items: center; gap: 4px; padding-right: 2px; }
+.sessions__group-head .sessions__group-title { flex: 1 1 auto; min-width: 0; padding-right: 0; }
+.sessions__group-toggle { display: inline-flex; align-items: center; gap: 6px; margin-left: -2px; padding: 2px 6px 2px 2px; border: 0; border-radius: var(--radius-1); background: none; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer; }
+.sessions__group-toggle:hover { background: var(--surface-hover); color: var(--text-1); }
+.sessions__group-close { flex: none; opacity: 0; transition: opacity var(--dur-fast) var(--ease); }
+.sessions__group-head:hover .sessions__group-close, .sessions__group-close:focus-visible { opacity: 1; }
+.sessions__more, .sessions__closed { align-self: stretch; margin: 2px var(--space-1) 0; padding: 4px 10px; border: 0; border-radius: var(--radius-2); background: none; color: var(--text-3); font: inherit; font-size: var(--text-xs); text-align: left; cursor: pointer; }
+.sessions__more:hover, .sessions__closed:hover { background: var(--surface-hover); color: var(--text-1); }
+.sessions__closed { margin-top: var(--space-2); box-shadow: inset 0 0 0 1px var(--border-subtle); text-align: center; }
+.sessions__closed[data-on] { background: var(--accent-subtle); color: var(--accent-text); box-shadow: inset 0 0 0 1px var(--accent-border); }
+
+.run-row { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; border: 1px solid transparent; border-radius: var(--radius-2); transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease); }
+.run-row:hover, .run-row:focus-within { background: var(--surface-hover); }
+.run-row[data-selected] { background: var(--surface-selected); border-color: var(--border); }
+.run-row[data-closed] { opacity: 0.62; }
+.run-row[data-foreign] { border-style: dashed; opacity: 0.8; }
+.run-row__main { display: flex; flex-direction: column; gap: 1px; min-width: 0; padding: 5px 4px 5px 10px; border: 0; background: none; color: var(--text-1); font: inherit; text-align: left; border-radius: var(--radius-2); }
+.run-row__top { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.run-row__title { flex: 1 1 0; min-width: 0; font-size: var(--text-sm); }
+.run-row[data-status="error"] .run-row__title { color: var(--danger); }
+.run-row__ago { flex: none; color: var(--text-3); font-size: var(--text-xs); }
+.run-row__activity { display: block; padding-left: 23px; color: var(--text-3); font-size: var(--text-xs); }
+.run-row__foreign { display: block; padding-left: 23px; color: var(--warn); font-size: var(--text-xs); line-height: var(--leading-base); }
+.run-row__close { margin-right: 4px; opacity: 0; transition: opacity var(--dur-fast) var(--ease); }
+.run-row:hover .run-row__close, .run-row:focus-within .run-row__close, .run-row[data-selected] .run-row__close, .run-row__close:focus-visible { opacity: 1; }
+@media (hover: none) { .run-row__close, .sessions__group-close { opacity: 0.7; } }
+.sessions__empty-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-1); }

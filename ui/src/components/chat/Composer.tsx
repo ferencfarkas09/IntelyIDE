@@ -252,64 +252,66 @@ export function Composer(props: ComposerProps) {
           </For>
         </div>
       </Show>
-      <AttachmentChips items={att.store.items()} provider={att.provider()} onRemove={(id) => void att.store.remove(id)} onConfirm={(id) => void att.store.confirm(id)} />
-      <TextArea
-        ref={(el) => (area = el)}
-        class="composer__field"
-        aria-label={t("chat.messageTo")}
-        role="combobox"
-        aria-haspopup="listbox"
-        aria-expanded={listOpen()}
-        aria-autocomplete="list"
-        aria-controls={slashOpen() ? `${listId}-slash` : popupOpen() ? listId : undefined}
-        aria-activedescendant={slashOpen() ? `${listId}-s${slashCursor()}` : popupOpen() ? `${listId}-${cursor()}` : undefined}
-        placeholder={props.blockedReason ?? (props.running ? (noteMode() ? t("notes.placeholder") : t("chat.placeholderBusy")) : t("chat.placeholder"))}
-        minRows={2}
-        maxRows={8}
-        value={text()}
-        disabled={false}
-        onInput={(e) => {
-          setAgentDraft(props.agentId, e.currentTarget.value);
-          setCaret(e.currentTarget.selectionStart);
-          setDismissed(false);
-          setSlashDismissed(false);
-        }}
-        onKeyDown={onKeyDown}
-        onPaste={att.onPaste}
-        onKeyUp={(e) => (e.key.startsWith("Arrow") || e.key === "Home" || e.key === "End") && setCaret(e.currentTarget.selectionStart)}
-        onClick={(e) => setCaret(e.currentTarget.selectionStart)}
-      />
-      <div class="composer__bar">
-        <AttachButton onFiles={att.pick} disabled={props.attachmentsCap === "none"} reason={props.attachmentsCap === "none" ? t("chat.noAttachments", { provider: att.provider() }) : undefined} />
-        <span class="composer__hint" role={notice() ? "status" : undefined}>
-          <Show when={notice()} fallback={<><Kbd keys={["⌘", "⏎"]} /> {noteMode() ? t("notes.hint") : t("chat.sendHint")}</>}>
-            {(n) => n()}
-          </Show>
-        </span>
-        <span class="composer__grow" />
-        <Show
-          when={props.running}
-          fallback={
-            <Tooltip label={props.blockedReason ?? t("chat.sendMessage")} shortcut={["⌘", "⏎"]}>
-              <Button size="sm" variant="primary" icon={SendHorizontal} aria-disabled={!canSend()} onClick={send}>
-                {t("chat.send")}
+      <div class="composer__box">
+        <AttachmentChips items={att.store.items()} provider={att.provider()} onRemove={(id) => void att.store.remove(id)} onConfirm={(id) => void att.store.confirm(id)} />
+        <TextArea
+          ref={(el) => (area = el)}
+          class="composer__field"
+          aria-label={t("chat.messageTo")}
+          role="combobox"
+          aria-haspopup="listbox"
+          aria-expanded={listOpen()}
+          aria-autocomplete="list"
+          aria-controls={slashOpen() ? `${listId}-slash` : popupOpen() ? listId : undefined}
+          aria-activedescendant={slashOpen() ? `${listId}-s${slashCursor()}` : popupOpen() ? `${listId}-${cursor()}` : undefined}
+          placeholder={props.blockedReason ?? (props.running ? (noteMode() ? t("notes.placeholder") : t("chat.placeholderBusy")) : t("chat.placeholder"))}
+          minRows={2}
+          maxRows={8}
+          value={text()}
+          disabled={false}
+          onInput={(e) => {
+            setAgentDraft(props.agentId, e.currentTarget.value);
+            setCaret(e.currentTarget.selectionStart);
+            setDismissed(false);
+            setSlashDismissed(false);
+          }}
+          onKeyDown={onKeyDown}
+          onPaste={att.onPaste}
+          onKeyUp={(e) => (e.key.startsWith("Arrow") || e.key === "Home" || e.key === "End") && setCaret(e.currentTarget.selectionStart)}
+          onClick={(e) => setCaret(e.currentTarget.selectionStart)}
+        />
+        <div class="composer__bar">
+          <AttachButton onFiles={att.pick} disabled={props.attachmentsCap === "none"} reason={props.attachmentsCap === "none" ? t("chat.noAttachments", { provider: att.provider() }) : undefined} />
+          <span class="composer__hint" role={notice() ? "status" : undefined}>
+            <Show when={notice()} fallback={<><Kbd keys={["⌘", "⏎"]} /> {noteMode() ? t("notes.hint") : t("chat.sendHint")}</>}>
+              {(n) => n()}
+            </Show>
+          </span>
+          <span class="composer__grow" />
+          <Show
+            when={props.running}
+            fallback={
+              <Tooltip label={props.blockedReason ?? t("chat.sendMessage")} shortcut={["⌘", "⏎"]}>
+                <Button size="sm" variant="primary" icon={SendHorizontal} aria-disabled={!canSend()} onClick={send}>
+                  {t("chat.send")}
+                </Button>
+              </Tooltip>
+            }
+          >
+            <Show when={noteMode()}>
+              <Tooltip label={t("notes.addTip")} shortcut={["⌘", "⏎"]}>
+                <Button size="sm" variant="secondary" icon={MessageSquareReply} aria-disabled={!canNote()} onClick={() => void addNote()}>
+                  {t("notes.add")}
+                </Button>
+              </Tooltip>
+            </Show>
+            <Tooltip label={t("chat.stopTheRun")} shortcut={["⌘", "."]}>
+              <Button size="sm" variant="danger" icon={Square} loading={props.stopping} onClick={props.onStop}>
+                {t("chat.stop")}
               </Button>
             </Tooltip>
-          }
-        >
-          <Show when={noteMode()}>
-            <Tooltip label={t("notes.addTip")} shortcut={["⌘", "⏎"]}>
-              <Button size="sm" variant="secondary" icon={MessageSquareReply} aria-disabled={!canNote()} onClick={() => void addNote()}>
-                {t("notes.add")}
-              </Button>
-            </Tooltip>
           </Show>
-          <Tooltip label={t("chat.stopTheRun")} shortcut={["⌘", "."]}>
-            <Button size="sm" variant="danger" icon={Square} loading={props.stopping} onClick={props.onStop}>
-              {t("chat.stop")}
-            </Button>
-          </Tooltip>
-        </Show>
+        </div>
       </div>
     </div>
   );

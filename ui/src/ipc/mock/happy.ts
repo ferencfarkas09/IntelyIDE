@@ -1,7 +1,7 @@
 import type { ConfigPatch, HappyConfig, HappyStatus, LastError, MeetView, ProjectHit, ProviderPrefs, ProviderState, TaskSearch, TimerView, Trackable, TimeEntry } from "../happy";
 import type { HappyIpc } from "../happy";
 import { chatScenarioFromUrl, createMockChat, type ChatScenario, type MockChatSim } from "./happyChat";
-import { createMockNt, type MockNtSim } from "./happyNt";
+import { cleanKind, createMockNt, KINDS_MAX, type MockNtSim } from "./happyNt";
 
 export type { ChatScenario, MockChatSim } from "./happyChat";
 
@@ -68,6 +68,7 @@ export function createMockHappy(options: MockHappyOptions = {}): HappyIpc & { ch
     chat: { enabled: connected, showInStatusBar: true, allowActions: true },
     notifications: { enabled: connected, showInStatusBar: true, allowActions: true },
     tasks: { enabled: connected, showInStatusBar: true, allowActions: true },
+    notificationKinds: {},
   };
   const secretKeys = options.secretKeys ?? new Set<string>();
   const slot = () => `happy.token.${config.env}`;
@@ -158,6 +159,7 @@ export function createMockHappy(options: MockHappyOptions = {}): HappyIpc & { ch
   const chat = createMockChat({ now, scenario, requireOn: () => requireOn("chat") });
   const nt = createMockNt({
     now,
+    kinds: () => config.notificationKinds ?? {},
     on: (id) => config.master && config[id].enabled && tokenSaved() && !signedOut,
     requireOn,
     requireActions,
@@ -193,11 +195,22 @@ export function createMockHappy(options: MockHappyOptions = {}): HappyIpc & { ch
         chat: { ...config.chat, ...clean(patch.chat) },
         notifications: { ...config.notifications, ...clean(patch.notifications) },
         tasks: { ...config.tasks, ...clean(patch.tasks) },
+        notificationKinds: { ...config.notificationKinds },
       };
+      const kindsBefore = JSON.stringify(config.notificationKinds ?? {});
+      if (patch.notificationKind) {
+        const key = cleanKind(patch.notificationKind.kind);
+        if (!key) throw { code: "badCategory", message: "A notification category is letters, digits, dots, dashes and underscores, at most 64 characters" };
+        const kinds = next.notificationKinds!;
+        if (patch.notificationKind.mode === "alert") delete kinds[key];
+        else if (!(key in kinds) && Object.keys(kinds).length >= KINDS_MAX) throw { code: "tooManyCategories", message: "Too many notification categories are set; turn some back to alert first" };
+        else kinds[key] = patch.notificationKind.mode;
+      }
       if (next.env === "custom" && !/^https:\/\/|^http:\/\/(localhost|127\.0\.0\.1|\[::1\])/.test(next.customBaseUrl ?? "")) {
         throw { code: "invalidBaseUrl", message: "The base URL must be https (http is only allowed for localhost)" };
       }
       config = next;
+      if (JSON.stringify(config.notificationKinds ?? {}) !== kindsBefore) nt.republish();
       if (patch.env) {
         signedOut = undefined;
         timer = idle();

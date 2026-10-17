@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ProviderEnforcement } from "../../ipc/providers";
 import type { PermissionMode } from "../../store/agent-types";
-import { chosenProvider, clampMode, DEFAULT_MODE_UNTIL_AG1, defaultRepos, failureLines, initialMode, providerBlocker, providerChoices, startBlocker, startErrorText, startRequest, toggleRepo } from "./newRunLogic";
+import { chosenProvider, claudeUnavailableReason, clampMode, DEFAULT_MODE_UNTIL_AG1, defaultRepos, failureLines, initialMode, providerBlocker, providerChoices, startBlocker, startErrorText, startRequest, toggleRepo } from "./newRunLogic";
 
 const ROLES = [{ name: "developer" }, { name: "reviewer" }];
 
@@ -219,5 +219,22 @@ describe("failureLines", () => {
       { name: "This Mac", error: new Error("a") },
       { name: "Build server", error: lease },
     ])).toEqual(["This Mac (2 runs): a", "Build server: a", "This Mac: b", expect.stringMatching(/^Build server: This repository already has/)]);
+  });
+});
+
+describe("claudeUnavailableReason", () => {
+  const list = (state: string) => [{ id: "codex", state: "ready" }, { id: "claude", state }];
+  it("names why Claude cannot run, in the codes of the Auto preview", () => {
+    expect(claudeUnavailableReason(list("off"))).toBe("claudeDisabled");
+    expect(claudeUnavailableReason(list("notInstalled"))).toBe("notInstalled");
+    expect(claudeUnavailableReason(list("needsLogin"))).toBe("notLoggedIn");
+    expect(claudeUnavailableReason(list("needsKey"))).toBe("notLoggedIn");
+  });
+
+  it("says nothing when Claude is usable, still probing, or not in the list", () => {
+    expect(claudeUnavailableReason(list("ready"))).toBeUndefined();
+    expect(claudeUnavailableReason(list("probing"))).toBeUndefined();
+    expect(claudeUnavailableReason([{ id: "codex", state: "off" }])).toBeUndefined();
+    expect(claudeUnavailableReason([])).toBeUndefined();
   });
 });

@@ -22,19 +22,38 @@ impl Default for InboxState {
 }
 
 impl Hub {
-    /// The last known inbox (kept fresh by polling while the window is focused). Makes no request.
+    /// The last known inbox (kept fresh by polling while the window is focused), as the settings let the person see it. Makes no request.
     pub fn notifications_current(&self) -> NotificationsView {
+        self.shown(self.raw_inbox())
+    }
+
+    /// What the server said, before the category settings: the polling, the verbs and the cache work on this.
+    fn raw_inbox(&self) -> NotificationsView {
         self.st().nt.view.clone()
     }
 
-    fn set_inbox(&self, view: NotificationsView) -> NotificationsView {
+    /// `raw` under the category settings (Alert, Quiet, Off). Everything that leaves the hub goes through here, so the list, the
+    /// badge, the toasts and the Dock count always agree.
+    fn shown(&self, raw: NotificationsView) -> NotificationsView {
+        let modes = self.st().cfg.notification_kinds.clone();
+        notifications::shown(&raw, &modes)
+    }
+
+    /// The settings of the categories changed: tell the webview and the Dock what is shown now.
+    pub(super) fn republish_inbox(&self) {
+        let view = self.shown(self.raw_inbox());
+        self.0.sink.notifications(&view);
+    }
+
+    fn set_inbox(&self, raw: NotificationsView) -> NotificationsView {
         let changed = {
             let mut st = self.st();
             st.nt.misses = 0;
-            let changed = st.nt.view != view;
-            st.nt.view = view.clone();
+            let changed = st.nt.view != raw;
+            st.nt.view = raw.clone();
             changed
         };
+        let view = self.shown(raw);
         if changed {
             self.0.sink.notifications(&view);
         }
@@ -52,7 +71,7 @@ impl Hub {
             st.nt.view.stale = true;
             st.nt.view.clone()
         };
-        self.0.sink.notifications(&view);
+        self.0.sink.notifications(&self.shown(view));
     }
 
     async fn fetch_badge(&self) -> Result<u32, ApiError> {
@@ -67,7 +86,7 @@ impl Hub {
     #[doc(hidden)]
     pub async fn poll_inbox(&self) -> Result<(), ApiError> {
         let unread = self.fetch_badge().await?;
-        let previous = self.notifications_current();
+        let previous = self.raw_inbox();
         let items = if !previous.loaded || previous.unread != unread { Some(self.fetch_inbox_items().await?) } else { None };
         self.set_inbox(notifications::view(Some(unread), items, &previous));
         Ok(())
@@ -78,15 +97,21 @@ impl Hub {
         self.require(Id::Notifications)?;
         let unread = self.fetch_badge().await?;
         let items = self.fetch_inbox_items().await?;
-        let previous = self.notifications_current();
+        let previous = self.raw_inbox();
         Ok(self.set_inbox(notifications::view(Some(unread), Some(items), &previous)))
+    }
+
+    /// The socket's `notification:new`, for tests that have no socket.
+    #[doc(hidden)]
+    pub fn push_notification_for_test(&self, data: &Value) {
+        self.on_notification_new(data);
     }
 
     /// The socket pushed a new notification: it joins the inbox and the badge at once (no poll), and the view event tells the
     /// toast watcher. A repeated id (a replay after a reconnect) is not counted twice.
     pub(crate) fn on_notification_new(&self, data: &Value) {
         let Some(item) = notifications::item(data) else { return };
-        let previous = self.notifications_current();
+        let previous = self.raw_inbox();
         let view = notifications::with_new(&previous, item);
         self.set_inbox(view);
     }
@@ -96,7 +121,7 @@ impl Hub {
         self.require(Id::Notifications)?;
         let path = format!("/api/notifications/{id}/read");
         self.request(Scope::Notifications, Method::Patch, &path, &[], Some(&json!({}))).await?;
-        let mut view = self.notifications_current();
+        let mut view = self.raw_inbox();
         if let Some(item) = view.items.iter_mut().find(|i| i.id == id && !i.read) {
             item.read = true;
             view.unread = view.unread.saturating_sub(1);
@@ -109,7 +134,7 @@ impl Hub {
         self.require(Id::Notifications)?;
         let path = format!("/api/notifications/{id}/unread");
         self.request(Scope::Notifications, Method::Patch, &path, &[], Some(&json!({}))).await?;
-        let mut view = self.notifications_current();
+        let mut view = self.raw_inbox();
         if let Some(item) = view.items.iter_mut().find(|i| i.id == id && i.read) {
             item.read = false;
             view.unread = view.unread.saturating_add(1);
@@ -120,7 +145,7 @@ impl Hub {
     pub async fn notifications_mark_all_read(&self) -> Result<NotificationsView, ApiError> {
         self.require(Id::Notifications)?;
         self.request(Scope::Notifications, Method::Patch, "/api/notifications/read-all", &[], Some(&json!({}))).await?;
-        let mut view = self.notifications_current();
+        let mut view = self.raw_inbox();
         view.items.iter_mut().for_each(|i| i.read = true);
         view.unread = 0;
         Ok(self.set_inbox(view))
@@ -131,7 +156,7 @@ impl Hub {
         self.require(Id::Notifications)?;
         let path = format!("/api/notifications/{id}");
         self.request(Scope::Notifications, Method::Delete, &path, &[], None).await?;
-        let mut view = self.notifications_current();
+        let mut view = self.raw_inbox();
         if let Some(i) = view.items.iter().position(|i| i.id == id) {
             if !view.items.remove(i).read {
                 view.unread = view.unread.saturating_sub(1);

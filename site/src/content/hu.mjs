@@ -118,6 +118,7 @@ export default {
         { icon: 'users', h: 'Csapat (béta)', p: 'Kövesd a csapattársak ügynökfutásait, csevegj egy futásban, lásd egymás commitjait és oszd meg a Claude-memóriát, végponttól végpontig titkosítva, a saját relén át.' },
         { icon: 'phone', h: 'Telefonos átjáró', p: 'Hagyj jóvá vagy válaszolj egy ügynöknek a telefonodról, egy általad üzemeltetett relén át.' },
         { icon: 'server', h: 'Ügynökök a saját szervereiden', p: 'Add meg a szervert az ssh-célpontjával, és futtass rajta ügynököket ugyanabból az ablakból.' },
+        { icon: 'plug', h: 'Integrációk', p: 'A Happy, az MCP-szerverek és a Sentry egy katalógusban, a titkaik a Keychainben, és ahol van, a csatlakozás állapota is látszik. Később további szolgáltatások, újabb kártyaként.' },
       ],
       optiItems: [
         { icon: 'activity', h: 'Smart Care', p: 'Egészségi pontszám a Mac-edhez és egy kattintásos optimalizálás, amely elmagyarázza, mit fog tenni.' },
@@ -148,7 +149,7 @@ export default {
     },
     showcase: {
       title: 'Mindkét alkalmazás, világosan és sötéten',
-      lead: 'Minden képernyőkép világos és sötét párban érkezik. A kapcsolóval nem csak a képeket, hanem az egész oldalt átállíthatod.',
+      lead: 'Minden képernyőkép a világos és a sötét témát mutatja egymás mellett, átlósan elválasztva. A kapcsoló az egész oldal témáját állítja át.',
       items: [
         { slot: 'hero', kind: 'ide', alt: 'Az IntelyIDE főablaka a Változások fával, egy szerkesztővel és egy ügynökpanellel.', cap: 'IntelyIDE: négy repó, egyetlen Változások fa' },
         { slot: 'opti-dashboard', kind: 'opti', alt: 'Az IntelyOpti Smart Care irányítópultja az egészségi pontszámmal.', cap: 'IntelyOpti: Smart Care és az egészségi pontszám' },
@@ -238,6 +239,7 @@ export default {
       { id: 'servers', h: 'Ügynökök a saját szervereiden', p: 'Add hozzá a szervert az ssh-célpontjával, és futtass rajta ügynököket, például 3-at a build szerveren és 2-t a Macen.' },
       { id: 'remote', h: 'Telefonos átjáró', p: 'Hagyd jóvá vagy válaszold meg az ügynökfutásokat a telefonodról, a saját relédon át, végpontok közt titkosítva.' },
       { id: 'notifications', h: 'Értesítések', p: 'Banner és Dock-számláló, ha egy futásnak szüksége van rád, kérdez, lefutott vagy hibára futott.' },
+      { id: 'integrations', h: 'Integrációk', p: 'A Happy, az MCP-szerverek és a Sentry egy katalógusban, a titkaik a Keychainben, és ahol van, a csatlakozás állapota is látszik. Később további szolgáltatások, újabb kártyaként.' },
       { id: 'providers', h: 'Hozd a saját ügynöködet', p: 'A Claude a fő út. A Codex, Gemini, Copilot és mások kísérleti providerként csatlakoznak.' },
       { id: 'mongo', h: 'MongoDB Studio', p: 'Alapból csak olvasható, MI-támogatott lekérdezésekkel angolul vagy magyarul.' },
       { id: 'api-contract', h: 'API contract ellenőrzés', p: 'Vedd észre az eltérést a backend Swaggere és a kliens repók között. Nézd a specifikációt csak olvasva.' },
@@ -349,6 +351,18 @@ export default {
         p: 'Indíts el egy hosszú futást, foglalkozz mással, és az IDE majd megkoppintja a válladat. Banner jelenik meg, ha egy futás engedélyt kér, kérdez, lefutott vagy hibára futott, a Dock-ikon pedig számolja a várakozó futásokat.',
         list: ['Minden értesítéstípushoz külön kapcsoló', 'Szünet a bannerek között és percenkénti korlát, hogy sose árasszanak el', 'Opcionális hang'],
         shots: [],
+      },
+      {
+        id: 'integrations',
+        h: 'Integrációk: az eszközeid egy helyen',
+        p: 'A Beállítások > Integrációk azoknak a szolgáltatásoknak a katalógusa, amelyekhez az IDE csatlakozik. A Happy és a Sentry mutatja, hogy csatlakoztatva van-e, minden szolgáltatás a macOS Keychainben tartja a titkait, és semmi sem csatlakozik, amíg be nem állítod.',
+        list: [
+          'Happy: a Happy-fiókod chatje, feladatai, Time Tracere, Meetje és értesítései a kódod mellett. Értesítésfajtánként (rendelés, szállítás, számla és más) te döntöd el, mi riasszon',
+          'MCP-szerverek: további eszközök az ügynököknek, stdio-n vagy HTTP-n, minden eszközre külön szabállyal',
+          'Sentry: olvasd a hibáidat, és add át az egyiket egy ügynöknek javításra',
+          'A DeepPattern tervezett. Egy új szolgáltatás csak egy újabb kártya ugyanabban a katalógusban.',
+        ],
+        shots: [['integrations', 'Beállítások, Integrációk: kártyák a Happy-hez, az MCP-szerverekhez, a Sentryhez és a tervezett DeepPatternhez; a Happy és a Sentry a csatlakozás állapotát mutatja.']],
       },
       {
         id: 'mongo',

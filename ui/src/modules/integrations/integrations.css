@@ -17,3 +17,20 @@
 .int__provider[data-off] .ui-formrow { opacity: 0.6; }
 .int__details { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); padding: var(--space-1) var(--space-3) var(--space-3); }
 .int__wide { width: 100%; }
+
+/* The catalog: one row per service, a status chip and an arrow; a planned one is a row that does not open */
+.intc-lead { margin: 0; color: var(--text-2); font-size: var(--text-sm); line-height: var(--leading-base); }
+.intc-list { display: flex; flex-direction: column; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+.intc { display: flex; align-items: center; gap: var(--space-3); width: 100%; min-width: 0; padding: var(--space-3); border: 0; border-radius: var(--radius-3); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--border-subtle); color: inherit; font: inherit; text-align: start; cursor: pointer; transition: background var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease); }
+button.intc:hover { background: var(--surface-3); box-shadow: inset 0 0 0 1px var(--border); }
+.intc[data-planned] { cursor: default; background: transparent; box-shadow: inset 0 0 0 1px var(--border-subtle); }
+.intc__icon { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: var(--radius-2); background: var(--surface-3); color: var(--accent-text); }
+.intc[data-planned] .intc__icon { color: var(--text-3); }
+.intc__text { display: flex; flex: 1 1 auto; flex-direction: column; gap: 2px; min-width: 0; }
+.intc__name { color: var(--text-1); font-weight: var(--weight-semibold); }
+.intc__summary { color: var(--text-3); font-size: var(--text-sm); line-height: var(--leading-base); }
+.intc__end { display: inline-flex; flex: none; align-items: center; gap: var(--space-2); color: var(--text-3); }
+[dir="rtl"] .intc__end .ui-icon:last-child { transform: scaleX(-1); }
+.intc-head { display: flex; align-items: center; gap: var(--space-2); }
+.intc-head__name { margin: 0; color: var(--text-1); font-size: var(--text-md); font-weight: var(--weight-semibold); }
+.int__cats-note { padding: var(--space-2) var(--space-3) var(--space-3); }

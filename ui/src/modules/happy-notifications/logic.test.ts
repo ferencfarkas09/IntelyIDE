@@ -23,6 +23,13 @@ describe("arrivals", () => {
     expect(arrivals(next.seen, view([item("c"), item("a"), item("r", true)])).arrived).toEqual([]);
   });
 
+  it("does not announce an item of a quiet category, though it is listed and unread", () => {
+    const base = arrivals(undefined, view([])).seen;
+    const next = arrivals(base, view([item("q", false, { quiet: true, category: "order" }), item("l", false, { category: "delivery" })]));
+    expect(next.arrived.map((i) => i.id)).toEqual(["l"]);
+    expect([...next.seen!]).toEqual(["q", "l"]);
+  });
+
   it("does not announce an item that is already read", () => {
     const base = arrivals(undefined, view([])).seen;
     expect(arrivals(base, view([item("x", true)])).arrived).toEqual([]);

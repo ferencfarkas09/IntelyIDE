@@ -39,6 +39,7 @@ import { register as sentry } from "./sentry";
 import { register as settingsCore } from "./settings-core";
 import { register as terminal } from "./terminal";
 import { register as updates } from "./updates";
+import { register as whatsnew } from "./whatsnew";
 import { register as usage } from "./usage";
 import { register as viewers } from "./viewers";
 
@@ -86,6 +87,7 @@ export const MODULES: readonly FeatureModule[] = [
   { id: "brief", register: brief },
   { id: "licenses", register: licenses },
   { id: "updates", register: updates },
+  { id: "whatsnew", register: whatsnew },
   { id: "usage", register: usage },
   { id: "sentry", register: sentry },
 ];

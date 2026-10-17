@@ -2,7 +2,7 @@ import { createResource, For, Show } from "solid-js";
 import { t } from "../../i18n";
 import { ipc } from "../../ipc";
 import type { Meeting } from "../../ipc/happy";
-import { openSettings } from "../../platform/settings";
+import { openIntegration } from "../../platform/integrations";
 import { meetClock, meetView, providerState, refreshHappyStatus } from "../../store/happy";
 import { Badge, Button, EmptyState, IconButton, RefreshCw, Skeleton, StatusDot, TriangleAlert, Video } from "../../ui-kit";
 import { joinMeeting } from "./actions";
@@ -20,7 +20,7 @@ export default function MeetTab() {
           icon={Video}
           title={t("hm.off.title")}
           description={t("hm.off.body")}
-          action={<Button onClick={() => { void refreshHappyStatus(); openSettings("integrations"); }}>{t("hx.openSettings")}</Button>}
+          action={<Button onClick={() => { void refreshHappyStatus(); openIntegration("happy"); }}>{t("hx.openSettings")}</Button>}
         />
       }
     >
