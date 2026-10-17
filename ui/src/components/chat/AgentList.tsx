@@ -5,6 +5,8 @@ import { Badge, Bot, EmptyState, ScrollArea, StatusDot, Tree, TreeRow } from "..
 import { t, type MessageKey } from "../../i18n";
 import { modelLabel } from "./format";
 import { effectiveMode } from "./modes";
+import { StartingTreeRow } from "./Starting";
+import type { StartingRun } from "../../store/starting";
 
 const GROUPS: { status: RunStatus[]; title: MessageKey }[] = [
   { status: ["needsYou"], title: "chat.group.needsYou" },
@@ -19,11 +21,21 @@ export function ago(ms: number): string {
   return min < 1 ? t("chat.ago.now") : min < 60 ? t("chat.ago.min", { n: min }) : t("chat.ago.hour", { n: Math.round(min / 60) });
 }
 
-export function AgentList(props: { rows: AgentRow[]; onSelect: (id: string) => void; selected?: string | null }) {
+export function AgentList(props: { rows: AgentRow[]; onSelect: (id: string) => void; selected?: string | null; starting?: StartingRun[]; startingFront?: string | null; onSelectStarting?: (key: string) => void }) {
   return (
-    <Show when={props.rows.length > 0} fallback={<EmptyState icon={Bot} title={t("chat.noRuns")} description={t("chat.noRunsDesc")} />}>
+    <Show when={props.rows.length > 0 || (props.starting?.length ?? 0) > 0} fallback={<EmptyState icon={Bot} title={t("chat.noRuns")} description={t("chat.noRunsDesc")} />}>
       <ScrollArea class="runs">
         <div class="runs__inner">
+          <Show when={(props.starting?.length ?? 0) > 0}>
+            <section class="runs__group" aria-label={t("runs.starting.group")}>
+              <h3 class="runs__title">
+                {t("runs.starting.group")} <Badge numeric size="sm">{props.starting!.length}</Badge>
+              </h3>
+              <Tree aria-label={t("runs.starting.group")}>
+                <For each={props.starting}>{(run) => <StartingTreeRow run={run} selected={props.startingFront === run.key} onSelect={() => props.onSelectStarting?.(run.key)} />}</For>
+              </Tree>
+            </section>
+          </Show>
           <For each={GROUPS}>
             {(g) => {
               const rows = () => props.rows.filter((r) => g.status.includes(r.status));

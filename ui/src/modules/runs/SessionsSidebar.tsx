@@ -1,6 +1,8 @@
 import { createMemo, For, Show } from "solid-js";
 import { t } from "../../i18n";
-import { agentRows, agentView, selectAgent, selectedAgentId } from "../../store/agents";
+import { StartingCard } from "../../components/chat/Starting";
+import { agentRows, agentView, selectAgent, selectedAgentId, selectStartingRun } from "../../store/agents";
+import { startingInFront, startingRuns } from "../../store/starting";
 import { hiddenCount, scopeRows, setShowOtherWorkspaces, showOtherWorkspaces } from "../../store/agentScope";
 import { repoConfig } from "../../store/workspace";
 import { Badge, Bot, Button, Checkbox, EmptyState, Inbox, Plus, ScrollArea, Select } from "../../ui-kit";
@@ -65,7 +67,7 @@ export function SessionsSidebar() {
         </div>
       </Show>
       <Show
-        when={groups().length > 0}
+        when={groups().length > 0 || startingRuns().length > 0}
         fallback={
           <EmptyState
             icon={Bot}
@@ -82,6 +84,19 @@ export function SessionsSidebar() {
       >
         <ScrollArea class="sessions__list">
           <div class="sessions__inner">
+            <Show when={startingRuns().length > 0}>
+              <section class="sessions__group" aria-label={t("runs.starting.group")}>
+                <h3 class="sessions__group-title">
+                  {t("runs.starting.group")}
+                  <Badge numeric size="sm">
+                    {startingRuns().length}
+                  </Badge>
+                </h3>
+                <For each={startingRuns()}>
+                  {(run) => <StartingCard run={run} selected={centreView() === "run" && startingInFront() === run.key} onSelect={() => (setCentreView("run"), selectStartingRun(run.key))} />}
+                </For>
+              </section>
+            </Show>
             <For each={groups()}>
               {(g) => (
                 <section class="sessions__group" aria-label={g.title}>

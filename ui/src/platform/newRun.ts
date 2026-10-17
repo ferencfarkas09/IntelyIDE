@@ -6,6 +6,10 @@ export interface NewRunPrefill {
   prompt: string;
   /** Workspace repo ids; empty or missing leaves the role's default scope. */
   repoIds?: string[];
+  /** Why an earlier start of this task was refused: the dialog opens with it in its error line. */
+  error?: string;
+  /** The refusal was `noSafetyNet`: the dialog offers "run without a safety net" right away. */
+  noSafetyNet?: boolean;
 }
 
 const [pending, setPending] = createSignal<NewRunPrefill>();
