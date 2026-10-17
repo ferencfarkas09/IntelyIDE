@@ -149,7 +149,7 @@ export default {
     },
     showcase: {
       title: 'Mindkét alkalmazás, világosan és sötéten',
-      lead: 'Minden képernyőkép világos és sötét párban érkezik. A kapcsolóval nem csak a képeket, hanem az egész oldalt átállíthatod.',
+      lead: 'Minden képernyőkép a világos és a sötét témát mutatja egymás mellett, átlósan elválasztva. A kapcsoló az egész oldal témáját állítja át.',
       items: [
         { slot: 'hero', kind: 'ide', alt: 'Az IntelyIDE főablaka a Változások fával, egy szerkesztővel és egy ügynökpanellel.', cap: 'IntelyIDE: négy repó, egyetlen Változások fa' },
         { slot: 'opti-dashboard', kind: 'opti', alt: 'Az IntelyOpti Smart Care irányítópultja az egészségi pontszámmal.', cap: 'IntelyOpti: Smart Care és az egészségi pontszám' },

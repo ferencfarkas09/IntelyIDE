@@ -150,7 +150,7 @@ export default {
     },
     showcase: {
       title: 'See both apps, light and dark',
-      lead: 'Every screenshot comes as a light and a dark pair. Use the switch to change this whole site, not just the pictures.',
+      lead: 'Every screenshot shows the light and the dark theme side by side, split by a diagonal. The switch changes the theme of this whole site.',
       items: [
         { slot: 'hero', kind: 'ide', alt: 'IntelyIDE main window with the Changes tree, an editor and an agent panel.', cap: 'IntelyIDE: four repositories, one Changes tree' },
         { slot: 'opti-dashboard', kind: 'opti', alt: 'IntelyOpti Smart Care dashboard with the health score.', cap: 'IntelyOpti: Smart Care and the health score' },
