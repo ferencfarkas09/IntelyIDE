@@ -4,6 +4,8 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-10-17
+
 ### Fixed
 
 - **Starting a run no longer hangs on a large repository.** The Rewind snapshot that every run takes first (docs/safety.md, layer 8) read and hashed every file of every repository, one repository after the other, and all of it happened before the run could appear. On a 1.2 GB working tree that was 4 to 10 seconds per repository. The snapshot now builds its tree on a copy of your index, so git's own stat cache says which files are unchanged and only changed and untracked files are read again (0.1 seconds on the same tree, byte-for-byte the same snapshot); files marked assume-unchanged, skip-worktree, intent-to-add, deleted files and a missing or stale index are handled and tested, and a snapshot that cannot use the quick way falls back to the full one. The repositories of a run are also snapshotted four at a time instead of one by one, and a refusal still names the first repository of the list that cannot be snapshotted and removes the snapshots already made.
@@ -235,7 +237,8 @@ First public release. This is alpha software.
 - Providers other than Claude, Happy, MongoDB Studio and Remote are proven only against mocks or on a local machine.
 - Version 0.1.0 still stores its state in the folder `IntelySwitchIDE` and uses Keychain services named after the earlier bundle identifier; a switch to `com.intelyhome.intelyide` with a migration is planned.
 
-[Unreleased]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.6.0...HEAD
+[Unreleased]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.7.0...HEAD
+[1.7.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.5.1...v1.6.0
 [1.5.1]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.4.1...v1.5.0
