@@ -355,8 +355,11 @@ impl Rewind {
 
     /// Git's check of a file for a change is strict (size, mtime, ctime, inode and mode all count) unless the configuration loosens it.
     fn stat_check_is_strict(&self, top: &Path) -> bool {
-        let loose = |key: &str, value: &str| self.git_text(top, &["config", "--get", key]).is_ok_and(|v| v.trim().eq_ignore_ascii_case(value));
-        !loose("core.trustctime", "false") && !loose("core.checkstat", "minimal")
+        // `core.trustctime` is a git boolean: `false`, `0`, `no`, `off` and an empty value all mean false, so git reads it (`--bool`)
+        // instead of the text being compared. `core.checkStat` is a word.
+        let ctime_ignored = self.git_text(top, &["config", "--bool", "--get", "core.trustctime"]).is_ok_and(|v| v.trim() == "false");
+        let minimal = self.git_text(top, &["config", "--get", "core.checkstat"]).is_ok_and(|v| v.trim().eq_ignore_ascii_case("minimal"));
+        !ctime_ignored && !minimal
     }
 
     /// The tree of `paths` as they are on disk now, built on a copy of the user's index: entries that are no longer in the snapshot are

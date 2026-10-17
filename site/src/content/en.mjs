@@ -119,7 +119,7 @@ export default {
         { icon: 'users', h: 'Team (beta)', p: 'Watch teammates’ agent runs, chat in a run, see each other’s commits and share Claude memory, end-to-end encrypted through your own relay.' },
         { icon: 'phone', h: 'Phone gateway', p: 'Approve or answer an agent from your phone, through a relay you run yourself.' },
         { icon: 'server', h: 'Agents on your servers', p: 'Add a server by its ssh target and run agents there from the same window.' },
-        { icon: 'plug', h: 'Integrations', p: 'Happy, MCP servers and Sentry in one catalog, each with its status and its secrets in the Keychain.' },
+        { icon: 'plug', h: 'Integrations', p: 'Happy, MCP servers and Sentry in one catalog, with their secrets in the Keychain and a connection status where there is one.' },
       ],
       optiItems: [
         { icon: 'activity', h: 'Smart Care', p: 'A health score for your Mac and a one-click optimize that explains what it will do.' },
@@ -240,7 +240,7 @@ export default {
       { id: 'servers', h: 'Run agents on your own servers', p: 'Add a server by its ssh target and run agents there, for example 3 on a build server and 2 on your Mac.' },
       { id: 'remote', h: 'Phone gateway', p: 'Approve or answer agent runs from your phone through your own relay, end-to-end encrypted.' },
       { id: 'notifications', h: 'Notifications', p: 'A banner and a Dock count when a run needs you, asks a question, finishes or fails.' },
-      { id: 'integrations', h: 'Integrations', p: 'Happy, MCP servers and Sentry in one catalog, each with its status and its secrets in the Keychain. More services later, as more cards.' },
+      { id: 'integrations', h: 'Integrations', p: 'Happy, MCP servers and Sentry in one catalog, with their secrets in the Keychain and a connection status where there is one. More services later, as more cards.' },
       { id: 'providers', h: 'Bring your own agent', p: 'Claude is the main path. Codex, Gemini, Copilot and more plug in as experimental providers.' },
       { id: 'mongo', h: 'MongoDB Studio', p: 'Read-only by default, with AI-assisted queries in English or Hungarian.' },
       { id: 'api-contract', h: 'API contract checks', p: 'Spot drift between your backend’s Swagger and its client repositories. Browse the spec read-only.' },
@@ -356,14 +356,14 @@ export default {
       {
         id: 'integrations',
         h: 'Integrations: connect your tools in one place',
-        p: 'Settings > Integrations is a catalog of the services the IDE connects to. Every card shows its status, every service keeps its secrets in the macOS Keychain, and nothing connects until you set it up.',
+        p: 'Settings > Integrations is a catalog of the services the IDE connects to. Happy and Sentry show whether they are connected, every service keeps its secrets in the macOS Keychain, and nothing connects until you set it up.',
         list: [
           'Happy: chat, tasks, Time Tracer, Meet and notifications of your Happy account, next to your code. Choose per kind (orders, delivery, invoices and more) what alerts you',
           'MCP servers: more tools for agents, over stdio or HTTP, with a rule for every tool',
           'Sentry: read your issues and hand one to an agent to fix',
           'DeepPattern is planned. A new service is one more card in the same catalog.',
         ],
-        shots: [['integrations', 'Settings, Integrations: cards for Happy, MCP servers, Sentry and the planned DeepPattern, each with its status.']],
+        shots: [['integrations', 'Settings, Integrations: cards for Happy, MCP servers, Sentry and the planned DeepPattern; Happy and Sentry show their connection status.']],
       },
       {
         id: 'mongo',

@@ -447,21 +447,46 @@ fn a_snapshot_of_thousands_of_files_that_make_git_warn_does_not_hang() {
 }
 
 /// With `core.trustctime=false` git no longer sees a same-size rewrite that keeps the old mtime. The quick snapshot would take that blind
-/// spot for the content of the file, so such a repository is hashed in full.
+/// spot for the content of the file, so such a repository is hashed in full, whatever way the boolean is spelled (`0`, `no`, `off` and an
+/// empty value mean false to git as well).
 #[test]
 fn a_repository_that_loosens_gits_file_check_is_hashed_in_full() {
-    let repo = Repo::new();
-    repo.git(&["config", "core.trustctime", "false"]);
-    // The file is old enough for git to trust its times (a file as new as the index is "racily clean" and gets hashed again).
-    let old = std::time::SystemTime::now() - std::time::Duration::from_secs(3600);
-    let set_mtime = |at| std::fs::File::options().write(true).open(repo.path.join("f.txt")).unwrap().set_modified(at).unwrap();
-    repo.write("f.txt", "AAAA\n");
-    set_mtime(old);
-    repo.commit_all("init");
-    repo.git(&["status", "--porcelain"]);
-    repo.write("f.txt", "BBBB\n"); // the same length
-    set_mtime(old); // and the old mtime
-    assert!(repo.git(&["status", "--porcelain"]).is_empty(), "git itself cannot see the change in this configuration");
-    let snap = rewind().snapshot(&repo.path, "loose").unwrap();
-    assert_eq!(repo.git(&["show", &format!("{}:f.txt", snap.tree)]), "BBBB", "the snapshot holds the file as it is on disk");
+    for (key, value) in [("core.trustctime", "false"), ("core.trustctime", "False"), ("core.trustctime", "0"), ("core.trustctime", "no"), ("core.trustctime", "off"), ("core.trustctime", ""), ("core.checkStat", "minimal")] {
+        let repo = Repo::new();
+        repo.git(&["config", key, value]);
+        // The file is old enough for git to trust its times (a file as new as the index is "racily clean" and gets hashed again).
+        let old = std::time::SystemTime::now() - std::time::Duration::from_secs(3600);
+        let set_mtime = |at| std::fs::File::options().write(true).open(repo.path.join("f.txt")).unwrap().set_modified(at).unwrap();
+        repo.write("f.txt", "AAAA\n");
+        set_mtime(old);
+        repo.commit_all("init");
+        repo.git(&["status", "--porcelain"]);
+        repo.write("f.txt", "BBBB\n"); // the same length
+        set_mtime(old); // and the old mtime
+        assert!(repo.git(&["status", "--porcelain"]).is_empty(), "git itself cannot see the change with {key}={value:?}");
+        let snap = rewind().snapshot(&repo.path, "loose").unwrap();
+        assert_eq!(repo.git(&["show", &format!("{}:f.txt", snap.tree)]), "BBBB", "the snapshot holds the file as it is on disk with {key}={value:?}");
+    }
+}
+
+/// The settings that keep the quick path: git's own check sees a rewrite that changes the ctime, and the snapshot holds it.
+#[test]
+fn a_repository_with_gits_default_file_check_still_snapshots_what_is_on_disk() {
+    for config in [None, Some(("core.trustctime", "true")), Some(("core.trustctime", "yes")), Some(("core.checkStat", "default"))] {
+        let repo = Repo::new();
+        if let Some((key, value)) = config {
+            repo.git(&["config", key, value]);
+        }
+        let old = std::time::SystemTime::now() - std::time::Duration::from_secs(3600);
+        let set_mtime = |at| std::fs::File::options().write(true).open(repo.path.join("f.txt")).unwrap().set_modified(at).unwrap();
+        repo.write("f.txt", "AAAA\n");
+        set_mtime(old);
+        repo.commit_all("init");
+        std::thread::sleep(std::time::Duration::from_millis(1100)); // the rewrite gets a ctime in a later second than the index entry
+        repo.write("f.txt", "BBBB\n");
+        set_mtime(old);
+        assert!(!repo.git(&["status", "--porcelain"]).is_empty(), "git sees the rewrite through its ctime");
+        let snap = rewind().snapshot(&repo.path, "default").unwrap();
+        assert_eq!(repo.git(&["show", &format!("{}:f.txt", snap.tree)]), "BBBB", "{config:?}");
+    }
 }
