@@ -35,10 +35,37 @@ export function matchesFilter(row: Pick<AgentRow, "role" | "repoIds">, filter: S
   return (!filter.role || row.role === filter.role) && (!filter.repoId || row.repoIds.includes(filter.repoId));
 }
 
+/** A run that has stopped for good (finished or failed): the only kind that can be closed, and what the review and done groups hold. */
+export const isFinished = (row: Pick<AgentRow, "status">): boolean => row.status === "done" || row.status === "error";
+
+/** Finished runs the review and done groups list before "Show more": the newest ones, so a long history does not push the live runs away. */
+export const FINISHED_PREVIEW = 5;
+
+export interface ListOptions {
+  /** Finished runs the person has closed: out of the list unless `showClosed`. A run that is working is never hidden. */
+  closed?: ReadonlySet<string>;
+  showClosed?: boolean;
+}
+
 /** Non-empty groups in display order, newest run first inside each. */
-export function groupSessions(rows: readonly AgentRow[], filter: SessionFilter, reviewed: ReadonlySet<string>, now: number): { id: SessionGroup; title: string; rows: AgentRow[] }[] {
-  const visible = rows.filter((r) => matchesFilter(r, filter));
+export function groupSessions(rows: readonly AgentRow[], filter: SessionFilter, reviewed: ReadonlySet<string>, now: number, options: ListOptions = {}): { id: SessionGroup; title: string; rows: AgentRow[] }[] {
+  const visible = rows.filter((r) => matchesFilter(r, filter) && (options.showClosed || !isClosed(r, options.closed)));
   return SESSION_GROUPS.map((g) => ({ ...g, rows: visible.filter((r) => groupOf(r, reviewed, now) === g.id).sort((a, b) => b.startedAt - a.startedAt) })).filter((g) => g.rows.length > 0);
+}
+
+/** The run is finished and was closed by the person. */
+export const isClosed = (row: Pick<AgentRow, "agentId" | "status">, closed: ReadonlySet<string> | undefined): boolean => isFinished(row) && closed?.has(row.agentId) === true;
+
+/** How many closed runs the filters would show again: what "Closed (n)" offers. */
+export function closedCount(rows: readonly AgentRow[], filter: SessionFilter, closed: ReadonlySet<string>): number {
+  return rows.filter((r) => matchesFilter(r, filter) && isClosed(r, closed)).length;
+}
+
+/** The rows a group lists now: all of them, or the newest few of a finished group until it is expanded. */
+export function previewRows<T>(rows: readonly T[], group: SessionGroup, expanded: boolean, limit = FINISHED_PREVIEW): { shown: T[]; hidden: number } {
+  const finishedGroup = group === "review" || group === "done";
+  if (!finishedGroup || expanded || rows.length <= limit + 1) return { shown: [...rows], hidden: 0 };
+  return { shown: rows.slice(0, limit), hidden: rows.length - limit };
 }
 
 /** The roles and repos that appear in the runs, for the two filter dropdowns. */

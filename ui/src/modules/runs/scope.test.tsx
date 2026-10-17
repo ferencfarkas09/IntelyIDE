@@ -50,14 +50,15 @@ afterEach(() => {
 describe("sessions of other workspaces", () => {
   it("are hidden by default, with a count and the toggle; the toggle shows them read-only with the way forward", async () => {
     const { container } = render(() => <SessionsSidebar />);
-    const titles = () => [...container.querySelectorAll(".run-card__title")].map((n) => n.textContent);
+    const titles = () => [...container.querySelectorAll(".run-card__title, .run-row__title")].map((n) => n.textContent);
     expect(titles()).toEqual(["Fix the order list"]);
     expect(screen.getByRole("status").textContent).toBe("2 runs from other workspaces are hidden");
     fireEvent.click(screen.getByRole("checkbox", { name: "Show other workspaces" }));
     await waitFor(() => expect(titles()).toHaveLength(3));
-    const cards = container.querySelectorAll<HTMLElement>(".run-card[data-foreign]");
+    // (finished runs of other workspaces are one-line rows; the way forward stays on the row)
+    const cards = container.querySelectorAll<HTMLElement>("[data-foreign]");
     expect(cards).toHaveLength(2);
-    expect([...cards].map((c) => c.querySelector(".run-card__foreign")?.textContent)).toEqual(['Open workspace "Client X" to continue', "This run belongs to another workspace."]);
+    expect([...cards].map((c) => c.querySelector(".run-card__foreign, .run-row__foreign")?.textContent)).toEqual(['Open workspace "Client X" to continue', "This run belongs to another workspace."]);
     expect(container.querySelector(".sessions__hidden")).toBeNull();
   });
 

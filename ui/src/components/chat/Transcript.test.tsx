@@ -235,3 +235,93 @@ describe("<Transcript> permission cards", () => {
     expect(screen.getByRole("button", { name: "Allow always in this session" })).toBeTruthy();
   });
 });
+
+describe("<Transcript> as a conversation", () => {
+  beforeEach(() => {
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(900);
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(600);
+  });
+  afterEach(() => vi.restoreAllMocks());
+  const NOW = 1_760_000_000_000;
+  const at = (seq: number, p: object) => ({ agentId: "a1", seq, ts: NOW + seq * 1000, provider: "claude", ...p }) as AgentEvent;
+  const talk = (extra: object[]) => reduceEvents(emptyView("a1"), [at(1, { kind: "user.message", messageId: "u", text: "Show prices with the currency" }), ...extra.map((p, i) => at(i + 2, p))]);
+  const text = (id: string, body: string) => [{ kind: "text.delta", messageId: id, text: body }, { kind: "text.done", messageId: id }];
+  const tool = (id: string) => ({ kind: "tool.start", toolId: id, name: "Read", toolKind: "read", input: { file_path: "/a" } });
+
+  it("puts your message in a bubble of its own, named for screen readers only, and the agent's under one avatar", async () => {
+    const v = talk([...text("m1", "I read the file."), tool("t1"), ...text("m2", "Done.")]);
+    render(() => <Transcript agentId="a1" view={v} />);
+    const mine = (await screen.findByText("Show prices with the currency")).closest(".msg--user") as HTMLElement;
+    expect(mine.hasAttribute("data-self")).toBe(true);
+    expect(mine.querySelector(".msg__bubble")?.textContent).toContain("Show prices with the currency");
+    expect(mine.querySelector(".msg__who")?.textContent).toBe("You");
+    // three agent rows, one avatar and one line with the time
+    expect(document.querySelectorAll(".msg-row")).toHaveLength(3);
+    expect(document.querySelectorAll(".avatar")).toHaveLength(1);
+    expect(document.querySelectorAll(".msg-row[data-lead]")).toHaveLength(1);
+    expect(document.querySelectorAll(".msg-row .msg__meta time")).toHaveLength(1);
+  });
+
+  it("starts a new group, with its own avatar, after a turn marker or a message of yours", async () => {
+    const v = talk([...text("m1", "First answer."), { kind: "turn.end", stopReason: "end_turn" }, { kind: "user.message", messageId: "u2", text: "And now?" }, ...text("m2", "Second answer.")]);
+    render(() => <Transcript agentId="a1" view={v} />);
+    await screen.findByText("Second answer.");
+    expect(document.querySelectorAll(".avatar")).toHaveLength(2);
+  });
+
+  it("names the author of a teammate's prompts and keeps the label visible", async () => {
+    render(() => <Transcript agentId="a1" view={talk([])} who="Jordan" readOnly />);
+    const bubble = (await screen.findByText("Show prices with the currency")).closest(".msg--user") as HTMLElement;
+    expect(bubble.hasAttribute("data-self")).toBe(false);
+    expect(bubble.querySelector(".msg__who")?.textContent).toBe("Jordan");
+  });
+
+  it("copies a message and says so", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    render(() => <Transcript agentId="a1" view={talk(text("m1", "Use `Intl.NumberFormat`."))} />);
+    const answer = (await screen.findByText(/Use/)).closest(".msg--agent") as HTMLElement;
+    fireEvent.click(answer.querySelector<HTMLElement>(".msg__copy")!);
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("Use `Intl.NumberFormat`."));
+    await waitFor(() => expect(answer.querySelector(".msg__copy")?.getAttribute("aria-label")).toBe("Copied"));
+  });
+
+  it("offers no copy button on a message that is still streaming", async () => {
+    render(() => <Transcript agentId="a1" view={talk([{ kind: "text.delta", messageId: "m1", text: "Working on it" }])} />);
+    const answer = (await screen.findByText("Working on it")).closest(".msg--agent") as HTMLElement;
+    expect(answer.querySelector(".msg__copy")).toBeNull();
+    expect(answer.hasAttribute("data-streaming")).toBe(true);
+  });
+
+  describe("the line under the conversation while the agent works", () => {
+    const typing = () => document.querySelector<HTMLElement>(".transcript__typing");
+    it("shows three dots and what the agent is doing while nothing streams", async () => {
+      render(() => <Transcript agentId="a1" view={talk([{ kind: "turn.start", turnId: "t" }, { kind: "status", state: "thinking" }, tool("t1")])} />);
+      await screen.findByText("Show prices with the currency");
+      expect(typing()).toBeTruthy();
+      expect(typing()!.querySelectorAll(".typing__dots i")).toHaveLength(3);
+      expect(typing()!.textContent).toBe("Thinking…");
+      expect(typing()!.getAttribute("aria-hidden")).toBe("true");
+    });
+
+    it("is not there while a message streams (it has its own caret), after the turn ended, or before anything was said", async () => {
+      const streaming = render(() => <Transcript agentId="a1" view={talk([{ kind: "turn.start", turnId: "t" }, { kind: "text.delta", messageId: "m1", text: "Working" }])} />);
+      await screen.findByText("Working");
+      expect(typing()).toBeNull();
+      streaming.unmount();
+      const ended = render(() => <Transcript agentId="a1" view={talk([{ kind: "turn.start", turnId: "t" }, ...text("m1", "Done."), { kind: "turn.end", stopReason: "end_turn" }])} />);
+      await screen.findByText("Done.");
+      expect(typing()).toBeNull();
+      ended.unmount();
+    });
+
+    it("says it is waiting for you, without dots, when a request is open", async () => {
+      const ask = { kind: "permission.request", reqId: "p", toolId: "t", intent: { class: "exec", summary: "Run ls" }, options: ["allowOnce", "deny"] };
+      render(() => <Transcript agentId="a1" view={talk([{ kind: "turn.start", turnId: "t" }, ask])} />);
+      await screen.findByText("Show prices with the currency");
+      expect(typing()!.hasAttribute("data-waiting")).toBe(true);
+      expect(typing()!.textContent).toBe("Waiting for you");
+      expect(typing()!.querySelector(".typing__dots")).toBeNull();
+    });
+  });
+});
