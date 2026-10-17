@@ -19,7 +19,7 @@ import { loadWorkspace } from "../../store/workspace";
 import { NewRunDialog } from "./NewRunDialog";
 import { SessionsSidebar } from "./SessionsSidebar";
 import { setNewRunOpen } from "./state";
-import { REVEAL_AFTER_MS } from "./startingLogic";
+import { AUTO_PREVIEW_PATIENCE_MS, REVEAL_AFTER_MS } from "./startingLogic";
 
 installDomStubs();
 vi.setConfig({ testTimeout: 30000 });
@@ -170,6 +170,38 @@ describe("a start that takes a while", () => {
     await waitFor(() => expect(screen.queryByTestId("starting-run")).toBeNull());
     expect(startingRuns()).toEqual([]);
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+});
+
+describe("closing the dialog while the host is still answering", () => {
+  it("hands the run to its starting card at once, so a refusal that comes later is not lost", async () => {
+    const gate = deferred<void>();
+    vi.spyOn(ipc, "agentStart").mockImplementationOnce(async () => (await gate.promise, Promise.reject({ code: "noSafetyNet", message: "Rewind cannot snapshot admin" })));
+    const d = await openDialog(() => <Workspace />);
+    await typeTask(d, "Fix the total");
+    fireEvent.click(d.getByRole("button", { name: "Start run" }));
+    // Cancel before the half second is up
+    fireEvent.click(d.getByRole("button", { name: "Cancel" }));
+    await dialogGone();
+    const view = await screen.findByTestId("starting-run");
+    expect(startingRuns()).toHaveLength(1);
+    gate.resolve();
+    await waitFor(() => expect(within(view).getByRole("alert").textContent).toContain("Rewind cannot snapshot admin"), { timeout: 10_000 });
+  });
+});
+
+describe("a preview of Auto that never answers", () => {
+  it("stops holding Start back after a few seconds", async () => {
+    vi.spyOn(ipc, "agentsAutoInfo").mockReturnValue(new Promise(() => {}));
+    await loadWorkspace();
+    render(() => <NewRunDialog />);
+    setNewRunOpen(true);
+    const d = within((await screen.findByRole("dialog")) as HTMLElement);
+    fireEvent.click(d.getByRole("button", { name: /^admin$/ }));
+    fireEvent.input(d.getByLabelText("Prompt"), { target: { value: "Fix the total" } });
+    const start = () => d.getByRole("button", { name: "Start run" }) as HTMLButtonElement;
+    expect(start().disabled).toBe(true);
+    await waitFor(() => expect(start().disabled).toBe(false), { timeout: AUTO_PREVIEW_PATIENCE_MS + 3000 });
   });
 });
 

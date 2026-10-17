@@ -233,6 +233,36 @@ fn a_run_without_a_rewind_snapshot_is_refused_unless_the_user_opts_out_for_that_
 }
 
 #[test]
+fn the_snapshots_of_many_repositories_are_taken_together_and_a_refusal_leaves_no_ref_behind() {
+    use intely_agent_host::{RepoRef, NO_SAFETY_NET};
+    let dir = tempfile::tempdir().unwrap();
+    // six repositories (more than one batch of snapshots); the third and the sixth are plain folders that cannot be snapshotted
+    let mut repos = Vec::new();
+    for i in 0..6 {
+        let path = dir.path().join(format!("repo{i}"));
+        std::fs::create_dir_all(&path).unwrap();
+        if i != 2 && i != 5 {
+            git(&path, &["init", "-q", "-b", "main"]);
+            std::fs::write(path.join("a.txt"), format!("repo {i}\n")).unwrap();
+            git(&path, &["add", "a.txt"]);
+            git(&path, &["commit", "-q", "-m", "init"]);
+        }
+        repos.push(RepoRef { id: format!("repo{i}"), path: path.canonicalize().unwrap() });
+    }
+    // (the run never gets as far as the sidecar: Rewind refuses first)
+    let (host, _sink) = host_with(config(&dir.path().join("data"), fake_sidecar_js()));
+    let req = AgentStartRequest { role: "mock-plain-reply".into(), repo_ids: repos.iter().map(|r| r.id.clone()).collect(), prompt: "go".into(), mode: None, mcp_servers: None };
+    let err = host.start(req, &repos).unwrap_err();
+    assert_eq!(err.code, NO_SAFETY_NET, "{err:?}");
+    assert!(err.message.contains("repo2"), "the first repository in the list that cannot be snapshotted is the one named: {}", err.message);
+    assert!(host.list().is_empty(), "a refused run leaves nothing behind");
+    for i in [0, 1, 3, 4] {
+        assert!(git(&repos[i].path, &["for-each-ref", "refs/intely/snapshots"]).is_empty(), "the snapshot of repo{i} was removed again");
+    }
+    host.shutdown();
+}
+
+#[test]
 fn the_created_hook_gets_the_run_id_once_and_before_the_run_returns() {
     use intely_agent_host::{CreatedHook, RepoRef, StartOptions};
     use std::sync::{Arc, Mutex};

@@ -291,13 +291,27 @@ impl Rewind {
     }
 
     /// Tracked files (current working-tree content) plus untracked, non-ignored files that pass the guard.
+    ///
+    /// The tree is built on a copy of the user's index, so git's stat cache says which tracked files are unchanged and only the ones that
+    /// changed (and the untracked ones) are read and hashed again. Hashing every file of a large working tree took seconds per repository
+    /// and held up the start of a run; the copy makes it a fraction of a second and yields the same tree. When the quick way fails for any
+    /// reason the tree is built the slow way, from an empty index.
     fn work_tree(&self, top: &Path) -> Result<WorkTree, RewindError> {
-        let listing = self.git(top, &["ls-files", "-z", "-t", "--cached", "--others", "--exclude-standard"], &[], None)?;
+        // `-v` is `-t` with a lowercase tag for a file marked assume-unchanged (git then trusts the index, not the file).
+        let listing = self.git(top, &["ls-files", "-z", "-v", "--cached", "--others", "--exclude-standard"], &[], None)?;
         let mut skipped = Vec::new();
         let mut paths: BTreeSet<Vec<u8>> = BTreeSet::new();
+        let mut cached: Vec<&[u8]> = Vec::new();
+        let mut untrusted: BTreeSet<&[u8]> = BTreeSet::new();
         for entry in listing.split(|b| *b == 0).filter(|e| e.len() > 2) {
             let (tag, path) = (entry[0], &entry[2..]);
-            if tag != b'H' && tag != b'?' {
+            if tag != b'?' {
+                cached.push(path);
+            }
+            if tag == b'h' {
+                untrusted.insert(path);
+            }
+            if tag != b'H' && tag != b'h' && tag != b'?' {
                 continue; // skip-worktree entries are not in the working tree
             }
             let text = String::from_utf8_lossy(path).into_owned();
@@ -324,19 +338,64 @@ impl Rewind {
             paths.insert(path.to_vec());
         }
         let git_dir = self.git_dir(top)?;
-        let tmp = TempIndex::new(&git_dir, "snap");
+        let real = PathBuf::from(self.git_text(top, &["rev-parse", "--path-format=absolute", "--git-path", "index"])?);
+        let quick = if real.is_file() { self.tree_from_index_copy(top, &git_dir, &real, &paths, &cached, &untrusted).ok() } else { None };
+        let tree = match quick {
+            Some(tree) => tree,
+            None => self.tree_from_scratch(top, &git_dir, &paths)?,
+        };
+        skipped.sort_by(|a, b| a.path.cmp(&b.path));
+        Ok(WorkTree { tree, files: paths.len(), skipped })
+    }
+
+    /// The tree of `paths` as they are on disk now, built on a copy of the user's index: entries that are no longer in the snapshot are
+    /// taken out, and only the files git sees as changed, the untracked ones and the ones marked assume-unchanged (git would not look at
+    /// them) are hashed again; the rest keeps the entry of the index, which the stat data vouches for. Any failure is the caller's cue to
+    /// build the tree from scratch.
+    fn tree_from_index_copy(&self, top: &Path, git_dir: &Path, real: &Path, paths: &BTreeSet<Vec<u8>>, cached: &[&[u8]], untrusted: &BTreeSet<&[u8]>) -> Result<String, RewindError> {
+        let tmp = TempIndex::new(git_dir, "snap");
+        std::fs::copy(real, &tmp.0)?;
+        // The copy keeps the time of the real index: git decides from it which entries were written too close to the index to be trusted.
+        let written = std::fs::metadata(real)?.modified()?;
+        std::fs::OpenOptions::new().write(true).open(&tmp.0)?.set_modified(written)?;
+        let env = [("GIT_INDEX_FILE", tmp.0.as_os_str())];
+        let nul_list = |items: &mut dyn Iterator<Item = &[u8]>| {
+            let mut out = Vec::new();
+            for item in items {
+                out.extend_from_slice(item);
+                out.push(0);
+            }
+            out
+        };
+        // Out of the copy: entries that are not in the snapshot (files deleted on disk, skip-worktree entries, submodules), and the
+        // assume-unchanged ones, which `update-index --add` would keep as they are instead of reading the file.
+        let gone = nul_list(&mut cached.iter().copied().filter(|p| !paths.contains(*p) || untrusted.contains(p)));
+        if !gone.is_empty() {
+            self.git(top, &["update-index", "--force-remove", "-z", "--stdin"], &env, Some(&gone))?;
+        }
+        let changed_out = self.git(top, &["diff-files", "-z", "--name-only"], &env, None)?;
+        let changed: BTreeSet<&[u8]> = changed_out.split(|b| *b == 0).filter(|p| !p.is_empty()).collect();
+        let known: BTreeSet<&[u8]> = cached.iter().copied().collect();
+        let again = nul_list(&mut paths.iter().map(Vec::as_slice).filter(|p| !known.contains(p) || untrusted.contains(p) || changed.contains(p)));
+        if !again.is_empty() {
+            self.git(top, &["update-index", "--add", "-z", "--stdin"], &env, Some(&again))?;
+        }
+        self.git_text_env(top, &["write-tree"], &env)
+    }
+
+    /// The same tree from an empty index: every file is read and hashed. Slow on a large working tree, and the answer whatever state the index is in.
+    fn tree_from_scratch(&self, top: &Path, git_dir: &Path, paths: &BTreeSet<Vec<u8>>) -> Result<String, RewindError> {
+        let tmp = TempIndex::new(git_dir, "snap");
         let env = [("GIT_INDEX_FILE", tmp.0.as_os_str())];
         let mut stdin = Vec::new();
-        for p in &paths {
+        for p in paths {
             stdin.extend_from_slice(p);
             stdin.push(0);
         }
         if !paths.is_empty() {
             self.git(top, &["update-index", "--add", "-z", "--stdin"], &env, Some(&stdin))?;
         }
-        let tree = self.git_text_env(top, &["write-tree"], &env)?;
-        skipped.sort_by(|a, b| a.path.cmp(&b.path));
-        Ok(WorkTree { tree, files: paths.len(), skipped })
+        self.git_text_env(top, &["write-tree"], &env)
     }
 
     /// Tree of the user's index, computed on a copy so the real index file is never rewritten.

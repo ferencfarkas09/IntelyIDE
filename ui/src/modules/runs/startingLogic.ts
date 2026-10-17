@@ -1,5 +1,10 @@
 /** After this long without an answer from the host, the New run dialog gives way to the run's starting card. A quicker answer changes nothing. */
 export const REVEAL_AFTER_MS = 600;
+/**
+ * The Auto preview (what the lead would hand to whom) is read from the host when the dialog opens and whenever the repositories change, and
+ * Start waits for it. Past this long it stops holding Start back: the preview is information, and the host checks everything again on start.
+ */
+export const AUTO_PREVIEW_PATIENCE_MS = 3000;
 /** The starting card says more about the wait after this long. */
 export const SLOW_AFTER_MS = 15_000;
 

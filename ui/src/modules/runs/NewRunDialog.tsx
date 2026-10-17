@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal, createUniqueId, For, on, Show, untrack } from "solid-js";
+import { createEffect, createMemo, createSignal, createUniqueId, For, on, onCleanup, Show, untrack } from "solid-js";
 import { Dynamic } from "solid-js/web";
 import { t } from "../../i18n";
 import { ipc } from "../../ipc";
@@ -28,7 +28,7 @@ import { McpRunPicker, mcpStartIds } from "./mcpSeam";
 import { autoReasonText, chosenProvider, clampCounts, clampMode, defaultRepos, failureLines, MAC_MAX, initialMode, neutralRole, numberedPrompt, placementRows, placementSummary, planRuns, providerBlocker, providerChoices, startBlocker, startErrorText, startRequest, THIS_MAC, toggleRepo, totalRuns, type RunMode } from "./newRunLogic";
 import { roleColor } from "./roleColors";
 import { newRunOpen, setCentreView, setNewRunOpen } from "./state";
-import { REVEAL_AFTER_MS } from "./startingLogic";
+import { AUTO_PREVIEW_PATIENCE_MS, REVEAL_AFTER_MS } from "./startingLogic";
 import { WhereToRun } from "./WhereToRun";
 import { NewRunShare } from "../team/RunShare";
 import { AttachButton, AttachmentChips } from "../attachments/Chips";
@@ -61,6 +61,10 @@ export function NewRunDialog() {
   const [autoProvider, setAutoProvider] = createSignal("claude");
   const [autoInfo, setAutoInfo] = createSignal<AutoInfo | undefined>(undefined);
   const [autoLoading, setAutoLoading] = createSignal(true);
+  // The preview has taken longer than AUTO_PREVIEW_PATIENCE_MS: Start no longer waits for it.
+  const [autoSlow, setAutoSlow] = createSignal(false);
+  let autoSlowTimer: ReturnType<typeof setTimeout> | undefined;
+  onCleanup(() => clearTimeout(autoSlowTimer));
   const [autoError, setAutoError] = createSignal<string | undefined>(undefined);
   const [fellBack, setFellBack] = createSignal<string | undefined>(undefined);
   const [groups, setGroups] = createSignal<RoleGroup[]>([]);
@@ -120,7 +124,7 @@ export function NewRunDialog() {
   });
   const usable = () => supported().filter((m) => !unavailable()[m]);
   const blocker = () =>
-    startBlocker(draft(), agentRoles()) ?? (claudeAuto() && autoLoading() ? t("runs.auto.loading") : undefined) ?? providerBlocker(provider() ?? current()?.provider, choices()) ?? unavailable()[permission()] ?? (whereShown() && total() === 0 ? t("runs.where.pick") : undefined) ?? att.store.blocker();
+    startBlocker(draft(), agentRoles()) ?? (claudeAuto() && autoLoading() && !autoSlow() ? t("runs.auto.loading") : undefined) ?? providerBlocker(provider() ?? current()?.provider, choices()) ?? unavailable()[permission()] ?? (whereShown() && total() === 0 ? t("runs.where.pick") : undefined) ?? att.store.blocker();
   const untrusted = createMemo((): UntrustedRole[] =>
     claudeAuto()
       ? groups().flatMap((g) => {
@@ -168,10 +172,13 @@ export function NewRunDialog() {
   const loadAuto = () => {
     const n = ++autoSeq;
     setAutoLoading(true);
+    setAutoSlow(false);
+    clearTimeout(autoSlowTimer);
+    autoSlowTimer = setTimeout(() => n === autoSeq && setAutoSlow(true), AUTO_PREVIEW_PATIENCE_MS);
     ipc.agentsAutoInfo(repoIds(), permission()).then(
       (info) => n === autoSeq && (setAutoInfo(info), setAutoError(undefined)),
       (e) => n === autoSeq && (setAutoInfo(undefined), setAutoError((e as { message?: string } | null)?.message ?? String(e))),
-    ).finally(() => n === autoSeq && setAutoLoading(false));
+    ).finally(() => n === autoSeq && (clearTimeout(autoSlowTimer), setAutoLoading(false)));
   };
   const loadGroups = () => void ipc.roles.groups().then(setGroups, () => setGroups([]));
   const trust = async (name: string) => {
@@ -281,6 +288,13 @@ export function NewRunDialog() {
     att.store.rotate();
   };
 
+  // Set while a start waits for the host: closing the dialog then hands the run to its starting card instead of letting a refusal go unseen.
+  let revealNow: (() => void) | undefined;
+  const closeDialog = () => {
+    revealNow?.();
+    setNewRunOpen(false);
+  };
+
   const start = async () => {
     if (blocker() || busy()) return;
     setBusy(true);
@@ -313,10 +327,12 @@ export function NewRunDialog() {
       cards.forEach(showStarting);
       selectStartingRun(cards[0]);
     };
-    const timer = setTimeout(() => {
+    const forceReveal = () => {
       waited = true;
       reveal();
-    }, REVEAL_AFTER_MS);
+    };
+    const timer = setTimeout(forceReveal, REVEAL_AFTER_MS);
+    revealNow = forceReveal;
     try {
       const base = await promptWithAttachments(typed, att.store);
       // One after the other, never in parallel: each start takes the writer lease and the slots the next one looks at.
@@ -365,6 +381,7 @@ export function NewRunDialog() {
       }
     } finally {
       clearTimeout(timer);
+      if (revealNow === forceReveal) revealNow = undefined;
       if (!revealed) setBusy(false);
     }
   };
@@ -373,7 +390,7 @@ export function NewRunDialog() {
     <>
     <Dialog
       open={newRunOpen()}
-      onClose={() => setNewRunOpen(false)}
+      onClose={closeDialog}
       title={t("runs.new.title")}
       description={t("runs.new.desc")}
       size="xl"
@@ -385,7 +402,7 @@ export function NewRunDialog() {
               {blocker()}
             </Show>
           </span>
-          <Button variant="ghost" onClick={() => setNewRunOpen(false)}>
+          <Button variant="ghost" onClick={closeDialog}>
             {t("runs.cancel")}
           </Button>
           <Button variant="primary" loading={busy()} disabled={!!blocker()} onClick={() => void start()}>

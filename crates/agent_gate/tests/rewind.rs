@@ -280,3 +280,91 @@ fn not_a_repo_and_subdirectories() {
     let snap = rewind().snapshot(&repo.path.join("src"), "from-sub").unwrap();
     assert!(snap.files >= 6);
 }
+
+/// Every path of the snapshot tree with the blob git would hash its file to now, next to the paths the snapshot must hold:
+/// an oracle that does not use the snapshot code (the quick snapshot trusts git's stat cache; this checks it was right to).
+fn assert_snapshot_matches_disk(repo: &Repo, tree: &str, want: &[&str]) {
+    let listing = repo.git(&["ls-tree", "-r", tree]);
+    let mut held: Vec<String> = Vec::new();
+    for line in listing.lines() {
+        let (meta, path) = line.split_once('\t').unwrap();
+        let mut parts = meta.split(' ');
+        let (mode, _kind, oid) = (parts.next().unwrap(), parts.next().unwrap(), parts.next().unwrap());
+        let on_disk = if mode == "120000" {
+            std::fs::read_link(repo.path.join(path)).unwrap().to_string_lossy().into_owned() // git stores a link's target
+        } else {
+            std::fs::read_to_string(repo.path.join(path)).unwrap()
+        };
+        let blob = repo.git(&["cat-file", "blob", oid]);
+        assert_eq!(blob.trim_end(), on_disk.trim_end(), "{path} in the snapshot is not what is on disk");
+        held.push(path.to_string());
+    }
+    held.sort();
+    let mut want: Vec<String> = want.iter().map(|s| s.to_string()).collect();
+    want.sort();
+    assert_eq!(held, want);
+}
+
+#[test]
+fn a_snapshot_holds_what_is_on_disk_whatever_git_thinks_of_its_stat_cache() {
+    let repo = Repo::new();
+    repo.write("same_size.txt", "AAAA\n");
+    repo.write("grown.txt", "short\n");
+    repo.write("gone.txt", "bye\n");
+    repo.write("quiet.txt", "quiet v1\n");
+    repo.write("sparse.txt", "sparse\n");
+    repo.write("exec.sh", "#!/bin/sh\n");
+    repo.write("link_me.txt", "target\n");
+    repo.write("kept/a.txt", "a\n");
+    repo.write("staged_only.txt", "staged v1\n");
+    repo.commit_all("init");
+    repo.git(&["status", "--porcelain"]); // the index now holds fresh stat data, as in a session that has run git status
+
+    // the cases in which a stat cache can mislead:
+    repo.write("same_size.txt", "BBBB\n"); // same length, newer content
+    repo.write("grown.txt", "much longer than before\n");
+    std::fs::remove_file(repo.path.join("gone.txt")).unwrap();
+    repo.git(&["update-index", "--assume-unchanged", "quiet.txt"]);
+    repo.write("quiet.txt", "quiet v2 behind assume-unchanged\n"); // git itself will not look at this file
+    repo.git(&["update-index", "--skip-worktree", "sparse.txt"]);
+    repo.write("untracked_new.txt", "new\n");
+    repo.write("added_later.txt", "intent\n");
+    repo.git(&["add", "-N", "added_later.txt"]);
+    repo.write("staged_only.txt", "staged v2\n");
+    repo.git(&["add", "staged_only.txt"]);
+    repo.write("staged_only.txt", "staged v3 on disk\n");
+    std::fs::remove_file(repo.path.join("link_me.txt")).unwrap();
+    std::os::unix::fs::symlink("exec.sh", repo.path.join("link_me.txt")).unwrap();
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(repo.path.join("exec.sh"), std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+
+    let snap = rewind().snapshot(&repo.path, "stat-1").unwrap();
+    assert_snapshot_matches_disk(&repo, &snap.tree, &["same_size.txt", "grown.txt", "quiet.txt", "exec.sh", "link_me.txt", "kept/a.txt", "staged_only.txt", "untracked_new.txt", "added_later.txt"]);
+    let modes = repo.git(&["ls-tree", &snap.tree, "exec.sh", "link_me.txt"]);
+    assert!(modes.contains("100755") && modes.contains("120000"), "{modes}");
+    assert_eq!(repo.git(&["show", &format!("{}:quiet.txt", snap.tree)]), "quiet v2 behind assume-unchanged");
+    assert_eq!(repo.git(&["show", &format!("{}:staged_only.txt", snap.index_tree)]), "staged v2", "the index tree is the index, not the disk");
+
+    // a restore plan reads the same quick tree: the untouched tree has nothing to restore
+    assert!(rewind().plan_restore(&repo.path, "stat-1").unwrap().is_empty());
+}
+
+#[test]
+fn a_snapshot_is_right_when_the_index_is_stale_or_missing() {
+    let repo = Repo::new();
+    repo.write("a.txt", "one\n");
+    repo.write("b.txt", "two\n");
+    repo.commit_all("init");
+    // touch every file so that no stat entry matches, then change one of them in a way the size does not show
+    repo.write("a.txt", "one\n");
+    repo.write("b.txt", "TWO\n");
+    let snap = rewind().snapshot(&repo.path, "stale").unwrap();
+    assert_snapshot_matches_disk(&repo, &snap.tree, &["a.txt", "b.txt"]);
+
+    std::fs::remove_file(repo.path.join(".git/index")).unwrap();
+    let snap = rewind().snapshot(&repo.path, "no-index").unwrap();
+    assert_snapshot_matches_disk(&repo, &snap.tree, &["a.txt", "b.txt"]);
+    assert!(!repo.path.join(".git").read_dir().unwrap().flatten().any(|e| e.file_name().to_string_lossy().starts_with("intely-")), "no temporary index is left");
+}
