@@ -297,8 +297,10 @@ impl Rewind {
     ///
     /// The tree is built on a copy of the user's index, so git's stat cache says which tracked files are unchanged and only the ones that
     /// changed (and the untracked ones) are read and hashed again. Hashing every file of a large working tree took seconds per repository
-    /// and held up the start of a run; the copy makes it a fraction of a second and yields the same tree. When the quick way fails for any
-    /// reason the tree is built the slow way, from an empty index.
+    /// and held up the start of a run; the copy makes it a fraction of a second and yields the tree that hashing every file would, as far
+    /// as git's own check of a file (size, times, mode) can tell: what `git status` calls clean is taken as clean. A repository whose
+    /// configuration weakens that check (`core.trustctime=false`, `core.checkStat=minimal`) gets the slow way, and so does any failure of
+    /// the quick one: the tree is then built from an empty index.
     fn work_tree(&self, top: &Path) -> Result<WorkTree, RewindError> {
         // `-v` is `-t` with a lowercase tag for a file marked assume-unchanged (git then trusts the index, not the file).
         let listing = self.git(top, &["ls-files", "-z", "-v", "--cached", "--others", "--exclude-standard"], &[], None)?;
@@ -342,13 +344,19 @@ impl Rewind {
         }
         let git_dir = self.git_dir(top)?;
         let real = PathBuf::from(self.git_text(top, &["rev-parse", "--path-format=absolute", "--git-path", "index"])?);
-        let quick = if real.is_file() { self.tree_from_index_copy(top, &git_dir, &real, &paths, &cached, &untrusted).ok() } else { None };
+        let quick = if real.is_file() && self.stat_check_is_strict(top) { self.tree_from_index_copy(top, &git_dir, &real, &paths, &cached, &untrusted).ok() } else { None };
         let tree = match quick {
             Some(tree) => tree,
             None => self.tree_from_scratch(top, &git_dir, &paths)?,
         };
         skipped.sort_by(|a, b| a.path.cmp(&b.path));
         Ok(WorkTree { tree, files: paths.len(), skipped })
+    }
+
+    /// Git's check of a file for a change is strict (size, mtime, ctime, inode and mode all count) unless the configuration loosens it.
+    fn stat_check_is_strict(&self, top: &Path) -> bool {
+        let loose = |key: &str, value: &str| self.git_text(top, &["config", "--get", key]).is_ok_and(|v| v.trim().eq_ignore_ascii_case(value));
+        !loose("core.trustctime", "false") && !loose("core.checkstat", "minimal")
     }
 
     /// The tree of `paths` as they are on disk now, built on a copy of the user's index: entries that are no longer in the snapshot are
@@ -507,11 +515,22 @@ impl Rewind {
             cmd.env(k, v);
         }
         let mut child = cmd.spawn()?;
-        if let Some(input) = stdin {
-            // git reads all of stdin before writing much, and its output is small, so no writer thread is needed.
-            child.stdin.take().expect("piped stdin").write_all(input)?;
-        }
+        // The input goes in from a thread of its own while this one reads the output: `update-index --add --stdin` answers every path with a
+        // line on stderr when it has something to say (a line-ending warning per file), and a parent that writes all of stdin first stops
+        // when that pipe is full, with git stopped on its side of it.
+        let writer = stdin.map(|input| {
+            let mut pipe = child.stdin.take().expect("piped stdin");
+            let input = input.to_vec();
+            std::thread::spawn(move || pipe.write_all(&input))
+        });
         let out = child.wait_with_output()?;
+        if let Some(writer) = writer {
+            // (git may leave before it has read everything, when it fails: the status below says why)
+            match writer.join() {
+                Ok(Err(e)) if e.kind() != std::io::ErrorKind::BrokenPipe => return Err(e.into()),
+                _ => {}
+            }
+        }
         if out.status.success() {
             Ok(out.stdout)
         } else {

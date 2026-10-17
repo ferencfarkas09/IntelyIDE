@@ -128,7 +128,10 @@ describe("a start that takes a while", () => {
     await screen.findByTestId("starting-run");
     // another run is picked from the list
     const other = agentRows()[0];
-    fireEvent.click(await screen.findByRole("button", { name: new RegExp(other.title.slice(0, 20).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) }));
+    // (a finished run has a second button with its title in the name: the one that closes it)
+    const named = new RegExp(other.title.slice(0, 20).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+    await waitFor(() => expect(document.querySelector(".run-row__main")).not.toBeNull());
+    fireEvent.click(screen.getAllByRole("button", { name: named }).find((b) => !b.classList.contains("run-row__close"))!);
     await waitFor(() => expect(selectedAgentId()).toBe(other.agentId));
     gate.resolve();
     await waitFor(() => expect(startingRuns()).toEqual([]), { timeout: 10_000 });

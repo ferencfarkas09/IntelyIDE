@@ -414,3 +414,54 @@ fn a_linked_worktree_shares_the_snapshot_ref_so_the_second_snapshot_of_a_run_is_
     });
     assert_eq!(answers.iter().filter(|a| a.is_ok()).count(), 1, "{answers:?}");
 }
+
+/// Runs `f` on a thread and fails the test instead of hanging when it does not finish: a deadlock must not freeze the suite.
+fn within<T: Send + 'static>(secs: u64, f: impl FnOnce() -> T + Send + 'static) -> T {
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = tx.send(f());
+    });
+    rx.recv_timeout(std::time::Duration::from_secs(secs)).expect("did not finish: git and the parent are waiting for each other")
+}
+
+/// `update-index --add --stdin` writes a line-ending warning to stderr for every file it converts. With thousands of files that is far more
+/// than a pipe holds; a parent that writes all of stdin first stops there and git stops with it (a snapshot that never came back, so a run
+/// that never started).
+#[test]
+fn a_snapshot_of_thousands_of_files_that_make_git_warn_does_not_hang() {
+    let repo = Repo::new();
+    repo.git(&["config", "core.autocrlf", "true"]);
+    repo.git(&["config", "core.safecrlf", "warn"]);
+    repo.write("seed.txt", "seed\n");
+    repo.commit_all("init");
+    for dir in 0..40 {
+        for file in 0..120 {
+            repo.write(&format!("gen/d{dir}/file_number_{file}.txt"), "line one\nline two\n"); // LF files under autocrlf=true: a warning each
+        }
+    }
+    let path = repo.path.clone();
+    let snap = within(60, move || rewind().snapshot(&path, "warn-1")).expect("snapshot");
+    assert_eq!(snap.files, 4801);
+    let path = repo.path.clone();
+    within(60, move || rewind().plan_restore(&path, "warn-1")).expect("plan");
+}
+
+/// With `core.trustctime=false` git no longer sees a same-size rewrite that keeps the old mtime. The quick snapshot would take that blind
+/// spot for the content of the file, so such a repository is hashed in full.
+#[test]
+fn a_repository_that_loosens_gits_file_check_is_hashed_in_full() {
+    let repo = Repo::new();
+    repo.git(&["config", "core.trustctime", "false"]);
+    // The file is old enough for git to trust its times (a file as new as the index is "racily clean" and gets hashed again).
+    let old = std::time::SystemTime::now() - std::time::Duration::from_secs(3600);
+    let set_mtime = |at| std::fs::File::options().write(true).open(repo.path.join("f.txt")).unwrap().set_modified(at).unwrap();
+    repo.write("f.txt", "AAAA\n");
+    set_mtime(old);
+    repo.commit_all("init");
+    repo.git(&["status", "--porcelain"]);
+    repo.write("f.txt", "BBBB\n"); // the same length
+    set_mtime(old); // and the old mtime
+    assert!(repo.git(&["status", "--porcelain"]).is_empty(), "git itself cannot see the change in this configuration");
+    let snap = rewind().snapshot(&repo.path, "loose").unwrap();
+    assert_eq!(repo.git(&["show", &format!("{}:f.txt", snap.tree)]), "BBBB", "the snapshot holds the file as it is on disk");
+}

@@ -51,7 +51,7 @@
 .transcript__inner { position: relative; width: 100%; }
 .transcript__row { position: absolute; top: 0; left: 0; width: 100%; padding: 4px var(--space-4); box-sizing: border-box; }
 .transcript__col { max-width: 880px; min-width: 0; margin-inline: auto; }
-.transcript__jump { position: absolute; right: var(--space-4); bottom: var(--space-2); }
+.transcript__jump { position: absolute; inset-inline-end: var(--space-4); bottom: var(--space-2); }
 .transcript__jump[data-tone="warn"] .ui-btn { color: var(--warn); box-shadow: inset 0 0 0 1px var(--warn-border); background: var(--warn-subtle); }
 
 /* The agent's side: avatar column, then name, time and the messages and cards of the run of rows */
@@ -70,7 +70,7 @@
 .msg__text { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text-1); line-height: 1.5; }
 
 .msg--user { align-items: flex-end; margin-top: 8px; gap: 0; }
-.msg--user .msg__bubble { max-width: min(82%, 680px); background: var(--accent-subtle); border-bottom-right-radius: 4px; box-shadow: inset 0 0 0 1px var(--accent-border); }
+.msg--user .msg__bubble { max-width: min(82%, 680px); background: var(--accent-subtle); border-end-end-radius: 4px; box-shadow: inset 0 0 0 1px var(--accent-border); }
 /* time and author sit under the bubble; your own name is for screen readers only, and the time shows when you point at the message */
 .msg--user .msg__meta { order: 2; min-height: 16px; margin-top: 2px; }
 .msg--user[data-self] .msg__meta { opacity: 0; transition: opacity var(--dur-fast) var(--ease); }
@@ -78,17 +78,18 @@
 .msg--user[data-self] .msg__who { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 .msg--agent .msg__bubble { max-width: min(100%, 780px); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--border-subtle); }
-.msg-row[data-lead] .msg--agent .msg__bubble { border-top-left-radius: 4px; }
-.msg__copy { position: absolute; top: 4px; right: 4px; opacity: 0; background: var(--surface-3); box-shadow: var(--shadow-sm); transition: opacity var(--dur-fast) var(--ease); }
+.msg-row[data-lead] .msg--agent .msg__bubble { border-start-start-radius: 4px; }
+/* the copy button hangs over the top edge of the bubble (like the hover toolbar of a chat app), so it never covers the text */
+.msg__copy { position: absolute; z-index: 1; top: -12px; inset-inline-end: 6px; opacity: 0; background: var(--surface-3); box-shadow: var(--shadow-sm); transition: opacity var(--dur-fast) var(--ease); }
 .msg__bubble:hover .msg__copy, .msg__bubble:focus-within .msg__copy, .msg__copy:focus-visible { opacity: 1; }
 @media (hover: none) { .msg__copy { opacity: 0.75; } }
-.msg--agent[data-streaming] .md > .md-part:last-child > :is(p, h1, h2, h3, h4, blockquote, table):last-child::after, .msg--agent[data-streaming] .md > .md-part:last-child > :is(ul, ol):last-child > li:last-child::after { content: ""; display: inline-block; width: 6px; height: 12px; margin-left: 2px; vertical-align: -1px; background: var(--accent); border-radius: 1px; animation: chat-caret 1s steps(2, start) infinite; }
+.msg--agent[data-streaming] .md > .md-part:last-child > :is(p, h1, h2, h3, h4, blockquote, table):last-child::after, .msg--agent[data-streaming] .md > .md-part:last-child > :is(ul, ol):last-child > li:last-child::after { content: ""; display: inline-block; width: 6px; height: 12px; margin-inline-start: 2px; vertical-align: -1px; background: var(--accent); border-radius: 1px; animation: chat-caret 1s steps(2, start) infinite; }
 @keyframes chat-caret { to { visibility: hidden; } }
 @media (prefers-reduced-motion: reduce) { .msg--agent[data-streaming] .md > .md-part:last-child > :last-child::after, .msg--agent[data-streaming] .md > .md-part:last-child > :last-child > li:last-child::after { animation: none; } }
 
 /* The agent is at work and nothing streams into a message: three dots under the conversation, like someone typing */
 .transcript__typing { flex: none; padding: 0 var(--space-4) 6px; }
-.typing { display: inline-flex; align-items: center; gap: 8px; margin-left: calc(var(--avatar) + var(--bubble-gap)); padding: 5px 12px; border-radius: var(--radius-full); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--border-subtle); color: var(--text-3); font-size: var(--text-xs); }
+.typing { display: inline-flex; align-items: center; gap: 8px; margin-inline-start: calc(var(--avatar) + var(--bubble-gap)); padding: 5px 12px; border-radius: var(--radius-full); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--border-subtle); color: var(--text-3); font-size: var(--text-xs); }
 .typing__dots { display: inline-flex; gap: 3px; }
 .typing__dots i { width: 5px; height: 5px; border-radius: var(--radius-full); background: var(--accent-text); opacity: 0.3; animation: typing-bounce 1.2s ease-in-out infinite; }
 .typing__dots i:nth-child(2) { animation-delay: 0.15s; }
@@ -113,8 +114,10 @@
 .md code { padding: 1px 5px; background: var(--surface-2); border-radius: var(--radius-1); font-family: var(--font-mono); font-size: 0.92em; }
 .md pre.md-code { position: relative; margin: 0 0 var(--space-1); padding: 10px 12px; overflow-x: auto; background: var(--surface-0); border-radius: var(--radius-2); box-shadow: inset 0 0 0 1px var(--border-subtle); }
 .md pre.md-code[data-lang] { padding-top: 24px; }
-.md pre.md-code[data-lang]::before { content: attr(data-lang); position: absolute; top: 5px; right: 10px; color: var(--text-3); font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; }
+.md pre.md-code[data-lang]::before { content: attr(data-lang); position: absolute; top: 5px; inset-inline-end: 10px; color: var(--text-3); font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; }
 .md pre.md-code code { display: block; padding: 0; background: none; font-size: var(--text-sm); line-height: 1.5; white-space: pre; }
+/* the bubble of the agent has the colour of the chip of inline code (and the light theme has no step above it), so the chip is as recessed as a code block */
+.msg--agent .md :not(pre) > code { background: var(--surface-0); }
 .md .md-link { color: var(--accent-text); text-decoration: underline dotted; text-underline-offset: 2px; cursor: default; }
 .md table { border-collapse: collapse; margin: 0 0 var(--space-1); font-size: var(--text-sm); }
 .md th, .md td { padding: 3px 8px; box-shadow: inset 0 0 0 1px var(--border-subtle); text-align: left; }
