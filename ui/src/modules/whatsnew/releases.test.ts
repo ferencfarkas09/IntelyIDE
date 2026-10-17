@@ -17,7 +17,7 @@ describe("the release notes", () => {
 
   it("have every version in the changelog, and every note in both languages", () => {
     for (const r of RELEASES) {
-      expect(changelog, `CHANGELOG.md has no section for ${r.version}`).toMatch(new RegExp(`^## \\[${r.version.replace(/\./g, "\\.")}\\]`, "m"));
+      expect(changelog.split("\n").some((line) => line.startsWith(`## [${r.version}]`)), `CHANGELOG.md has no section for ${r.version}`).toBe(true);
       for (const text of [r.headline, ...r.notes.flatMap((n) => [n.title, n.text])]) {
         expect(text.en.trim(), `${r.version}: empty English text`).not.toBe("");
         expect(text.hu.trim(), `${r.version}: empty Hungarian text`).not.toBe("");
