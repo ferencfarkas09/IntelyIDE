@@ -358,7 +358,7 @@ export default {
         h: 'Integrations: connect your tools in one place',
         p: 'Settings > Integrations is a catalog of the services the IDE connects to. Every card shows its status, every service keeps its secrets in the macOS Keychain, and nothing connects until you set it up.',
         list: [
-          'Happy: chat, tasks, Time Tracer, Meet and notifications of your Happy account, next to your code',
+          'Happy: chat, tasks, Time Tracer, Meet and notifications of your Happy account, next to your code. Choose per kind (orders, delivery, invoices and more) what alerts you',
           'MCP servers: more tools for agents, over stdio or HTTP, with a rule for every tool',
           'Sentry: read your issues and hand one to an agent to fix',
           'DeepPattern is planned. A new service is one more card in the same catalog.',

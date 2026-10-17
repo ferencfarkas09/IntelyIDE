@@ -1,8 +1,10 @@
 import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { t } from "../../i18n";
 import { ipc } from "../../ipc";
-import type { ConnectionTest, Env, HappyStatus, PrefsPatch, ProviderStatus } from "../../ipc/happy";
+import type { ConnectionTest, Env, HappyStatus, NotifyMode, PrefsPatch, ProviderStatus } from "../../ipc/happy";
 import { applyHappyStatus, happyStatus, refreshHappyStatus } from "../../store/happy";
+import { categoryLabel, categoryRows, modeOf } from "../../store/happyKinds";
+import { inboxView } from "../../store/happyNt";
 import { Badge, Button, Clock, Eye, EyeOff, FormGroup, FormRow, IconButton, Inbox, Input, ListChecks, MessageSquare, SegmentedControl, StatusDot, Switch, toast, Video } from "../../ui-kit";
 import { connectionLine, errorLine, hostOf, looksLikeToken, STATE_CHIP, storeLabel } from "./logic";
 import "./integrations.css";
@@ -11,6 +13,12 @@ const ENVS: { value: Env; label: string }[] = [
   { value: "production", get label() { return t("integrations.env.production"); } },
   { value: "sandbox", get label() { return t("integrations.env.sandbox"); } },
   { value: "custom", get label() { return t("integrations.env.custom"); } },
+];
+
+const MODES: { value: NotifyMode; label: string }[] = [
+  { value: "alert", get label() { return t("hn.cat.alert"); } },
+  { value: "quiet", get label() { return t("hn.cat.quiet"); } },
+  { value: "off", get label() { return t("hn.cat.off"); } },
 ];
 
 const PROVIDERS = [
@@ -219,6 +227,25 @@ export default function HappyIntegration() {
           }}
         </For>
       </FormGroup>
+
+      <Show when={cfg()?.notifications.enabled}>
+        <FormGroup title={t("hn.cat.title")} description={t("hn.cat.desc")}>
+          <For each={categoryRows(inboxView().items, cfg()?.notificationKinds)}>
+            {(key) => (
+              <FormRow label={categoryLabel(key)}>
+                <SegmentedControl
+                  aria-label={t("hn.cat.row", { name: categoryLabel(key) })}
+                  size="sm"
+                  options={MODES}
+                  value={modeOf(cfg()?.notificationKinds, key)}
+                  onChange={(mode) => void apply(() => ipc.happy.setConfig({ notificationKind: { kind: key, mode } }))}
+                />
+              </FormRow>
+            )}
+          </For>
+          <p class="int__note int__cats-note">{t("hn.cat.footnote")}</p>
+        </FormGroup>
+      </Show>
     </div>
   );
 }

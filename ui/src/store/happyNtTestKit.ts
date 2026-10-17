@@ -27,6 +27,7 @@ export async function connectNtForTest(config: { notifications?: object; tasks?:
 
 export async function disconnectNtForTest(): Promise<void> {
   await ipc.happy.disconnect();
+  for (const kind of Object.keys((await ipc.happy.status()).config.notificationKinds ?? {})) await ipc.happy.setConfig({ notificationKind: { kind, mode: "alert" } });
   const off = { enabled: false };
   await ipc.happy.setConfig({ master: false, timer: off, meet: off, notifications: { ...off, allowActions: true }, tasks: off });
   ntSim().reset();

@@ -13,7 +13,8 @@ export function arrivals(seen: Set<string> | undefined, view: NotificationsView)
   if (!view.loaded) return { arrived: [], seen };
   const next = new Set(view.items.map((i) => i.id));
   if (!seen) return { arrived: [], seen: next };
-  const arrived = view.items.filter((i) => !i.read && !seen.has(i.id));
+  // A quiet category is in the list but never announced.
+  const arrived = view.items.filter((i) => !i.read && !i.quiet && !seen.has(i.id));
   return { arrived, seen: next };
 }
 

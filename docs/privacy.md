@@ -34,7 +34,7 @@ The state folder in 1.2.0 is `~/Library/Application Support/IntelySwitchIDE/` (t
 
 | Where | What | Written when |
 |---|---|---|
-| `settings.json` in the state folder (`crates/settings/src/store.rs`, mode 0600) | Your settings: language, module switches, provider choices, update preferences, notification choices, the servers you added (name, ssh target, port, repository folder, limit) and non-secret connection details. Secret values are not written here; no ssh password or key is stored | When you change a setting |
+| `settings.json` in the state folder (`crates/settings/src/store.rs`, mode 0600) | Your settings: language, module switches, provider choices, update preferences, notification choices (also which kinds of Happy notification alert you), the servers you added (name, ssh target, port, repository folder, limit) and non-secret connection details. Secret values are not written here; no ssh password or key is stored | When you change a setting |
 | `workspaces.json`, `workspaces/`, `backups/`, `trust.json`, `live-floor.json` in the state folder (`crates/core/src/registry.rs`, files mode 0600) | The workspace registry: names, colours and the folder paths of your repositories, which folders you trusted, which branches you marked as live | During use |
 | `supervisor.json`, `usage-ledger.json`, `role-backups/` (`crates/roles/src/supervisor.rs`, `crates/roles/src/ledger.rs`, `crates/roles/src/store.rs`) | Agent supervisor extras, a usage ledger of agent runs and backups of role files you edited | When you use agent roles |
 | `enforcement.json`, `gate.json` (`crates/agent_host/src/host.rs`) | The record of the safety proof run and the registry of agent processes that may still be running | During agent runs |

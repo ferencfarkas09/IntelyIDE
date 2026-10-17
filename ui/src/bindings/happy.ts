@@ -153,6 +153,8 @@ export type ConfigPatch = {
 	chat?: PrefsPatch | null,
 	notifications?: PrefsPatch | null,
 	tasks?: PrefsPatch | null,
+	/**  Sets one notification category (see [`KindPatch`]). */
+	notificationKind?: KindPatch | null,
 };
 
 /**
@@ -184,6 +186,8 @@ export type HappyConfig = {
 	notifications: ProviderPrefs,
 	/**  My tasks: the list by status, with the timer and agent shortcuts. */
 	tasks: ProviderPrefs,
+	/**  How each notification category is handled; a category that is not listed is `alert`. */
+	notificationKinds?: { [key in string]: NotifyMode },
 };
 
 /**  Event `happy:state` carries the same shape. */
@@ -197,6 +201,12 @@ export type HappyStatus = {
 	/**  Set after a 401: the whole connection is stopped and the UI shows a persistent banner until a new token is saved. */
 	signedOut?: LastError | null,
 	providers: ProviderStatus[],
+};
+
+/**  Sets how one category is handled. `alert`, the default, removes it from the settings. */
+export type KindPatch = {
+	kind: string,
+	mode: NotifyMode,
 };
 
 export type LastError = {
@@ -261,6 +271,10 @@ export type NotificationItem = {
 	threadRoot?: string | null,
 	/**  `chat.message.direct|mention|channel|thread`, ... */
 	eventKey?: string | null,
+	/**  What the settings group it under (see [`category`]): `order`, `delivery`, `invoice`, `chat`, `task`, ..., or `other`. */
+	category?: string,
+	/**  The settings say Quiet for its category: shown in the inbox, not counted and not announced. */
+	quiet?: boolean,
 };
 
 /**
@@ -277,6 +291,15 @@ export type NotificationsView = {
 
 /**  The member's notification preference per channel; drives which messages ask for a toast. */
 export type NotifyLevel = "all" | "mentions" | "none";
+
+/**  How the notifications of one category (orders, delivery, invoices, chat ...) reach the person. */
+export type NotifyMode = 
+/**  In the inbox, counted in the badge and announced with a toast. The default of every category. */
+"alert" | 
+/**  In the inbox only: not counted and not announced. */
+"quiet" | 
+/**  Not shown here at all. They stay on the server, and in the Happy app. */
+"off";
 
 export type PrefsPatch = {
 	enabled?: boolean | null,

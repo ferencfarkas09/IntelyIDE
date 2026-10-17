@@ -24,6 +24,24 @@ api_types! {
         Custom,
     }
 
+    /// How the notifications of one category (orders, delivery, invoices, chat ...) reach the person.
+    #[serde(rename_all = "camelCase")]
+    pub enum NotifyMode {
+        /// In the inbox, counted in the badge and announced with a toast. The default of every category.
+        Alert,
+        /// In the inbox only: not counted and not announced.
+        Quiet,
+        /// Not shown here at all. They stay on the server, and in the Happy app.
+        Off,
+    }
+
+    /// Sets how one category is handled. `alert`, the default, removes it from the settings.
+    #[serde(rename_all = "camelCase")]
+    pub struct KindPatch {
+        pub kind: String,
+        pub mode: NotifyMode,
+    }
+
     #[serde(rename_all = "camelCase")]
     pub struct ProviderPrefs {
         pub enabled: bool,
@@ -50,6 +68,9 @@ api_types! {
         pub notifications: ProviderPrefs,
         /// My tasks: the list by status, with the timer and agent shortcuts.
         pub tasks: ProviderPrefs,
+        /// How each notification category is handled; a category that is not listed is `alert`.
+        #[serde(default)]
+        pub notification_kinds: std::collections::BTreeMap<String, NotifyMode>,
     }
 
     #[serde(rename_all = "camelCase")]
@@ -92,6 +113,10 @@ api_types! {
         #[serde(default)]
         #[cfg_attr(feature = "specta", specta(optional))]
         pub tasks: Option<PrefsPatch>,
+        /// Sets one notification category (see [`KindPatch`]).
+        #[serde(default)]
+        #[cfg_attr(feature = "specta", specta(optional))]
+        pub notification_kind: Option<KindPatch>,
     }
 
     /// `off -> waitingForToken -> probing -> ready <-> degraded`, side exits `notPermitted` (403: no polling until a manual
@@ -621,7 +646,7 @@ impl Default for ProviderPrefs {
 impl Default for HappyConfig {
     /// Everything off, Sandbox until the user switches ((design notes: integrations-plan) 1.3).
     fn default() -> Self {
-        Self { master: false, env: Env::Sandbox, custom_base_url: None, timer: ProviderPrefs::default(), meet: ProviderPrefs::default(), chat: ProviderPrefs::default(), notifications: ProviderPrefs::default(), tasks: ProviderPrefs::default() }
+        Self { master: false, env: Env::Sandbox, custom_base_url: None, timer: ProviderPrefs::default(), meet: ProviderPrefs::default(), chat: ProviderPrefs::default(), notifications: ProviderPrefs::default(), tasks: ProviderPrefs::default(), notification_kinds: Default::default() }
     }
 }
 
@@ -633,7 +658,7 @@ impl Default for PrefsPatch {
 
 impl Default for ConfigPatch {
     fn default() -> Self {
-        Self { master: None, env: None, custom_base_url: None, timer: None, meet: None, chat: None, notifications: None, tasks: None }
+        Self { master: None, env: None, custom_base_url: None, timer: None, meet: None, chat: None, notifications: None, tasks: None, notification_kind: None }
     }
 }
 

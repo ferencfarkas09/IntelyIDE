@@ -1,13 +1,38 @@
 // The in-memory Notifications inbox and My tasks of the mock Happy ((design notes: integrations-plan) E3 and E4). The same fixtures
 // as scripts/mock-happy/{notifications,tasks}.mjs, deterministic and offline. `sim` lets tests and screenshots move the
 // world (a new notification arrives, the task list changes) the way a poll would.
+import type { NotifyMode } from "../happy";
 import type { HappyInboxIpc, HappyTasksIpc, NotificationItem, NotificationsView, TaskItem, TasksView, TaskStatus } from "../happyNt";
 
 const MIN = 60_000;
 const DAY = 24 * 60 * MIN;
 
+/** The category settings, as the mock config holds them (see `notification_kinds` in crates/happy). */
+export type KindModes = Readonly<Record<string, NotifyMode>>;
+
+/** The settings key of a category: lowercase, at most 64 of letters, digits, `.`, `_`, `-` (crates/happy `clean_kind`). */
+export function cleanKind(raw: string): string | undefined {
+  const kind = raw.trim().toLowerCase();
+  return /^[a-z0-9._-]{1,64}$/.test(kind) ? kind : undefined;
+}
+
+/** The most categories the settings keep (crates/happy `KINDS_MAX`). */
+export const KINDS_MAX = 64;
+
+const SAME: [string, string[]][] = [["order", ["order"]], ["delivery", ["deliver", "shipping", "shipment"]], ["invoice", ["invoice", "billing"]]];
+
+/** The category of a notification: its type, else the first part of its event key, else `other`; orders, delivery and invoices fold (crates/happy `category`). */
+export function categoryOf(kind: string | null | undefined, eventKey: string | null | undefined): string {
+  const raw = kind?.trim() ? kind : eventKey?.split(".")[0];
+  const clean = raw ? cleanKind(raw) : undefined;
+  if (!clean) return "other";
+  return SAME.find(([, starts]) => starts.some((s) => clean.startsWith(s)))?.[0] ?? clean;
+}
+
 export interface NtHost {
   now(): number;
+  /** How each notification category is handled; a category that is not listed alerts. */
+  kinds(): KindModes;
   /** Whether the provider is switched on, connected and allowed (no throwing). */
   on(id: "notifications" | "tasks"): boolean;
   requireOn(id: "notifications" | "tasks"): void;
@@ -52,7 +77,7 @@ const seedInbox = (now: number): NotificationItem[] => [
   { id: "n_c3", title: "Szabó Réka replied in #dev", body: "Fixed in the last commit, please re-run the tests.", kind: "chat", eventKey: "chat.message.thread", channelId: "c_dev", messageId: "m_c_dev_45", threadRoot: "m_c_dev_40", createdAtMs: now - 26 * 60 * MIN, read: true },
 ];
 
-export function createMockNt(host: NtHost): { inbox: HappyInboxIpc; tasks: HappyTasksIpc; sim: MockNtSim } {
+export function createMockNt(host: NtHost): { inbox: HappyInboxIpc; tasks: HappyTasksIpc; sim: MockNtSim; republish(): void } {
   let items = seedInbox(host.now());
   let list = SEED_TASKS(host.now());
   let next = 100;
@@ -60,8 +85,11 @@ export function createMockNt(host: NtHost): { inbox: HappyInboxIpc; tasks: Happy
   const taskListeners = new Set<(v: TasksView) => void>();
 
   const inboxView = (): NotificationsView => {
-    const sorted = [...items].sort((a, b) => (b.createdAtMs ?? 0) - (a.createdAtMs ?? 0)).map((i) => ({ ...i }));
-    return { items: sorted, unread: sorted.filter((i) => !i.read).length, loaded: true, stale: false };
+    const modes = host.kinds();
+    const sorted = [...items].sort((a, b) => (b.createdAtMs ?? 0) - (a.createdAtMs ?? 0)).map((i) => ({ ...i, category: categoryOf(i.kind, i.eventKey) }));
+    // The same as the hub: Off is left out, Quiet is marked and neither counts as unread.
+    const shown = sorted.filter((i) => modes[i.category] !== "off").map((i) => (modes[i.category] === "quiet" ? { ...i, quiet: true } : i));
+    return { items: shown, unread: shown.filter((i) => !i.read && !i.quiet).length, loaded: true, stale: false };
   };
   const tasksView = (): TasksView => ({ tasks: list.map((t) => ({ ...t })), statuses: STATUSES.map((s) => ({ ...s })), loaded: true, stale: false });
   const emitInbox = () => inboxListeners.forEach((cb) => cb(inboxView()));
@@ -70,6 +98,7 @@ export function createMockNt(host: NtHost): { inbox: HappyInboxIpc; tasks: Happy
   const emptyTasks: TasksView = { tasks: [], statuses: [], loaded: false, stale: false };
 
   return {
+    republish: emitInbox,
     inbox: {
       current: async () => (host.on("notifications") ? inboxView() : emptyInbox),
       async list() {

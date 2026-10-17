@@ -357,7 +357,7 @@ export default {
         h: 'Integrációk: az eszközeid egy helyen',
         p: 'A Beállítások > Integrációk azoknak a szolgáltatásoknak a katalógusa, amelyekhez az IDE csatlakozik. Minden kártya mutatja az állapotát, minden szolgáltatás a macOS Keychainben tartja a titkait, és semmi sem csatlakozik, amíg be nem állítod.',
         list: [
-          'Happy: a Happy-fiókod chatje, feladatai, Time Tracere, Meetje és értesítései a kódod mellett',
+          'Happy: a Happy-fiókod chatje, feladatai, Time Tracere, Meetje és értesítései a kódod mellett. Értesítésfajtánként (rendelés, szállítás, számla és más) te döntöd el, mi riasszon',
           'MCP-szerverek: további eszközök az ügynököknek, stdio-n vagy HTTP-n, minden eszközre külön szabállyal',
           'Sentry: olvasd a hibáidat, és add át az egyiket egy ügynöknek javításra',
           'A DeepPattern tervezett. Egy új szolgáltatás csak egy újabb kártya ugyanabban a katalógusban.',

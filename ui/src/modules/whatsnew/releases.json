@@ -48,6 +48,14 @@
         }
       },
       {
+        "kind": "new",
+        "title": { "en": "Notifications by category", "hu": "Értesítések kategóriánként" },
+        "text": {
+          "en": "In Settings > Integrations > Happy you choose for each kind of notification (orders, delivery, invoices, chat and more) whether it alerts you, shows quietly in the inbox, or is hidden. The count and the toasts follow.",
+          "hu": "A Beállítások > Integrációk > Happy alatt minden értesítésfajtára (rendelés, szállítás, számla, csevegés és más) megadhatod, hogy riasszon, csendben megjelenjen a postaládában, vagy rejtve maradjon. A számláló és a felugró értesítések követik."
+        }
+      },
+      {
         "kind": "improved",
         "title": { "en": "A slow start opens the run at once", "hu": "A lassú indítás azonnal megnyitja a futást" },
         "text": {

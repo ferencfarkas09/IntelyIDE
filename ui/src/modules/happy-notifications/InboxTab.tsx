@@ -5,7 +5,7 @@ import type { NotificationItem } from "../../ipc/happy";
 import { openIntegration } from "../../platform/integrations";
 import { refreshHappyStatus, happyStatus } from "../../store/happy";
 import { applyInbox, inboxView, providerNote } from "../../store/happyNt";
-import { AtSign, Badge, Button, Check, Circle, EmptyState, Hash, Icon, IconButton, Inbox, MessageSquare, MessagesSquare, RefreshCw, Skeleton, Trash2, TriangleAlert } from "../../ui-kit";
+import { AtSign, Badge, Button, Check, Circle, EmptyState, Hash, Icon, IconButton, Inbox, MessageSquare, MessagesSquare, RefreshCw, Settings, Skeleton, Trash2, TriangleAlert } from "../../ui-kit";
 import { errorText, markAllRead, markRead, markUnread, openItem, removeItem } from "./actions";
 import { ago, chatEvent, groupByDay, kindTone } from "./logic";
 import "./notifications.css";
@@ -71,6 +71,7 @@ function InboxList() {
         </Show>
         <Button size="sm" variant="ghost" disabled={view().unread === 0 || !actions()} title={actions() ? undefined : t("hn.markAllTip")} onClick={() => void markAllRead()}>{t("hn.markAll")}</Button>
         <IconButton icon={RefreshCw} label={t("hx.refresh")} size="sm" loading={loading()} onClick={() => void load()} />
+        <IconButton icon={Settings} label={t("hn.cat.settings")} tooltip={t("hn.cat.settingsTip")} size="sm" onClick={openIntegrations} />
       </header>
       <Show when={view().stale || (error() && hasRows())}>
         <div class="ib__stale" role="status">{t("hx.stale")}</div>
@@ -125,7 +126,7 @@ function Row(props: { item: NotificationItem; now: number; canMark: boolean }) {
     }
   };
   return (
-    <div class="ib__row" role="listitem" data-unread={props.item.read ? undefined : ""} data-kind={props.item.kind ?? undefined}>
+    <div class="ib__row" role="listitem" data-unread={props.item.read ? undefined : ""} data-quiet={props.item.quiet ? "" : undefined} data-kind={props.item.kind ?? undefined}>
       <span class="ib__dot" aria-hidden="true" />
       <Show when={event()} fallback={<span class="ib__icon" aria-hidden="true" />}>
         <Icon class="ib__icon" icon={icon()} size={14} label={undefined} />
@@ -140,6 +141,7 @@ function Row(props: { item: NotificationItem; now: number; canMark: boolean }) {
           <Show when={event()} fallback={<Show when={props.item.kind}><Badge size="sm" tone={kindTone(props.item.kind)}>{props.item.kind}</Badge></Show>}>
             {(ev) => <span>{t(`hn.ev.${ev()}`)}</span>}
           </Show>
+          <Show when={props.item.quiet}><Badge size="sm" variant="outline" title={t("hn.cat.quietTip")}>{t("hn.cat.quiet")}</Badge></Show>
           <span>{ago(props.item.createdAtMs, props.now)}</span>
         </span>
       </button>

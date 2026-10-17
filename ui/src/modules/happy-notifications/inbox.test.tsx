@@ -4,6 +4,7 @@ import { ipc } from "../../ipc";
 import { availableCommands, resetCommands } from "../../platform/commands";
 import { dockTabs } from "../../platform/dock";
 import { resetOverlays } from "../../platform/overlay";
+import { openIntegration } from "../../platform/integrations";
 import { resetStatusItems, statusItems } from "../../platform/statusbar";
 import { inboxView } from "../../store/happyNt";
 import { connectNtForTest, disconnectNtForTest, ntSim } from "../../store/happyNtTestKit";
@@ -15,6 +16,7 @@ import { register } from "./index";
 import InboxItem from "./InboxItem";
 import InboxTab from "./InboxTab";
 
+vi.mock("../../platform/integrations", async (orig) => ({ ...(await orig<typeof import("../../platform/integrations")>()), openIntegration: vi.fn() }));
 vi.mock("../happy-chat/state", async (orig) => ({ ...(await orig<typeof import("../happy-chat/state")>()), openChatAt: vi.fn(), chatLive: vi.fn(() => false) }));
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
@@ -257,5 +259,66 @@ describe("toasts (transitions only)", () => {
     await flush();
     expect(show).not.toHaveBeenCalled();
     expect(document.body.textContent).toBe("");
+  });
+});
+
+describe("notification categories", () => {
+  const set = (kind: string, mode: "alert" | "quiet" | "off") => ipc.happy.setConfig({ notificationKind: { kind, mode } });
+
+  it("lists a quiet category without counting it, and hides an off one", async () => {
+    const stop = await connectNtForTest();
+    render(() => <InboxTab />);
+    expect(await screen.findByText("Task assigned: Receipts")).toBeTruthy();
+    expect(screen.getByTitle("Unread").textContent).toBe("4");
+    await set("task", "quiet");
+    await waitFor(() => expect(screen.getByTitle("Unread").textContent).toBe("3"));
+    const row = screen.getByText("Task assigned: Receipts").closest(".ib__row")!;
+    expect(row.hasAttribute("data-quiet")).toBe(true);
+    expect(row.textContent).toContain("Quiet");
+    await set("task", "off");
+    await waitFor(() => expect(screen.queryByText("Task assigned: Receipts")).toBeNull());
+    expect(screen.getByTitle("Unread").textContent).toBe("3");
+    await set("task", "alert");
+    expect(await screen.findByText("Task assigned: Receipts")).toBeTruthy();
+    expect(screen.getByTitle("Unread").textContent).toBe("4");
+    stop();
+  });
+
+  it("follows the status bar count", async () => {
+    const stop = await connectNtForTest();
+    render(() => <InboxItem />);
+    expect(screen.getByRole("button", { name: "4 unread notifications" })).toBeTruthy();
+    await set("chat", "off");
+    await waitFor(() => expect(screen.getByRole("button", { name: "2 unread notifications" })).toBeTruthy());
+    stop();
+  });
+
+  it("never toasts an arrival of a quiet category, and never one of an off category, but does the others", async () => {
+    const stop = await connectNtForTest();
+    await set("order", "quiet");
+    await set("invoice", "off");
+    const show = vi.spyOn(toast, "show");
+    render(() => <Gate />);
+    await vi.dynamicImportSettled();
+    await flush();
+    ntSim().push({ title: "New order #41", kind: "order" });
+    ntSim().push({ title: "Invoice 88 paid", kind: "invoice" });
+    await flush();
+    await flush();
+    expect(show).not.toHaveBeenCalled();
+    expect(inboxView().items.find((i) => i.title === "New order #41")?.quiet).toBe(true);
+    expect(inboxView().items.some((i) => i.title === "Invoice 88 paid")).toBe(false);
+    ntSim().push({ title: "Courier is late", kind: "deliveryDelayed" });
+    await waitFor(() => expect(show).toHaveBeenCalledTimes(1));
+    expect(show.mock.calls[0][0]).toMatchObject({ title: "Courier is late" });
+    stop();
+  });
+
+  it("has a button that opens the Happy settings", async () => {
+    const stop = await connectNtForTest();
+    render(() => <InboxTab />);
+    fireEvent.click(await screen.findByRole("button", { name: "Notification settings" }));
+    expect(openIntegration).toHaveBeenCalledWith("happy");
+    stop();
   });
 });

@@ -16,13 +16,14 @@ use tokio::task::JoinHandle;
 
 use crate::chat_hub::{ChatState, RtBridge};
 use crate::external::is_https;
+use crate::notifications;
 use crate::net::{check_jail, resolve_base_with, ApiError, Client, Presets, Kind, Method, Scope};
 use crate::parse;
 use crate::sched::{self, Next};
 use crate::socket::{Realtime, Timing};
 use crate::time::now_ms;
 use crate::types::{
-    ChatEvent, ConfigPatch, ConnectionTest, Env, HappyConfig, HappyStatus, LastError, MeetView, MeetingStatus, PrefsPatch, ProviderCheck, ProviderPrefs, ProviderState, ProviderStatus, TimerPhase, TimerView, Trackable, UserInfo,
+    ChatEvent, ConfigPatch, ConnectionTest, Env, HappyConfig, HappyStatus, LastError, MeetView, MeetingStatus, NotifyMode, PrefsPatch, ProviderCheck, ProviderPrefs, ProviderState, ProviderStatus, TimerPhase, TimerView, Trackable, UserInfo,
 };
 
 mod inbox;
@@ -227,6 +228,17 @@ fn load_config(stored: Object) -> HappyConfig {
             (Some(Value::Object(slot)), Value::Object(over)) => slot.extend(over),
             (Some(slot), value) => *slot = value,
             (None, _) => {}
+        }
+    }
+    // A category with a mode this version does not know, or a key that cannot be one, is dropped alone: it must not reset the rest.
+    if !matches!(base.get("notificationKinds"), Some(Value::Object(_))) {
+        base.insert("notificationKinds".to_owned(), json!({}));
+    }
+    if let Some(Value::Object(kinds)) = base.get_mut("notificationKinds") {
+        kinds.retain(|key, mode| notifications::clean_kind(key).as_deref() == Some(key.as_str()) && matches!(mode.as_str(), Some("alert" | "quiet" | "off")));
+        while kinds.len() > notifications::KINDS_MAX {
+            let Some(last) = kinds.keys().next_back().cloned() else { break };
+            kinds.remove(&last);
         }
     }
     serde_json::from_value(Value::Object(base)).unwrap_or_default()
@@ -718,10 +730,25 @@ impl Hub {
             merge(&mut cfg.chat, patch.chat);
             merge(&mut cfg.notifications, patch.notifications);
             merge(&mut cfg.tasks, patch.tasks);
+            if let Some(k) = patch.notification_kind {
+                let key = notifications::clean_kind(&k.kind).ok_or_else(|| ApiError::invalid("badCategory", "A notification category is letters, digits, dots, dashes and underscores, at most 64 characters"))?;
+                match k.mode {
+                    NotifyMode::Alert => {
+                        cfg.notification_kinds.remove(&key);
+                    }
+                    mode => {
+                        if !cfg.notification_kinds.contains_key(&key) && cfg.notification_kinds.len() >= notifications::KINDS_MAX {
+                            return Err(ApiError::invalid("tooManyCategories", "Too many notification categories are set; turn some back to alert first"));
+                        }
+                        cfg.notification_kinds.insert(key, mode);
+                    }
+                }
+            }
             let changed = cfg.env != st.cfg.env || (cfg.env == Env::Custom && cfg.custom_base_url != st.cfg.custom_base_url);
             let url_changed = cfg.custom_base_url != st.cfg.custom_base_url;
             (cfg, changed, url_changed)
         };
+        let kinds_changed = cfg.notification_kinds != self.st().cfg.notification_kinds;
         if cfg.env == Env::Custom {
             resolve_base_with(&cfg.env, cfg.custom_base_url.as_deref(), &self.st().presets)?;
         }
@@ -752,6 +779,9 @@ impl Hub {
                 st.tk = mytasks::TaskState::default();
                 st.socket_blocked = false;
             }
+        }
+        if kinds_changed {
+            self.republish_inbox();
         }
         self.apply().await;
         Ok(self.status().await)
@@ -1101,6 +1131,19 @@ mod tests {
         assert_eq!((cfg.env, cfg.custom_base_url.as_deref()), (Env::Custom, Some("http://localhost:1")));
         assert_eq!(load_config(Object::new()), HappyConfig::default());
         assert_eq!(load_config(obj(json!({ "master": "yes" }))), HappyConfig::default(), "a wrong type means everything off");
+    }
+
+    #[test]
+    fn the_category_settings_load_tolerantly() {
+        let cfg = load_config(obj(json!({ "master": true, "notificationKinds": { "order": "quiet", "delivery": "off", "invoice": "alert", "Bad Key": "off", "x": "loud", "y": 3 } })));
+        assert!(cfg.master, "one bad category does not reset the rest");
+        let kinds: Vec<_> = cfg.notification_kinds.iter().map(|(k, m)| (k.as_str(), m.clone())).collect();
+        assert_eq!(kinds, vec![("delivery", NotifyMode::Off), ("invoice", NotifyMode::Alert), ("order", NotifyMode::Quiet)]);
+        let wrong = load_config(obj(json!({ "master": true, "notificationKinds": "all" })));
+        assert!(wrong.master && wrong.notification_kinds.is_empty(), "a categories value of the wrong type is dropped alone");
+        assert!(load_config(Object::new()).notification_kinds.is_empty(), "an older file has none: every category alerts");
+        let many: serde_json::Map<String, Value> = (0..80).map(|i| (format!("k{i:02}"), json!("quiet"))).collect();
+        assert_eq!(load_config(obj(json!({ "notificationKinds": many }))).notification_kinds.len(), notifications::KINDS_MAX);
     }
 
     struct Quiet;
