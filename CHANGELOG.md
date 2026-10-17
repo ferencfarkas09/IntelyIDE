@@ -6,6 +6,10 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 
 ## [1.7.0] - 2026-10-17
 
+### Added
+
+- **A What's new window after an update.** The first start after an update opens a window with what came in and what was fixed since the version you had, newest release first (up to the last four if you skipped some), with the full changelog one click away. It is written by hand for people (a few lines per release, in English or Hungarian, other languages read the English text), ships inside the app and asks nothing from the network. It does not open on a first start of a fresh install, in a read-only or test run, or after a downgrade; the version of the last window you closed is the only thing it remembers (`intely.whatsnew.seen`, in the webview's storage). The command **What's new** opens it at any time. A unit test fails when the notes of the running version are missing or a version is not in this changelog, so a release cannot go out without them.
+
 ### Fixed
 
 - **Starting a run no longer hangs on a large repository.** The Rewind snapshot that every run takes first (docs/safety.md, layer 8) read and hashed every file of every repository, one repository after the other, and all of it happened before the run could appear. On a 1.2 GB working tree that was 4 to 10 seconds per repository. The snapshot now builds its tree on a copy of your index, so git's own stat cache says which files are unchanged and only changed and untracked files are read again (0.1 seconds on the same tree, byte-for-byte the same snapshot); files marked assume-unchanged, skip-worktree, intent-to-add, deleted files and a missing or stale index are handled and tested, and a snapshot that cannot use the quick way falls back to the full one. The repositories of a run are also snapshotted four at a time instead of one by one, and a refusal still names the first repository of the list that cannot be snapshotted and removes the snapshots already made.

@@ -2,6 +2,7 @@ import { createSignal, Show } from "solid-js";
 import { t, fmt } from "../../i18n";
 import { ipc } from "../../ipc";
 import { Button, FormGroup, FormRow, Switch } from "../../ui-kit";
+import { openWhatsNew } from "../whatsnew/state";
 import { applyNotice, checkNow, errorText, updateNotice } from "./state";
 import "./updates.css";
 
@@ -49,6 +50,9 @@ export default function UpdatesSettingsPage() {
             <Button size="sm" loading={busy()} onClick={() => void check()}>{t("updates.check")}</Button>
             <span class="upd-check__result" role="status" aria-live="polite">{result()}</span>
           </div>
+        </FormRow>
+        <FormRow label={t("whatsnew.cmd")} description={t("whatsnew.settingsDesc")}>
+          <Button size="sm" variant="secondary" onClick={() => void openWhatsNew()}>{t("whatsnew.show")}</Button>
         </FormRow>
         <Show when={n()?.dismissedVersion}>
           <FormRow label={t("updates.skipped", { version: n()!.dismissedVersion! })} description={t("updates.skippedDesc")}>
