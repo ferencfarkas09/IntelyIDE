@@ -368,3 +368,49 @@ fn a_snapshot_is_right_when_the_index_is_stale_or_missing() {
     assert_snapshot_matches_disk(&repo, &snap.tree, &["a.txt", "b.txt"]);
     assert!(!repo.path.join(".git").read_dir().unwrap().flatten().any(|e| e.file_name().to_string_lossy().starts_with("intely-")), "no temporary index is left");
 }
+
+/// Two snapshots of the same run id at the same moment: git refuses the second `update-ref`, so exactly one of them exists and the ref holds
+/// the tree of the one that won (a plain overwrite would let the last writer win and hand a restore the wrong tree).
+#[test]
+fn two_snapshots_of_one_run_taken_at_the_same_time_leave_one_ref_with_the_tree_of_the_winner() {
+    let repo = busy_repo();
+    for round in 0..15 {
+        let id = format!("race-{round}");
+        let gate = std::sync::Barrier::new(2);
+        let answers: Vec<_> = std::thread::scope(|scope| {
+            let jobs: Vec<_> = (0..2).map(|_| scope.spawn(|| (gate.wait(), rewind().snapshot(&repo.path, &id)).1)).collect();
+            jobs.into_iter().map(|j| j.join().unwrap()).collect()
+        });
+        let won: Vec<_> = answers.iter().filter_map(|a| a.as_ref().ok()).collect();
+        assert_eq!(won.len(), 1, "round {round}: exactly one snapshot may exist, got {answers:?}");
+        assert_eq!(repo.git(&["rev-parse", &won[0].ref_name]), won[0].commit, "round {round}: the ref holds the winner's commit");
+        assert!(answers.iter().any(|a| a.is_err()), "round {round}: the other one is refused");
+    }
+}
+
+/// Linked worktrees of one repository share `refs/intely/snapshots`: a run that covers the main folder and a worktree gets one snapshot
+/// of one of them and a refusal for the other, never two snapshots that fight over one ref.
+#[test]
+fn a_linked_worktree_shares_the_snapshot_ref_so_the_second_snapshot_of_a_run_is_refused() {
+    let repo = Repo::new();
+    repo.write("a.txt", "main\n");
+    repo.commit_all("init");
+    let wt = repo.root().join("wt");
+    repo.git(&["worktree", "add", "-q", "-b", "other", wt.to_str().unwrap()]);
+    std::fs::write(wt.join("only-in-wt.txt"), "wt\n").unwrap();
+    repo.write("only-in-main.txt", "main\n");
+
+    let first = rewind().snapshot(&repo.path, "shared").unwrap();
+    assert!(matches!(rewind().snapshot(&wt, "shared"), Err(RewindError::Exists(_))));
+    assert_eq!(repo.git(&["rev-parse", &first.ref_name]), first.commit, "the ref still holds the first snapshot");
+    let files = repo.git(&["ls-tree", "-r", "--name-only", &first.tree]);
+    assert!(files.contains("only-in-main.txt") && !files.contains("only-in-wt.txt"), "{files}");
+
+    // and at the same moment, from both folders
+    let gate = std::sync::Barrier::new(2);
+    let answers: Vec<_> = std::thread::scope(|scope| {
+        let jobs: Vec<_> = [repo.path.clone(), wt.clone()].into_iter().map(|dir| { let gate = &gate; scope.spawn(move || (gate.wait(), rewind().snapshot(&dir, "both")).1) }).collect();
+        jobs.into_iter().map(|j| j.join().unwrap()).collect()
+    });
+    assert_eq!(answers.iter().filter(|a| a.is_ok()).count(), 1, "{answers:?}");
+}

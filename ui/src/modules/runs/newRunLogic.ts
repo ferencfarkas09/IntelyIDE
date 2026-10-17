@@ -169,6 +169,15 @@ const REASON_KEY: Record<string, MessageKey> = {
   delegationDisabled: "runs.auto.reason.delegationDisabled",
   canaryTripped: "runs.auto.reason.canaryTripped",
 };
+/**
+ * Why Claude cannot run, from the provider list the dialog read on its own, as a code `autoReasonText` knows. The Auto preview says the
+ * same but can be slow, and the host does not check it again on start (it only knows whether Auto is switched on and whether the CLI exists).
+ */
+export function claudeUnavailableReason(providers: readonly { id: string; state: string }[]): string | undefined {
+  const state = providers.find((p) => p.id === "claude")?.state;
+  return state === "off" ? "claudeDisabled" : state === "notInstalled" ? "notInstalled" : state === "needsLogin" || state === "needsKey" ? "notLoggedIn" : undefined;
+}
+
 /** The reason Auto cannot run (a code of the host); an unknown one shows as sent. */
 export const autoReasonText = (reason: string | null | undefined): string => (reason ? (reason in REASON_KEY ? t(REASON_KEY[reason]) : reason) : "");
 

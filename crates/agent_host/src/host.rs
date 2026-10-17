@@ -684,7 +684,12 @@ impl AgentHost {
                 let jobs: Vec<_> = batch.iter().map(|repo| scope.spawn(|| inner.rewind.snapshot(&repo.path, &agent_id))).collect();
                 jobs.into_iter().map(|job| job.join().unwrap_or_else(|_| Err(RewindError::Io(std::io::Error::other("the snapshot task panicked"))))).collect()
             });
+            let refused = answers.iter().any(Result::is_err);
             taken.extend(batch.iter().zip(answers));
+            // a run that will be refused does not snapshot the repositories that come after the one that cannot be (as when they went one by one)
+            if refused && !opts.run_without_safety_net {
+                break;
+            }
         }
         let mut snapshots = Vec::new();
         let mut refused = None;

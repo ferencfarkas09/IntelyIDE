@@ -172,7 +172,10 @@ impl Rewind {
         let index_commit = self.commit_tree(&top, &index_args)?;
         let message = snapshot_message(run_id, head.as_deref(), branch.as_deref(), &work);
         let commit = self.commit_tree(&top, &["commit-tree".to_string(), work.tree.clone(), "-p".into(), index_commit, "-m".into(), message])?;
-        self.git(&top, &["update-ref", "-m", "intely snapshot", &ref_name, &commit], &[], None)?;
+        // Create only: the all-zero id as the old value makes git refuse a ref that exists by now. Linked worktrees of one repository share
+        // the ref namespace, so two snapshots of the same run (taken at the same time) must not overwrite each other's tree.
+        let nothing = "0".repeat(commit.len());
+        self.git(&top, &["update-ref", "-m", "intely snapshot", &ref_name, &commit, &nothing], &[], None)?;
         Ok(SnapshotInfo {
             run_id: run_id.into(),
             ref_name,

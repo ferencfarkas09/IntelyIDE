@@ -2,6 +2,12 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@solidjs/te
 import { Show } from "solid-js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+const assembly = vi.hoisted(() => ({ gate: undefined as Promise<void> | undefined }));
+// the prompt and its attachments are put together before the first card exists: a test can hold that step
+vi.mock("../attachments/newRunPrompt", async (orig) => {
+  const mod = await orig<typeof import("../attachments/newRunPrompt")>();
+  return { ...mod, promptWithAttachments: async (...args: Parameters<typeof mod.promptWithAttachments>) => (await assembly.gate, mod.promptWithAttachments(...args)) };
+});
 vi.mock("../../ipc", async (orig) => {
   const mod = await orig<typeof import("../../ipc")>();
   const { createMockIpc } = await import("../../ipc/mock");
@@ -32,6 +38,7 @@ beforeEach(async () => {
   await ipc.settings.set("runs", { lastMode: null });
 });
 afterEach(() => {
+  assembly.gate = undefined;
   vi.restoreAllMocks();
   cleanup();
   setNewRunOpen(false);
@@ -190,7 +197,62 @@ describe("closing the dialog while the host is still answering", () => {
   });
 });
 
+describe("closing before the first card exists", () => {
+  it("keeps the dialog until the prompt is put together, then hands the run to its card, so a refusal is not lost", async () => {
+    const hold = deferred<void>();
+    assembly.gate = hold.promise;
+    vi.spyOn(ipc, "agentStart").mockRejectedValueOnce({ code: "noSafetyNet", message: "Rewind cannot snapshot admin" });
+    const d = await openDialog(() => <Workspace />);
+    await typeTask(d, "Fix the total");
+    fireEvent.click(d.getByRole("button", { name: "Start run" }));
+    fireEvent.click(d.getByRole("button", { name: "Cancel" }));
+    await wait(150);
+    expect(screen.queryByRole("dialog")).toBeTruthy(); // nothing could show a failure yet
+    expect(startingRuns()).toEqual([]);
+    hold.resolve();
+    await dialogGone();
+    const view = await screen.findByTestId("starting-run");
+    await waitFor(() => expect(within(view).getByRole("alert").textContent).toContain("Rewind cannot snapshot admin"), { timeout: 10_000 });
+    // the form is empty and a reopened dialog is not busy
+    setNewRunOpen(true);
+    const again = within(await screen.findByRole("dialog"));
+    expect((again.getByLabelText("Prompt") as HTMLTextAreaElement).value).toBe("");
+    expect((again.getByRole("button", { name: "Start run" }) as HTMLButtonElement).getAttribute("aria-busy")).not.toBe("true");
+  });
+});
+
 describe("a preview of Auto that never answers", () => {
+  it("keeps Start blocked when the provider list says Claude cannot run", async () => {
+    vi.spyOn(ipc, "agentsAutoInfo").mockReturnValue(new Promise(() => {}));
+    const real = await ipc.providers.list();
+    vi.spyOn(ipc.providers, "list").mockResolvedValue(real.map((p) => (p.id === "claude" ? { ...p, state: "off" as const } : p)));
+    await loadWorkspace();
+    render(() => <NewRunDialog />);
+    setNewRunOpen(true);
+    const d = within((await screen.findByRole("dialog")) as HTMLElement);
+    fireEvent.click(d.getByRole("button", { name: /^admin$/ }));
+    fireEvent.input(d.getByLabelText("Prompt"), { target: { value: "Fix the total" } });
+    await wait(AUTO_PREVIEW_PATIENCE_MS + 600);
+    expect((d.getByRole("button", { name: "Start run" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(d.getAllByText(/Claude is switched off/i).length).toBeGreaterThan(0);
+  });
+
+  it("does not hold Start back again when another repository is picked after the wait", async () => {
+    vi.spyOn(ipc, "agentsAutoInfo").mockReturnValue(new Promise(() => {}));
+    await loadWorkspace();
+    render(() => <NewRunDialog />);
+    setNewRunOpen(true);
+    const d = within((await screen.findByRole("dialog")) as HTMLElement);
+    fireEvent.click(d.getByRole("button", { name: /^admin$/ }));
+    fireEvent.input(d.getByLabelText("Prompt"), { target: { value: "Fix the total" } });
+    const start = () => d.getByRole("button", { name: "Start run" }) as HTMLButtonElement;
+    await waitFor(() => expect(start().disabled).toBe(false), { timeout: AUTO_PREVIEW_PATIENCE_MS + 3000 });
+    const other = [...document.querySelectorAll<HTMLElement>(".newrun__repo")].find((b) => !b.hasAttribute("data-picked"))!;
+    fireEvent.click(other);
+    await wait(300);
+    expect(start().disabled).toBe(false);
+  });
+
   it("stops holding Start back after a few seconds", async () => {
     vi.spyOn(ipc, "agentsAutoInfo").mockReturnValue(new Promise(() => {}));
     await loadWorkspace();

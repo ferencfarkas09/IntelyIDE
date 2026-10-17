@@ -13,7 +13,7 @@ import type { AgentSummary, AutoInfo, PermissionMode } from "../../store/agent-t
 import { appMode } from "../../platform/mode";
 import { newRunPrefill, takeNewRunPrefill } from "../../platform/newRun";
 import { agentRoles, selectAgent, selectStartingRun, startRun } from "../../store/agents";
-import { beginStarting, failStarting, showStarting } from "../../store/starting";
+import { beginStarting, failStarting, showStarting, startingRun } from "../../store/starting";
 import { repos } from "../../store/workspace";
 import { activeId } from "../../store/workspaces";
 import { Badge, Button, Checkbox, Dialog, Icon, Kbd, ListChecks, RepoBadge, TextArea, toast } from "../../ui-kit";
@@ -25,7 +25,7 @@ import { AutoCard, type UntrustedRole } from "./AutoCard";
 import { PERMISSION_TITLES } from "../roles/rolesLogic";
 import { loadServers, servers } from "../servers/store";
 import { McpRunPicker, mcpStartIds } from "./mcpSeam";
-import { autoReasonText, chosenProvider, clampCounts, clampMode, defaultRepos, failureLines, MAC_MAX, initialMode, neutralRole, numberedPrompt, placementRows, placementSummary, planRuns, providerBlocker, providerChoices, startBlocker, startErrorText, startRequest, THIS_MAC, toggleRepo, totalRuns, type RunMode } from "./newRunLogic";
+import { autoReasonText, chosenProvider, claudeUnavailableReason, clampCounts, clampMode, defaultRepos, failureLines, MAC_MAX, initialMode, neutralRole, numberedPrompt, placementRows, placementSummary, planRuns, providerBlocker, providerChoices, startBlocker, startErrorText, startRequest, THIS_MAC, toggleRepo, totalRuns, type RunMode } from "./newRunLogic";
 import { roleColor } from "./roleColors";
 import { newRunOpen, setCentreView, setNewRunOpen } from "./state";
 import { AUTO_PREVIEW_PATIENCE_MS, REVEAL_AFTER_MS } from "./startingLogic";
@@ -61,7 +61,7 @@ export function NewRunDialog() {
   const [autoProvider, setAutoProvider] = createSignal("claude");
   const [autoInfo, setAutoInfo] = createSignal<AutoInfo | undefined>(undefined);
   const [autoLoading, setAutoLoading] = createSignal(true);
-  // The preview has taken longer than AUTO_PREVIEW_PATIENCE_MS: Start no longer waits for it.
+  // The preview has taken longer than AUTO_PREVIEW_PATIENCE_MS since the dialog opened: Start no longer waits for it.
   const [autoSlow, setAutoSlow] = createSignal(false);
   let autoSlowTimer: ReturnType<typeof setTimeout> | undefined;
   onCleanup(() => clearTimeout(autoSlowTimer));
@@ -124,7 +124,7 @@ export function NewRunDialog() {
   });
   const usable = () => supported().filter((m) => !unavailable()[m]);
   const blocker = () =>
-    startBlocker(draft(), agentRoles()) ?? (claudeAuto() && autoLoading() && !autoSlow() ? t("runs.auto.loading") : undefined) ?? providerBlocker(provider() ?? current()?.provider, choices()) ?? unavailable()[permission()] ?? (whereShown() && total() === 0 ? t("runs.where.pick") : undefined) ?? att.store.blocker();
+    startBlocker(draft(), agentRoles()) ?? (claudeAuto() && autoLoading() && !autoSlow() ? t("runs.auto.loading") : undefined) ?? (claudeAuto() ? autoReasonText(claudeUnavailableReason(providers())) || undefined : undefined) ?? providerBlocker(provider() ?? current()?.provider, choices()) ?? unavailable()[permission()] ?? (whereShown() && total() === 0 ? t("runs.where.pick") : undefined) ?? att.store.blocker();
   const untrusted = createMemo((): UntrustedRole[] =>
     claudeAuto()
       ? groups().flatMap((g) => {
@@ -172,9 +172,9 @@ export function NewRunDialog() {
   const loadAuto = () => {
     const n = ++autoSeq;
     setAutoLoading(true);
-    setAutoSlow(false);
+    // Once the preview has been slow it stays "slow" for as long as the dialog is open (picking another repository must not hold Start back again).
     clearTimeout(autoSlowTimer);
-    autoSlowTimer = setTimeout(() => n === autoSeq && setAutoSlow(true), AUTO_PREVIEW_PATIENCE_MS);
+    if (!untrack(autoSlow)) autoSlowTimer = setTimeout(() => n === autoSeq && setAutoSlow(true), AUTO_PREVIEW_PATIENCE_MS);
     ipc.agentsAutoInfo(repoIds(), permission()).then(
       (info) => n === autoSeq && (setAutoInfo(info), setAutoError(undefined)),
       (e) => n === autoSeq && (setAutoInfo(undefined), setAutoError((e as { message?: string } | null)?.message ?? String(e))),
@@ -218,6 +218,8 @@ export function NewRunDialog() {
     on(newRunOpen, (open) => {
       if (!open) return;
       setError(undefined);
+      clearTimeout(autoSlowTimer);
+      setAutoSlow(false);
       setMode("auto");
       setAutoProvider("claude");
       setFellBack(undefined);
@@ -289,9 +291,11 @@ export function NewRunDialog() {
   };
 
   // Set while a start waits for the host: closing the dialog then hands the run to its starting card instead of letting a refusal go unseen.
-  let revealNow: (() => void) | undefined;
+  // It answers whether the card is up. Until the first card exists (the prompt and its attachments are still being put together) there is
+  // nothing that could show a failure, so the dialog stays; it closes by itself the moment the card appears.
+  let revealNow: (() => boolean) | undefined;
   const closeDialog = () => {
-    revealNow?.();
+    if (revealNow && !revealNow()) return;
     setNewRunOpen(false);
   };
 
@@ -317,19 +321,22 @@ export function NewRunDialog() {
     // A start that takes a while must not leave the person guessing: the dialog closes and the run opens as a card that counts the time and
     // becomes the run itself when the host answers. A quick answer (and every refusal that comes quickly) never gets here.
     const reveal = () => {
-      if (!waited || revealed || cards.length === 0) return;
+      // (a card whose run the host has already answered is gone: the first one still starting is the one to put in front)
+      const waiting = cards.filter((key) => startingRun(key));
+      if (!waited || revealed || waiting.length === 0) return;
       revealed = true;
       setBusy(false);
       resetForm();
       setNewRunOpen(false);
       setCentreView("run");
       if (appMode() === "editor") openDockTab("agents");
-      cards.forEach(showStarting);
-      selectStartingRun(cards[0]);
+      waiting.forEach(showStarting);
+      selectStartingRun(waiting[0]);
     };
     const forceReveal = () => {
       waited = true;
       reveal();
+      return revealed;
     };
     const timer = setTimeout(forceReveal, REVEAL_AFTER_MS);
     revealNow = forceReveal;
@@ -501,7 +508,7 @@ export function NewRunDialog() {
                 showFirstLaunch={!noticeDone() && autoProvider() === "claude"}
                 onDismissFirstLaunch={dismissNotice}
                 onTrust={(name) => void trust(name)}
-                onManage={() => (setNewRunOpen(false), openSettings("roles"))}
+                onManage={() => !busy() && (setNewRunOpen(false), openSettings("roles"))}
               />
               <Show when={autoProvider() !== "claude" && provider() && choices().find((c) => c.id === provider())?.note}>{(note) => <small class="newrun__provider-note">{note()}</small>}</Show>
             </fieldset>
