@@ -160,6 +160,12 @@ pre { background: var(--bg-soft); border: 1px solid var(--line); border-radius: 
 /* Screenshots: the captures carry their own window chrome, rounded corners and a transparent margin */
 .shot { margin: 0; }
 .shot img { display: block; width: 100%; height: auto; }
+/* Light and dark in one picture: the dark capture is masked to the lower right of a 45 degree line through the middle, and a strip marks the line.
+   A gradient angle is a true angle whatever the aspect ratio (and its stops are lengths across the line), so the line stays at 45 degrees for every shot. */
+.duo { --duo-line: 135deg; --duo-strip: 2px; position: relative; display: grid; grid-template-columns: minmax(0, 1fr); overflow: hidden; border-radius: 12px; box-shadow: 0 0 0 1px var(--line), var(--shadow); isolation: isolate; }
+.duo > picture { grid-area: 1 / 1; display: block; width: 100%; min-width: 0; }
+.duo-dark { -webkit-mask-image: linear-gradient(var(--duo-line), transparent 50%, #000 50%); mask-image: linear-gradient(var(--duo-line), transparent 50%, #000 50%); }
+.duo::after { content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none; background: linear-gradient(var(--duo-line), transparent calc(50% - var(--duo-strip)), var(--accent) calc(50% - var(--duo-strip)), var(--accent) calc(50% + var(--duo-strip)), transparent calc(50% + var(--duo-strip))); }
 
 /* Sections */
 .section { padding: clamp(56px, 9vw, 112px) 0; }

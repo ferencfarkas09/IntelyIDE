@@ -65,6 +65,11 @@ sh site/scripts/make-images.sh                                              # 14
 ```
 
 Files are `<name>-<light|dark>-<2880|1440|720>.<png|webp|avif>`; the build picks them up automatically.
+Every shot is shown as light and dark in one picture: the dark capture is drawn over the light one and masked to the lower right of a
+45 degree line through the middle, with a thin violet strip on the line (`.duo` in `style.css`, `picture()` in `src/lib.mjs`). It is a
+gradient mask, so the line stays at 45 degrees for any aspect ratio, and the picture needs no script and no inline style. Both themes are
+always shown, whatever theme the visitor chose; the light picture carries the alt text and the dark one is hidden from screen readers.
+A slot that has only one theme is shown as a plain picture, so capture both (`--theme light` and `--theme dark`) for every name.
 A slot without real files falls back to a generated SVG placeholder (`node scripts/gen-placeholders.mjs`).
 Names: `hero`, `changes-tree`, `push-dialog`, `agent-approval`, `rewind`, `workspaces-welcome`, `preview`,
 `remote`, `mongo-studio`, `providers`, `api-contract`, `api-explorer`. All shots are English.
@@ -95,7 +100,7 @@ See [DEPLOY.md](DEPLOY.md) for GitHub Pages.
 - The logo files in `assets/brand/` include a lockup with an old "INTELYSWITCH IDE" subline. The site uses
   the mark plus a live-text wordmark instead.
 - Theme: tokens on `:root`, redefined under `prefers-color-scheme: dark` and `[data-theme]`; the toggle
-  persists in `localStorage` with a safe fallback. Dark `<source>` elements follow the toggle (`site.js`).
+  persists in `localStorage` with a safe fallback. Screenshots do not follow it: they always show both themes.
 - CSP is a `<meta>` tag with no `unsafe-inline`; the one inline script (theme restore) is allowed by hash.
 - Download button text is dark on the gradient (contrast 5.3:1 or better at every stop).
 
