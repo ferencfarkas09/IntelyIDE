@@ -2,7 +2,7 @@ import { createMemo, createSignal, For, Match, onCleanup, onMount, Show, Switch 
 import { t } from "../../i18n";
 import { ipc } from "../../ipc";
 import type { NotificationItem } from "../../ipc/happy";
-import { openSettings } from "../../platform/settings";
+import { openIntegration } from "../../platform/integrations";
 import { refreshHappyStatus, happyStatus } from "../../store/happy";
 import { applyInbox, inboxView, providerNote } from "../../store/happyNt";
 import { AtSign, Badge, Button, Check, Circle, EmptyState, Hash, Icon, IconButton, Inbox, MessageSquare, MessagesSquare, RefreshCw, Skeleton, Trash2, TriangleAlert } from "../../ui-kit";
@@ -12,7 +12,7 @@ import "./notifications.css";
 
 const openIntegrations = () => {
   void refreshHappyStatus();
-  openSettings("integrations");
+  openIntegration("happy");
 };
 
 /** The dock tab: a state-aware shell around the list, so an off or blocked provider explains itself instead of showing nothing. */

@@ -1,7 +1,7 @@
 import { createEffect, createMemo, createResource, createSignal, For, on, onCleanup, onMount, Show } from "solid-js";
 import { t } from "../../i18n";
 import { ipc } from "../../ipc";
-import { openSettings } from "../../platform/settings";
+import { openIntegration } from "../../platform/integrations";
 import { providerState, refreshHappyStatus, timerView } from "../../store/happy";
 import { Badge, Button, ChevronLeft, ChevronRight, Clock, EmptyState, IconButton, Input, RefreshCw, Search, SegmentedControl, Skeleton, TriangleAlert } from "../../ui-kit";
 import { createTicker } from "./actions";
@@ -20,7 +20,7 @@ export default function TimeTab() {
           icon={Clock}
           title={t("htm.off.title")}
           description={t("htm.off.body")}
-          action={<Button onClick={() => { void refreshHappyStatus(); openSettings("integrations"); }}>{t("hx.openSettings")}</Button>}
+          action={<Button onClick={() => { void refreshHappyStatus(); openIntegration("happy"); }}>{t("hx.openSettings")}</Button>}
         />
       }
     >

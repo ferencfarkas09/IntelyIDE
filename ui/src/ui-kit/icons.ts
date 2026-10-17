@@ -141,6 +141,7 @@ export {
   Paperclip,
   Pin,
   PinOff,
+  Smile,
   SmilePlus,
 } from "lucide-solid";
 export type { LucideIcon } from "lucide-solid";

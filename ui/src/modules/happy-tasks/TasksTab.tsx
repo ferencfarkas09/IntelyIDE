@@ -2,7 +2,7 @@ import { createMemo, createSignal, For, Match, onMount, Show, Switch } from "sol
 import { t } from "../../i18n";
 import { ipc } from "../../ipc";
 import type { TaskItem } from "../../ipc/happy";
-import { openSettings } from "../../platform/settings";
+import { openIntegration } from "../../platform/integrations";
 import { happyStatus, providerState, refreshHappyStatus, timerView } from "../../store/happy";
 import { applyTasks, providerNote, tasksView } from "../../store/happyNt";
 import { Badge, Bot, Button, ChevronDown, ChevronRight, Copy, EmptyState, GitBranch, Icon, IconButton, Input, ListChecks, Play, RefreshCw, Search, Skeleton, Square, TriangleAlert } from "../../ui-kit";
@@ -13,7 +13,7 @@ import "./tasks.css";
 
 const openIntegrations = () => {
   void refreshHappyStatus();
-  openSettings("integrations");
+  openIntegration("happy");
 };
 
 /** The dock tab: a state-aware shell around the list, so an off or blocked provider explains itself instead of showing nothing. */

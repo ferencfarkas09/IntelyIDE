@@ -713,5 +713,17 @@
   "group.workspace": "Workspace",
   "commit.generateRepoTip": "Draft a message from the ticked changes of {name}",
   "changes.generateRepo": "Generate commit message ({name})",
+  "integrations.catalog.happy.tools": "Happy tools",
+  "integrations.catalog.lead": "Connect IntelyIDE to the services you work with. Each one keeps its secrets in the macOS Keychain, and nothing connects until you set it up.",
+  "integrations.catalog.more": "More integrations will appear here as they are added.",
+  "integrations.catalog.back": "All integrations",
+  "integrations.catalog.planned": "Planned",
+  "integrations.catalog.connected": "Connected",
+  "integrations.catalog.connectedOn": "Connected · {n} on",
+  "integrations.catalog.notConnected": "Not connected",
+  "integrations.catalog.happy.summary": "Chat, tasks, Time Tracer, Meet and notifications of your Happy account, next to your code.",
+  "integrations.catalog.mcp.summary": "More tools for agents: MCP servers you choose, over stdio or HTTP, with secrets in the Keychain and a rule for every tool.",
+  "integrations.catalog.sentry.summary": "Read your Sentry issues and hand one to an agent to fix.",
+  "integrations.catalog.deeppattern.summary": "Planned: connect with a key or a login, and use DeepPattern as an MCP server and as a model where it offers them.",
   "changes.generateNothing": "Tick some changes to draft a message from"
 }

@@ -4,10 +4,13 @@
 import { lazy } from "solid-js";
 import { t } from "../../i18n";
 import { registerCommand } from "../../platform/commands";
+import { registerIntegration } from "../../platform/integrations";
 import { registerSettingsSection } from "../../platform/settings";
 import { registerTabType } from "../../platform/tabs";
 import { Bug } from "../../ui-kit";
 import { openSentry } from "./open";
+import { sentryApi } from "./api";
+import { setConfigStatus, status } from "./store";
 
 export function register(): void {
   registerTabType({ type: "sentry", get title() { return t("sentry.name"); }, icon: Bug, component: lazy(() => import("./SentryTab")), canClose: true });
@@ -25,5 +28,18 @@ export function register(): void {
     icon: Bug,
     searchTerms: ["sentry", "issues", "errors", "token", "organization", "monitoring"],
     component: lazy(() => import("./SentrySection")),
+  });
+  registerIntegration({
+    id: "sentry",
+    name: "Sentry",
+    order: 30,
+    icon: Bug,
+    section: "sentry",
+    get summary() {
+      return t("integrations.catalog.sentry.summary");
+    },
+    status: () => (status()?.configured ? { tone: "ok", label: t("integrations.catalog.connected") } : { tone: "neutral", label: t("integrations.catalog.notConnected") }),
+    // (read here, not through loadStatus: a failure belongs to the catalog, which shows no chip then, not to the problem line of the Sentry tab)
+    load: () => void sentryApi().status().then(setConfigStatus, () => {}),
   });
 }

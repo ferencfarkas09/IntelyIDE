@@ -9,7 +9,7 @@ import { applyHappyStatus } from "../../store/happy";
 import { installDomStubs } from "../../store/testing-u2";
 import { disconnectHappyForTest } from "../../store/happyTestKit";
 import { register } from "./index";
-import IntegrationsSection from "./IntegrationsSection";
+import HappyIntegration from "./HappyIntegration";
 
 installDomStubs();
 
@@ -43,9 +43,9 @@ describe("integrations register()", () => {
   });
 });
 
-describe("<IntegrationsSection>", () => {
+describe("<HappyIntegration>", () => {
   it("walks from no token to connected: the token field validates, saving shows the user and the providers wake up", async () => {
-    render(() => <IntegrationsSection />);
+    render(() => <HappyIntegration />);
     expect(await screen.findByText("No token saved. Switched-on integrations wait for one.")).toBeTruthy();
     const save = screen.getByRole("button", { name: "Save token" });
     expect(save.getAttribute("disabled")).not.toBeNull();
@@ -66,7 +66,7 @@ describe("<IntegrationsSection>", () => {
   });
 
   it("a setConfig reply that is older than the state already pushed does not hide it (the first poll's 403 can beat the reply)", async () => {
-    render(() => <IntegrationsSection />);
+    render(() => <HappyIntegration />);
     await screen.findByText("No token saved. Switched-on integrations wait for one.");
     const base = await ipc.happy.status();
     const withMeet = (state: "probing" | "notPermitted") => ({
@@ -82,7 +82,7 @@ describe("<IntegrationsSection>", () => {
 
   it("tests the connection and lists what the token may use", async () => {
     await ipc.happy.saveToken(TOKEN);
-    render(() => <IntegrationsSection />);
+    render(() => <HappyIntegration />);
     await waitFor(() => expect(screen.getByRole("button", { name: "Test connection" }).getAttribute("disabled")).toBeNull());
     fireEvent.click(screen.getByRole("button", { name: "Test connection" }));
     expect(await screen.findByText("Teszt Elek", { selector: "dd" })).toBeTruthy();
@@ -90,7 +90,7 @@ describe("<IntegrationsSection>", () => {
   });
 
   it("asks for a base URL under Custom and refuses a plain http host", async () => {
-    render(() => <IntegrationsSection />);
+    render(() => <HappyIntegration />);
     fireEvent.click(await screen.findByRole("radio", { name: "Custom" }));
     const url = await screen.findByLabelText("Base URL");
     fireEvent.input(url, { target: { value: "http://evil.example.test" } });
@@ -102,7 +102,7 @@ describe("<IntegrationsSection>", () => {
 
   it("disconnect removes the token", async () => {
     await ipc.happy.saveToken(TOKEN);
-    render(() => <IntegrationsSection />);
+    render(() => <HappyIntegration />);
     await waitFor(() => expect(screen.getByRole("button", { name: "Disconnect" }).getAttribute("disabled")).toBeNull());
     fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));
     await waitFor(() => expect(screen.getByText("No token saved. Switched-on integrations wait for one.")).toBeTruthy());

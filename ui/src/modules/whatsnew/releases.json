@@ -40,6 +40,14 @@
         }
       },
       {
+        "kind": "new",
+        "title": { "en": "Integrations catalog", "hu": "Integrációk katalógusa" },
+        "text": {
+          "en": "Settings > Integrations now lists Happy, MCP servers and Sentry as cards with their status, so connecting a service starts in one place. Happy opens its own screen inside the tab. DeepPattern is shown as planned.",
+          "hu": "A Beállítások > Integrációk most kártyákon mutatja a Happy-t, az MCP-szervereket és a Sentryt az állapotukkal, így egy szolgáltatás csatlakoztatása egy helyen indul. A Happy a lapon belül saját képernyőn nyílik meg. A DeepPattern tervezettként látszik."
+        }
+      },
+      {
         "kind": "improved",
         "title": { "en": "A slow start opens the run at once", "hu": "A lassú indítás azonnal megnyitja a futást" },
         "text": {

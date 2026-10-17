@@ -713,5 +713,17 @@
   "group.workspace": "Munkaterület",
   "commit.generateRepoTip": "Üzenetvázlat készítése a kijelölt változásokból ({name})",
   "changes.generateRepo": "Commit üzenet generálása ({name})",
+  "integrations.catalog.happy.tools": "Happy-eszközök",
+  "integrations.catalog.lead": "Kösd össze az IntelyIDE-t a szolgáltatásokkal, amelyeket használsz. Mindegyik a macOS Keychainben tartja a titkait, és semmi sem csatlakozik, amíg be nem állítod.",
+  "integrations.catalog.more": "Újabb integrációk itt jelennek meg, ahogy elkészülnek.",
+  "integrations.catalog.back": "Összes integráció",
+  "integrations.catalog.planned": "Tervezett",
+  "integrations.catalog.connected": "Csatlakoztatva",
+  "integrations.catalog.connectedOn": "Csatlakoztatva · {n} bekapcsolva",
+  "integrations.catalog.notConnected": "Nincs csatlakoztatva",
+  "integrations.catalog.happy.summary": "A Happy-fiókod chatje, feladatai, Time Tracere, Meetje és értesítései a kódod mellett.",
+  "integrations.catalog.mcp.summary": "További eszközök az ágenseknek: általad választott MCP-szerverek stdio-n vagy HTTP-n, a titkok a Keychainben, minden eszközre külön szabállyal.",
+  "integrations.catalog.sentry.summary": "Olvasd a Sentry-hibáidat, és add át az egyiket egy ágensnek javításra.",
+  "integrations.catalog.deeppattern.summary": "Tervezett: kulccsal vagy bejelentkezéssel csatlakozik, és a DeepPattern MCP-szerverként és modellként is használható, ahol kínálja őket.",
   "changes.generateNothing": "Jelölj ki változásokat az üzenetvázlathoz"
 }
