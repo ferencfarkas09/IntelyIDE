@@ -6,6 +6,8 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 
 ### Added
 
+- **Team mode for New run.** When you start more than one run, Run 1 now leads and the others work for it (on by default, with a switch to keep every run independent). The lead splits the task, hands each worker a subtask through the existing messages between your runs, is the only run that asks you questions, and gives the combined summary; the workers do not ask you anything and write to the lead when they are blocked. Workers have exactly the permissions of an independent run, and the message rules and limits of `docs/peer-runs.md` apply. See `docs/remote-servers.md`.
+
 - Work in progress, not released: the code compiles for Linux (x86_64, webkit2gtk 4.1), Windows 10/11 (x86_64, WebView2) and Apple Silicon Macs, in addition to Intel Macs. Linux passes its tests; on Windows the permission checks and many tests are not yet verified. No Linux or Windows package is published; see `docs/install-linux.md` and `docs/install-windows.md` for what works and what is different. Secrets use Windows Credential Manager and the Linux Secret Service (one vault entry, split over several Credential Manager entries when it is large), banners use a Windows toast and `notify-send`, files and links open with `explorer.exe` and `xdg-open`, the terminal starts PowerShell on Windows, and connections to servers are not shared on Windows (OpenSSH for Windows has no `ControlMaster`). Process groups, the process table and the disk-space check are macOS and Linux features; the update swap of the app bundle stays macOS only.
 
 ## [1.8.0] - 2026-10-18

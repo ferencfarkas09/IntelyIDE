@@ -8,7 +8,7 @@ import { checkInvariants, SeqSink, TurnGuard } from '../src/turn.js';
 import type { PermissionMode, PolicyClient, PolicyDecision, WireEvent } from '../src/types.js';
 
 /** `mode` is the IDE mode the session holds; `holder.mode` can be changed by a test like a live switch does, `noted` records the plan-approval callbacks. */
-function rig(policy: PolicyClient, o: { mode?: PermissionMode; lastText?: string; delegating?: boolean; cwd?: string; runDirs?: string[] } = {}) {
+function rig(policy: PolicyClient, o: { mode?: PermissionMode; lastText?: string; delegating?: boolean; noQuestions?: boolean; cwd?: string; runDirs?: string[] } = {}) {
   const out: WireEvent[] = [];
   const guard = new TurnGuard(new SeqSink((e) => out.push(e)));
   guard.beginTurn();
@@ -16,7 +16,7 @@ function rig(policy: PolicyClient, o: { mode?: PermissionMode; lastText?: string
   const holder = { mode: o.mode ?? ('ask' as PermissionMode), text: o.lastText };
   const noted: PermissionMode[] = [];
   const gate: ToolGate = new ToolGate({
-    agentId: 'a1', provider: 'claude', policy, sink: guard, denied, delegating: o.delegating, cwd: o.cwd, runDirs: o.runDirs,
+    agentId: 'a1', provider: 'claude', policy, sink: guard, denied, delegating: o.delegating, noQuestions: o.noQuestions, cwd: o.cwd, runDirs: o.runDirs,
     mode: () => holder.mode, lastText: () => holder.text,
     noteMode: (m) => { holder.mode = m; noted.push(m); gate.bumpEpoch(); }, // like ClaudeSession.noteMode
   });
@@ -145,6 +145,15 @@ describe('canUseTool', () => {
     expect(out.find((e) => e.kind === 'question.request')).toMatchObject({ reqId: 'q-t8', prompt: 'Which colour?', options: [{ label: 'Red' }, { label: 'Blue', description: 'calm' }] });
     gate.answer('q-t8', { outcome: 'allow', answers: { 'Which colour?': 'Blue' } });
     expect(await p).toMatchObject({ behavior: 'allow', updatedInput: { answers: { 'Which colour?': 'Blue' } } });
+  });
+
+  it('refuses AskUserQuestion for a run that does not have it (a team worker) without showing the user anything', async () => {
+    const { gate, out, denied } = rig(fixed({ decision: 'allow', by: 'saved' }), { noQuestions: true });
+    const r = await gate.canUseTool('AskUserQuestion', { questions: [{ question: 'Which colour?' }] }, opts('t8b'));
+    expect(r).toMatchObject({ behavior: 'deny' });
+    expect((r as { message: string }).message).toContain('peer_send');
+    expect(out.filter((e) => e.kind === 'question.request')).toEqual([]);
+    expect(denied.has('t8b')).toBe(true);
   });
 
   it('asks every question of a call in turn and merges the answers, stopping at the first one the user declines', async () => {

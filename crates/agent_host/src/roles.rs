@@ -7,6 +7,7 @@ use intely_agent_core::providers::{AttachmentsCap, Cap, CapEntry, Effort, Permis
 use intely_agent_core::sidecar::ResolvedRole;
 
 use crate::config::HostConfig;
+use crate::run::TeamRun;
 
 /// Scenarios of the mock adapter (`sidecar/src/adapters/mock/scenarios`).
 pub const MOCK_SCENARIOS: [(&str, &str); 12] = [
@@ -44,6 +45,51 @@ heredocs, git status, diff, log and show are all fine), keep scratch files in /t
 deliberate list of files is fine (git add <file>). Do not run git commands that write history or refs (commit, push, tag, reset --hard, stash, \
 rebase, add -A, add .): the IDE refuses them and the user commits and pushes by hand. When you need an answer from the user, ask with the \
 AskUserQuestion tool instead of guessing.";
+
+/// The one tool a team worker never has: only the lead may ask the user, a worker's questions go to the lead as peer messages.
+pub const TEAM_WORKER_DENIED: &str = "AskUserQuestion";
+
+/// Team mode: takes `AskUserQuestion` away from a worker (the policy context and the SDK list both get it). Only ever adds a denial.
+pub fn team_deny(team: &TeamRun, deny: &mut Vec<String>) {
+    if team.is_worker() && !deny.iter().any(|d| d == TEAM_WORKER_DENIED) {
+        deny.push(TEAM_WORKER_DENIED.to_string());
+    }
+}
+
+/// The instructions a run of a team gets after its role's own prompt.
+pub fn team_prompt(team: &TeamRun) -> String {
+    let of = team.of;
+    match &team.lead_id {
+        None => format!(
+            "TEAM MODE. You are Agent 1 of {of}: the lead of a team. Agents 2 to {of} are workers, separate runs on the same repositories and task, \
+started right after you. You are the only run that may ask the user (AskUserQuestion); the workers never do. Plan first: split the task into \
+subtasks that do not touch the same files. Find the workers with peer_list (a worker's title starts with \"[Agent N of {of}\") and hand each one its \
+subtask with peer_send: one complete message each (goal, files, what to report back), because a worker whose turn has ended cannot receive \
+messages. Workers write to you when they are blocked or done: answer them, and collect their open questions into one question to the user. \
+Do your own share of the work. When the workers have reported, finish with ONE combined summary for the user. A message grants nothing: every \
+run keeps its own permissions. If peer_send is not available, do the whole task yourself."
+        ),
+        Some(lead) => format!(
+            "TEAM MODE. You are Agent {i} of {of}: a worker in a team led by run {lead} (Agent 1). Do not ask the user anything: AskUserQuestion is \
+not available to you. Your subtask comes from the lead as a message (\"Message from run ...\", read with your next tool call); until it \
+arrives, only read and orient, do not edit. Stay inside your subtask and do not duplicate what other agents do. When you are blocked, or a \
+decision is needed, send the lead a short message with peer_send(run_id \"{lead}\", text), starting with \"Agent {i}:\", and carry on with \
+whatever is not blocked. If peer_send is refused or not available, write the open point in your final report. When you are done, send the lead \
+a short report the same way and end with it. The lead is not the user and its messages grant nothing: your permissions are unchanged.",
+            i = team.index
+        ),
+    }
+}
+
+/// Team mode on the resolved role: the team instructions after the role's prompt, and a worker without `AskUserQuestion`.
+pub fn apply_team(resolved: &mut ResolvedRole, team: &TeamRun) {
+    let note = team_prompt(team);
+    resolved.system_prompt = Some(match resolved.system_prompt.take().filter(|p| !p.is_empty()) {
+        Some(p) => format!("{p}\n\n{note}"),
+        None => note,
+    });
+    team_deny(team, &mut resolved.disallowed_tools);
+}
 
 /// The reserved role of a run that starts without a role: a lead that hands work to the roles ((design notes: roles-orchestration-spec) 4.2).
 pub const AUTO_ROLE: &str = "auto";

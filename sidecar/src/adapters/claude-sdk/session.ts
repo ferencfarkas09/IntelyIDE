@@ -180,7 +180,7 @@ export class ClaudeSession implements AgentSession {
     const delegating = !!this.delegates;
     this.gate = new ToolGate({
       agentId: spec.agentId, provider: spec.provider, policy: this.policy, sink: this.sink, denied: this.state.denied,
-      delegating, onCanary: () => this.canary(),
+      delegating, noQuestions: (spec.role.disallowedTools ?? []).includes('AskUserQuestion'), onCanary: () => this.canary(),
       mode: () => this.mode, noteMode: (m) => this.noteMode(m), lastText: () => this.state.lastText, cwd: spec.cwd, runDirs: [spec.cwd, ...spec.addDirs, ...SCRATCH_DIRS], planDir: spec.planDir,
     });
     const role: ResolvedRole = spec.role;

@@ -52,6 +52,8 @@ export interface GateOptions {
   sink: EventSink;
   denied: Set<string>;
   delegating?: boolean;
+  /** AskUserQuestion is not offered to this run (a team worker): a call is refused here too, whatever the CLI does. */
+  noQuestions?: boolean;
   onCanary?: () => void;
   /** The IDE mode the session holds right now (it changes live). The unattended guard keys on it, like Rust keys on the run mode. */
   mode: () => PermissionMode;
@@ -351,7 +353,13 @@ export class ToolGate {
 
   readonly canUseTool: CanUseTool = async (toolName, input, o) => {
     const toolId = o.toolUseID;
-    if (toolName === 'AskUserQuestion') return this.askQuestion(toolId, input, o.signal);
+    if (toolName === 'AskUserQuestion') {
+      if (this.o.noQuestions) {
+        this.o.denied.add(toolId);
+        return { behavior: 'deny' as const, message: 'You cannot ask the user in this run. Send your question to the lead with peer_send and continue with what is not blocked.' };
+      }
+      return this.askQuestion(toolId, input, o.signal);
+    }
     const actor = this.actorFor(o.agentID, o.agentID ? this.agentTypes.get(o.agentID) : undefined, toolId);
     const d = await this.decide(toolId, toolName, input, actor);
     if (d.decision === 'deny') {

@@ -961,6 +961,8 @@
   "runs.where.summary": "{count, plural, one {# run} other {# runs}}: {where}",
   "runs.where.noRuns": "No runs selected.",
   "runs.where.number": "Tell each agent its number in the prompt",
+  "runs.where.team": "Run 1 leads, the others work",
+  "runs.where.teamHint": "Run 1 plans, splits the task and is the only one that asks you; the other runs get a subtask, do not ask you anything and write to Run 1 when they are blocked. Switch off to let every run work on its own.",
   "runs.where.numberHint": "Adds a line such as [Agent 2 of 3, running on Build server] before the prompt of each run.",
   "runs.where.pick": "Choose where to run",
   "runs.where.someFailed": "{count, plural, one {# run did not start} other {# runs did not start}}",

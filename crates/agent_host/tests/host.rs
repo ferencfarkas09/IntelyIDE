@@ -384,6 +384,7 @@ fn the_policy_context_of_a_run_is_path_jailed_to_its_repos_plus_the_read_only_at
         role_permission: None,
         location: None,
         remote: None,
+        team: None,
     };
     let ctx = context_for(&meta, None, Vec::new(), &state);
     assert!(ctx.strict_jail);
