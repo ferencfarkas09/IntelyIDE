@@ -17,7 +17,7 @@ import { toast } from "../../ui-kit";
 import { register as registerServers } from "../servers";
 import { resetServers } from "../servers/store";
 import { NewRunDialog } from "./NewRunDialog";
-import { clampCounts, MAC_MAX, numberedPrompt, placementRows, placementSummary, planRuns, THIS_MAC, totalRuns } from "./newRunLogic";
+import { clampCounts, MAC_MAX, numberedPrompt, placementRows, placementSummary, planRuns, teamOf, teamPrompt, THIS_MAC, totalRuns } from "./newRunLogic";
 import { setNewRunOpen } from "./state";
 
 installDomStubs();
@@ -102,6 +102,25 @@ describe("placement logic", () => {
       { location: "b", name: "Build server", index: 3, of: 3 },
     ]);
   });
+  it("plans a team: the first run leads, the rest are workers, and a single run or team off stays independent", () => {
+    expect(planRuns({ [THIS_MAC]: 1, b: 2 }, rows, true)).toEqual([
+      { name: "This Mac", index: 1, of: 3, role: "lead" },
+      { location: "b", name: "Build server", index: 2, of: 3, role: "worker" },
+      { location: "b", name: "Build server", index: 3, of: 3, role: "worker" },
+    ]);
+    expect(planRuns({ [THIS_MAC]: 1 }, rows, true)).toEqual([{ name: "This Mac", index: 1, of: 1 }]);
+    expect(planRuns({ [THIS_MAC]: 1, b: 2 }, rows, false).some((j) => j.role)).toBe(false);
+  });
+  it("sends the team numbers, and the lead's id only for a worker", () => {
+    expect(teamOf({ index: 1, of: 3, role: "lead" }, "ignored")).toEqual({ index: 1, of: 3 });
+    expect(teamOf({ index: 2, of: 3, role: "worker" }, "run-1")).toEqual({ index: 2, of: 3, leadId: "run-1" });
+    expect(teamOf({ index: 2, of: 3, role: "worker" })).toEqual({ index: 2, of: 3 });
+    expect(teamOf({ index: 1, of: 1 })).toBeUndefined();
+  });
+  it("starts a team prompt with the number and the role, which is also the run's title", () => {
+    expect(teamPrompt("Fix it", { index: 2, of: 3, name: "Build server", role: "worker" })).toBe("[Agent 2 of 3, worker, running on Build server]\n\nFix it");
+    expect(teamPrompt("Fix it", { index: 1, of: 3, name: "This Mac", role: "lead" })).toBe("[Agent 1 of 3, lead, running on This Mac]\n\nFix it");
+  });
   it("writes the number line and a blank line before the prompt", () => {
     expect(numberedPrompt("Fix it", { index: 2, of: 3, name: "Build server" })).toBe("[Agent 2 of 3, running on Build server]\n\nFix it");
   });
@@ -159,21 +178,24 @@ describe("<NewRunDialog> where to run", () => {
     expect(box().checked).toBe(false);
   });
 
-  it("starts N runs one after the other, each with its location, and numbers the prompts", async () => {
+  it("starts N runs one after the other, each with its location, as a team: the lead first, the workers name its run id", async () => {
     const d = await open();
     await ready(d);
     more(d, "Build server", 2);
     let inFlight = 0;
     let overlap = false;
-    const calls: { location?: string; prompt: string }[] = [];
+    const calls: { location?: string; prompt: string; team?: { index: number; of: number; leadId?: string } }[] = [];
     const real = ipc.agentStart.bind(ipc);
+    const ids: string[] = [];
     vi.spyOn(ipc, "agentStart").mockImplementation(async (req, opts) => {
       inFlight++;
       overlap ||= inFlight > 1;
       calls.push(req);
       await new Promise((r) => setTimeout(r, 5));
       inFlight--;
-      return real(req, opts);
+      const run = await real(req, opts);
+      ids.push(run.agentId);
+      return run;
     });
     fireEvent.click(d.getByRole("button", { name: "Start run" }));
     await waitFor(() => expect(calls).toHaveLength(3));
@@ -182,11 +204,49 @@ describe("<NewRunDialog> where to run", () => {
     expect(calls.map((c) => c.location)).toEqual([undefined, "build-server", "build-server"]);
     expect(calls[0]).not.toHaveProperty("location");
     expect(calls.map((c) => c.prompt)).toEqual([
+      "[Agent 1 of 3, lead, running on This Mac]\n\nCheck the totals",
+      "[Agent 2 of 3, worker, running on Build server]\n\nCheck the totals",
+      "[Agent 3 of 3, worker, running on Build server]\n\nCheck the totals",
+    ]);
+    expect(calls.map((c) => c.team)).toEqual([{ index: 1, of: 3 }, { index: 2, of: 3, leadId: ids[0] }, { index: 3, of: 3, leadId: ids[0] }]);
+    expect(mine().filter((r) => r.location === "build-server")).toHaveLength(2);
+  });
+
+  it("keeps the runs independent with the team box cleared: numbered as before, no team on the wire", async () => {
+    const d = await open();
+    await ready(d);
+    more(d, "Build server", 2);
+    const box = d.getByRole("checkbox", { name: "Run 1 leads, the others work" }) as HTMLInputElement;
+    expect(box.checked).toBe(true);
+    fireEvent.click(box);
+    const spy = vi.spyOn(ipc, "agentStart");
+    fireEvent.click(d.getByRole("button", { name: "Start run" }));
+    await waitFor(() => expect(spy).toHaveBeenCalledTimes(3));
+    expect(spy.mock.calls.map((c) => c[0].prompt)).toEqual([
       "[Agent 1 of 3, running on This Mac]\n\nCheck the totals",
       "[Agent 2 of 3, running on Build server]\n\nCheck the totals",
       "[Agent 3 of 3, running on Build server]\n\nCheck the totals",
     ]);
-    expect(mine().filter((r) => r.location === "build-server")).toHaveLength(2);
+    expect(spy.mock.calls.some((c) => "team" in c[0])).toBe(false);
+  });
+
+  it("offers the team box only above one run", async () => {
+    const d = await open();
+    expect(d.queryByRole("checkbox", { name: "Run 1 leads, the others work" })).toBeNull();
+    more(d, "Build server");
+    expect(d.getByRole("checkbox", { name: "Run 1 leads, the others work" })).toBeTruthy();
+  });
+
+  it("starts no worker when the lead does not start", async () => {
+    const d = await open();
+    await ready(d);
+    more(d, "Build server", 2);
+    const spy = vi.spyOn(ipc, "agentStart").mockRejectedValue({ code: "io", message: "no slot" });
+    fireEvent.click(d.getByRole("button", { name: "Start run" }));
+    const alert = await d.findByRole("alert");
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(alert.textContent).toBe("This Mac: no slot");
+    expect(started()).toBe(0);
   });
 
   it("selects the first started run and closes the dialog", async () => {
@@ -247,7 +307,7 @@ describe("<NewRunDialog> where to run", () => {
     vi.spyOn(ipc, "agentStart").mockRejectedValue({ code: "io", message: "no slot" });
     fireEvent.click(d.getByRole("button", { name: "Start run" }));
     const alert = await d.findByRole("alert");
-    expect(alert.textContent).toBe("This Mac: no slot Build server: no slot");
+    expect(alert.textContent).toBe("This Mac: no slot");
     expect(started()).toBe(0);
   });
 

@@ -40,7 +40,7 @@ use serde_json::{json, Value};
 use crate::config::{find_on_path, scrub_env, HostConfig, PolicyFault, ProviderLaunch};
 use crate::roles::{self, RoleDef};
 use crate::remote::{self, NotReady, RemoteFs, SidecarFs, FS_QUERY_TIMEOUT, REMOTE_POLICY_TIMEOUT_MS};
-use crate::run::{context_for, context_for_remote, meta_path, plan_dir, Live, Meta, RemoteDirs, RepoRef, Run, RunState, SnapshotRef};
+use crate::run::{context_for, context_for_remote, meta_path, plan_dir, Live, Meta, RemoteDirs, RepoRef, Run, RunState, SnapshotRef, TeamRun};
 use crate::sidecar::{Handler, Incoming, Sidecar};
 
 /// Where committed events go. Called only after the durable append, in `seq` order per agent.
@@ -296,6 +296,8 @@ pub struct StartOptions {
     pub bypass_confirmed: bool,
     /// Run on this server (its id in Settings > Servers) instead of on this Mac; `None` or empty = this Mac.
     pub location: Option<String>,
+    /// Team mode: this run's place in a team (see [`TeamRun`]); `None` = an independent run.
+    pub team: Option<TeamRun>,
 }
 
 /// Options of a live mode switch (`AgentHost::set_mode`).
@@ -458,6 +460,7 @@ impl AgentHost {
             role_permission: None,
             location: None,
             remote: None,
+            team: None,
         };
         let ctx = context_for(&meta, std::env::var_os("HOME").map(PathBuf::from), role.disallowed_tools.clone(), &inner.cfg.data_dir);
         lock(&inner.state).agents.insert(agent_id.clone(), Run::new(meta, RunState::default(), ctx, true));
@@ -603,6 +606,16 @@ impl AgentHost {
                 return Err(err("remoteMcp", "MCP servers are not available for runs on a server yet; start the run without them"));
             }
         }
+        // Team mode: the shape is checked, and a worker's lead must be a run of this host (its id goes into the worker's instructions)
+        let team = opts.team.clone();
+        if let Some(t) = &team {
+            if !t.is_valid() {
+                return Err(err("invalidTeam", "the team numbers do not fit (the lead is Agent 1 of at least 2, a worker is Agent 2 or higher)"));
+            }
+            if t.lead_id.as_deref().is_some_and(|lead| !lock(&inner.state).agents.contains_key(lead)) {
+                return Err(err("unknownLead", "the lead of this team is not a run of this IDE"));
+            }
+        }
         let resolved = run_role.resolved(&inner.cfg);
         let meta = Meta {
             agent_id: inner.new_agent_id(),
@@ -620,6 +633,7 @@ impl AgentHost {
             role_permission: Some(role.permission),
             location,
             remote: None,
+            team,
         };
         self.launch(run_role, meta, &resolved.disallowed_tools, Some(&prompt), opts)
     }
@@ -651,6 +665,7 @@ impl AgentHost {
             role_permission: Some(role.permission),
             location: None,
             remote: None,
+            team: None,
         };
         self.launch(role, meta, &resolved.disallowed_tools, None, StartOptions::default())
     }
@@ -1906,7 +1921,10 @@ impl Inner {
     }
 
     /// The policy context of a run, and for a run on a server the look at that server's files it is judged with.
-    fn context_for_run(&self, meta: &Meta, role_deny: Vec<String>) -> (PolicyContext, Option<Arc<RemoteFs>>) {
+    fn context_for_run(&self, meta: &Meta, mut role_deny: Vec<String>) -> (PolicyContext, Option<Arc<RemoteFs>>) {
+        if let Some(team) = &meta.team {
+            roles::team_deny(team, &mut role_deny);
+        }
         match (&meta.remote, &meta.location) {
             (Some(dirs), Some(loc)) => {
                 let mut ctx = context_for_remote(meta, dirs, role_deny);
@@ -2185,6 +2203,9 @@ impl Inner {
         };
         let mut resolved = role.resolved(&self.cfg);
         resolved.permission = meta.permission;
+        if let Some(team) = &meta.team {
+            roles::apply_team(&mut resolved, team);
+        }
         // A team lead: resolve the delegates from the current files, give the broker the matching rules, and take Agent/Task away
         // from a lead that has nobody to hand work to (the lead then works alone; nothing falls back to "all tools").
         let plan = self.plan_delegation(role, &meta.repos);

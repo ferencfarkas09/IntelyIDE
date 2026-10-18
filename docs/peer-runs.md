@@ -45,3 +45,7 @@ The setting is read at every call; a run that was started before you changed it 
 ## Not covered
 
 A message is text an agent reads. A run that was told something unwise by a peer can still be talked into asking you for something unwise, which is why every consequence stays behind that run's own cards. The runs of one person share the person's trust: if you do not want two projects to influence each other, keep the setting on `ask` and read the cards, or switch it off.
+
+## Team mode
+
+New run can start several runs as a team: Run 1 leads and alone may ask you, the others are workers without `AskUserQuestion` that message the lead through `peer_send`. It uses this page's tools and rules unchanged. See "Team mode" in [remote-servers.md](remote-servers.md).

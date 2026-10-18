@@ -961,6 +961,8 @@
   "runs.where.summary": "{count, plural, one {# futtatás} other {# futtatás}}: {where}",
   "runs.where.noRuns": "Nincs kiválasztott futtatás.",
   "runs.where.number": "Mondd meg minden ügynöknek a sorszámát a promptban",
+  "runs.where.team": "Az 1. futtatás vezet, a többi dolgozik",
+  "runs.where.teamHint": "Az 1. futtatás tervez, szétosztja a feladatot és egyedül ő kérdez tőled; a többi futtatás kap egy részfeladatot, nem kérdez semmit, és ha elakad, az 1. futtatásnak ír. Kapcsold ki, ha minden futtatás dolgozzon külön.",
   "runs.where.numberHint": "Minden futtatás promptja elé egy ilyen sor kerül: [Agent 2 of 3, running on Build server].",
   "runs.where.pick": "Válaszd ki, hol fusson",
   "runs.where.someFailed": "{count, plural, one {# futtatás nem indult el} other {# futtatás nem indult el}}",

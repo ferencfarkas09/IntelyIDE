@@ -61,7 +61,7 @@ export const toggleRepo = (repoIds: readonly string[], id: string): string[] => 
 export const defaultRepos = (role: Pick<RoleInfo, "defaultRepoIds"> | undefined, known: readonly string[]): string[] => (role?.defaultRepoIds ?? []).filter((id) => known.includes(id));
 
 /** `agent_start` plus the provider the user picked for this run; absent means the role's own provider. */
-export type StartRunRequest = AgentStartRequest & { provider?: string; /** Team: `false` keeps the run out of the shared runs. */ share?: boolean };
+export type StartRunRequest = AgentStartRequest & { provider?: string; /** Team: `false` keeps the run out of the shared runs. */ share?: boolean; /** Team mode: this run's place in a team. */ team?: { index: number; of: number; leadId?: string } };
 
 export interface ProviderChoice {
   id: string;
@@ -240,13 +240,32 @@ export interface RunJob {
   /** 1-based number over all the runs of this start, and how many there are. */
   index: number;
   of: number;
+  /** Team mode only: Run 1 leads (it alone may ask the user), the others work for it. Absent = an independent run. */
+  role?: "lead" | "worker";
 }
 
-/** The runs to start, in the order of the rows: this Mac first, then each server. */
-export function planRuns(counts: PlaceCounts, rows: readonly PlaceRow[]): RunJob[] {
+/**
+ * The runs to start, in the order of the rows: this Mac first, then each server. With `team` and more than one run, the first is the
+ * lead and the rest are its workers; the lead always comes first, so a worker can be started with the lead's run id.
+ */
+export function planRuns(counts: PlaceCounts, rows: readonly PlaceRow[], team = false): RunJob[] {
   const picked = rows.flatMap((r) => Array.from({ length: Math.min(r.max, Math.max(0, counts[r.key] ?? 0)) }, () => r));
-  return picked.map((r, i) => ({ ...(r.key === THIS_MAC ? {} : { location: r.key }), name: r.name, index: i + 1, of: picked.length }));
+  return picked.map((r, i) => ({
+    ...(r.key === THIS_MAC ? {} : { location: r.key }),
+    name: r.name,
+    index: i + 1,
+    of: picked.length,
+    ...(team && picked.length > 1 ? { role: i === 0 ? ("lead" as const) : ("worker" as const) } : {}),
+  }));
 }
+
+/** What the host needs to know of a team run: its number, the size of the team and (for a worker) the lead's run id. */
+export const teamOf = (job: Pick<RunJob, "index" | "of" | "role">, leadId?: string): { index: number; of: number; leadId?: string } | undefined =>
+  job.role ? { index: job.index, of: job.of, ...(job.role === "worker" && leadId ? { leadId } : {}) } : undefined;
+
+/** `[Agent 1 of 3, lead, running on This Mac]` / `[Agent 2 of 3, worker, ...]`: the title of the run starts with it, which is how the lead finds its workers. */
+export const teamPrompt = (prompt: string, job: Pick<RunJob, "index" | "of" | "name" | "role">): string =>
+  `[Agent ${job.index} of ${job.of}${job.role ? `, ${job.role}` : ""}, running on ${job.name}]\n\n${prompt}`;
 
 /** `[Agent 2 of 3, running on Build server]` and a blank line before the prompt. */
 export const numberedPrompt = (prompt: string, job: Pick<RunJob, "index" | "of" | "name">): string => `[Agent ${job.index} of ${job.of}, running on ${job.name}]\n\n${prompt}`;

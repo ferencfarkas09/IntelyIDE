@@ -13,4 +13,4 @@ pub use config::{automatic_memory_budget, limits_from_settings, limits_supplier,
 pub use host::{repo_files, AgentHost, AnswerExtra, CreatedHook, HostSink, SetModeOpts, StartOptions, NO_SAFETY_NET};
 pub use host::{local_origin, ProbeReport, PROBE_ROLE};
 pub use remote::{NotReady, ServerRegistry, ServersSupplier};
-pub use run::{RemoteDirs, RepoRef};
+pub use run::{RemoteDirs, RepoRef, TeamRun};

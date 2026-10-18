@@ -58,6 +58,17 @@ The folders are stored in the server's entry in the settings as `repoPaths`, key
 
 In **New run**, the section **Where to run** lists This Mac and every server that is ready, each with a counter. Set 3 on the Build server and 2 on This Mac, write the prompt once, and Start: the IDE starts five separate runs one after the other. With more than one run the option **Tell each agent its number in the prompt** adds `[Agent 2 of 5, running on Build server]` in front of each prompt, so the prompt can split the work.
 
+### Team mode: one agent leads, the others work
+
+With more than one run, **Run 1 leads, the others work** is on by default (switch it off to keep every run independent, as before). Run 1, the lead, starts first; the others, the workers, start after it and are told the lead's run id. Every run's prompt begins with `[Agent N of M, lead|worker, running on ...]`, which is also the title the lead finds its workers by in `peer_list`.
+
+- The **lead** plans and splits the task, hands each worker its subtask with `peer_send`, answers the workers' messages, does its own share and gives the final combined summary. It is the **only** run that may ask you (`AskUserQuestion`), so you answer each question once.
+- A **worker** has no `AskUserQuestion` (removed from its tool list and refused by the sidecar gate as well). Its instructions say: do not ask the user, do not duplicate the others' work, wait for the subtask the lead sends (read-only until it arrives), and when blocked or when a decision is needed send a short message to the lead and carry on with what is not blocked.
+- **Nothing is relaxed.** A worker has exactly the mode, hard stops, jail, guard, secret handling and cards of an independent run; the lead's messages grant it nothing. Messages go through the same path and admission rules as any message between your runs ([peer-runs.md](peer-runs.md)): with the default setting **Messages between my runs** a card asks once per pair, a message to a more permissive run always asks, and with the setting **Off** the runs cannot message each other (workers then record open points in their final report). A run in Automatic or Bypass cannot answer a card, so with the default setting its `peer_send` is refused; use Ask or Accept edits for team runs, or set the messages to **Allow without asking**.
+- A message can only reach a run that is working: a worker that has finished its turn cannot receive a second subtask, so the lead sends each worker one complete brief.
+- If the lead does not start, no worker is started. The team is remembered with each run, so a resumed worker is still a worker.
+
+
 A run on a server shows the server's name next to it in the list and in the run header. Everything else (approvals, questions, notes, Stop, the transcript) works as for a local run. If the connection drops, the run ends with an error and you resume it by sending a message: Claude's session lives on the server.
 
 **Places on a server.** A run holds a place of the server's limit while its session is open. A finished run keeps its session for follow-up messages. When the server is full, the run that has been finished the longest gives up its place (it comes back with its next message), and a finished run closes its session after ten minutes anyway, so the `claude` processes on the server do not pile up. Only runs that work or wait for you hold a place for good: a start (or a resume) is refused while all places are held by such runs.

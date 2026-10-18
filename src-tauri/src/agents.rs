@@ -367,6 +367,9 @@ pub struct AgentStartWire {
     /// Team: `false` keeps this run out of the shared runs from its very first event (the New run panel's switch).
     #[serde(default)]
     share: Option<bool>,
+    /// Team mode: this run's place in a team started together (the lead is Agent 1; a worker names its lead's run id).
+    #[serde(default)]
+    team: Option<intely_agent_host::TeamRun>,
 }
 
 #[tauri::command]
@@ -386,7 +389,7 @@ pub async fn agent_start(
         let app = app.clone();
         intely_agent_host::CreatedHook(Arc::new(move |id: &str| crate::modules::team::share::opt_out(&app, id)))
     });
-    let opts = intely_agent_host::StartOptions { run_without_safety_net: run_without_safety_net.unwrap_or(false), provider: req.provider, bypass_confirmed: confirm_bypass.unwrap_or(false), location: req.location, on_created, ..Default::default() };
+    let opts = intely_agent_host::StartOptions { run_without_safety_net: run_without_safety_net.unwrap_or(false), provider: req.provider, bypass_confirmed: confirm_bypass.unwrap_or(false), location: req.location, team: req.team, on_created, ..Default::default() };
     let req = req.req;
     blocking(move || sup.start_now_with(req, &repos, opts)).await
 }
@@ -654,6 +657,17 @@ mod tests {
         for ok in [ProviderState::Ready, ProviderState::Probing, ProviderState::Throttled] {
             assert_eq!(claude_unavailable(&ok), None);
         }
+    }
+
+    #[test]
+    fn the_start_wire_carries_the_team_and_a_plain_start_has_none() {
+        let plain: AgentStartWire = serde_json::from_value(serde_json::json!({"role": "developer", "repoIds": ["a"], "prompt": "go"})).unwrap();
+        assert!(plain.team.is_none());
+        let lead: AgentStartWire = serde_json::from_value(serde_json::json!({"role": "developer", "repoIds": ["a"], "prompt": "go", "team": {"index": 1, "of": 3}})).unwrap();
+        assert_eq!(lead.team, Some(intely_agent_host::TeamRun { index: 1, of: 3, lead_id: None }));
+        let worker: AgentStartWire = serde_json::from_value(serde_json::json!({"role": "developer", "repoIds": ["a"], "prompt": "go", "team": {"index": 2, "of": 3, "leadId": "run-1"}, "location": "srv"})).unwrap();
+        assert_eq!(worker.team, Some(intely_agent_host::TeamRun { index: 2, of: 3, lead_id: Some("run-1".into()) }));
+        assert_eq!(worker.location.as_deref(), Some("srv"));
     }
 
     #[test]

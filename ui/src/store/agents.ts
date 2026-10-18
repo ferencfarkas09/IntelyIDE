@@ -166,7 +166,7 @@ export function selectStartingRun(key: string): void {
  * Starts a run. `key` names the starting card of this run (New run dialog): the card goes when the host answers, and the new run takes
  * its place in front. A card the person has moved away from does not pull them back; a run started without a shown card is selected, as ever.
  */
-export async function startRun(req: AgentStartRequest & { share?: boolean }, opts?: { runWithoutSafetyNet?: boolean; confirmBypass?: boolean }, key?: string): Promise<AgentSummary> {
+export async function startRun(req: AgentStartRequest & { share?: boolean; team?: { index: number; of: number; leadId?: string } }, opts?: { runWithoutSafetyNet?: boolean; confirmBypass?: boolean }, key?: string): Promise<AgentSummary> {
   const summary = await client.agentStart(req, opts);
   batch(() => {
     pending.delete(summary.agentId);

@@ -66,6 +66,33 @@ pub struct Meta {
     /// resume or a restart of the IDE judges the same folders without asking the server first.
     #[serde(default)]
     pub remote: Option<RemoteDirs>,
+    /// Team mode (New run): this run's place in a team started together; `None` = an independent run.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub team: Option<TeamRun>,
+}
+
+/// A run's place in a team started from the New run dialog: Agent 1 is the lead, the others work for it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TeamRun {
+    /// 1-based number over the team; the lead is 1.
+    pub index: u32,
+    /// How many runs the team has (at least 2).
+    pub of: u32,
+    /// The run id of the lead, for a worker; `None` for the lead itself.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lead_id: Option<String>,
+}
+
+impl TeamRun {
+    pub fn is_worker(&self) -> bool {
+        self.lead_id.is_some()
+    }
+
+    /// The shape the host accepts: a lead is Agent 1, a worker is Agent 2.. of a team of at least two.
+    pub fn is_valid(&self) -> bool {
+        self.of >= 2 && self.of <= 64 && self.index >= 1 && self.index <= self.of && (self.index == 1) == self.lead_id.is_none()
+    }
 }
 
 /// The folders of a run on a server.

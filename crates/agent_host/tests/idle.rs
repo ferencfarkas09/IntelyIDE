@@ -28,6 +28,7 @@ fn finished_run(stop: StopReason) -> Run {
         role_permission: None,
         location: Some("srv".into()),
         remote: None,
+        team: None,
     };
     let state = RunState { last_stop: Some(stop), ..RunState::default() };
     let mut run = Run::new(meta, state, PolicyContext::new(PermissionMode::Edit, "/x"), false);

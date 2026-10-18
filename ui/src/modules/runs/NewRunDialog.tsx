@@ -25,7 +25,7 @@ import { AutoCard, type UntrustedRole } from "./AutoCard";
 import { PERMISSION_TITLES } from "../roles/rolesLogic";
 import { loadServers, servers } from "../servers/store";
 import { McpRunPicker, mcpStartIds } from "./mcpSeam";
-import { autoReasonText, chosenProvider, claudeUnavailableReason, clampCounts, clampMode, defaultRepos, failureLines, MAC_MAX, initialMode, neutralRole, numberedPrompt, placementRows, placementSummary, planRuns, providerBlocker, providerChoices, startBlocker, startErrorText, startRequest, THIS_MAC, toggleRepo, totalRuns, type RunMode } from "./newRunLogic";
+import { autoReasonText, chosenProvider, claudeUnavailableReason, clampCounts, clampMode, defaultRepos, failureLines, MAC_MAX, initialMode, neutralRole, numberedPrompt, placementRows, placementSummary, planRuns, providerBlocker, providerChoices, startBlocker, startErrorText, startRequest, teamOf, teamPrompt, THIS_MAC, toggleRepo, totalRuns, type RunJob, type RunMode } from "./newRunLogic";
 import { roleColor } from "./roleColors";
 import { newRunOpen, setCentreView, setNewRunOpen } from "./state";
 import { AUTO_PREVIEW_PATIENCE_MS, REVEAL_AFTER_MS } from "./startingLogic";
@@ -83,6 +83,8 @@ export function NewRunDialog() {
   // Where the runs go: how many on this Mac and on each server. Shown only when a server is enabled; with none the dialog starts one run here, as ever.
   const [counts, setCounts] = createSignal<Record<string, number>>({ [THIS_MAC]: 1 });
   const [numbering, setNumbering] = createSignal<boolean | undefined>(undefined);
+  // Team mode (more than one run): Run 1 leads and alone asks the user, the others work for it. On unless the person switched it off.
+  const [team, setTeam] = createSignal<boolean | undefined>(undefined);
   // Runs this Mac may take at once (`agents.maxRuns`), read when the dialog opens.
   const [macMax, setMacMax] = createSignal(MAC_MAX);
   const rows = createMemo(() => placementRows(servers(), t("runs.where.thisMac"), macMax()));
@@ -232,6 +234,7 @@ export function NewRunDialog() {
       setMcpValue([]);
       setCounts({ [THIS_MAC]: 1 });
       setNumbering(undefined);
+      setTeam(undefined);
       void loadServers();
       loadGroups();
       void ipc.settings.get("agents").then((v) => setMacMax(typeof v.maxRuns === "number" && Number.isInteger(v.maxRuns) ? Math.max(1, Math.min(MAC_MAX, v.maxRuns)) : MAC_MAX), () => setMacMax(MAC_MAX));
@@ -312,8 +315,11 @@ export function NewRunDialog() {
     const share = shareRun();
     const lastMode = permission();
     const typed = prompt().trim();
-    const jobs = whereShown() ? planRuns(placed(), rows()) : [{ name: "", index: 1, of: 1 }];
+    const jobs: RunJob[] = whereShown() ? planRuns(placed(), rows(), team() ?? true) : [{ name: "", index: 1, of: 1 }];
     const numbered = jobs.length > 1 && (numbering() ?? true);
+    // A team run always carries its number and role (the lead finds its workers by it); an independent run only when numbering is on.
+    const labelled = (text: string, job: RunJob) => (job.role ? teamPrompt(text, job) : numbered ? numberedPrompt(text, job) : text);
+    let leadId: string | undefined; // the run id of the lead: the workers start after it and name it
     const roleName = form.mode === "auto" ? "auto" : (form.role ?? "");
     const cards: string[] = [];
     let waited = false; // the host has not answered for REVEAL_AFTER_MS
@@ -346,13 +352,19 @@ export function NewRunDialog() {
       const started: AgentSummary[] = [];
       const failures: { name: string; error: unknown }[] = [];
       for (const job of jobs) {
-        const key = beginStarting({ prompt: numbered ? numberedPrompt(typed, job) : typed, retryPrompt: base, repoIds: form.repoIds, role: roleName, shown: revealed });
+        // Without its lead a worker would have nobody to ask: the team does not start (the lead's failure is shown)
+        if (job.role === "worker" && !leadId) break;
+        const key = beginStarting({ prompt: labelled(typed, job), retryPrompt: base, repoIds: form.repoIds, role: roleName, shown: revealed });
         cards.push(key);
         reveal();
         try {
-          const request = startRequest({ ...form, prompt: numbered ? numberedPrompt(base, job) : base }, lead, wanted, "location" in job ? job.location : undefined);
+          const request = startRequest({ ...form, prompt: labelled(base, job) }, lead, wanted, "location" in job ? job.location : undefined);
+          const teamInfo = teamOf(job, leadId);
+          const withTeam = teamInfo ? { ...request, team: teamInfo } : request;
           // "share" off travels with the start: the host records the opt-out under the new run's id before the run can emit anything
-          started.push(await startRun(share ? request : { ...request, share: false }, Object.keys(flags).length ? flags : undefined, key));
+          const run = await startRun(share ? withTeam : { ...withTeam, share: false }, Object.keys(flags).length ? flags : undefined, key);
+          if (job.role === "lead") leadId = run.agentId;
+          started.push(run);
         } catch (e) {
           failures.push({ name: job.name, error: e });
           failStarting(key, { code: (e as { code?: string } | null)?.code, message: startErrorText(e) });
@@ -558,9 +570,12 @@ export function NewRunDialog() {
               counts={placed()}
               summary={placementSummary(placed(), rows())}
               numbering={numbering() ?? total() > 1}
+              team={team() ?? true}
+              showTeam={total() > 1}
               disabled={busy()}
               onCount={(key, n) => setCounts({ ...placed(), [key]: n })}
               onNumbering={setNumbering}
+              onTeam={setTeam}
               onSettings={() => (setNewRunOpen(false), openSettings("servers"))}
             />
           </Show>

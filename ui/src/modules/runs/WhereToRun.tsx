@@ -11,9 +11,13 @@ export function WhereToRun(props: {
   counts: PlaceCounts;
   summary: string;
   numbering: boolean;
+  /** Team mode: shown only when more than one run is picked. */
+  team: boolean;
+  showTeam: boolean;
   disabled?: boolean;
   onCount: (key: string, n: number) => void;
   onNumbering: (on: boolean) => void;
+  onTeam: (on: boolean) => void;
   onSettings: () => void;
 }) {
   const n = (r: PlaceRow) => props.counts[r.key] ?? 0;
@@ -46,6 +50,10 @@ export function WhereToRun(props: {
         </For>
       </ul>
       <p class="where__summary" aria-live="polite">{props.summary}</p>
+      <Show when={props.showTeam}>
+        <Checkbox size="sm" checked={props.team} onChange={props.onTeam} label={t("runs.where.team")} />
+        <small class="newrun__provider-note">{t("runs.where.teamHint")}</small>
+      </Show>
       <Checkbox size="sm" checked={props.numbering} onChange={props.onNumbering} label={t("runs.where.number")} />
       <small class="newrun__provider-note">{t("runs.where.numberHint")}</small>
     </fieldset>
