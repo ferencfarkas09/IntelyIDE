@@ -1,5 +1,31 @@
 [
   {
+    "version": "1.8.0",
+    "date": "2026-10-18",
+    "headline": {
+      "en": "Commit messages written like /commit-msg, and DeepPattern as a working integration.",
+      "hu": "A /commit-msg-hez hasonló commitüzenetek, és a DeepPattern mint működő integráció."
+    },
+    "notes": [
+      {
+        "kind": "new",
+        "title": { "en": "DeepPattern works as an integration", "hu": "A DeepPattern működő integráció" },
+        "text": {
+          "en": "Settings > Integrations > DeepPattern takes you through DeepPattern's Decision Engine, a service that sends code, plans and ideas to a panel of models for a second opinion: install it, activate it, check it, add it to your agents and audit your uncommitted changes. The activation key goes into DeepPattern's own installer window, never into IntelyIDE.",
+          "hu": "A Beállítások > Integrációk > DeepPattern végigvezet a DeepPattern Decision Engine beállításán. Ez egy olyan szolgáltatás, amely a kódot, a terveket és az ötleteket egy modelltestület elé viszi második véleményért: telepítés, aktiválás, ellenőrzés, hozzáadás az ügynökökhöz és a nem commitolt változásaid átvilágítása. Az aktiváló kulcs a DeepPattern saját telepítő ablakába kerül, sosem az IntelyIDE-be."
+        }
+      },
+      {
+        "kind": "improved",
+        "title": { "en": "Generate writes the whole commit message", "hu": "A Generate az egész commitüzenetet megírja" },
+        "text": {
+          "en": "The Generate button asks your own Claude Code and gets a title, an English explanation and a Hungarian explanation (the layout of .gitmessage). In Shared mode one message covers every repository with ticked files; in Per repo mode every repository gets its own. Secret and generated files are never sent, and without Claude the message is composed on your Mac in the same layout.",
+          "hu": "A Generate gomb a saját Claude Code-odat kérdezi, és címet, angol és magyar magyarázatot kap (a .gitmessage szerkezetében). Közös módban egy üzenet fedi le az összes kijelölt fájlt tartalmazó repót, repónkénti módban mindegyik repó a sajátját kapja. Titkos és generált fájlt sosem küld el, Claude nélkül pedig ugyanebben a szerkezetben a Mac-en állítja össze az üzenetet."
+        }
+      }
+    ]
+  },
+  {
     "version": "1.7.0",
     "date": "2026-10-17",
     "headline": {
