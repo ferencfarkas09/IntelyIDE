@@ -297,6 +297,12 @@ export type RepoOpResult = {
 	error?: EngineError | null,
 };
 
+/**  The ticked paths of one repository. */
+export type RepoSelection = {
+	repoId: string,
+	selection: SelectedPath[],
+};
+
 /**  Colour and label of a repo, for the stripe in the interleaved timeline. */
 export type RepoStripe = {
 	repoId: string,

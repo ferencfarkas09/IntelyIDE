@@ -65,6 +65,7 @@ Notes on the table:
 |---|---|---|
 | The update check, once a day by default and on "Check now" | `ferencfarkas09.github.io`, or `raw.githubusercontent.com` if that is unreachable; the download after your click comes from `github.com` and its content hosts | `crates/updater/src/endpoints.rs` |
 | Agent runs with Claude | Your own `claude` installation talks to Anthropic. IntelyIDE does not change its analytics settings | `sidecar/src/adapters/` |
+| Generate message (commit panel) | The Generate button starts your own `claude` once in print mode with no tools, from an empty folder, and sends it the list of the ticked files and their diff (at most 30,000 characters, 3,500 per file) plus the last eight commit titles and the branch name of that repository. The contents of key, `.env`, credentials, lock and generated files are never included, only their names. It runs only when you click, and not in read-only mode; when `claude` is missing or fails, the message is composed on your machine instead. `INTELY_COMMIT_MODEL` picks another model than `sonnet` | `src-tauri/src/modules/graph.rs`, `crates/graph/src/draft.rs` |
 | Other agent CLIs, if you enable them | Their vendors, through their own programs | `sidecar/src/adapters/` |
 | `git fetch`, `pull`, `push`, and `ssh` | Your remotes. Refused in read-only mode and in the test jail | `crates/gitx/src/` |
 | MongoDB connections you define, optionally through an SSH tunnel | The servers you configure | `crates/mongo/src/driver.rs` |

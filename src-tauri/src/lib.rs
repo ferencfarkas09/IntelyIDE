@@ -177,6 +177,7 @@ pub fn run() {
             modules::graph::graph_validate_message,
             modules::graph::graph_message_template,
             modules::graph::graph_draft_message,
+            modules::graph::graph_draft_message_many,
             // ==== track E commands (roles) ====
             modules::roles::roles_list,
             modules::roles::roles_save,

@@ -437,6 +437,13 @@ api_types! {
         pub path: String,
     }
 
+    /// The ticked paths of one repository.
+    #[serde(rename_all = "camelCase")]
+    pub struct RepoSelection {
+        pub repo_id: String,
+        pub selection: Vec<SelectedPath>,
+    }
+
     #[serde(rename_all = "camelCase")]
     pub struct MessageDraft {
         pub message: String,
@@ -467,6 +474,7 @@ pub fn type_collection() -> specta::Types {
         .register::<MessageCheck>()
         .register::<MessageDraft>()
         .register::<SelectedPath>()
+        .register::<RepoSelection>()
 }
 
 #[cfg(all(test, feature = "specta"))]

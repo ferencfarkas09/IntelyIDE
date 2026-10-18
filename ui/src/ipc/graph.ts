@@ -14,6 +14,7 @@ import type {
   MessageStyle,
   OpOutcome,
   RebasePlan,
+  RepoSelection,
   SameBranchResult,
   SelectedPath,
 } from "../bindings/graph";
@@ -73,8 +74,10 @@ export interface GraphIpc {
   messageTemplate(style: MessageStyle, subject?: string): Promise<string>;
   /** Just the text of `draftMessageDetailed`. */
   draftMessage(repoId: RepoId, selection: SelectedPath[]): Promise<string>;
-  /** A message draft for the selected changes: model-written when a utility model is available, else template-only. */
+  /** A message draft for the selected changes: written by the model when it answers, else composed locally from the changes. */
   draftMessageDetailed(repoId: RepoId, selection: SelectedPath[]): Promise<MessageDraft>;
+  /** One message for the ticked changes of several repositories (the shared message). */
+  draftMessageMany(selections: RepoSelection[]): Promise<MessageDraft>;
 }
 
 export function createTauriGraph(): GraphIpc {
@@ -107,5 +110,6 @@ export function createTauriGraph(): GraphIpc {
     messageTemplate: (style, subject) => call("graph_message_template", { style, subject }),
     draftMessage: async (repoId, selection) => (await call<MessageDraft>("graph_draft_message", { repoId, selection })).message,
     draftMessageDetailed: (repoId, selection) => call("graph_draft_message", { repoId, selection }),
+    draftMessageMany: (selections) => call("graph_draft_message_many", { selections }),
   };
 }

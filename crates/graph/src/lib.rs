@@ -10,6 +10,7 @@ pub mod blame;
 pub mod branches;
 pub mod bundles;
 pub mod detail;
+pub mod draft;
 pub mod env;
 pub mod lanes;
 pub mod log;
@@ -140,6 +141,12 @@ impl Graph {
 
     pub async fn draft_message(&self, env: &Env, repo_id: &str, selection: &[SelectedPath]) -> Result<MessageDraft, EngineError> {
         let model = self.model.read().expect("model lock").clone();
-        message::draft(env, model, repo_id, selection).await
+        draft::draft(env, model, repo_id, selection).await
+    }
+
+    /// One message for the ticked changes of several repositories (the shared message of a coordinated commit).
+    pub async fn draft_message_many(&self, env: &Env, selections: &[RepoSelection]) -> Result<MessageDraft, EngineError> {
+        let model = self.model.read().expect("model lock").clone();
+        draft::draft_many(env, model, selections).await
     }
 }

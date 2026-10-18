@@ -93,8 +93,9 @@ export async function draftRepoMessage(repoId: string): Promise<void> {
 }
 
 /**
- * Asks `ipc.graph.draftMessage` for the ticked changes: the shared message takes the draft of the repo with the most ticked files,
- * in per-repo mode every repo with ticked files gets its own. The draft replaces what is in the field.
+ * Drafts the message of the ticked changes. Shared mode writes ONE message that covers every repo with ticked files (one request with
+ * all of them); in per-repo mode every repo with ticked files gets its own, written from its changes only. The draft replaces what is
+ * in the field.
  */
 export async function draftMessage(): Promise<void> {
   if (busy()) return;
@@ -102,13 +103,13 @@ export async function draftMessage(): Promise<void> {
   if (!picked.length) return void toast.info(t("commit.toast.nothing"), t("commit.toast.nothingDesc"));
   setBusy(true);
   try {
-    const ask = (r: (typeof picked)[number]) => ipc.graph.draftMessageDetailed(r.id, r.paths.map((path) => ({ path })));
     if (messageMode() === "perRepo") {
-      const drafts = await Promise.all(picked.map(async (r) => [r.id, await ask(r)] as const));
+      const drafts = await Promise.all(picked.map(async (r) => [r.id, await ipc.graph.draftMessageDetailed(r.id, r.paths.map((path) => ({ path })))] as const));
       for (const [id, draft] of drafts) setRepoMessage(id, draft.message);
+      const local = drafts.find(([, d]) => d.source === "template" && d.note);
+      if (local) toast.info(t("commit.toast.template"), local[1].note ?? undefined);
     } else {
-      const main = picked.reduce((a, b) => (b.paths.length > a.paths.length ? b : a));
-      const draft = await ask(main);
+      const draft = await ipc.graph.draftMessageMany(picked.map((r) => ({ repoId: r.id, selection: r.paths.map((path) => ({ path })) })));
       setSharedMessage(draft.message);
       if (draft.source === "template" && draft.note) toast.info(t("commit.toast.template"), draft.note);
     }

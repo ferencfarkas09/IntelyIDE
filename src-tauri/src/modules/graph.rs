@@ -2,9 +2,15 @@
 //! listed in `generate_handler!` under the "track D commands" marker in `lib.rs`; the state is created in `setup`.
 //! Commands that change a repo ask the engine to refresh its snapshot afterwards.
 
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::Arc;
+use std::time::Duration;
+
+use intely_core::jail::{Jail, Mode};
 use intely_core::{Engine, EngineError, RepoId};
 use intely_graph::types::*;
-use intely_graph::{Env, Graph};
+use intely_graph::{DraftModel, Env, Graph};
 use tauri::{AppHandle, Manager, State};
 
 use super::switchhook;
@@ -17,8 +23,30 @@ pub struct GraphState(Graph);
 /// Called once from `setup` (track D state marker). Bundles are kept in the IDE's state directory
 /// (`workspace::state_dir()`, which follows `INTELY_WORKSPACES`).
 pub fn setup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-    app.manage(GraphState(Graph::new(Some(intely_core::workspace::state_dir()))));
+    let graph = Graph::new(Some(intely_core::workspace::state_dir()));
+    graph.set_draft_model(Some(Arc::new(ClaudeDraft)));
+    app.manage(GraphState(graph));
     Ok(())
+}
+
+/// The model behind "Generate" in the commit panel: the user's own Claude Code in print mode, no tools, from an empty folder (the prompt
+/// holds the cut diff of the ticked files, never the contents of key, env or lock files). `INTELY_COMMIT_MODEL` names another model.
+/// Read-only mode or a missing `claude` make the draft fall back to the one composed locally.
+struct ClaudeDraft;
+
+const COMMIT_MODEL: &str = "sonnet";
+const COMMIT_TIMEOUT: Duration = Duration::from_secs(120);
+
+impl DraftModel for ClaudeDraft {
+    fn complete<'a>(&'a self, prompt: String) -> Pin<Box<dyn Future<Output = Result<String, EngineError>> + Send + 'a>> {
+        Box::pin(async move {
+            if Jail::global().mode() == Mode::ReadOnly {
+                return Err(EngineError::new(intely_core::jail::READ_ONLY, "read-only mode (INTELY_READONLY)"));
+            }
+            let model = std::env::var("INTELY_COMMIT_MODEL").ok().filter(|m| !m.trim().is_empty()).unwrap_or_else(|| COMMIT_MODEL.to_owned());
+            crate::agents::blocking(move || super::l10n::run_claude_with(&model, &prompt, COMMIT_TIMEOUT)).await
+        })
+    }
 }
 
 /// The newest commits of the branch a repository has checked out (Team's commit list), read-only; `None` when the engine or the
@@ -244,4 +272,10 @@ pub async fn graph_draft_message(
     selection: Vec<SelectedPath>,
 ) -> Res<MessageDraft> {
     graph.0.draft_message(&env_of(slot.get()?).await?, &repo_id, &selection).await
+}
+
+/// One message for the ticked changes of several repositories (the shared message of a coordinated commit).
+#[tauri::command]
+pub async fn graph_draft_message_many(slot: State<'_, EngineSlot>, graph: State<'_, GraphState>, selections: Vec<RepoSelection>) -> Res<MessageDraft> {
+    graph.0.draft_message_many(&env_of(slot.get()?).await?, &selections).await
 }

@@ -7,6 +7,7 @@
 use std::io::Write;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 use intely_core::jail::{Jail, Mode};
@@ -84,11 +85,24 @@ fn claude_bin() -> PathBuf {
 
 /// One tool-less Haiku call from an empty directory, so no project settings, hooks or memory are loaded.
 pub(crate) fn run_claude(prompt: &str) -> Res<String> {
-    let dir = std::env::temp_dir().join(format!("intely-l10n-{}", std::process::id()));
+    run_claude_with(MODEL, prompt, TIMEOUT)
+}
+
+/// The same one-shot with another model (a name or an alias such as `sonnet`) and time limit. Every call gets its own empty directory,
+/// so calls that run at the same time (one draft per repository) do not remove each other's.
+pub(crate) fn run_claude_with(model: &str, prompt: &str, timeout: Duration) -> Res<String> {
+    static CALLS: AtomicU64 = AtomicU64::new(0);
+    let dir = std::env::temp_dir().join(format!("intely-claude-{}-{}", std::process::id(), CALLS.fetch_add(1, Ordering::Relaxed)));
     std::fs::create_dir_all(&dir).map_err(|e| EngineError::new("io", e.to_string()))?;
+    let result = one_shot(model, prompt, timeout, &dir);
+    let _ = std::fs::remove_dir(&dir);
+    result
+}
+
+fn one_shot(model: &str, prompt: &str, timeout: Duration, dir: &std::path::Path) -> Res<String> {
     let mut child = Command::new(claude_bin())
-        .args(["-p", "--model", MODEL, "--output-format", "text", "--tools", "", "--no-session-persistence", "--setting-sources", "", "--strict-mcp-config"])
-        .current_dir(&dir)
+        .args(["-p", "--model", model, "--output-format", "text", "--tools", "", "--no-session-persistence", "--setting-sources", "", "--strict-mcp-config"])
+        .current_dir(dir)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -101,17 +115,16 @@ pub(crate) fn run_claude(prompt: &str) -> Res<String> {
     let status = loop {
         match child.try_wait() {
             Ok(Some(s)) => break s,
-            Ok(None) if started.elapsed() > TIMEOUT => {
+            Ok(None) if started.elapsed() > timeout => {
                 let _ = child.kill();
                 let _ = child.wait();
-                return Err(EngineError::new("timeout", "the translation took longer than 150 seconds"));
+                return Err(EngineError::new("timeout", format!("the answer took longer than {} seconds", timeout.as_secs())));
             }
             Ok(None) => std::thread::sleep(Duration::from_millis(100)),
             Err(e) => return Err(EngineError::new("model", e.to_string())),
         }
     };
     let out = child.wait_with_output().map_err(|e| EngineError::new("model", e.to_string()))?;
-    let _ = std::fs::remove_dir(&dir);
     if !status.success() {
         let err: String = String::from_utf8_lossy(&out.stderr).chars().take(300).collect();
         return Err(EngineError::new("model", format!("claude exited with {status}: {err}")));

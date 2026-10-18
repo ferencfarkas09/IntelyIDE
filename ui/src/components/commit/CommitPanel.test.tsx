@@ -96,7 +96,7 @@ describe("<CommitPanel>", () => {
   });
 
   it("drafts a message from the ticked files and shows the validator chip", async () => {
-    const draft = vi.spyOn(ipc.graph, "draftMessageDetailed").mockResolvedValue({ message: "feat(orders): drafted", source: "model", issues: [] });
+    const draft = vi.spyOn(ipc.graph, "draftMessageMany").mockResolvedValue({ message: "feat(orders): drafted", source: "model", issues: [] });
     vi.spyOn(ipc.graph, "validateMessage").mockResolvedValue({ ok: true, header: { type: "feat", scope: "orders", breaking: false, description: "drafted" }, issues: [] });
     render(() => <CommitPanel />);
     fireEvent.click(screen.getByRole("button", { name: "Generate message" }));

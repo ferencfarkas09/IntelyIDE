@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use common::Sandbox;
 use intely_core::EngineError;
-use intely_graph::types::{BundleLink, BundleSource, DraftSource, MessageStyle, SelectedPath};
+use intely_graph::types::{BundleLink, BundleSource, DraftSource, MessageStyle, RepoSelection, SelectedPath};
 use intely_graph::{DraftModel, Graph};
 
 #[tokio::test]
@@ -127,22 +127,25 @@ impl DraftModel for Canned {
 async fn draft_message_is_template_only_without_a_model_and_validated_with_one() {
     let sb = Sandbox::new();
     let r = sb.repo("api");
-    r.commit("base", &[("src/lib.rs", "fn a() {}\n"), ("docs/readme.md", "hi\n")]);
-    r.write("src/lib.rs", "fn a() {}\nfn b() {}\n");
-    r.write("src/new.rs", "fn n() {}\n");
+    r.commit("base", &[("src/lib.rs", "fn alpha() {}\n"), ("docs/readme.md", "hi\n")]);
+    r.write("src/lib.rs", "fn alpha() {}\npub fn beta() {}\n");
+    r.write("src/new.rs", "pub fn nova() {}\n");
     let env = sb.env(&[&r]);
     let sel = vec![SelectedPath { path: "src/lib.rs".into() }, SelectedPath { path: "src/new.rs".into() }];
     let g = Graph::new(None);
 
     let d = g.draft_message(&env, "api", &sel).await.expect("draft");
     assert_eq!(d.source, DraftSource::Template);
-    assert!(d.note.as_deref().is_some_and(|n| n.contains("no utility model")));
-    assert!(d.message.starts_with("feat: update 2 files in project\n") || d.message.starts_with("feat("), "{}", d.message);
+    assert!(d.note.as_deref().is_some_and(|n| n.contains("not available")));
+    assert!(d.message.starts_with("feat(") || d.message.starts_with("feat: "), "{}", d.message);
+    assert!(d.message.contains("\nExtended English:\n") && d.message.contains("\n\n-------\nMagyar bővített leírás:\n"), "{}", d.message);
+    assert!(d.message.contains("`beta`") && d.message.contains("`nova`") && d.message.contains("new.rs"), "the local draft names what the diff adds: {}", d.message);
+    assert!(!d.message.contains("Describe what changes"), "{}", d.message);
     assert!(g.validate_message(&d.message, &MessageStyle::Extended).ok, "{:?}", d.issues);
     assert_eq!(g.draft_message(&env, "api", &[SelectedPath { path: "../etc/passwd".into() }]).await.unwrap_err().code, "invalidSelection");
     assert_eq!(g.draft_message(&env, "api", &[SelectedPath { path: "docs/readme.md".into() }]).await.unwrap_err().code, "invalidArgument");
 
-    let good = "feat(core): add b and n\n\nExtended English: Adds two functions.\n\nMagyar bővített leírás: Két új függvény.";
+    let good = "feat(core): add b and n\n\nExtended English:\nAdds two functions.\n- core: adds `b` and `n`\n\n-------\nMagyar bővített leírás:\nKét új függvény.\n- core: hozzáadja a `b` és `n` függvényt";
     g.set_draft_model(Some(Arc::new(Canned(Ok(good.into())))));
     let d = g.draft_message(&env, "api", &sel).await.expect("model draft");
     assert_eq!(d.source, DraftSource::Model);
@@ -155,4 +158,50 @@ async fn draft_message_is_template_only_without_a_model_and_validated_with_one()
 
     g.set_draft_model(Some(Arc::new(Canned(Err(EngineError::new("io", "offline"))))));
     assert!(g.draft_message(&env, "api", &sel).await.expect("fallback").note.is_some_and(|n| n.contains("offline")));
+}
+
+struct Spy(std::sync::Mutex<Vec<String>>);
+impl DraftModel for Spy {
+    fn complete<'a>(&'a self, prompt: String) -> Pin<Box<dyn Future<Output = Result<String, EngineError>> + Send + 'a>> {
+        self.0.lock().expect("spy").push(prompt);
+        Box::pin(async { Ok("```\nfeat: add the order flow\n\nExtended English:\nOrders can be created.\n- api, web: the endpoint and its form\nMagyar bővített leírás:\nRendelések hozhatók létre.\n- api, web: a végpont és az űrlap\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n```".to_owned()) })
+    }
+}
+
+#[tokio::test]
+async fn one_shared_message_covers_every_repo_and_the_prompt_holds_no_secret() {
+    let sb = Sandbox::new();
+    let (a, b) = (sb.repo("api"), sb.repo("web"));
+    a.commit("base", &[("src/lib.rs", "fn a() {}\n")]);
+    b.commit("base", &[("src/app.js", "export const app = () => {};\n")]);
+    a.write("src/orders.rs", "pub fn create_order() {}\n");
+    a.write(".env", "TOKEN=SUPER_SECRET_VALUE\n");
+    b.write("src/app.js", "export const app = () => {};\nexport const OrderForm = () => {};\n");
+    let env = sb.env(&[&a, &b]);
+    let pick = |id: &str, paths: &[&str]| RepoSelection { repo_id: id.into(), selection: paths.iter().map(|p| SelectedPath { path: (*p).into() }).collect() };
+    let both = vec![pick("api", &["src/orders.rs", ".env"]), pick("web", &["src/app.js"])];
+
+    // without a model: one message, both repositories named, both languages
+    let g = Graph::new(None);
+    let d = g.draft_message_many(&env, &both).await.expect("local draft");
+    assert_eq!(d.source, DraftSource::Template);
+    for needle in ["api", "web", "orders.rs", "app.js", "`create_order`", "`OrderForm`", "Magyar bővített leírás:"] {
+        assert!(d.message.contains(needle), "{needle} in {}", d.message);
+    }
+    assert!(!d.message.contains("SUPER_SECRET_VALUE"));
+    assert!(g.validate_message(&d.message, &MessageStyle::Extended).ok, "{:?}", d.issues);
+
+    // with a model: the prompt has both repositories, the new file's lines, the secret file by name only; the answer is tidied
+    let spy = Arc::new(Spy(Default::default()));
+    g.set_draft_model(Some(spy.clone()));
+    let d = g.draft_message_many(&env, &both).await.expect("model draft");
+    assert_eq!(d.source, DraftSource::Model, "{:?} {}", d.note, d.message);
+    assert!(d.message.starts_with("feat: add the order flow\n\nExtended English:\n") && d.message.contains("\n\n-------\nMagyar bővített leírás:\n"), "{}", d.message);
+    assert!(!d.message.to_lowercase().contains("co-authored") && !d.message.contains("```"));
+    let prompt = spy.0.lock().expect("spy")[0].clone();
+    assert!(prompt.contains("<repository name=\"api\"") && prompt.contains("<repository name=\"web\""), "{prompt}");
+    assert!(prompt.contains("+pub fn create_order() {}") && prompt.contains("+export const OrderForm"), "{prompt}");
+    assert!(prompt.contains(".env") && prompt.contains("[contents not shown: it may hold a secret]") && !prompt.contains("SUPER_SECRET_VALUE"), "{prompt}");
+    assert!(prompt.contains("ONE message"), "{prompt}");
+    assert_eq!(g.draft_message_many(&env, &[]).await.unwrap_err().code, "invalidArgument");
 }
