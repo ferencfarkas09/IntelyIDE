@@ -205,3 +205,42 @@ async fn one_shared_message_covers_every_repo_and_the_prompt_holds_no_secret() {
     assert!(prompt.contains("ONE message"), "{prompt}");
     assert_eq!(g.draft_message_many(&env, &[]).await.unwrap_err().code, "invalidArgument");
 }
+
+#[cfg(unix)]
+#[tokio::test]
+async fn odd_paths_links_and_a_stale_tick_do_not_break_or_leak_into_a_draft() {
+    let sb = Sandbox::new();
+    let (a, b) = (sb.repo("api"), sb.repo("web"));
+    a.commit("base", &[("src/my file.rs", "pub fn old_one() {}\n"), ("src/ő.rs", "pub fn old_two() {}\n"), (".npmrc", "registry=x\n")]);
+    b.commit("base", &[("x.txt", "1\n")]);
+    a.write("src/my file.rs", "pub fn old_one() {}\npub fn spaced_name() {}\n");
+    a.write("src/ő.rs", "pub fn old_two() {}\npub fn accented_name() {}\n");
+    a.write(".npmrc", "registry=x\n//registry.example/:_authToken=NPM_SECRET_TOKEN\n");
+    // an untracked link to a file outside the repository
+    let outside = sb.repo("outside");
+    outside.write("aws-credentials", "aws_secret_access_key=LINKED_SECRET_VALUE\n");
+    std::os::unix::fs::symlink(outside.path.join("aws-credentials"), a.path.join("notes.txt")).expect("symlink");
+    // the user's own git config must not change how the diff is read
+    a.git(&["config", "diff.noprefix", "true"]);
+    let env = sb.env(&[&a, &b, &outside]);
+    let pick = |id: &str, paths: &[&str]| RepoSelection { repo_id: id.into(), selection: paths.iter().map(|p| SelectedPath { path: (*p).into() }).collect() };
+    let ticks = vec![pick("api", &["src/my file.rs", "src/ő.rs", ".npmrc", "notes.txt"]), pick("web", &["x.txt"])];
+
+    let spy = Arc::new(Spy(Default::default()));
+    let g = Graph::new(None);
+    g.set_draft_model(Some(spy.clone()));
+    // "web" has nothing changed any more: a stale tick, the draft of the other repository still comes
+    let d = g.draft_message_many(&env, &ticks).await.expect("draft despite the stale tick");
+    assert_eq!(d.source, DraftSource::Model, "{:?}", d.note);
+    let prompt = spy.0.lock().expect("spy")[0].clone();
+    assert!(prompt.contains("+pub fn spaced_name() {}") && prompt.contains("+pub fn accented_name() {}"), "diffs of odd names are matched: {prompt}");
+    assert!(!prompt.contains("NPM_SECRET_TOKEN") && prompt.contains(".npmrc") && prompt.contains("[contents not shown: it may hold a secret]"), "{prompt}");
+    assert!(!prompt.contains("LINKED_SECRET_VALUE"), "a link is never followed: {prompt}");
+
+    // the local draft sees the declarations of those files too
+    let local = Graph::new(None).draft_message_many(&env, &ticks).await.expect("local");
+    assert!(local.message.contains("`spaced_name`") && local.message.contains("`accented_name`"), "{}", local.message);
+
+    // nothing to describe anywhere is still an error
+    assert_eq!(Graph::new(None).draft_message_many(&env, &[pick("web", &["x.txt"])]).await.unwrap_err().code, "invalidArgument");
+}

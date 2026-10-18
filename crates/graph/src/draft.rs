@@ -16,7 +16,8 @@ use crate::env::{invalid, Env};
 use crate::message::{is_ai_attribution, parse_header, validate, DraftModel, DIVIDER, ENGLISH_LABEL, HUNGARIAN_LABEL, TYPES};
 use crate::types::{DraftSource, MessageDraft, MessageStyle, RepoSelection, SelectedPath};
 
-const MAX_SELECTION: usize = 500;
+/// Paths asked of git in one call (a Windows command line is limited to 32 KB); the rest are counted, not described.
+const MAX_SELECTION: usize = 300;
 /// The diff text of all repositories together that goes into one prompt.
 const MAX_PROMPT_DIFF: usize = 30_000;
 /// One file's share at most, so a single large file does not hide the others.
@@ -51,16 +52,23 @@ pub(crate) struct Group {
     pub branch: Option<String>,
     pub recent: Vec<String>,
     pub changes: Vec<Change>,
+    /// Ticked files beyond the cap that were not looked at.
+    pub omitted: usize,
 }
 
-/// `git status --porcelain=v1 -z` entries: (path, renamed from, added, deleted).
+/// `git status --porcelain=v1 -z` entries: (path, renamed from, added, deleted). A rename or copy in either column carries its origin
+/// as the next entry.
 fn parse_status(text: &str) -> Vec<(String, Option<String>, bool, bool)> {
-    let mut parts = text.split('\0').filter(|p| p.len() > 3);
+    let mut parts = text.split('\0').filter(|p| !p.is_empty());
     let mut out = Vec::new();
     while let Some(entry) = parts.next() {
-        let (xy, path) = entry.split_at(3);
+        let Some(xy) = entry.get(..3) else { continue };
+        let path = &entry[3..];
         let (x, y) = (xy.as_bytes()[0], xy.as_bytes()[1]);
-        let from = if x == b'R' || x == b'C' { parts.next().map(str::to_owned) } else { None };
+        let from = if matches!(x, b'R' | b'C') || matches!(y, b'R' | b'C') { parts.next().map(str::to_owned) } else { None };
+        if path.is_empty() {
+            continue;
+        }
         let added = matches!((x, y), (b'?', b'?') | (b'A', _) | (_, b'A'));
         let deleted = x == b'D' || y == b'D';
         out.push((path.to_owned(), from, added, deleted));
@@ -85,7 +93,37 @@ fn parse_numstat(text: &str) -> std::collections::HashMap<String, (u32, u32)> {
     out
 }
 
-/// The per-file chunks of one `git diff` output, keyed by the path after the change.
+/// A path as git prints it in a diff header: plain, or in C-style quotes with `\ooo` octal bytes when it has odd characters.
+fn unquote(raw: &str) -> String {
+    let raw = raw.trim_end_matches('\t');
+    let Some(inner) = raw.strip_prefix('"').and_then(|r| r.strip_suffix('"')) else { return raw.to_owned() };
+    let bytes = inner.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] != b'\\' || i + 1 >= bytes.len() {
+            out.push(bytes[i]);
+            i += 1;
+            continue;
+        }
+        let c = bytes[i + 1];
+        if c.is_ascii_digit() {
+            let digits: String = bytes[i + 1..].iter().take(3).take_while(|b| b.is_ascii_digit()).map(|b| *b as char).collect();
+            out.push(u8::from_str_radix(&digits, 8).unwrap_or(b'?'));
+            i += 1 + digits.len();
+        } else {
+            out.push(match c {
+                b't' => b'\t',
+                b'n' => b'\n',
+                other => other,
+            });
+            i += 2;
+        }
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+/// The per-file chunks of one `git diff` output (run with `--src-prefix=a/ --dst-prefix=b/`), keyed by the path after the change.
 fn split_patch(patch: &str) -> Vec<(String, String)> {
     let mut out: Vec<(String, String)> = Vec::new();
     for chunk in patch.split("\ndiff --git ") {
@@ -95,34 +133,37 @@ fn split_patch(patch: &str) -> Vec<(String, String)> {
         }
         let name = chunk
             .lines()
-            .find_map(|l| l.strip_prefix("+++ b/").or_else(|| l.strip_prefix("rename to ")))
-            .or_else(|| chunk.lines().find_map(|l| l.strip_prefix("--- a/")))
-            .unwrap_or_default()
-            .to_owned();
+            .find_map(|l| l.strip_prefix("+++ ").map(unquote).filter(|n| n != "/dev/null").map(|n| n.strip_prefix("b/").map_or(n.clone(), str::to_owned)))
+            .or_else(|| chunk.lines().find_map(|l| l.strip_prefix("rename to ").map(unquote)))
+            .or_else(|| chunk.lines().find_map(|l| l.strip_prefix("--- ").map(unquote).filter(|n| n != "/dev/null").map(|n| n.strip_prefix("a/").map_or(n.clone(), str::to_owned))))
+            .unwrap_or_default();
         out.push((name, format!("diff --git {chunk}")));
     }
     out
 }
 
-fn withheld_reason(path: &str) -> Option<&'static str> {
-    let lower = path.to_lowercase();
-    let name = lower.rsplit('/').next().unwrap_or(&lower);
-    let secret = name == ".env"
-        || name.starts_with(".env.") && !name.ends_with(".example") && !name.ends_with(".sample")
-        || [".pem", ".key", ".p12", ".pfx", ".keystore", ".jks", ".kdbx"].iter().any(|e| name.ends_with(e))
-        || name.starts_with("id_rsa")
-        || name.starts_with("id_ed25519")
-        || name.starts_with("id_ecdsa")
-        || name.contains("credentials")
-        || name.contains("secret");
-    if secret {
+/// Why the contents of this file stay out of the prompt: the engine's own list of secret file names, a few more, lock files and generated
+/// files. Both the path and, for a rename, where it came from are checked.
+fn withheld_reason(path: &str, renamed_from: Option<&str>) -> Option<&'static str> {
+    let secret = |p: &str| {
+        let lower = p.to_lowercase();
+        let name = lower.rsplit('/').next().unwrap_or(&lower);
+        intely_core::guard::is_secret_name(p)
+            || [".kdbx", ".ppk", ".gpg", ".asc", ".tfvars", ".tfstate"].iter().any(|e| name.ends_with(e))
+            || [".pgpass", ".htpasswd", "kubeconfig", "id_dsa", "id_ecdsa"].iter().any(|n| name.starts_with(n))
+            || name.contains("credentials")
+            || name.contains("secret")
+    };
+    if secret(path) || renamed_from.is_some_and(secret) {
         return Some("it may hold a secret");
     }
-    let lock = name.ends_with(".lock") || matches!(name, "package-lock.json" | "pnpm-lock.yaml" | "yarn.lock" | "composer.lock" | "go.sum");
-    if lock {
+    let lower = path.to_lowercase();
+    let name = lower.rsplit('/').next().unwrap_or(&lower);
+    if name.ends_with(".lock") || matches!(name, "package-lock.json" | "pnpm-lock.yaml" | "yarn.lock" | "composer.lock" | "go.sum") {
         return Some("lock file");
     }
-    if name.ends_with(".min.js") || name.ends_with(".min.css") || name.ends_with(".map") || name.ends_with(".snap") || lower.split('/').any(|s| matches!(s, "dist" | "build" | "node_modules" | "target" | "vendor")) {
+    let in_generated_dir = lower.split('/').rev().skip(1).any(|s| matches!(s, "dist" | "node_modules" | "target"));
+    if name.ends_with(".min.js") || name.ends_with(".min.css") || name.ends_with(".map") || name.ends_with(".snap") || in_generated_dir {
         return Some("generated file");
     }
     None
@@ -153,7 +194,8 @@ fn cut(text: &mut String, max: usize, note: &str) {
 
 /// The head of a file git does not track yet, shown like the added lines of a diff; None for binary or oversized files.
 async fn new_file_head(path: &Path) -> Option<(String, u32)> {
-    let meta = tokio::fs::metadata(path).await.ok()?;
+    // a link is not followed: it could lead to a file that is not part of the repository
+    let meta = tokio::fs::symlink_metadata(path).await.ok()?;
     if !meta.is_file() || meta.len() > MAX_NEW_FILE {
         return None;
     }
@@ -169,9 +211,11 @@ async fn new_file_head(path: &Path) -> Option<(String, u32)> {
 }
 
 async fn collect_group(env: &Env, repo_id: &str, selection: &[SelectedPath], budget: usize) -> Result<Group, EngineError> {
-    if selection.is_empty() || selection.len() > MAX_SELECTION {
-        return Err(invalid(format!("select between 1 and {MAX_SELECTION} paths")));
+    if selection.is_empty() {
+        return Err(invalid("select at least one path"));
     }
+    let omitted = selection.len().saturating_sub(MAX_SELECTION);
+    let selection = &selection[..selection.len() - omitted];
     let repo = env.path(repo_id)?;
     let name = env.repo(repo_id).map(|r| r.name.clone()).unwrap_or_else(|_| repo_id.to_owned());
     let paths = selection.iter().map(|s| clean_rel_path(&s.path)).collect::<Result<Vec<_>, _>>()?;
@@ -188,7 +232,7 @@ async fn collect_group(env: &Env, repo_id: &str, selection: &[SelectedPath], bud
         Ok(out) if out.success() => parse_numstat(&out.stdout_text()),
         _ => Default::default(),
     };
-    let mut patch_args = vec!["diff", "HEAD", "--no-color", "--no-ext-diff", "--unified=3", "--"];
+    let mut patch_args = vec!["diff", "HEAD", "--no-color", "--no-ext-diff", "--unified=3", "--src-prefix=a/", "--dst-prefix=b/", "--"];
     patch_args.extend(paths.iter().map(String::as_str));
     let patches = match env.run(&repo, &patch_args).await {
         Ok(out) if out.success() => split_patch(&out.stdout_text()),
@@ -197,7 +241,7 @@ async fn collect_group(env: &Env, repo_id: &str, selection: &[SelectedPath], bud
     let mut changes = Vec::with_capacity(status.len());
     for (path, renamed_from, added, deleted) in status {
         let (mut additions, deletions) = stats.get(&path).copied().unwrap_or((0, 0));
-        let withheld = withheld_reason(&path);
+        let withheld = withheld_reason(&path, renamed_from.as_deref());
         let mut patch = patches.iter().find(|(p, _)| *p == path).map(|(_, c)| c.clone()).unwrap_or_default();
         if patch.is_empty() && added && !deleted && withheld.is_none() {
             if let Some((head, lines)) = new_file_head(&repo.join(&path)).await {
@@ -234,7 +278,7 @@ async fn collect_group(env: &Env, repo_id: &str, selection: &[SelectedPath], bud
         Ok(out) if out.success() => out.stdout_text().lines().map(str::to_owned).filter(|l| !l.trim().is_empty()).collect(),
         _ => Vec::new(),
     };
-    Ok(Group { name, branch, recent, changes })
+    Ok(Group { name, branch, recent, changes, omitted })
 }
 
 // ---------------------------------------------------------------- what the files are
@@ -380,7 +424,16 @@ fn declared_name(line: &str) -> Option<String> {
     None
 }
 
-const FIX_WORDS: [&str; 12] = ["fix", "bug", "crash", "regression", "race", "leak", "overflow", "prevent", "avoid", "workaround", "hotfix", "typo"];
+const FIX_WORDS: [&str; 15] = ["fix", "fixes", "fixed", "bug", "crash", "regression", "race", "leak", "overflow", "prevent", "avoid", "workaround", "hotfix", "typo", "typos"];
+
+/// A comment on this line that names a fix: the words are whole words of the comment, so `Debug` in a derive or `preventDefault()` in code do not count.
+fn comment_mentions_fix(line: &str) -> bool {
+    let body = match (line.find("//"), line.find("/*"), line.find("# ")) {
+        (Some(i), _, _) | (None, Some(i), _) | (None, None, Some(i)) => &line[i + 2..],
+        _ => return false,
+    };
+    body.split(|c: char| !c.is_alphanumeric()).any(|w| FIX_WORDS.contains(&w.to_lowercase().as_str()))
+}
 
 /// What the diff of one file declares and removes.
 #[derive(Debug, Default, Clone, PartialEq)]
@@ -415,11 +468,8 @@ fn declared(kind: Kind, patch: &str) -> Declared {
                 if let Some(name) = declared_name(body) {
                     if marker == '+' { added.insert(name) } else { removed.insert(name) };
                 }
-                if marker == '+' && kind == Kind::Source {
-                    let lower = body.to_lowercase();
-                    if (lower.contains("//") || lower.contains('#') || lower.contains("/*")) && FIX_WORDS.iter().any(|w| lower.contains(w)) {
-                        d.fix_lines += 1;
-                    }
+                if marker == '+' && kind == Kind::Source && comment_mentions_fix(body) {
+                    d.fix_lines += 1;
                 }
             }
             _ => {}
@@ -661,7 +711,7 @@ fn area_line(facts: &[Fact], area: &Area, hu: bool) -> String {
     line
 }
 
-fn local_body(facts: &[Fact], hu: bool) -> String {
+fn local_body(facts: &[Fact], omitted: usize, hu: bool) -> String {
     let parts = areas(facts);
     let n = facts.len();
     let (adds, dels) = facts.iter().fold((0u32, 0u32), |a, f| (a.0 + f.change.additions, a.1 + f.change.deletions));
@@ -688,6 +738,9 @@ fn local_body(facts: &[Fact], hu: bool) -> String {
         let rest: usize = parts[8..].iter().map(|a| a.idx.len()).sum();
         out.push(if hu { format!("- további {rest} fájl más területeken") } else { format!("- {rest} more {} in other areas", plural(rest, "file", "files")) });
     }
+    if omitted > 0 {
+        out.push(if hu { format!("- további {omitted} kijelölt fájlt nem vizsgáltunk meg") } else { format!("- {omitted} more ticked {} not looked at", plural(omitted, "file was", "files were")) });
+    }
     out.join("\n")
 }
 
@@ -695,7 +748,8 @@ fn local_body(facts: &[Fact], hu: bool) -> String {
 fn local_message(groups: &[Group]) -> String {
     let facts = facts(groups);
     let header = local_header(&facts, groups);
-    format!("{header}\n\n{ENGLISH_LABEL}\n{}\n\n{DIVIDER}\n{HUNGARIAN_LABEL}\n{}\n", local_body(&facts, false), local_body(&facts, true))
+    let omitted = groups.iter().map(|g| g.omitted).sum();
+    format!("{header}\n\n{ENGLISH_LABEL}\n{}\n\n{DIVIDER}\n{HUNGARIAN_LABEL}\n{}\n", local_body(&facts, omitted, false), local_body(&facts, omitted, true))
 }
 
 // ---------------------------------------------------------------- the model
@@ -725,6 +779,9 @@ fn prompt(groups: &[Group]) -> String {
         let branch = g.branch.as_deref().map(|b| format!(" branch=\"{b}\"")).unwrap_or_default();
         data.push_str(&format!("<repository name=\"{}\"{branch}>\n<files>\n", g.name));
         g.changes.iter().for_each(|c| data.push_str(&file_list(c)));
+        if g.omitted > 0 {
+            data.push_str(&format!("- ... and {} more files that are not listed\n", g.omitted));
+        }
         data.push_str("</files>\n<diff>\n");
         g.changes.iter().filter(|c| !c.patch.is_empty()).for_each(|c| {
             data.push_str(&c.patch);
@@ -773,7 +830,8 @@ fn prompt(groups: &[Group]) -> String {
     )
 }
 
-/// A model answer in presentable shape: no fence or preface, no trailer or attribution lines, the rule before the Hungarian part.
+/// A model answer in presentable shape: no fence or preface, no trailer or attribution lines, one blank line after the title and
+/// none after a label, and exactly one rule, before the Hungarian part.
 pub(crate) fn tidy(answer: &str) -> String {
     let mut lines: Vec<&str> = answer.trim().lines().filter(|l| !l.trim_start().starts_with("```")).collect();
     if let Some(at) = lines.iter().position(|l| parse_header(l.trim()).is_ok_and(|h| TYPES.contains(&h.kind.as_str()))) {
@@ -785,22 +843,32 @@ pub(crate) fn tidy(answer: &str) -> String {
     });
     let mut out: Vec<String> = Vec::new();
     for line in lines {
-        let is_rule = line.trim().len() >= 3 && line.trim().chars().all(|c| c == '-') ;
-        if is_rule {
-            if out.last().is_some_and(|l| !l.is_empty()) {
-                out.push(String::new());
-            }
-            out.push(DIVIDER.to_owned());
+        let text = line.trim_end();
+        let trimmed = text.trim();
+        // every rule is dropped: the one that belongs before the Hungarian part is put back below
+        if trimmed.len() >= 3 && trimmed.chars().all(|c| c == '-') {
             continue;
         }
-        if line.starts_with(HUNGARIAN_LABEL) && out.last().map(String::as_str) != Some(DIVIDER) {
+        if trimmed.is_empty() {
+            let after_label = out.last().is_some_and(|l| l == ENGLISH_LABEL || l == HUNGARIAN_LABEL);
+            if !(out.is_empty() || after_label || out.last().is_some_and(String::is_empty)) {
+                out.push(String::new());
+            }
+            continue;
+        }
+        if out.len() == 1 {
+            out.push(String::new());
+        }
+        if text.starts_with(HUNGARIAN_LABEL) {
             while out.last().is_some_and(String::is_empty) {
                 out.pop();
             }
             out.push(String::new());
             out.push(DIVIDER.to_owned());
+        } else if text.starts_with(ENGLISH_LABEL) && out.last().is_some_and(|l| !l.is_empty()) {
+            out.push(String::new());
         }
-        out.push(line.trim_end().to_owned());
+        out.push(text.to_owned());
     }
     while out.last().is_some_and(String::is_empty) {
         out.pop();
@@ -815,9 +883,19 @@ pub async fn draft_many(env: &Env, model: Option<Arc<dyn DraftModel>>, selection
         return Err(invalid("select at least one change"));
     }
     let budget = (MAX_PROMPT_DIFF / selections.len()).max(6_000);
+    // A repository whose ticks are stale (nothing changed any more) or invalid does not stop the others.
     let mut groups = Vec::with_capacity(selections.len());
+    let mut first_error = None;
     for s in selections {
-        groups.push(collect_group(env, &s.repo_id, &s.selection, budget).await?);
+        match collect_group(env, &s.repo_id, &s.selection, budget).await {
+            Ok(g) => groups.push(g),
+            Err(e) => {
+                first_error.get_or_insert(e);
+            }
+        }
+    }
+    if groups.is_empty() {
+        return Err(first_error.unwrap_or_else(|| invalid("select at least one change")));
     }
     let mut note = Some("the model is not available: message composed from the changes".to_owned());
     if let Some(model) = model {
@@ -879,11 +957,11 @@ mod tests {
 
     #[test]
     fn secrets_lock_files_and_generated_files_are_never_sent() {
-        for p in [".env", ".env.production", "keys/server.pem", "config/credentials.json", "id_rsa", "pnpm-lock.yaml", "Cargo.lock", "dist/app.min.js", "a/b.js.map"] {
-            assert!(withheld_reason(p).is_some(), "{p}");
+        for p in [".env", ".env.production", "keys/server.pem", "config/credentials.json", "id_rsa", "pnpm-lock.yaml", "Cargo.lock", "dist/app.min.js", "a/b.js.map", ".npmrc", "web/.netrc", "ios/GoogleService-Info.plist", "android/google-services.json", "auth.json", "key.p8", "infra/prod.tfvars", "terraform.tfstate", ".pgpass", "node_modules/x/index.js"] {
+            assert!(withheld_reason(p, None).is_some(), "{p}");
         }
-        assert!(withheld_reason(".env.example").is_none());
-        assert!(withheld_reason("src/main.rs").is_none());
+        assert!(withheld_reason(".env.example", None).is_none());
+        assert!(withheld_reason("src/main.rs", None).is_none());
     }
 
     #[test]
@@ -975,5 +1053,55 @@ mod tests {
         let mut c = change("src/big.rs", false, 2000, 0, &text);
         cut(&mut c.patch, MAX_FILE_DIFF, "\n[file diff truncated]\n");
         assert!(c.patch.len() <= MAX_FILE_DIFF + 30 && c.patch.ends_with("[file diff truncated]\n"));
+    }
+
+    #[test]
+    fn a_renamed_secret_is_still_withheld_and_ordinary_build_folders_are_not_generated() {
+        assert!(withheld_reason("config/settings.txt", Some("config/.env")).is_some());
+        for p in ["src/build/mod.rs", "app/vendor/Foo.php", "scripts/build", "src/dist.rs"] {
+            assert!(withheld_reason(p, None).is_none(), "{p}");
+        }
+    }
+
+    #[test]
+    fn diff_headers_with_tabs_and_quotes_are_read() {
+        let patch = "diff --git a/my file.txt b/my file.txt\n--- a/my file.txt\t\n+++ b/my file.txt\t\n@@ -1 +1 @@\n-a\n+b\ndiff --git \"a/\\305\\221.txt\" \"b/\\305\\221.txt\"\n--- \"a/\\305\\221.txt\"\n+++ \"b/\\305\\221.txt\"\n@@ -1 +1 @@\n-x\n+y\ndiff --git a/gone.txt b/gone.txt\ndeleted file mode 100644\n--- a/gone.txt\n+++ /dev/null\n@@ -1 +0,0 @@\n-z\n";
+        let names: Vec<String> = split_patch(patch).into_iter().map(|(n, _)| n).collect();
+        assert_eq!(names, vec!["my file.txt", "ő.txt", "gone.txt"]);
+    }
+
+    #[test]
+    fn status_entries_survive_short_names_worktree_renames_and_accents() {
+        let rows = parse_status("R  ab2\0ab\0M  my file.txt\0 R new.rs\0old.rs\0?? abő.rs\0");
+        let paths: Vec<&str> = rows.iter().map(|r| r.0.as_str()).collect();
+        assert_eq!(paths, vec!["ab2", "my file.txt", "new.rs", "abő.rs"]);
+        assert_eq!(rows[0].1.as_deref(), Some("ab"));
+        assert_eq!(rows[2].1.as_deref(), Some("old.rs"));
+        assert!(rows[3].2, "untracked counts as added");
+        assert!(parse_status("é").is_empty(), "a broken entry is skipped, not a panic");
+    }
+
+    #[test]
+    fn only_a_comment_that_names_a_fix_counts() {
+        assert!(comment_mentions_fix("  x = 1; // fix the crash when empty"));
+        assert!(comment_mentions_fix("# avoid a leak here"));
+        assert!(!comment_mentions_fix("#[derive(Debug, Clone)]"));
+        assert!(!comment_mentions_fix("event.preventDefault();"));
+        assert!(!comment_mentions_fix("let debug = true; // trace"));
+    }
+
+    #[test]
+    fn tidy_removes_blank_lines_after_labels_doubled_rules_and_keeps_prose() {
+        let t = tidy("fix: x\nExtended English:\n\nAdds y; types are generated with ts-rs.\n\n---\n\n-------\n\nMagyar bővített leírás:\n\nHozzáadja y-t.\n\n---\n");
+        assert_eq!(t, "fix: x\n\nExtended English:\nAdds y; types are generated with ts-rs.\n\n-------\nMagyar bővített leírás:\nHozzáadja y-t.");
+        assert!(validate(&t, &MessageStyle::Extended).ok);
+    }
+
+    #[test]
+    fn the_cap_names_what_it_did_not_look_at() {
+        let g = Group { name: "w".into(), changes: vec![change("src/a/One.js", false, 1, 1, "")], omitted: 7, ..Default::default() };
+        let m = local_message(&[g.clone()]);
+        assert!(m.contains("- 7 more ticked files were not looked at") && m.contains("további 7 kijelölt fájlt nem vizsgáltunk meg"), "{m}");
+        assert!(prompt(&[g]).contains("and 7 more files that are not listed"));
     }
 }

@@ -54,8 +54,10 @@ export function mcpPresence(server: McpServerView | undefined): McpPresence {
 
 /** What "Audit my changes" asks the agent to do. English: the agent answers in the language of the person. */
 export const AUDIT_PROMPT = [
-  "Use the DeepPattern Decision Engine tools (its MCP server) to get a second opinion on the uncommitted changes of this repository.",
-  "First read them with `git status` and `git diff`, then send the diff and a short description of what the change is meant to do to DeepPattern for a standard review.",
+  "Use the DeepPattern Decision Engine tools (its MCP server) to get a second opinion on the uncommitted changes of the repositories in this run.",
+  "Read them with `git status --porcelain` and `git diff HEAD` (staged and unstaged), and read the new untracked files that are part of the change.",
+  "Leave out secrets and noise before anything goes to DeepPattern, which is a hosted service: never send .env files, keys, certificates, credentials, tokens, lock files or generated files, not even a part of them.",
+  "Send the diff and a short description of what the change is meant to do for a standard review.",
   "Report what the reviewers found as defects (with file and line), strengths, where they agree and where they disagree, and what you would do next.",
   "Do not edit, stage or commit anything.",
 ].join("\n");

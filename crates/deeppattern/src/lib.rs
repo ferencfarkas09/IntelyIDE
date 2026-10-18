@@ -6,7 +6,8 @@
 
 use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, Stdio};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
@@ -59,7 +60,8 @@ pub struct Status {
 fn quote(path: &Path) -> String {
     let p = path.to_string_lossy();
     if cfg!(windows) {
-        format!("\"{p}\"")
+        // PowerShell: single quotes do not expand `$` or backticks; a quote inside is doubled
+        format!("'{}'", p.replace('\'', "''"))
     } else {
         format!("'{}'", p.replace('\'', "'\\''"))
     }
@@ -67,14 +69,16 @@ fn quote(path: &Path) -> String {
 
 pub fn commands(root: &Path) -> Commands {
     if cfg!(windows) {
+        let clone = format!("$HOME\\decision-engine");
         Commands {
-            install: format!("git clone {PROJECT_URL} $HOME\\decision-engine; cd $HOME\\decision-engine; powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\\dp-install.ps1"),
-            activate: "powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\\dp-install.ps1 -Activate".to_owned(),
+            // clones the first time, updates the folder when an earlier attempt left it there
+            install: format!("if (Test-Path {clone}) {{ git -C {clone} pull --ff-only }} else {{ git clone {PROJECT_URL} {clone} }}; cd {clone}; powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\\dp-install.ps1"),
+            activate: format!("cd {clone}; powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\\dp-install.ps1 -Activate"),
             doctor: format!("powershell.exe -NoProfile -ExecutionPolicy Bypass -File {}", quote(&root.join("dp-doctor.ps1"))),
         }
     } else {
         Commands {
-            install: format!("git clone {PROJECT_URL} ~/decision-engine && cd ~/decision-engine && bash ./dp-install.sh"),
+            install: format!("(git clone {PROJECT_URL} ~/decision-engine || git -C ~/decision-engine pull --ff-only) && cd ~/decision-engine && bash ./dp-install.sh"),
             activate: format!("cd {} && python3 -m installer.permanent_setup", quote(root)),
             doctor: format!("bash {}", quote(&root.join("dp-doctor.sh"))),
         }
@@ -165,7 +169,54 @@ pub enum DoctorError {
     Start(String),
 }
 
-/// Colour codes out, and every long run of key-like characters replaced: the Doctor says only whether a secret is set, but this does not rely on it.
+const WRAPPERS: &str = "\"'()[]<>{},;";
+const SECRET_WORDS: [&str; 11] = ["token", "secret", "password", "passwd", "apikey", "api_key", "api-key", "authorization", "credential", "credentials", "bearer"];
+
+/// A word that looks like a key: at least 20 characters mixing letters and digits, not a path. (A long word without a digit, such as a
+/// dotted name, is not one.)
+fn keylike(core: &str) -> bool {
+    let pathlike = core.starts_with('/') || core.starts_with('~') || core.contains(":\\");
+    let chars = core.chars().count();
+    let alphabet = core.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '+' | '=' | '.' | ':' | '/'));
+    let mixed = core.chars().any(|c| c.is_ascii_digit()) && core.chars().any(|c| c.is_ascii_alphabetic());
+    !pathlike && alphabet && chars >= 20 && mixed
+}
+
+/// One word of a line, with its wrapping quotes and brackets kept: an address is cut down to its host, the value of `key=value` or the
+/// word after `token:` is hidden, and anything that looks like a key is hidden.
+fn scrub_word(word: &str, after_key: bool) -> String {
+    let core = word.trim_matches(|c| WRAPPERS.contains(c));
+    if core.is_empty() {
+        return word.to_owned();
+    }
+    let start = word.find(core).unwrap_or(0);
+    let (head, tail) = (&word[..start], &word[start + core.len()..]);
+    let hidden = if core.contains("://") {
+        let scheme = core.split("://").next().unwrap_or("https");
+        match host_of(core) {
+            Some(host) if scheme.chars().all(|c| c.is_ascii_alphabetic()) => format!("{scheme}://{host}"),
+            _ => "[hidden]".to_owned(),
+        }
+    } else if after_key {
+        "[hidden]".to_owned()
+    } else if let Some((key, value)) = core.split_once(['=', ':']).filter(|(k, v)| !k.is_empty() && !v.is_empty()) {
+        let secret_key = SECRET_WORDS.iter().any(|w| key.to_lowercase().contains(w));
+        if secret_key || keylike(value) {
+            let lead: String = value.chars().take_while(|c| WRAPPERS.contains(*c)).collect();
+            format!("{key}{}{lead}[hidden]", &core[key.len()..key.len() + 1])
+        } else {
+            return word.to_owned();
+        }
+    } else if keylike(core) {
+        "[hidden]".to_owned()
+    } else {
+        return word.to_owned();
+    };
+    format!("{head}{hidden}{tail}")
+}
+
+/// Colour codes out; addresses cut to their host; and every value that is, or sits next to the name of, a credential replaced. The Doctor
+/// says only whether a secret is set, but nothing here relies on that.
 pub fn scrub(line: &str) -> String {
     let mut plain = String::with_capacity(line.len());
     let mut chars = line.chars().peekable();
@@ -183,19 +234,21 @@ pub fn scrub(line: &str) -> String {
             plain.push(c);
         }
     }
-    let out = plain
-        .split(' ')
-        .map(|word| {
-            let keylike = word.chars().count() >= 32 && word.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '+' | '=' | '.' | ':'));
-            if keylike { "[hidden]" } else { word }
-        })
-        .collect::<Vec<_>>()
-        .join(" ");
-    let out = out.trim();
+    let mut out: Vec<String> = Vec::new();
+    let mut previous = String::new();
+    for word in plain.split_whitespace() {
+        // the name before this word ends in a colon or an equals sign, or is "Bearer"/"Basic": this word is its value
+        let name = previous.trim_matches(|c: char| WRAPPERS.contains(c) || c == ':' || c == '=').to_lowercase();
+        let separated = previous.trim_end_matches(|c: char| "\"'".contains(c)).ends_with([':', '=']);
+        let after_key = (separated && SECRET_WORDS.iter().any(|w| name == *w || name.ends_with(w))) || matches!(name.as_str(), "bearer" | "basic");
+        out.push(scrub_word(word, after_key));
+        previous = word.to_owned();
+    }
+    let out = out.join(" ");
     if out.chars().count() > MAX_LINE {
         format!("{}…", out.chars().take(MAX_LINE - 1).collect::<String>().trim_end())
     } else {
-        out.to_owned()
+        out
     }
 }
 
@@ -225,23 +278,34 @@ pub fn parse_doctor(output: &str, exit_code: Option<i32>, took_ms: u64) -> Docto
     DoctorReport { verdict, exit_code, lines, took_ms }
 }
 
-fn drain(mut pipe: impl Read + Send + 'static) -> std::thread::JoinHandle<Vec<u8>> {
+/// Reads a pipe to its end into the shared buffer (kept to [`MAX_OUTPUT`]), so that what came is there even if the program never ends.
+fn drain(mut pipe: impl Read + Send + 'static, into: Arc<Mutex<Vec<u8>>>) -> std::thread::JoinHandle<()> {
     std::thread::spawn(move || {
-        let mut buf = Vec::new();
         let mut chunk = [0u8; 8192];
         while let Ok(n) = pipe.read(&mut chunk) {
             if n == 0 {
                 break;
             }
+            let mut buf = into.lock().unwrap_or_else(|e| e.into_inner());
             if buf.len() < MAX_OUTPUT {
                 buf.extend_from_slice(&chunk[..n]);
             }
         }
-        buf
     })
 }
 
-/// Runs the engine's own Doctor (`dp-doctor.sh`, `dp-doctor.ps1` on Windows) and returns what it says. It only reports.
+/// Stops the check and whatever it started: on Unix it ran in its own process group, so the whole group gets the signal.
+fn stop(child: &mut Child) {
+    #[cfg(unix)]
+    {
+        let _ = Command::new("kill").args(["-KILL", "--", &format!("-{}", child.id())]).stdout(Stdio::null()).stderr(Stdio::null()).status();
+    }
+    let _ = child.kill();
+    let _ = child.wait();
+}
+
+/// Runs the engine's own Doctor (`dp-doctor.sh`, `dp-doctor.ps1` on Windows) and returns what it says. It only reports. A check that
+/// runs past `timeout` is stopped with everything it started, and what it had said so far is kept.
 pub fn run_doctor(root: &Path, timeout: Duration) -> Result<DoctorReport, DoctorError> {
     let script = doctor_script(root);
     if !script.is_file() {
@@ -256,17 +320,21 @@ pub fn run_doctor(root: &Path, timeout: Duration) -> Result<DoctorReport, Doctor
         c.arg(&script);
         c
     };
+    #[cfg(unix)]
+    std::os::unix::process::CommandExt::process_group(&mut cmd, 0);
+    #[cfg(windows)]
+    std::os::windows::process::CommandExt::creation_flags(&mut cmd, 0x0800_0000); // CREATE_NO_WINDOW
     let started = Instant::now();
     let mut child = cmd.current_dir(root).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().map_err(|e| DoctorError::Start(e.to_string()))?;
-    let out = child.stdout.take().map(drain);
-    let err = child.stderr.take().map(drain);
+    let out = Arc::new(Mutex::new(Vec::new()));
+    let err = Arc::new(Mutex::new(Vec::new()));
+    let readers: Vec<_> = [child.stdout.take().map(|p| drain(p, out.clone())), child.stderr.take().map(|p| drain(p, err.clone()))].into_iter().flatten().collect();
     let mut timed_out = false;
     let code = loop {
         match child.try_wait() {
             Ok(Some(status)) => break status.code(),
             Ok(None) if started.elapsed() > timeout => {
-                let _ = child.kill();
-                let _ = child.wait();
+                stop(&mut child);
                 timed_out = true;
                 break None;
             }
@@ -274,12 +342,18 @@ pub fn run_doctor(root: &Path, timeout: Duration) -> Result<DoctorReport, Doctor
             Err(e) => return Err(DoctorError::Start(e.to_string())),
         }
     };
-    // After a timeout a grandchild may still hold the pipes: do not wait for them, the readers end on their own.
-    let join = |h: Option<std::thread::JoinHandle<Vec<u8>>>| if timed_out { Vec::new() } else { h.and_then(|h| h.join().ok()).unwrap_or_default() };
-    let mut text = String::from_utf8_lossy(&join(out)).into_owned();
-    text.push('\n');
-    text.push_str(&String::from_utf8_lossy(&join(err)));
-    Ok(parse_doctor(&text, code, started.elapsed().as_millis() as u64))
+    // the readers end with the pipes; a program that left a child holding them does not hold us: wait a moment, then go on with what there is
+    let grace = Instant::now();
+    while grace.elapsed() < Duration::from_secs(1) && !readers.iter().all(|r| r.is_finished()) {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    let take = |b: &Arc<Mutex<Vec<u8>>>| String::from_utf8_lossy(&b.lock().unwrap_or_else(|e| e.into_inner())).into_owned();
+    let text = format!("{}\n{}", take(&out), take(&err));
+    let mut report = parse_doctor(&text, code, started.elapsed().as_millis() as u64);
+    if timed_out {
+        report.lines.push(DoctorLine { tone: Tone::Fail, text: format!("Stopped: the check took longer than {} seconds.", timeout.as_secs()) });
+    }
+    Ok(report)
 }
 
 #[cfg(test)]
@@ -347,7 +421,8 @@ mod tests {
         if !cfg!(windows) {
             assert_eq!(c.activate, "cd '/Users/Jo O'\\''Neil/.deeppattern/decision-engine' && python3 -m installer.permanent_setup");
             assert!(c.doctor.starts_with("bash '/Users/Jo O'\\''Neil/") && c.doctor.ends_with("dp-doctor.sh'"));
-            assert!(c.install.starts_with("git clone https://github.com/deeppatternai/decision-engine ~/decision-engine && cd ~/decision-engine") && c.install.ends_with("bash ./dp-install.sh"));
+            // an earlier attempt that left the folder is updated, not a failure
+            assert!(c.install.starts_with("(git clone https://github.com/deeppatternai/decision-engine ~/decision-engine || git -C ~/decision-engine pull --ff-only) && cd ~/decision-engine") && c.install.ends_with("bash ./dp-install.sh"));
         }
     }
 
@@ -357,6 +432,31 @@ mod tests {
         assert_eq!(scrub("token abcdefghijklmnopqrstuvwxyz0123456789ABCDEF set"), "token [hidden] set");
         assert_eq!(scrub("/Users/me/.deeppattern/decision-engine/dp-doctor.sh ok"), "/Users/me/.deeppattern/decision-engine/dp-doctor.sh ok");
         assert!(scrub(&"x ".repeat(300)).chars().count() <= MAX_LINE);
+    }
+
+    #[test]
+    fn scrub_cuts_addresses_to_the_host_and_hides_values_in_every_shape_a_line_can_show_them() {
+        assert_eq!(scrub("endpoint https://dev:SUPERSECRETPASSWORD123@de.example.com/api/v1/tenant-9f8e7d6c ok"), "endpoint https://de.example.com ok");
+        assert_eq!(scrub(r#"{"access_token": "eyJhbGciOi.abc.def", "ok": true}"#), r#"{"access_token": "[hidden]", "ok": true}"#);
+        assert_eq!(scrub(r#"token="s3cr3t-v4lue" set"#), r#"token="[hidden]" set"#);
+        assert_eq!(scrub("key:\tK9f8a7sd6f5a4s3d2f1g"), "key: [hidden]");
+        assert_eq!(scrub("Authorization: Bearer abc"), "Authorization: [hidden] [hidden]");
+        assert_eq!(scrub("(A1b2C3d4E5f6G7h8I9j0K1l2)"), "([hidden])");
+        assert_eq!(scrub("code DP-1234-ABCD-5678-EFGH printed"), "code [hidden] printed");
+        assert_eq!(scrub("password=hunter2"), "password=[hidden]");
+    }
+
+    #[test]
+    fn scrub_keeps_what_the_check_is_for() {
+        for line in [
+            "PASS Device activated (endpoint set, device credential set)",
+            "installer.permanent_setup.activation_recovery_required",
+            "PASS Python 3.12.7 at /Users/me/.deeppattern/decision-engine/python/bin/python3",
+            "WARN LibreOffice not found (optional)",
+            "device key is present",
+        ] {
+            assert_eq!(scrub(line), line);
+        }
     }
 
     #[test]
@@ -388,9 +488,14 @@ mod tests {
         assert!(report.lines.iter().any(|l| l.text == "secret [hidden]"), "{:?}", report.lines);
         std::fs::write(tmp.path().join("dp-doctor.sh"), "exit 1\n").unwrap();
         assert_eq!(run_doctor(tmp.path(), Duration::from_secs(10)).unwrap().verdict, Verdict::Fail);
-        std::fs::write(tmp.path().join("dp-doctor.sh"), "sleep 30\n").unwrap();
-        let slow = run_doctor(tmp.path(), Duration::from_millis(300)).unwrap();
+        // a check that never ends, with a child that holds the pipes: stopped at the limit, what it said is kept, nothing is left running
+        std::fs::write(tmp.path().join("dp-doctor.sh"), "echo 'PASS first line'\n(sleep 30 &)\nsleep 30\n").unwrap();
+        let t = Instant::now();
+        let slow = run_doctor(tmp.path(), Duration::from_millis(400)).unwrap();
+        assert!(t.elapsed() < Duration::from_secs(5), "{:?}", t.elapsed());
         assert_eq!(slow.verdict, Verdict::Error);
+        assert!(slow.lines.iter().any(|l| l.text == "PASS first line"), "{:?}", slow.lines);
+        assert!(slow.lines.iter().any(|l| l.text.starts_with("Stopped: the check took longer than")), "{:?}", slow.lines);
         assert_eq!(run_doctor(&tmp.path().join("nowhere"), Duration::from_secs(1)), Err(DoctorError::NotInstalled));
     }
 }

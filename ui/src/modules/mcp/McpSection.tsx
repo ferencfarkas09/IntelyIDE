@@ -27,18 +27,18 @@ export default function McpSection() {
   const [confirm, setConfirm] = createSignal<{ id: string; then: ConfirmIntent; changed: boolean } | null>(null);
   const [removing, setRemoving] = createSignal<string | null>(null);
   const [importing, setImporting] = createSignal(false);
-  // Another screen (DeepPattern) asked for the import dialog to be open when this section shows.
-  createEffect(() => {
-    if (!importRequested()) return;
-    setImporting(true);
-    clearImportRequest();
-  });
   const [expanded, setExpanded] = createSignal<ReadonlySet<string>>(new Set());
 
   const meta = () => c.meta();
   const jail = () => meta()?.jail === "readOnly";
   const newer = () => meta()?.readOnlyReason === "newerSchema";
   const frozen = () => jail() || newer();
+  // Another screen (DeepPattern) asked for the import dialog to be open when this section shows; a frozen list has no Import.
+  createEffect(() => {
+    if (!importRequested()) return;
+    if (!frozen()) setImporting(true);
+    clearImportRequest();
+  });
   const names = createMemo(() => c.servers().map((s) => s.name));
   const editing = () => c.server(editor()?.id);
   const workspaceName = () => activeSummary()?.name ?? activeId() ?? "";

@@ -130,6 +130,17 @@ describe("draftMessage (the Generate button of the commit panel)", () => {
     expect(h.shared).toBe("");
   });
 
+  it("keeps the drafts of the other repos when one repo's draft fails in per-repo mode", async () => {
+    h.mode = "perRepo";
+    h.draft = vi.fn(async (repoId: string) => {
+      if (repoId === "web") throw new Error("nothing changed in web");
+      return { message: `feat(${repoId}): own draft`, source: "model", issues: [] };
+    });
+    await draftMessage();
+    expect(h.repos).toEqual({ api: "feat(api): own draft" });
+    expect(drafting()).toBe(false);
+  });
+
   it("does nothing without ticked files, is busy while it writes and keeps the field when the request fails", async () => {
     h.checked = { api: [], web: [], admin: [] };
     await draftMessage();

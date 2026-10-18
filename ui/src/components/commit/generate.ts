@@ -104,10 +104,14 @@ export async function draftMessage(): Promise<void> {
   setBusy(true);
   try {
     if (messageMode() === "perRepo") {
-      const drafts = await Promise.all(picked.map(async (r) => [r.id, await ipc.graph.draftMessageDetailed(r.id, r.paths.map((path) => ({ path })))] as const));
+      // one repo failing does not take the drafts of the others with it
+      const results = await Promise.allSettled(picked.map(async (r) => [r.id, await ipc.graph.draftMessageDetailed(r.id, r.paths.map((path) => ({ path })))] as const));
+      const drafts = results.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
+      const failed = results.find((r): r is PromiseRejectedResult => r.status === "rejected");
       for (const [id, draft] of drafts) setRepoMessage(id, draft.message);
       const local = drafts.find(([, d]) => d.source === "template" && d.note);
       if (local) toast.info(t("commit.toast.template"), local[1].note ?? undefined);
+      if (failed) toast.error(t("commit.toast.draftFail"), errorText(failed.reason));
     } else {
       const draft = await ipc.graph.draftMessageMany(picked.map((r) => ({ repoId: r.id, selection: r.paths.map((path) => ({ path })) })));
       setSharedMessage(draft.message);

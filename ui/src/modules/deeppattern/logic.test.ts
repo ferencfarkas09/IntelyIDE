@@ -62,7 +62,8 @@ describe("DeepPattern among the MCP servers", () => {
 describe("the audit prompt", () => {
   it("asks for a review through the MCP tools and forbids changing anything", () => {
     expect(AUDIT_PROMPT).toContain("DeepPattern");
-    expect(AUDIT_PROMPT).toContain("git diff");
+    expect(AUDIT_PROMPT).toContain("git diff HEAD");
+    expect(AUDIT_PROMPT).toMatch(/never send \.env files, keys/);
     expect(AUDIT_PROMPT).toMatch(/Do not edit, stage or commit anything/);
   });
 });

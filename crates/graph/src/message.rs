@@ -57,10 +57,17 @@ fn labelled(message: &str, label: &str) -> Option<String> {
     Some(text.trim().to_owned())
 }
 
+/// A trailer or footer that credits an AI tool. Prose that merely says something was "generated with" a tool, or links to a vendor's
+/// documentation, is not one.
 pub(crate) fn is_ai_attribution(line: &str) -> bool {
-    let l = line.to_lowercase();
-    l.contains("generated with") || l.starts_with("generated-by:") || l.starts_with("assisted-by:") || l.contains("anthropic.com")
-        || (l.starts_with("co-authored-by:") && (l.contains("claude") || l.contains("anthropic") || l.contains("copilot")))
+    const TOOLS: [&str; 7] = ["claude", "anthropic", "copilot", "chatgpt", "openai", "gemini", "codex"];
+    let l = line.trim().to_lowercase();
+    let names_a_tool = TOOLS.iter().any(|t| l.contains(t));
+    l.starts_with("generated-by:")
+        || l.starts_with("assisted-by:")
+        || (l.starts_with("co-authored-by:") && names_a_tool)
+        || (l.contains("generated with") && names_a_tool)
+        || l.contains("noreply@anthropic.com")
         || l.contains('\u{1F916}')
 }
 
