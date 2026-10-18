@@ -254,7 +254,8 @@ First public release. This is alpha software.
 - Providers other than Claude, Happy, MongoDB Studio and Remote are proven only against mocks or on a local machine.
 - Version 0.1.0 still stores its state in the folder `IntelySwitchIDE` and uses Keychain services named after the earlier bundle identifier; a switch to `com.intelyhome.intelyide` with a migration is planned.
 
-[Unreleased]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.7.0...HEAD
+[Unreleased]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.8.0...HEAD
+[1.8.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.5.1...v1.6.0
 [1.5.1]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.5.0...v1.5.1
