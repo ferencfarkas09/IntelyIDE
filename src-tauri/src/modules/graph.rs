@@ -24,7 +24,7 @@ pub struct GraphState(Graph);
 /// (`workspace::state_dir()`, which follows `INTELY_WORKSPACES`).
 pub fn setup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let graph = Graph::new(Some(intely_core::workspace::state_dir()));
-    graph.set_draft_model(Some(Arc::new(ClaudeDraft)));
+    graph.set_draft_model(Some(Arc::new(ClaudeDraft { app: app.handle().clone() })));
     app.manage(GraphState(graph));
     Ok(())
 }
@@ -32,7 +32,9 @@ pub fn setup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 /// The model behind "Generate" in the commit panel: the user's own Claude Code in print mode, no tools, from an empty folder (the prompt
 /// holds the cut diff of the ticked files, never the contents of key, env or lock files). `INTELY_COMMIT_MODEL` names another model.
 /// Read-only mode or a missing `claude` make the draft fall back to the one composed locally.
-struct ClaudeDraft;
+struct ClaudeDraft {
+    app: AppHandle,
+}
 
 const COMMIT_MODEL: &str = "sonnet";
 const COMMIT_TIMEOUT: Duration = Duration::from_secs(120);
@@ -44,7 +46,11 @@ impl DraftModel for ClaudeDraft {
                 return Err(EngineError::new(intely_core::jail::READ_ONLY, "read-only mode (INTELY_READONLY)"));
             }
             let model = std::env::var("INTELY_COMMIT_MODEL").ok().filter(|m| !m.trim().is_empty()).unwrap_or_else(|| COMMIT_MODEL.to_owned());
-            crate::agents::blocking(move || super::l10n::run_claude_with(&model, &prompt, COMMIT_TIMEOUT)).await
+            // the `claude` and the PATH of the login shell, as the agent runs get them
+            let login = self.app.try_state::<EngineSlot>().and_then(|slot| slot.get().ok().map(Engine::login_env));
+            let path = login.as_ref().and_then(|env| env.get("PATH").cloned());
+            let bin = path.as_deref().and_then(|p| intely_core::sys::find_in_path(p, "claude"));
+            crate::agents::blocking(move || super::l10n::run_claude_at(bin, path.as_deref(), &model, &prompt, COMMIT_TIMEOUT)).await
         })
     }
 }

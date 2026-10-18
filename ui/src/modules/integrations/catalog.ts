@@ -3,7 +3,7 @@ import { t } from "../../i18n";
 import type { HappyStatus } from "../../ipc/happy";
 import { registerIntegration, type Integration, type IntegrationStatus } from "../../platform/integrations";
 import { happyStatus, refreshHappyStatus } from "../../store/happy";
-import { Smile, Sparkles } from "../../ui-kit";
+import { Smile } from "../../ui-kit";
 
 const PARTS = ["timer", "meet", "chat", "notifications", "tasks"] as const;
 
@@ -30,20 +30,7 @@ const happy: Integration = {
   detail: lazy(() => import("./HappyIntegration")),
 };
 
-/** Announced in the catalog; the connection itself is not built yet, so the card opens nothing. */
-const deepPattern: Integration = {
-  id: "deeppattern",
-  name: "DeepPattern",
-  order: 40,
-  icon: Sparkles,
-  get summary() {
-    return t("integrations.catalog.deeppattern.summary");
-  },
-  planned: true,
-};
-
-/** The entries this module owns. MCP servers and Sentry register their own cards from their modules; a later integration does the same. */
+/** The entries this module owns. MCP servers, Sentry and DeepPattern register their own cards from their modules; a later integration does the same. */
 export function registerBuiltInIntegrations(): void {
   registerIntegration(happy);
-  registerIntegration(deepPattern);
 }

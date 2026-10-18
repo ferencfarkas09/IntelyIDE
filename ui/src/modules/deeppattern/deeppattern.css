@@ -1,0 +1,8 @@
+.dp-cmd { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); width: 100%; min-width: 0; }
+.dp-cmd__text { display: block; width: 100%; padding: var(--space-2) var(--space-3); border-radius: var(--radius-2); background: var(--surface-0); box-shadow: inset 0 0 0 1px var(--border-subtle); color: var(--text-1); font-family: var(--font-mono); font-size: var(--text-sm); line-height: var(--leading-base); overflow-wrap: anywhere; user-select: text; }
+.dp-report { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); }
+.dp-lines { display: flex; flex-direction: column; gap: 2px; width: 100%; margin: 0; padding: 0; list-style: none; font-family: var(--font-mono); font-size: var(--text-sm); }
+.dp-line { color: var(--text-2); overflow-wrap: anywhere; }
+.dp-line[data-tone="ok"] { color: var(--text-1); }
+.dp-line[data-tone="warn"] { color: var(--warn); }
+.dp-line[data-tone="fail"] { color: var(--danger); }

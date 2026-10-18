@@ -99,6 +99,7 @@ The sidecar itself is not a crate; it is the Node package in `sidecar/`.
 | `relay_bundle` | Stages and signs the phone web bundle, generates signing and push keys, and checks a deployed relay. |
 | `relay_deploy` | Finds the relay kit and deploys it to your own Cloudflare account through a pinned `wrangler`, with output masking. |
 | `happy` | An optional integrations framework (allow-listed HTTP client, scheduler, providers) used for team tools. It does nothing until you configure a provider. |
+| `deeppattern` | Where DeepPattern's Decision Engine stands on this computer: is it installed and activated (only the host name of its endpoint and whether a device credential exists are read from its `config.json`, never a value), what its own Doctor says (scrubbed of anything key-like) and the commands that install and activate it. It makes no network request and never holds the endpoint or the activation key. |
 | `preview-proxy` | A loopback reverse proxy for the embedded preview that injects the click-to-source inspector. |
 | `runner` | Script discovery with safety classification, and managed dev-server processes with masked logs. |
 | `checks` | Pre-commit checks, environment and secret awareness, branch hygiene and the worktree manager. |

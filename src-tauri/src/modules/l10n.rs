@@ -91,18 +91,27 @@ pub(crate) fn run_claude(prompt: &str) -> Res<String> {
 /// The same one-shot with another model (a name or an alias such as `sonnet`) and time limit. Every call gets its own empty directory,
 /// so calls that run at the same time (one draft per repository) do not remove each other's.
 pub(crate) fn run_claude_with(model: &str, prompt: &str, timeout: Duration) -> Res<String> {
+    run_claude_at(None, None, model, prompt, timeout)
+}
+
+/// [`run_claude_with`] with the `claude` the login shell finds and its `PATH` (a program started from the Dock has a short one, and a `claude`
+/// installed with npm needs `node` on it), as the agent runs get them.
+pub(crate) fn run_claude_at(bin: Option<PathBuf>, path: Option<&str>, model: &str, prompt: &str, timeout: Duration) -> Res<String> {
     static CALLS: AtomicU64 = AtomicU64::new(0);
     let dir = std::env::temp_dir().join(format!("intely-claude-{}-{}", std::process::id(), CALLS.fetch_add(1, Ordering::Relaxed)));
     std::fs::create_dir_all(&dir).map_err(|e| EngineError::new("io", e.to_string()))?;
-    let result = one_shot(model, prompt, timeout, &dir);
+    let result = one_shot(&bin.unwrap_or_else(claude_bin), path, model, prompt, timeout, &dir);
     let _ = std::fs::remove_dir(&dir);
     result
 }
 
-fn one_shot(model: &str, prompt: &str, timeout: Duration, dir: &std::path::Path) -> Res<String> {
-    let mut child = Command::new(claude_bin())
-        .args(["-p", "--model", model, "--output-format", "text", "--tools", "", "--no-session-persistence", "--setting-sources", "", "--strict-mcp-config"])
-        .current_dir(dir)
+fn one_shot(bin: &std::path::Path, path: Option<&str>, model: &str, prompt: &str, timeout: Duration, dir: &std::path::Path) -> Res<String> {
+    let mut command = Command::new(bin);
+    command.args(["-p", "--model", model, "--output-format", "text", "--tools", "", "--no-session-persistence", "--setting-sources", "", "--strict-mcp-config"]).current_dir(dir);
+    if let Some(path) = path {
+        command.env("PATH", path);
+    }
+    let mut child = command
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

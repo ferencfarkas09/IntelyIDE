@@ -4,6 +4,7 @@ pub mod agentux;
 pub mod attachments;
 pub mod checks;
 pub mod contract;
+pub mod deeppattern;
 pub mod files;
 pub mod graph;
 pub mod gitx;

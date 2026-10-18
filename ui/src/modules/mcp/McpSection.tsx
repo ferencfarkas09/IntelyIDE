@@ -1,4 +1,4 @@
-import { createMemo, createSignal, For, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
 import { t } from "../../i18n";
 import { ipc } from "../../ipc";
 import type { McpImportResult, McpServerView, McpWorkspaceState } from "../../ipc/mcp";
@@ -7,6 +7,7 @@ import { announce, Button, Dialog, EmptyState, Plug, Skeleton, SplitButton, toas
 import { ConfirmRunDialog } from "./ConfirmRunDialog";
 import { createMcpController } from "./controller";
 import { ImportDialog } from "./ImportDialog";
+import { clearImportRequest, importRequested } from "./importRequest";
 import { errorInfo, workspaceState } from "./logic";
 import { ServerEditor } from "./ServerEditor";
 import { ServerRow } from "./ServerRow";
@@ -26,6 +27,12 @@ export default function McpSection() {
   const [confirm, setConfirm] = createSignal<{ id: string; then: ConfirmIntent; changed: boolean } | null>(null);
   const [removing, setRemoving] = createSignal<string | null>(null);
   const [importing, setImporting] = createSignal(false);
+  // Another screen (DeepPattern) asked for the import dialog to be open when this section shows.
+  createEffect(() => {
+    if (!importRequested()) return;
+    setImporting(true);
+    clearImportRequest();
+  });
   const [expanded, setExpanded] = createSignal<ReadonlySet<string>>(new Set());
 
   const meta = () => c.meta();

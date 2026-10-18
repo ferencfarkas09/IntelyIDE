@@ -227,6 +227,8 @@ pub fn run() {
             modules::providers::providers_set_weak_writer,
             modules::providers::providers_caps,
             modules::providers::providers_test_run,
+            modules::deeppattern::deeppattern_status,
+            modules::deeppattern::deeppattern_doctor,
             modules::sentry::sentry_status,
             modules::sentry::sentry_set_config,
             modules::sentry::sentry_save_token,
