@@ -17,6 +17,6 @@ You may copy, modify and redistribute the code under the GPL. If you distribute 
 
 ## Third-party names
 
-"Claude" and "Anthropic" are trademarks of Anthropic. IntelyIDE is an independent project and is not affiliated with, endorsed by or sponsored by Anthropic. Other product names (for example Git, MongoDB, Cloudflare, Tauri) belong to their owners and are used only to describe what the software works with.
+"Claude" and "Anthropic" are trademarks of Anthropic. IntelyIDE is an independent project and is not affiliated with, endorsed by or sponsored by Anthropic. Other product names (for example Git, MongoDB, Cloudflare, Tauri) belong to their owners and are used only to describe what the software works with. The names and logos of DeepPattern.ai and Happy Solutions on the website (`site/src/static/assets/img/partners/`) are marks of their owners, shown only to name the services IntelyIDE connects to and to link to them; the GPL does not grant any right to them.
 
 This note is not legal advice.

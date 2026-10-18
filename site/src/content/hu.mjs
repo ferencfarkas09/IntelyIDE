@@ -240,6 +240,7 @@ export default {
       { id: 'remote', h: 'Telefonos átjáró', p: 'Hagyd jóvá vagy válaszold meg az ügynökfutásokat a telefonodról, a saját relédon át, végpontok közt titkosítva.' },
       { id: 'notifications', h: 'Értesítések', p: 'Banner és Dock-számláló, ha egy futásnak szüksége van rád, kérdez, lefutott vagy hibára futott.' },
       { id: 'integrations', h: 'Integrációk', p: 'A Happy, az MCP-szerverek, a Sentry és a DeepPattern egy katalógusban, és ahol van, a csatlakozás állapota is látszik. Később további szolgáltatások, újabb kártyaként.' },
+      { id: 'partners', h: 'DeepPattern.ai és Happy Solutions', p: 'Két szolgáltatás saját kártyával a Beállítások > Integrációk lapon: második vélemény a kódodra, és a Happy-fiókod mellette.' },
       { id: 'providers', h: 'Hozd a saját ügynöködet', p: 'A Claude a fő út. A Codex, Gemini, Copilot és mások kísérleti providerként csatlakoznak.' },
       { id: 'mongo', h: 'MongoDB Studio', p: 'Alapból csak olvasható, MI-támogatott lekérdezésekkel angolul vagy magyarul.' },
       { id: 'api-contract', h: 'API contract ellenőrzés', p: 'Vedd észre az eltérést a backend Swaggere és a kliens repók között. Nézd a specifikációt csak olvasva.' },
@@ -384,6 +385,25 @@ export default {
         shots: [['api-contract', 'Az API contract nézet a Swagger-böngészővel és a contract-eltérésekkel.']],
       },
     ],
+  },
+  partners: {
+    title: 'Együttműködik a következőkkel',
+    lead: 'Az IntelyIDE a már használt szolgáltatásaidhoz csatlakozik, és a kódod mellett mutatja, hol tart mindegyik. Kettőnek saját kártyája van a Beállítások > Integrációk lapon.',
+    items: [
+      {
+        key: 'deeppattern',
+        h: 'DeepPattern.ai',
+        p: 'Második vélemény a kódodra, a terveidre és az ötleteidre több gyártó modelljeiből álló testülettől. A Decision Engine-t a saját telepítőjével telepíted, a kulcsoddal aktiválod (a kulcs sosem kerül az IDE-be), ellenőrizheted, hozzáadhatod az ügynökeidhez, és átvilágíttathatod a még nem commitolt változásaidat. A DeepPattern meghívásos.',
+        cta: 'A DeepPattern.ai megnyitása',
+      },
+      {
+        key: 'happy',
+        h: 'Happy Solutions',
+        p: 'A Happy-fiókod chatje, feladatai, Time Tracere, Meetje és értesítései a kódod mellett. Értesítéstípusonként (rendelés, szállítás, számla és más) választhatod, hogy jelezzen, csendben maradjon vagy ki legyen kapcsolva.',
+        cta: 'A Happy Solutions megnyitása',
+      },
+    ],
+    note: 'A nevek és a logók a tulajdonosaikéi, és csak a csatlakoztatható szolgáltatások megnevezésére szolgálnak. Támogatás nem következik belőlük.',
   },
   providers: {
     title: 'Hozd a saját ügynöködet',

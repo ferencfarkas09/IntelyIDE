@@ -241,6 +241,7 @@ export default {
       { id: 'remote', h: 'Phone gateway', p: 'Approve or answer agent runs from your phone through your own relay, end-to-end encrypted.' },
       { id: 'notifications', h: 'Notifications', p: 'A banner and a Dock count when a run needs you, asks a question, finishes or fails.' },
       { id: 'integrations', h: 'Integrations', p: 'Happy, MCP servers, Sentry and DeepPattern in one catalog, with a connection status where there is one. More services later, as more cards.' },
+      { id: 'partners', h: 'Works with DeepPattern.ai and Happy Solutions', p: 'Two services with their own card in Settings > Integrations: second opinions on your code, and your Happy account next to it.' },
       { id: 'providers', h: 'Bring your own agent', p: 'Claude is the main path. Codex, Gemini, Copilot and more plug in as experimental providers.' },
       { id: 'mongo', h: 'MongoDB Studio', p: 'Read-only by default, with AI-assisted queries in English or Hungarian.' },
       { id: 'api-contract', h: 'API contract checks', p: 'Spot drift between your backend’s Swagger and its client repositories. Browse the spec read-only.' },
@@ -385,6 +386,25 @@ export default {
         shots: [['api-contract', 'The API contract view with the Swagger explorer and contract-drift findings.']],
       },
     ],
+  },
+  partners: {
+    title: 'Works with',
+    lead: 'IntelyIDE connects to the services you already use and shows where each one stands, next to your code. Two of them have their own card in Settings > Integrations.',
+    items: [
+      {
+        key: 'deeppattern',
+        h: 'DeepPattern.ai',
+        p: 'Second opinions on your code, plans and ideas from a panel of models from several vendors. Install the Decision Engine with its own installer, activate it with your key (the key never enters the IDE), check it, add it to your agents and audit your uncommitted changes. DeepPattern is available by invitation.',
+        cta: 'Visit DeepPattern.ai',
+      },
+      {
+        key: 'happy',
+        h: 'Happy Solutions',
+        p: 'Chat, tasks, Time Tracer, Meet and the notifications of your Happy account, next to your code. Choose per kind of notification (orders, delivery, invoices and more) whether it alerts you, stays quiet or is off.',
+        cta: 'Visit Happy Solutions',
+      },
+    ],
+    note: 'Names and logos belong to their owners and are shown only to name the services you can connect. No endorsement is implied.',
   },
   providers: {
     title: 'Bring your own agent',
