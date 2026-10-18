@@ -450,3 +450,13 @@ html:not(.js) .lead-form { display: none; }
 .site-footer .link-list { gap: 6px; }
 .site-footer .link-list a { font-weight: 500; }
 .lead-form[hidden] { display: none; }
+
+/* "Works with": the services IntelyIDE connects to, each with its logo (on a light tile, in both themes) and a link to its site */
+.partners { display: grid; gap: 20px; list-style: none; padding: 0; margin: 0 0 20px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+.partner { display: grid; gap: 18px; align-content: start; padding: 28px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.partner h3 { margin: 0 0 .35em; }
+.partner p { margin: 0 0 .75em; color: var(--ink-mute); }
+.partner-mark { display: inline-flex; align-items: center; justify-content: center; justify-self: start; height: 84px; max-width: 100%; padding: 14px 22px; background: #fff; border: 1px solid var(--line); border-radius: 20px; overflow: hidden; }
+.partner-mark:hover { text-decoration: none; filter: brightness(.97); }
+.partner-logo { display: block; height: 100%; width: auto; max-width: 100%; object-fit: contain; }
+.partner-name { color: #15112a; font-weight: 700; font-size: 1rem; line-height: 1.2; }

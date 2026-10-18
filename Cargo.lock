@@ -2767,6 +2767,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "intely-deeppattern"
+version = "0.0.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "intely-files"
 version = "0.0.0"
 dependencies = [
@@ -3080,7 +3089,7 @@ dependencies = [
 
 [[package]]
 name = "intely-switch-ide"
-version = "1.7.0"
+version = "1.8.0"
 dependencies = [
  "block2",
  "intely-agent-core",
@@ -3089,6 +3098,7 @@ dependencies = [
  "intely-checks",
  "intely-contract",
  "intely-core",
+ "intely-deeppattern",
  "intely-files",
  "intely-gitx",
  "intely-graph",

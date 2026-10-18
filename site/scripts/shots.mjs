@@ -16,7 +16,7 @@ export const SHOTS = {
   'team-chat': 'Team (Beta): the chat in a teammate\'s shared run',
   'team-commits': 'Team (Beta): the commits and edits of the whole team, with a team timeline',
   providers: 'Settings > Providers: provider cards and the Experimental providers switch',
-  integrations: 'Settings > Integrations: the catalog with Happy, MCP servers, Sentry and the planned DeepPattern',
+  integrations: 'Settings > Integrations: the catalog with Happy, MCP servers, Sentry and DeepPattern',
   'api-contract': 'API contract view: contract-drift findings',
   appearance: 'Settings > Appearance: themes and accent colors',
   palette: 'Command palette',

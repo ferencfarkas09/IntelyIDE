@@ -6,6 +6,10 @@
   "githubUrl": "https://github.com/ferencfarkas09",
   "orgUrl": "https://intelyhome.com",
   "apiBase": "https://api.intelyhome.com",
+  "partners": {
+    "deeppattern": { "name": "DeepPattern.ai", "url": "https://deeppattern.ai", "logo": "deeppattern" },
+    "happy": { "name": "Happy Solutions", "url": "https://happysolutions.hu", "logo": "happy-solutions" }
+  },
   "checkout": {
     "enabled": false,
     "yearlyUrl": "",

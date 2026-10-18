@@ -1,7 +1,8 @@
 {
   "own": {
     "domains": [
-      "intelyhome.com"
+      "intelyhome.com",
+      "happysolutions.hu"
     ],
     "githubPrefixes": [
       "/ferencfarkas09/IntelyIDE"
@@ -18,7 +19,8 @@
     "/ferencfarkas09/Other": "negative case: a different repository in the update-notice test",
     "/happy/pos": "fictional repository in demo data",
     "/happy/admin": "fictional repository in demo data",
-    "/example-org/repo": "placeholder repository in mock data"
+    "/example-org/repo": "placeholder repository in mock data",
+    "/deeppatternai/decision-engine": "public source and installer of DeepPattern's Decision Engine, linked from the DeepPattern integration (a third-party project, not a contact point)"
   },
   "emailAllowedLocalParts": [
     "git"
@@ -71,7 +73,8 @@
     "api.openai.com": "default endpoint name of an optional third-party provider preset",
     "a.b.workers.dev": "placeholder relay host in tests",
     "r.example.workers.dev": "placeholder relay host in tests",
-    "get.example.dev": "placeholder host in mock data"
+    "get.example.dev": "placeholder host in mock data",
+    "deeppattern.ai": "website of DeepPattern, a service IntelyIDE connects to; linked from the website's Works with section at the maintainer's request, nothing is loaded from it"
   },
   "allowedText": {
     "te\u0040pelda.hu": "placeholder address in the Hungarian example text of the website's contact form (an example, not a contact point)",

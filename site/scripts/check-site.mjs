@@ -22,6 +22,7 @@ const siteUrl = (process.env.SITE_URL ?? cfg.siteUrl).replace(/\/$/, '');
 const allowed = [
   cfg.repoUrl, cfg.githubUrl, cfg.orgUrl, siteUrl, cfg.apiBase,
   ...[cfg.checkout?.yearlyUrl, cfg.checkout?.lifetimeUrl].filter(Boolean),
+  ...Object.values(cfg.partners ?? {}).map((p) => p.url), // the services IntelyIDE connects to: named and linked, nothing is loaded from them
   'https://www.googletagmanager.com', 'https://*.google-analytics.com', 'https://*.analytics.google.com', 'https://schema.org', 'http://www.w3.org/2000/svg', 'http://www.sitemaps.org/schemas/sitemap/0.9',
 ];
 const textExt = new Set(['.html', '.css', '.js', '.svg', '.xml', '.webmanifest', '.txt']);

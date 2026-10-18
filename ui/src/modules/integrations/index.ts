@@ -9,7 +9,7 @@ import { signedOutNotice } from "../../store/happy";
 import { Plug } from "../../ui-kit";
 import { registerBuiltInIntegrations } from "./catalog";
 
-/** Settings > Integrations: the catalog (Happy, DeepPattern, and the cards other modules add), the Happy watcher and the sign-out notice. */
+/** Settings > Integrations: the catalog (Happy, and the cards other modules add), the Happy watcher and the sign-out notice. */
 export function register(): void {
   registerSettingsSection({
     id: "integrations",

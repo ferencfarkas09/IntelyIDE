@@ -177,6 +177,7 @@ pub fn run() {
             modules::graph::graph_validate_message,
             modules::graph::graph_message_template,
             modules::graph::graph_draft_message,
+            modules::graph::graph_draft_message_many,
             // ==== track E commands (roles) ====
             modules::roles::roles_list,
             modules::roles::roles_save,
@@ -226,6 +227,8 @@ pub fn run() {
             modules::providers::providers_set_weak_writer,
             modules::providers::providers_caps,
             modules::providers::providers_test_run,
+            modules::deeppattern::deeppattern_status,
+            modules::deeppattern::deeppattern_doctor,
             modules::sentry::sentry_status,
             modules::sentry::sentry_set_config,
             modules::sentry::sentry_save_token,

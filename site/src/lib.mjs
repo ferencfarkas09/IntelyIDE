@@ -99,6 +99,36 @@ export function relUrl(from, to) {
 
 const has = (file) => existsSync(join(IMG, file));
 
+/** The pixel size of a PNG (from its header) or an SVG (from its viewBox or width and height); 256 x 256 when it cannot be read. */
+function imageSize(path) {
+  try {
+    const buf = readFileSync(path);
+    if (buf.subarray(1, 4).toString() === 'PNG') return { w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) };
+    const head = buf.subarray(0, 2000).toString('utf8');
+    const box = /viewBox="[-\d.]+[ ,]+[-\d.]+[ ,]+([\d.]+)[ ,]+([\d.]+)"/.exec(head);
+    const wh = /<svg[^>]*\swidth="([\d.]+)(?:px)?"[^>]*\sheight="([\d.]+)(?:px)?"/.exec(head);
+    const m = box ?? wh;
+    if (m) return { w: Math.round(Number(m[1])), h: Math.round(Number(m[2])) };
+  } catch {
+    /* the default below */
+  }
+  return { w: 256, h: 256 };
+}
+
+/**
+ * The logo of a partner service (the folder assets/img/partners): `<key>-light.<ext>` (made for a light background) or `<key>.<ext>`,
+ * svg before png. It is always shown on a light tile, so the one for light backgrounds is the right one in both themes. Null when none is there.
+ */
+export function partnerLogo(key) {
+  for (const base of [`${key}-light`, key]) {
+    for (const ext of ['svg', 'png', 'webp']) {
+      const rel = `partners/${base}.${ext}`;
+      if (has(rel)) return { rel, ...imageSize(join(IMG, rel)) };
+    }
+  }
+  return null;
+}
+
 /**
  * A screenshot as light and dark side by side: both themes are drawn on top of each other and the dark one is masked to the lower right of a
  * 45 degree line through the middle, with a strip along the line (see .duo in style.css). Real files named <name>-<theme>-<width>.<fmt> in

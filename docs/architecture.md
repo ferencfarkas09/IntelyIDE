@@ -2,7 +2,7 @@
 
 This document explains how IntelyIDE is put together: which crates and packages exist, how a commit and an agent run travel through them, what is stored on disk and how the test suites are organised.
 
-Applies to version 1.7.0.
+Applies to version 1.8.0.
 
 IntelyIDE is a desktop app built with Tauri. A Rust engine does the Git work, a SolidJS interface shows it, and a lazily started Node process (the sidecar) talks to AI coding agents. The safety rules that constrain every layer are described in [safety.md](safety.md).
 
@@ -99,6 +99,7 @@ The sidecar itself is not a crate; it is the Node package in `sidecar/`.
 | `relay_bundle` | Stages and signs the phone web bundle, generates signing and push keys, and checks a deployed relay. |
 | `relay_deploy` | Finds the relay kit and deploys it to your own Cloudflare account through a pinned `wrangler`, with output masking. |
 | `happy` | An optional integrations framework (allow-listed HTTP client, scheduler, providers) used for team tools. It does nothing until you configure a provider. |
+| `deeppattern` | Where DeepPattern's Decision Engine stands on this computer: is it installed and activated (only the host name of its endpoint and whether a device credential exists are read from its `config.json`, never a value), what its own Doctor says (scrubbed of anything key-like) and the commands that install and activate it. It makes no network request and never holds the endpoint or the activation key. |
 | `preview-proxy` | A loopback reverse proxy for the embedded preview that injects the click-to-source inspector. |
 | `runner` | Script discovery with safety classification, and managed dev-server processes with masked logs. |
 | `checks` | Pre-commit checks, environment and secret awareness, branch hygiene and the worktree manager. |

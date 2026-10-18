@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { esc, icon, icons, picture, preloadHero, relUrl } from './lib.mjs';
+import { esc, icon, icons, partnerLogo, picture, preloadHero, relUrl } from './lib.mjs';
 
 // Runs in <head> before first paint: restores the saved theme and marks the page as JS-enabled.
 // Its sha256 goes into the CSP, so no 'unsafe-inline' is needed.
@@ -252,6 +252,7 @@ function footer(ctx) {
     [`${cfg.repoUrl}/pulls`, l.pulls, 'pulls'],
     [`${cfg.repoUrl}/security/advisories/new`, l.security, 'security'],
     [cfg.intelyopti.releasesRepoUrl, l.releases, 'releases'],
+    ...Object.entries(cfg.partners ?? {}).map(([key, p]) => [p.url, p.name, `partner-${key}`]),
   ]);
   // The project publishes no personal contact details: people reach it through GitHub and intelyhome.com.
   return `<footer class="site-footer">
@@ -729,6 +730,38 @@ function highlights(t) {
 </section>`;
 }
 
+/** "Works with": the services IntelyIDE connects to, each with its logo and a link to its site. */
+function partners(ctx) {
+  const { t, cfg, root } = ctx;
+  const p = t.partners;
+  const cards = p.items
+    .map((i) => {
+      const partner = cfg.partners?.[i.key];
+      if (!partner) return '';
+      const logo = partnerLogo(partner.logo ?? i.key);
+      const mark = logo
+        ? `<img class="partner-logo" src="${root}assets/img/${logo.rel}" alt="${esc(partner.name)}" width="${logo.w}" height="${logo.h}" loading="lazy" decoding="async">`
+        : `<span class="partner-name">${esc(partner.name)}</span>`;
+      return `<li class="partner" id="partner-${i.key}">
+<a class="partner-mark" href="${partner.url}" target="_blank" rel="noopener"${ga('cta', `partner-${i.key}-logo`)}>${mark}</a>
+<div class="partner-text">
+<h3>${i.h}</h3>
+<p>${i.p}</p>
+<p><a class="btn btn-ghost btn-sm" href="${partner.url}" target="_blank" rel="noopener"${ga('cta', `partner-${i.key}`)}>${i.cta}</a></p>
+</div>
+</li>`;
+    })
+    .join('');
+  return `<section class="section" id="partners" aria-labelledby="partners-h">
+<div class="wrap">
+<h2 id="partners-h">${p.title}</h2>
+<p class="lead">${p.lead}</p>
+<ul class="partners">${cards}</ul>
+<p class="note">${p.note}</p>
+</div>
+</section>`;
+}
+
 const MONOGRAMS = { goose: 'G', acp: 'ACP' };
 function providers(ctx) {
   const { t } = ctx;
@@ -809,6 +842,8 @@ ${highlights(t)}
 ${features}
 </div>
 </section>
+
+${partners(ctx)}
 
 ${providers(ctx)}
 

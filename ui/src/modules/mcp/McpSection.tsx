@@ -1,4 +1,4 @@
-import { createMemo, createSignal, For, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
 import { t } from "../../i18n";
 import { ipc } from "../../ipc";
 import type { McpImportResult, McpServerView, McpWorkspaceState } from "../../ipc/mcp";
@@ -7,6 +7,7 @@ import { announce, Button, Dialog, EmptyState, Plug, Skeleton, SplitButton, toas
 import { ConfirmRunDialog } from "./ConfirmRunDialog";
 import { createMcpController } from "./controller";
 import { ImportDialog } from "./ImportDialog";
+import { clearImportRequest, importRequested } from "./importRequest";
 import { errorInfo, workspaceState } from "./logic";
 import { ServerEditor } from "./ServerEditor";
 import { ServerRow } from "./ServerRow";
@@ -32,6 +33,12 @@ export default function McpSection() {
   const jail = () => meta()?.jail === "readOnly";
   const newer = () => meta()?.readOnlyReason === "newerSchema";
   const frozen = () => jail() || newer();
+  // Another screen (DeepPattern) asked for the import dialog to be open when this section shows; a frozen list has no Import.
+  createEffect(() => {
+    if (!importRequested()) return;
+    if (!frozen()) setImporting(true);
+    clearImportRequest();
+  });
   const names = createMemo(() => c.servers().map((s) => s.name));
   const editing = () => c.server(editor()?.id);
   const workspaceName = () => activeSummary()?.name ?? activeId() ?? "";

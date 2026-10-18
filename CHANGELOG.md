@@ -8,6 +8,14 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 
 - Work in progress, not released: the code compiles for Linux (x86_64, webkit2gtk 4.1), Windows 10/11 (x86_64, WebView2) and Apple Silicon Macs, in addition to Intel Macs. Linux passes its tests; on Windows the permission checks and many tests are not yet verified. No Linux or Windows package is published; see `docs/install-linux.md` and `docs/install-windows.md` for what works and what is different. Secrets use Windows Credential Manager and the Linux Secret Service (one vault entry, split over several Credential Manager entries when it is large), banners use a Windows toast and `notify-send`, files and links open with `explorer.exe` and `xdg-open`, the terminal starts PowerShell on Windows, and connections to servers are not shared on Windows (OpenSSH for Windows has no `ControlMaster`). Process groups, the process table and the disk-space check are macOS and Linux features; the update swap of the app bundle stays macOS only.
 
+## [1.8.0] - 2026-10-18
+
+### Added
+
+- **DeepPattern is an integration now, not a promise.** Settings > Integrations > DeepPattern (and the command "DeepPattern: Open") takes you through DeepPattern's Decision Engine, the hosted second-opinion service that sends code, plans and ideas to a panel of models from several vendors (available by invitation): **install** it with its own installer in a terminal, **activate** it (the endpoint and activation key go into the installer's own masked window; IntelyIDE never sees, asks for or stores them), **check** it with the engine's own Doctor (its lines are shown, scrubbed of anything key-like), **add it to your agents** (IntelyIDE runs do not read your global Claude settings, so the screen opens Settings > MCP servers with the Import from Claude Code dialog and shows whether DeepPattern is added, confirmed and on) and **audit my changes** (also "DeepPattern: Audit my changes..."): a new run that reads your uncommitted changes and sends them to DeepPattern through its MCP tools, without editing anything. The card shows Not installed, Installed, Connected or Needs recovery. DeepPattern publishes no web API or model endpoint of its own, so there is no key field and no model entry in Providers: the connection is the engine's installer and its MCP server. The site shows the live card.
+
+- **Commit messages written like `/commit-msg` in WebStorm.** The Generate button in the commit panel now asks your own Claude Code for the message and gets the project's format: a Conventional Commits title, `Extended English:` (what people notice first, then a bullet per area with the functions, components and settings that changed and why), a `-------` rule, and `Magyar bővített leírás:` with the same in Hungarian. In **Shared** mode it writes ONE message that covers every repository with ticked files (before, it used only the repository with the most ticked files); in **Per repo** mode every repository gets its own message from its own changes. The request holds the diff of the ticked files cut to a fair share per file, the head of new files, the last commit titles for style and the branch name, never the contents of key, `.env`, credentials, lock or generated files. Without `claude` (or in read-only mode, or when its answer does not validate) the message is composed on your machine in the same format and both languages from the files, the statistics and the declarations the diff adds and removes, instead of "update 15 files in project ... Describe what changes and why". `INTELY_COMMIT_MODEL` picks another model than `sonnet`. The Extended English button inserts the same layout (title, rule, Hungarian part).
+
 ## [1.7.0] - 2026-10-17
 
 ### Added
@@ -246,7 +254,8 @@ First public release. This is alpha software.
 - Providers other than Claude, Happy, MongoDB Studio and Remote are proven only against mocks or on a local machine.
 - Version 0.1.0 still stores its state in the folder `IntelySwitchIDE` and uses Keychain services named after the earlier bundle identifier; a switch to `com.intelyhome.intelyide` with a migration is planned.
 
-[Unreleased]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.7.0...HEAD
+[Unreleased]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.8.0...HEAD
+[1.8.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.5.1...v1.6.0
 [1.5.1]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.5.0...v1.5.1

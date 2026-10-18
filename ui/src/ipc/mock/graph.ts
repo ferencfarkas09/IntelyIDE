@@ -1,4 +1,4 @@
-import type { BranchMatrix, GraphIpc, GraphRow, LaneEdge, OpOutcome, RefDecoration } from "../graph";
+import type { BranchMatrix, GraphIpc, GraphRow, LaneEdge, MessageDraft, OpOutcome, RefDecoration } from "../graph";
 
 const DAY = 86_400_000;
 const T0 = 1_700_000_000_000;
@@ -190,14 +190,22 @@ export function createMockGraph(): GraphIpc {
     },
     messageTemplate: async (style, subject) => {
       const header = subject?.trim() || "type(scope): description";
-      return style === "extended" ? `${header}\n\nExtended English: \n\nMagyar bővített leírás: \n` : `${header}\n`;
+      return style === "extended" ? `${header}\n\nExtended English:\n\n-------\nMagyar bővített leírás:\n` : `${header}\n`;
     },
     draftMessage: async () => "Update fixture",
-    draftMessageDetailed: async (_repoId, selection) => ({
-      message: `chore: update ${selection.length} file(s)\n\nExtended English: Updates ${selection.length} file(s).\n\nMagyar bővített leírás: ${selection.length} fájl módosul.\n`,
-      source: "template",
-      note: "no utility model is available: template draft",
-      issues: [],
-    }),
+    draftMessageDetailed: async (_repoId, selection) => draftOf(selection.map((s) => s.path)),
+    draftMessageMany: async (selections) => draftOf(selections.flatMap((s) => s.selection.map((p) => p.path))),
+  };
+}
+
+/** A draft in the project's format, as the engine composes it without a model. */
+function draftOf(paths: string[]): MessageDraft {
+  const n = paths.length;
+  const names = paths.slice(0, 3).map((p) => p.split("/").pop() ?? p).join(", ");
+  return {
+    message: `chore: update ${names}\n\nExtended English:\nUpdates ${n} file(s).\n\n- fixture: ${names}\n\n-------\nMagyar bővített leírás:\n${n} fájl módosul.\n\n- fixture: ${names}\n`,
+    source: "template",
+    note: "the model is not available: message composed from the changes",
+    issues: [],
   };
 }

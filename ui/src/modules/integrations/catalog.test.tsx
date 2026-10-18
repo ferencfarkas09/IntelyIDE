@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@solidjs/te
 import { afterEach, describe, expect, it } from "vitest";
 import type { HappyStatus } from "../../ipc/happy";
 import { activeSettingsSection, resetSettings } from "../../platform/settings";
-import { currentIntegration, integrations, openIntegration, resetIntegrations } from "../../platform/integrations";
+import { currentIntegration, integrations, openIntegration, registerIntegration, resetIntegrations } from "../../platform/integrations";
 import { resetCommands } from "../../platform/commands";
 import { resetOverlays } from "../../platform/overlay";
 import { resetStatusItems } from "../../platform/statusbar";
@@ -10,6 +10,8 @@ import { resetTabs } from "../../platform/tabs";
 import { ipc } from "../../ipc";
 import { installDomStubs } from "../../store/testing-u2";
 import { disconnectHappyForTest } from "../../store/happyTestKit";
+import { Sparkles } from "../../ui-kit";
+import { register as registerDeepPattern } from "../deeppattern";
 import { register as registerMcp } from "../mcp";
 import { register as registerSentry } from "../sentry";
 import { happyCardStatus } from "./catalog";
@@ -43,6 +45,7 @@ const registerAll = () => {
   register();
   registerMcp();
   registerSentry();
+  registerDeepPattern();
 };
 
 describe("the chip on the Happy card", () => {
@@ -66,7 +69,7 @@ describe("the chip on the Happy card", () => {
 });
 
 describe("<IntegrationsSection> catalog", () => {
-  it("lists Happy, MCP, Sentry and the planned DeepPattern, in that order", async () => {
+  it("lists Happy, MCP, Sentry and DeepPattern, in that order", async () => {
     registerAll();
     render(() => <IntegrationsSection />);
     const rows = await screen.findAllByRole("listitem");
@@ -75,12 +78,23 @@ describe("<IntegrationsSection> catalog", () => {
   });
 
   it("shows a planned integration as a row that opens nothing", async () => {
-    registerAll();
+    registerIntegration({ id: "later", name: "Later", order: 90, icon: Sparkles, summary: "Not there yet.", planned: true });
     render(() => <IntegrationsSection />);
-    const row = (await screen.findByText("DeepPattern")).closest("li")!;
+    const row = (await screen.findByText("Later")).closest("li")!;
     expect(within(row).getByText("Planned")).toBeTruthy();
     expect(within(row).queryByRole("button")).toBeNull();
     expect(row.querySelector("[data-planned]")).not.toBeNull();
+  });
+
+  it("shows where DeepPattern stands on its card and opens its screen inside the tab", async () => {
+    registerAll();
+    render(() => <IntegrationsSection />);
+    const card = () => screen.getByRole("button", { name: /^DeepPattern/ });
+    await waitFor(() => expect(within(card()).getByText("Connected")).toBeTruthy());
+    expect(within(card()).queryByText("Planned")).toBeNull();
+    fireEvent.click(card());
+    expect(await screen.findByRole("heading", { name: "DeepPattern" })).toBeTruthy();
+    expect(currentIntegration()?.id).toBe("deeppattern");
   });
 
   it("follows the connection of Happy on its card", async () => {
