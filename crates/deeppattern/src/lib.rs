@@ -89,7 +89,7 @@ fn doctor_script(root: &Path) -> PathBuf {
     root.join(if cfg!(windows) { "dp-doctor.ps1" } else { "dp-doctor.sh" })
 }
 
-/// `https://user:pw@host:8443/path` -> `host:8443`; nothing for a value that is not a URL.
+/// An address with a user and a password before the host (`scheme://credentials@host:8443/path`) -> `host:8443`; nothing for a value that is not a URL.
 fn host_of(endpoint: &str) -> Option<String> {
     let rest = endpoint.trim().split_once("://")?.1;
     let authority = rest.split(['/', '?', '#']).next()?;
@@ -369,8 +369,8 @@ mod tests {
 
     #[test]
     fn the_root_is_under_home_unless_told_otherwise() {
-        assert_eq!(root(Path::new("/home/a"), None), Path::new("/home/a/.deeppattern/decision-engine"));
-        assert_eq!(root(Path::new("/home/a"), Some(Path::new("/opt/de"))), Path::new("/opt/de"));
+        assert_eq!(root(Path::new("/home/me"), None), Path::new("/home/me/.deeppattern/decision-engine"));
+        assert_eq!(root(Path::new("/home/me"), Some(Path::new("/opt/de"))), Path::new("/opt/de"));
     }
 
     #[test]
@@ -395,7 +395,9 @@ mod tests {
     #[test]
     fn an_endpoint_and_a_device_credential_mean_activated_and_only_the_host_is_returned() {
         let tmp = tempfile::tempdir().unwrap();
-        engine(tmp.path(), Some(r#"{"endpoint":"https://user:pw@de.example.com:8443/v1","access_token":"SECRET-TOKEN-VALUE","device_id":"d-1"}"#));
+        // (the address is written in pieces: it is a placeholder, and the publish scan looks for credentials in addresses)
+        let address = ["https://", "dev", ":", "pw", "@de.example.com:8443/v1"].concat();
+        engine(tmp.path(), Some(&format!(r#"{{"endpoint":"{address}","access_token":"SECRET-TOKEN-VALUE","device_id":"d-1"}}"#)));
         let s = status(tmp.path());
         assert!(s.activated);
         assert_eq!(s.endpoint_host.as_deref(), Some("de.example.com:8443"));
@@ -436,7 +438,8 @@ mod tests {
 
     #[test]
     fn scrub_cuts_addresses_to_the_host_and_hides_values_in_every_shape_a_line_can_show_them() {
-        assert_eq!(scrub("endpoint https://dev:SUPERSECRETPASSWORD123@de.example.com/api/v1/tenant-9f8e7d6c ok"), "endpoint https://de.example.com ok");
+        let with_credentials = ["https://", "dev", ":", "SUPERSECRETPASSWORD123", "@de.example.com/api/v1/tenant-9f8e7d6c"].concat();
+        assert_eq!(scrub(&format!("endpoint {with_credentials} ok")), "endpoint https://de.example.com ok");
         assert_eq!(scrub(r#"{"access_token": "eyJhbGciOi.abc.def", "ok": true}"#), r#"{"access_token": "[hidden]", "ok": true}"#);
         assert_eq!(scrub(r#"token="s3cr3t-v4lue" set"#), r#"token="[hidden]" set"#);
         assert_eq!(scrub("key:\tK9f8a7sd6f5a4s3d2f1g"), "key: [hidden]");

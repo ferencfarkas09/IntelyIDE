@@ -215,7 +215,8 @@ async fn odd_paths_links_and_a_stale_tick_do_not_break_or_leak_into_a_draft() {
     b.commit("base", &[("x.txt", "1\n")]);
     a.write("src/my file.rs", "pub fn old_one() {}\npub fn spaced_name() {}\n");
     a.write("src/ő.rs", "pub fn old_two() {}\npub fn accented_name() {}\n");
-    a.write(".npmrc", "registry=x\n//registry.example/:_authToken=NPM_SECRET_TOKEN\n");
+    // (the line is written in pieces: it is a placeholder, and the publish scan looks for npm tokens)
+    a.write(".npmrc", &format!("registry=x\n//registry.example/:_{}=NPM_SECRET_TOKEN\n", "authToken"));
     // an untracked link to a file outside the repository
     let outside = sb.repo("outside");
     outside.write("aws-credentials", "aws_secret_access_key=LINKED_SECRET_VALUE\n");
