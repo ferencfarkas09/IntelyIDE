@@ -453,11 +453,10 @@ html:not(.js) .lead-form { display: none; }
 
 /* "Works with": the services IntelyIDE connects to, each with its logo (on a light tile, in both themes) and a link to its site */
 .partners { display: grid; gap: 20px; list-style: none; padding: 0; margin: 0 0 20px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
-.partner { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 22px; align-items: start; padding: 28px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.partner { display: grid; gap: 18px; align-content: start; padding: 28px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
 .partner h3 { margin: 0 0 .35em; }
 .partner p { margin: 0 0 .75em; color: var(--ink-mute); }
-.partner-mark { display: grid; place-items: center; width: 96px; height: 96px; padding: 10px; background: #fff; border: 1px solid var(--line); border-radius: 22px; overflow: hidden; }
+.partner-mark { display: inline-flex; align-items: center; justify-content: center; justify-self: start; height: 84px; max-width: 100%; padding: 14px 22px; background: #fff; border: 1px solid var(--line); border-radius: 20px; overflow: hidden; }
 .partner-mark:hover { text-decoration: none; filter: brightness(.97); }
-.partner-logo { display: block; width: 100%; height: 100%; object-fit: contain; }
-.partner-name { color: #15112a; font-weight: 700; text-align: center; font-size: .78rem; line-height: 1.2; overflow-wrap: anywhere; }
-@media (max-width: 520px) { .partner { grid-template-columns: minmax(0, 1fr); } }
+.partner-logo { display: block; height: 100%; width: auto; max-width: 100%; object-fit: contain; }
+.partner-name { color: #15112a; font-weight: 700; font-size: 1rem; line-height: 1.2; }

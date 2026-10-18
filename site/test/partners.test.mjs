@@ -44,6 +44,12 @@ describe('partners', () => {
     const happy = partnerLogo(cfg.partners.happy.logo);
     assert.ok(happy, 'the Happy Solutions logo is in the repository');
     assert.deepEqual([happy.w, happy.h], [256, 256]);
+    const dp = partnerLogo(cfg.partners.deeppattern.logo);
+    assert.ok(dp, 'the DeepPattern logo is in the repository');
+    assert.equal(dp.rel, 'partners/deeppattern-light.svg');
+    assert.deepEqual([dp.w, dp.h], [873, 156]);
+    const svg = readFileSync(join(ROOT, 'src/static/assets', 'img', dp.rel), 'utf8');
+    assert.doesNotMatch(svg, /<script|\bon\w+=|javascript:|<image|href="https?:/i, 'a logo is a drawing only');
   });
 
   it('must not load anything from a partner: the logos are local files', () => {
