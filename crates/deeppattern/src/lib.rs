@@ -417,10 +417,10 @@ mod tests {
 
     #[test]
     fn the_commands_quote_the_folder() {
-        let c = commands(Path::new("/Users/Jo O'Neil/.deeppattern/decision-engine"));
+        let c = commands(Path::new("/Users/me/Jo O'Neil/.deeppattern/decision-engine"));
         if !cfg!(windows) {
-            assert_eq!(c.activate, "cd '/Users/Jo O'\\''Neil/.deeppattern/decision-engine' && python3 -m installer.permanent_setup");
-            assert!(c.doctor.starts_with("bash '/Users/Jo O'\\''Neil/") && c.doctor.ends_with("dp-doctor.sh'"));
+            assert_eq!(c.activate, "cd '/Users/me/Jo O'\\''Neil/.deeppattern/decision-engine' && python3 -m installer.permanent_setup");
+            assert!(c.doctor.starts_with("bash '/Users/me/Jo O'\\''Neil/") && c.doctor.ends_with("dp-doctor.sh'"));
             // an earlier attempt that left the folder is updated, not a failure
             assert!(c.install.starts_with("(git clone https://github.com/deeppatternai/decision-engine ~/decision-engine || git -C ~/decision-engine pull --ff-only) && cd ~/decision-engine") && c.install.ends_with("bash ./dp-install.sh"));
         }
