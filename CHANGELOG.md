@@ -4,6 +4,8 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-10-18
+
 ### Added
 
 - **Team mode for New run.** When you start more than one run, Run 1 now leads and the others work for it (on by default, with a switch to keep every run independent). The lead splits the task, hands each worker a subtask through the existing messages between your runs, is the only run that asks you questions, and gives the combined summary; the workers do not ask you anything and write to the lead when they are blocked. Workers have exactly the permissions of an independent run, and the message rules and limits of `docs/peer-runs.md` apply. See `docs/remote-servers.md`.
@@ -256,7 +258,8 @@ First public release. This is alpha software.
 - Providers other than Claude, Happy, MongoDB Studio and Remote are proven only against mocks or on a local machine.
 - Version 0.1.0 still stores its state in the folder `IntelySwitchIDE` and uses Keychain services named after the earlier bundle identifier; a switch to `com.intelyhome.intelyide` with a migration is planned.
 
-[Unreleased]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.8.0...HEAD
+[Unreleased]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.9.0...HEAD
+[1.9.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.5.1...v1.6.0
