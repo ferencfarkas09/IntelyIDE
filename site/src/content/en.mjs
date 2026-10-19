@@ -181,10 +181,18 @@ export default {
     },
   },
   hero: {
-    kicker: 'Free and open source · Stable release',
-    title: 'Up to 7x faster to open. <span class="grad">Up to 6x faster agents.</span>',
-    lead: 'IntelyIDE is a fast, lightweight desktop IDE for people who work across several git repositories at once. It opens in moments, and its intelligent agent setup gets work started and finished sooner. Agents can read and edit, but they never commit or push. You do.',
+    kicker: 'By developers, for developers · Free and open source',
+    title: 'Every repo. One window. <span class="grad">Agents that finish sooner.</span>',
+    lead: 'IntelyIDE is a fast, lightweight desktop IDE for people who work across several git repositories at once. It opens up to 7x faster than the most used IDEs on a basic system, and its agents start and finish up to 6x sooner. Agents can read and edit, but they never commit or push. You do.',
     shotAlt: 'IntelyIDE main window showing the multi-repository Changes tree next to an editor and an agent panel.',
+    cardsLabel: 'Key features',
+    cards: [
+      { icon: 'layers', h: 'Multi-repo workspace', p: 'One Changes tree for every repository.' },
+      { icon: 'shield', h: 'Never commit or push', p: 'Agents edit. You commit and push.' },
+      { icon: 'users', h: 'Lead and workers', p: 'A lead splits the task, workers share it.' },
+      { icon: 'zap', h: 'Parallel runs', p: 'Several runs at once, even on one repository.' },
+      { icon: 'plug', h: 'MCP and DeepPattern', p: 'Your tools and integrations in one catalog.' },
+    ],
     statsLabel: 'IntelyIDE in three figures',
     stats: [
       { n: 'up to 7x', h: 'faster startup', p: 'with any workspace, compared with the most used IDEs on a basic system.', href: '#speed' },

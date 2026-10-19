@@ -852,12 +852,16 @@ ${f.shots.length ? `<div class="feature-media">${f.shots.map(([n, a]) => frame(p
   const flow = t.trust.flow.map(([h, p]) => `<li><strong>${h}</strong><span>${p}</span></li>`).join('');
   const steps = t.install.steps.map(([h, p]) => `<li><h3>${h}</h3><p>${p}</p></li>`).join('');
   const faq = t.faq.items.map(([q, a]) => `<details class="faq-item"><summary>${q}</summary><p>${a}</p></details>`).join('\n');
-  const body = `<section class="hero" aria-labelledby="hero-h">
+  const arcs = ['a1', 'a2', 'a3', 'a4', 'a5'].map((c) => `<svg class="arc ${c}" viewBox="0 0 100 100" focusable="false"><circle cx="50" cy="50" r="49" pathLength="100"/></svg>`).join('');
+  const gcards = t.hero.cards.map((c, i) => `<li class="gcard gc${i + 1}" data-d="${[0.55, 1, 0.8, 1.3, 0.65][i]}">${iconTile(c.icon)}<strong>${c.h}</strong><span>${c.p}</span></li>`).join('');
+  const body = `<section class="hero hero-split" aria-labelledby="hero-h">
 <div class="hero-bg" aria-hidden="true">
-<span class="glow g1"><i></i></span><span class="glow g2"><i></i></span><span class="glow g3"><i></i></span><span class="glow g4"><i></i></span>
-<span class="cursor-glow"></span>
+<span class="glow g1"><i></i></span><span class="glow g2"><i></i></span>
+<svg class="ring-defs" width="0" height="0" focusable="false"><defs><linearGradient id="ring-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" class="rs1"/><stop offset=".55" class="rs2"/><stop offset="1" class="rs3"/></linearGradient></defs></svg>
+<div class="rings">${arcs}</div>
 </div>
 <div class="wrap hero-inner">
+<div class="hero-copy">
 <p class="kicker">${t.hero.kicker}</p>
 <h1 id="hero-h">${t.hero.title}</h1>
 <p class="lead">${t.hero.lead}</p>
@@ -867,6 +871,8 @@ ${assetTable(ctx)}
 <p><a href="${dlHome}"${ga('cta', 'all-downloads')}>${t.dl.allDownloads}</a></p>
 </details>
 ${rel.notice ? `<p class="notice">${rel.notice}</p>` : ''}
+</div>
+<ul class="hero-cards" aria-label="${t.hero.cardsLabel}">${gcards}</ul>
 <ul class="stats" aria-label="${t.hero.statsLabel}">${t.hero.stats.map((x) => `<li class="stat"><a href="${x.href}"${ga('cta', 'stat-' + x.href.slice(1))}><b class="stat-n">${x.n}</b><span class="stat-h">${x.h}</span><span class="stat-p">${x.p}</span></a></li>`).join('')}</ul>
 <p class="stats-note">${t.hero.note}</p>
 <div class="hero-shot">${frame(picture(ctx.root, 'hero', t.hero.shotAlt, { eager: true, sizes: '(min-width: 1000px) 1040px, 92vw' }))}</div>

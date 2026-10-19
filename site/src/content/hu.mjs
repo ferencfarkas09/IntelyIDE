@@ -180,10 +180,18 @@ export default {
     },
   },
   hero: {
-    kicker: 'Ingyenes és nyílt forráskódú · Stabil kiadás',
-    title: 'Akár 7x gyorsabb indulás. <span class="grad">Akár 6x gyorsabb ügynökök.</span>',
-    lead: 'Az IntelyIDE gyors, könnyű asztali IDE azoknak, akik egyszerre több git repóban dolgoznak. Pillanatok alatt megnyílik, az intelligens ügynökmegoldása pedig hamarabb elindítja és hamarabb befejezi a munkát. Az ügynökök olvashatnak és szerkeszthetnek, de sosem commitolnak és nem pusholnak. Azt te teszed.',
+    kicker: 'Fejlesztőktől fejlesztőknek · Ingyenes és nyílt forráskódú',
+    title: 'Minden repó. Egy ablak. <span class="grad">Hamarabb végző ügynökök.</span>',
+    lead: 'Az IntelyIDE gyors, könnyű asztali IDE azoknak, akik egyszerre több git repóban dolgoznak. Akár 7x gyorsabban indul, mint a leggyakrabban használt IDE-k egy átlagos gépen, az ügynökei pedig akár 6x gyorsabban indulnak és végeznek. Az ügynökök olvashatnak és szerkeszthetnek, de sosem commitolnak és nem pusholnak. Azt te teszed.',
     shotAlt: 'Az IntelyIDE főablaka: a több repót összefogó Változások fa a szerkesztő és egy ügynökpanel mellett.',
+    cardsLabel: 'Fő funkciók',
+    cards: [
+      { icon: 'layers', h: 'Többrepós munkaterület', p: 'Egyetlen Változások fa minden repóhoz.' },
+      { icon: 'shield', h: 'Sosem commitol, nem pushol', p: 'Az ügynök szerkeszt. Te commitolsz és pusholsz.' },
+      { icon: 'users', h: 'Vezető és dolgozók', p: 'A vezető felosztja a feladatot, a dolgozók megosztoznak rajta.' },
+      { icon: 'zap', h: 'Párhuzamos futások', p: 'Több futás egyszerre, akár ugyanazon a repón.' },
+      { icon: 'plug', h: 'MCP és DeepPattern', p: 'Az eszközeid és integrációid egy katalógusban.' },
+    ],
     statsLabel: 'Az IntelyIDE három számban',
     stats: [
       { n: 'akár 7x', h: 'gyorsabb indulás', p: 'bármilyen munkaterülettel, a leggyakrabban használt IDE-khez képest, egy átlagos gépen.', href: '#speed' },
