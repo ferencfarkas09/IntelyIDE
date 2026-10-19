@@ -1,5 +1,26 @@
 [
   {
+    "version": "1.9.0",
+    "date": "2026-10-18",
+    "headline": {
+      "en": "Several agents now work as a team: one leads, the others work.",
+      "hu": "Több ügynök most csapatként dolgozik: az egyik vezet, a többiek dolgoznak."
+    },
+    "notes": [
+      {
+        "kind": "new",
+        "title": {
+          "en": "Team mode for New run",
+          "hu": "Csapat mód az Új futásnál"
+        },
+        "text": {
+          "en": "When you start more than one run, Run 1 leads and the others work for it (on by default, with a switch for independent runs). The lead splits the task, briefs the workers and is the only run that asks you questions; the workers never ask you and write to the lead when they are blocked. Workers keep exactly the permissions of an independent run.",
+          "hu": "Ha egynél több futást indítasz, az 1. futás vezet, a többiek neki dolgoznak (alapból bekapcsolva, a független futásokhoz kapcsolóval). A vezető felbontja a feladatot, eligazítja a dolgozókat, és csak ő kérdez tőled; a dolgozók soha nem kérdeznek, elakadáskor a vezetőnek írnak. A dolgozók pontosan egy független futás jogaival dolgoznak."
+        }
+      }
+    ]
+  },
+  {
     "version": "1.8.0",
     "date": "2026-10-18",
     "headline": {

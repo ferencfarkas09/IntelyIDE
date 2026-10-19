@@ -1,6 +1,6 @@
 # Privacy
 
-This page states what IntelyIDE stores on your Mac, what can leave it and when, and which of these statements a script re-checks. Applies to version 1.8.0.
+This page states what IntelyIDE stores on your Mac, what can leave it and when, and which of these statements a script re-checks. Applies to version 1.9.0.
 
 IntelyIDE has no telemetry: it sends no usage data, identifiers or crash reports to anyone, and there is no account. It does make a few network requests, only when you use the matching feature: your own `claude` installation talks to its vendor, `git` talks to your remotes, and the optional modules you switch on (MongoDB Studio, Remote, Happy) talk to the servers you configure.
 

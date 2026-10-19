@@ -1,6 +1,6 @@
 # Notifications
 
-IntelyIDE tells you when a run needs you, so you can work in another window while agents work. Applies to version 1.8.0.
+IntelyIDE tells you when a run needs you, so you can work in another window while agents work. Applies to version 1.9.0.
 
 ## What notifies you
 
