@@ -1,4 +1,4 @@
-import { createEffect, lazy, Match, on, Switch } from "solid-js";
+import { createEffect, lazy, Match, on, Show, Switch } from "solid-js";
 import { RunView } from "../../components/chat/ChatPanel";
 import { StartingRunView } from "../../components/chat/Starting";
 import { t } from "../../i18n";
@@ -9,7 +9,9 @@ import { startingInFront, startingRun } from "../../store/starting";
 import { Bot, Button, EmptyState, Plus, Splitter } from "../../ui-kit";
 import { InspectorSlot } from "./InspectorSlot";
 import { NeedsYouInbox } from "./NeedsYouInbox";
+import { paneState, shownCount } from "./panes";
 import { markReviewed } from "./reviewed";
+import { PaneBar, PaneGrid, trackPaneBounds } from "./RunPanes";
 import { SessionsSidebar } from "./SessionsSidebar";
 import { centreView } from "./state";
 
@@ -23,10 +25,22 @@ function Centre() {
     const row = agentRow(selectedAgentId());
     if (centreView() === "run" && row && row.status !== "running" && row.status !== "needsYou") markReviewed(row.agentId);
   });
+  // A finished run that is on screen in another pane counts as seen too.
+  createEffect(() => {
+    if (centreView() !== "run" || shownCount() < 2) return;
+    for (const id of paneState().slots.slice(0, shownCount())) {
+      const r = agentRow(id);
+      if (r && r.status !== "running" && r.status !== "needsYou") markReviewed(r.agentId);
+    }
+  });
   // Picking another run or opening the inbox leaves the tool (history, inspector, review) that was in the middle.
   createEffect(on([selectedAgentId, centreView], () => showTabInAgent(null), { defer: true }));
+  const toolShown = () => !!agentTabInstance() || centreView() === "inbox";
   return (
-    <main class="agent-centre">
+    <main class="agent-centre" ref={trackPaneBounds}>
+      <Show when={!toolShown()}>
+        <PaneBar />
+      </Show>
       <Switch>
         <Match when={agentTabInstance()}>{(tab) => <AgentTabView tab={tab()} />}</Match>
         <Match when={centreView() === "inbox"}>
@@ -38,6 +52,9 @@ function Centre() {
               <StartingRunView run={run()} />
             </div>
           )}
+        </Match>
+        <Match when={shownCount() > 1}>
+          <PaneGrid />
         </Match>
         <Match when={selectedAgentId()}>
           {(id) => (

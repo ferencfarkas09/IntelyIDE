@@ -135,4 +135,18 @@ describe("agent store: modes", () => {
     resetAgents();
     expect(bannerDismissed("a1", 5)).toBe(false);
   });
+
+  it("keeps the row of a run the same object while only other runs change", async () => {
+    startAgentStore(createMockIpc("agent-permission", { delayScale: 0 }));
+    await until(() => agentRows().length === 3, "list");
+    const [a, b] = agentRows().map((r) => r.agentId);
+    await selectAgent(a);
+    await selectAgent(b);
+    const before = agentRow(a);
+    expect(agentRow(a)).toBe(before);
+    await interruptRun(b).catch(() => undefined);
+    await until(() => agentView(b)?.turnActive === false, "other run stopped");
+    expect(agentRow(a)).toBe(before);
+    expect(agentRow("nope")).toBeUndefined();
+  });
 });
