@@ -58,7 +58,19 @@ export function liveAmong(ids: ReadonlySet<string>): string[] {
   }
   return live;
 }
-export const agentRow = (id: string | null): AgentRow | undefined => (id ? agentRows().find((r) => r.agentId === id) : undefined);
+/** The merged row of the last (summary, view) pair seen for each run: an event of another run leaves it the same object, so panes of idle runs do not redraw. */
+const rowCache = new Map<string, { summary: AgentSummary; view: AgentView | undefined; row: AgentRow }>();
+export function agentRow(id: string | null): AgentRow | undefined {
+  if (!id) return undefined;
+  const summary = summaries().find((s) => s.agentId === id);
+  if (!summary) return void rowCache.delete(id);
+  const view = views()[id];
+  const hit = rowCache.get(id);
+  if (hit && hit.summary === summary && hit.view === view) return hit.row;
+  const row = merge(summary, view);
+  rowCache.set(id, { summary, view, row });
+  return row;
+}
 export const agentView = (id: string): AgentView | undefined => views()[id];
 export const agentRoles = roleList;
 export const selectedAgentId = selected;
@@ -261,4 +273,5 @@ export function resetAgents(): void {
     resetStarting();
   });
   pending = new Map();
+  rowCache.clear();
 }

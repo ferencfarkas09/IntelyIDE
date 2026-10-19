@@ -10,6 +10,7 @@ import { repoConfig } from "../../store/workspace";
 import { LocationChip } from "../servers/LocationChip";
 import { announce, Badge, IconButton, Icon, MessagesSquare, RepoBadge, ShieldCheck, StatusDot, Undo2, X } from "../../ui-kit";
 import { focusNeighbour } from "./listFocus";
+import { startRunDrag } from "./paneDnd";
 import { roleColor } from "./roleColors";
 import { activityLine } from "./sessionsLogic";
 
@@ -26,7 +27,7 @@ export function RunCard(props: { row: AgentRow; view: AgentView | undefined; sel
   const cost = () => costLabel(r().usage, r().caps.usage ?? { cap: "no" });
   const status = () => (r().status === "running" && r().throttle ? { tone: "warn" as const, label: r().throttle!.state === "retrying" ? t("runs.card.retrying") : t("runs.card.throttled") } : { tone: TONE[r().status], label: t(LABEL[r().status]) });
   return (
-    <button type="button" class="run-card" data-selected={props.selected ? "" : undefined} data-status={r().status} data-foreign={foreign() ? "" : undefined} aria-current={props.selected ? "true" : undefined} title={foreign() ? `${r().title} (${modelLabel(r().model)}) · ${foreignReason(r().repoIds)}` : `${r().title} (${modelLabel(r().model)})`} onClick={props.onSelect}>
+    <button type="button" class="run-card" data-selected={props.selected ? "" : undefined} data-status={r().status} data-foreign={foreign() ? "" : undefined} aria-current={props.selected ? "true" : undefined} title={foreign() ? `${r().title} (${modelLabel(r().model)}) · ${foreignReason(r().repoIds)}` : `${r().title} (${modelLabel(r().model)})`} draggable={true} onDragStart={(e) => startRunDrag(e, r().agentId)} onClick={props.onSelect}>
       <span class="run-card__top">
         <StatusDot tone={status().tone} label={status().label} pulse={r().status === "running"} />
         <span class="run-card__title ui-truncate">{r().title}</span>
@@ -102,6 +103,8 @@ export function RunRow(props: { row: AgentRow; view: AgentView | undefined; sele
         class="run-row__main"
         aria-current={props.selected ? "true" : undefined}
         title={tip()}
+        draggable={true}
+        onDragStart={(e) => startRunDrag(e, r().agentId)}
         onClick={props.onSelect}
         onKeyDown={(e) => (e.key === "Delete" || e.key === "Backspace") && !e.metaKey && !e.ctrlKey && !e.altKey && (e.preventDefault(), toggle())}
       >

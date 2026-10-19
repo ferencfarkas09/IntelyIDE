@@ -7,6 +7,7 @@ import { registerOverlay } from "../../platform/overlay";
 import { agentRow, agentRows, interruptRun, needsYouCount, selectAgent, selectedAgentId } from "../../store/agents";
 import { Bot } from "../../ui-kit";
 import { nextNeedsYou } from "./sessionsLogic";
+import { focusPaneAt, paneState, shownCount } from "./panes";
 import { setCentreView, setNewRunOpen } from "./state";
 
 const activeRun = () => {
@@ -55,5 +56,13 @@ export function register(): void {
       setAppMode("agent");
       setCentreView("inbox");
     },
+  });
+  registerCommand({
+    id: "runs.panes.focusNext",
+    get title() { return t("runs.panes.cmdNext"); },
+    get group() { return t("group.agents"); },
+    keywords: ["pane", "layout", "split", "focus"],
+    when: () => shownCount() > 1,
+    run: () => focusPaneAt((paneState().focus + 1) % shownCount()),
   });
 }
