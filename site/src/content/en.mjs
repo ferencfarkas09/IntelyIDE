@@ -56,7 +56,7 @@ export default {
     optiCta: 'Start free trial',
   },
   subnav: {
-    ide: [['features', 'Features'], ['trust', 'Trust'], ['open-source', 'Open source'], ['install', 'Install'], ['faq', 'FAQ']],
+    ide: [['speed', 'Speed'], ['agents-fast', 'Agents'], ['features', 'Features'], ['trust', 'Trust'], ['open-source', 'Open source'], ['install', 'Install'], ['faq', 'FAQ']],
     opti: [['features', 'Features'], ['modes', 'Pro Modes'], ['advisor', 'AI Advisor'], ['trial', 'Trial'], ['pricing', 'Pricing'], ['security', 'Security'], ['faq', 'FAQ']],
   },
   cross: {
@@ -182,9 +182,52 @@ export default {
   },
   hero: {
     kicker: 'Free and open source · Stable release',
-    title: 'Every repo. One window. <span class="grad">AI you can trust.</span>',
-    lead: 'IntelyIDE is a fast, lightweight desktop IDE for people who work across several git repositories at once. AI agents help with the work. They can read and edit, but they never commit or push. You do.',
+    title: 'Up to 7x faster to open. <span class="grad">Up to 6x faster agents.</span>',
+    lead: 'IntelyIDE is a fast, lightweight desktop IDE for people who work across several git repositories at once. It opens in moments, and its intelligent agent setup gets work started and finished sooner. Agents can read and edit, but they never commit or push. You do.',
     shotAlt: 'IntelyIDE main window showing the multi-repository Changes tree next to an editor and an agent panel.',
+    statsLabel: 'IntelyIDE in three figures',
+    stats: [
+      { n: 'up to 7x', h: 'faster startup', p: 'with any workspace, compared with the most used IDEs on a basic system.', href: '#speed' },
+      { n: 'up to 6x', h: 'faster agents', p: 'from start to finish, thanks to the intelligent agent solution.', href: '#agents-fast' },
+      { n: 'about 30%', h: 'fewer tokens', p: 'thanks to the intelligent sub-agent settings.', href: '#agents-fast' },
+    ],
+    note: 'Results vary with workspace, machine and task.',
+  },
+  perf: {
+    speed: {
+      title: 'Open any workspace in moments',
+      lead: 'Many repositories, one window, and no long wait before you can work. IntelyIDE is a native shell built with Rust and Tauri, not Electron, and it shows your repositories as soon as they are read.',
+      chartTitle: 'Time until a workspace is ready to use',
+      chartTag: 'Illustrative',
+      chartAlt: 'Illustrative bar chart: IntelyIDE needs about one seventh of the startup time of the most used IDEs on a basic system. Results vary with workspace, machine and task.',
+      barIde: 'IntelyIDE',
+      barOthers: 'The most used IDEs',
+      barIdeVal: 'up to 7x faster',
+      barOthersVal: 'baseline',
+      caption: 'Illustrative graphic of the “up to 7x” figure for startup with any workspace on a basic system. It is not a chart of one particular test.',
+      points: [
+        ['Native, not a browser in a box', 'A Rust and Tauri shell uses the system web view, so there is no bundled browser to start.'],
+        ['Ready with every repository', 'The window shows all repositories of the workspace together, in one Changes tree.'],
+        ['Light while you work', 'Designed to stay light and responsive on a basic Mac, not only on a fast one.'],
+      ],
+    },
+    agents: {
+      title: 'Agents that start and finish sooner',
+      lead: 'The intelligent agent solution splits a task across agents, starts them together and keeps the expensive parts for the work that needs them. You see every run, and you decide what is committed.',
+      cards: [
+        { h: 'Lead and workers', p: 'Start more than one run and Run 1 leads. It splits the task, hands each worker a subtask and gives you one combined summary. Only the lead asks you questions.' },
+        { h: 'Parallel runs', p: 'Workers run side by side instead of one after another, so a task with independent parts finishes sooner.' },
+        { h: 'Runs open at once', p: 'A new run opens right away, even when the Mac is busy, so you see it start instead of waiting in silence.' },
+        { h: 'Smart sub-agent settings', p: 'Each role has its own model, effort and tools. The Auto lead delegates the simple parts to lighter roles, which is where the saving in tokens comes from.' },
+      ],
+      figuresLabel: 'The agent figures',
+      figures: [
+        { n: 'up to 6x', p: 'faster agent start and finish thanks to the intelligent agent solution' },
+        { n: 'about 30%', p: 'fewer tokens thanks to the intelligent sub-agent settings' },
+      ],
+      note: 'Results vary with workspace, machine and task.',
+      cta: 'Download IntelyIDE',
+    },
   },
   dl: {
     button: 'Download for macOS',
