@@ -2,7 +2,7 @@
   "schema": 1,
   "generator": {
     "tool": "scripts/licenses/gen.mjs",
-    "cargoLockSha256": "7c023fae71b1675095ecab92e9cc222d12ec361d52eedab615ec6a996e804ce3",
+    "cargoLockSha256": "4d0f4c6c7c0c931063e46283f78b32208ecdf6b20a007ad2b3fd8e0a3b46023a",
     "pnpmLockSha256": {
       "root": "df9baa0a5a3fba972b303e06487d0ef0d94ce1c1964afb3d4f3bdb16339aec50",
       "remote-web": "671ec4d0bc03ce2b693a132dd3c59e313000320d28deb78e89f6db4f46c54998",
@@ -8029,10 +8029,10 @@
       "verdict": "ok"
     },
     {
-      "id": "cargo:rustls-webpki@0.103.15",
+      "id": "cargo:rustls-webpki@0.103.16",
       "kind": "cargo",
       "name": "rustls-webpki",
-      "version": "0.103.15",
+      "version": "0.103.16",
       "expression": "ISC",
       "chosen": [
         "ISC"
@@ -8048,7 +8048,7 @@
       ],
       "distributed": true,
       "homepage": "https://github.com/rustls/webpki",
-      "sourceUrl": "https://crates.io/crates/rustls-webpki/0.103.15",
+      "sourceUrl": "https://crates.io/crates/rustls-webpki/0.103.16",
       "verdict": "ok"
     },
     {
@@ -11111,10 +11111,10 @@
       "verdict": "ok"
     },
     {
-      "id": "cargo:webpki-roots@1.0.9",
+      "id": "cargo:webpki-roots@1.0.10",
       "kind": "cargo",
       "name": "webpki-roots",
-      "version": "1.0.9",
+      "version": "1.0.10",
       "expression": "CDLA-Permissive-2.0",
       "chosen": [
         "CDLA-Permissive-2.0"
@@ -11128,7 +11128,7 @@
       ],
       "distributed": true,
       "homepage": "https://github.com/rustls/webpki-roots",
-      "sourceUrl": "https://crates.io/crates/webpki-roots/1.0.9",
+      "sourceUrl": "https://crates.io/crates/webpki-roots/1.0.10",
       "note": "V8: CDLA-Permissive-2.0 data license (CA roots).",
       "verdict": "attention"
     },
