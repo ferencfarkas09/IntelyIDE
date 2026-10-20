@@ -60,7 +60,9 @@ ${alt}
 ${preload}
 <link rel="stylesheet" href="${root}assets/style.css">
 <script>${THEME_INIT}</script>
+<script src="${root}assets/motion.js" defer></script>
 <script src="${root}assets/site.js" defer></script>
+<script src="${root}assets/hero-fx.js" defer></script>
 <script src="${root}assets/analytics.js" defer></script>
 ${scripts}
 ${ld}
@@ -259,7 +261,8 @@ function footer(ctx) {
 <div class="wrap">
 <div class="foot-grid">
 <div class="foot-about"><p class="brand-line">${logo(ctx, 28)}</p><p>${t.footer.credit}</p><p>${t.footer.license}</p>
-<p><button type="button" class="linkbtn js-only" data-consent-open>${t.consent.settings}</button></p></div>
+<p><button type="button" class="linkbtn js-only" data-consent-open>${t.consent.settings}</button></p>
+<p class="motion-row js-only"><button type="button" class="linkbtn" data-motion-toggle data-label="${t.footer.motion.label}" data-on="${t.footer.motion.on}" data-off="${t.footer.motion.off}" aria-pressed="false">${t.footer.motion.label}</button> <span class="motion-hint" data-motion-hint hidden>${t.footer.motion.hint}</span></p></div>
 ${products}${company}${resources}
 </div>
 <p class="legal">${t.footer.trademarks}</p>
@@ -293,6 +296,35 @@ function withSticky(ctx, product) {
 
 const iconTile = (name) => `<span class="ficon">${icon(name, 22)}</span>`;
 const external = (ctx) => ` target="_blank" rel="noopener noreferrer"`;
+
+/**
+ * The hero used by every page: big left headline and copy, five frosted feature cards on the right and thin turning arcs
+ * behind them (hero-fx.js drives the cards, motion.js decides full or reduced motion). Only the content differs per page.
+ * `copy` is the HTML under the lead (buttons, notes); `after` goes below both columns (figures, screenshot).
+ */
+function heroSplit(ctx, { kicker, title, lead, copy = '', cards, cardsLabel, after = '' }) {
+  const arcs = ['a1', 'a2', 'a3', 'a4', 'a5'].map((c) => `<svg class="arc ${c}" viewBox="0 0 100 100" focusable="false"><circle cx="50" cy="50" r="49" pathLength="100"/></svg>`).join('');
+  const depth = [0.55, 1, 0.8, 1.3, 0.65];
+  const gcards = cards.map((c, i) => `<li class="gcard gc${i + 1}" data-d="${depth[i]}">${iconTile(c.icon)}<strong>${c.h}</strong><span>${c.p}</span></li>`).join('');
+  return `<section class="hero hero-split" aria-labelledby="hero-h">
+<div class="hero-bg" aria-hidden="true">
+<span class="glow g1"><i></i></span><span class="glow g2"><i></i></span>
+<svg class="ring-defs" width="0" height="0" focusable="false"><defs><linearGradient id="ring-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" class="rs1"/><stop offset=".55" class="rs2"/><stop offset="1" class="rs3"/></linearGradient></defs></svg>
+<div class="rings">${arcs}</div>
+</div>
+<div class="wrap hero-inner">
+<div class="hero-copy">
+<p class="kicker">${kicker}</p>
+<h1 id="hero-h">${title}</h1>
+<p class="lead">${lead}</p>
+${copy}
+</div>
+<ul class="hero-cards" aria-label="${cardsLabel}">${gcards}</ul>
+${after}
+</div>
+</section>`;
+}
+
 
 /** "More from IntelyHome" band linking to the other product. */
 function crossBand(ctx, current) {
@@ -427,21 +459,14 @@ function opti(ctx0) {
   const req = o.requirements.items.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('');
   const sec = o.security.items.map((i) => `<li class="card">${iconTile(i.icon)}<h3>${i.h}</h3><p>${i.p}</p></li>`).join('');
   const faq = o.faq.items.map(([q, a]) => `<details class="faq-item"><summary>${q}</summary><p>${a}</p></details>`).join('\n');
-  const body = `<section class="hero" aria-labelledby="hero-h">
-<div class="hero-bg" aria-hidden="true">
-<span class="glow g1"><i></i></span><span class="glow g2"><i></i></span><span class="glow g3"><i></i></span><span class="glow g4"><i></i></span>
-<span class="cursor-glow"></span>
-</div>
-<div class="wrap hero-inner">
-<p class="kicker">${o.hero.kicker}</p>
-<h1 id="hero-h">${o.hero.title}</h1>
-<p class="lead">${o.hero.lead}</p>
-<div class="cta-row"><a class="btn btn-grad btn-lg" id="hero-dl" href="#get"${ga('cta', 'opti-hero-trial')}>${o.hero.cta}</a><a class="btn btn-ghost btn-lg" href="#pricing"${ga('cta', 'opti-hero-pricing')}>${o.hero.pricing}</a></div>
+  const hero = heroSplit(ctx, {
+    kicker: o.hero.kicker, title: o.hero.title, lead: o.hero.lead, cards: o.hero.cards, cardsLabel: o.hero.cardsLabel,
+    copy: `<div class="cta-row"><a class="btn btn-grad btn-lg" id="hero-dl" href="#get"${ga('cta', 'opti-hero-trial')}>${o.hero.cta}</a><a class="btn btn-ghost btn-lg" href="#pricing"${ga('cta', 'opti-hero-pricing')}>${o.hero.pricing}</a></div>
 <p class="note hero-fine">${o.hero.fine}</p>
-<ul class="points">${o.hero.points.map((x) => `<li>${checkIcon}${x}</li>`).join('')}</ul>
-<div class="hero-shot">${frame(picture(ctx.root, 'opti-dashboard', o.hero.shotAlt, { eager: true, sizes: '(min-width: 1000px) 1040px, 92vw' }))}</div>
-</div>
-</section>
+<ul class="points">${o.hero.points.map((x) => `<li>${checkIcon}${x}</li>`).join('')}</ul>`,
+    after: `<div class="hero-shot">${frame(picture(ctx.root, 'opti-dashboard', o.hero.shotAlt, { eager: true, sizes: '(min-width: 1000px) 1040px, 92vw' }))}</div>`,
+  });
+  const body = `${hero}
 
 <section class="section soft" id="get" aria-labelledby="get-h">
 <div class="wrap get-grid">
@@ -531,7 +556,7 @@ ${crossBand(ctx, 'opti')}`;
     ogAlt: 'IntelyOpti: the Mac optimizer built for Intel Macs, with its Smart Care dashboard.',
     subnav: t.subnav.opti,
     preload: '',
-    scripts: `<script src="${ctx.root}assets/hero-fx.js" defer></script><script src="${ctx.root}assets/lead.js" defer></script>`,
+    scripts: `<script src="${ctx.root}assets/lead.js" defer></script>`,
     ld: optiLd(ctx),
   });
 }
@@ -587,19 +612,12 @@ function home(ctx0) {
     .map((i) => `<figure class="shot-card">${frame(picture(ctx.root, i.slot, i.alt, { sizes: '(min-width: 1000px) 540px, 92vw' }))}<figcaption><span class="pill">${i.kind === 'ide' ? 'IntelyIDE' : 'IntelyOpti'}</span> ${i.cap}</figcaption></figure>`)
     .join('');
   const faq = h.faq.items.map(([q, a]) => `<details class="faq-item"><summary>${q}</summary><p>${a}</p></details>`).join('\n');
-  const body = `<section class="hero" aria-labelledby="hero-h">
-<div class="hero-bg" aria-hidden="true">
-<span class="glow g1"><i></i></span><span class="glow g2"><i></i></span><span class="glow g3"><i></i></span><span class="glow g4"><i></i></span>
-<span class="cursor-glow"></span>
-</div>
-<div class="wrap hero-inner">
-<p class="kicker">${h.hero.kicker}</p>
-<h1 id="hero-h">${h.hero.title}</h1>
-<p class="lead">${h.hero.lead}</p>
-<div class="cta-row"><a class="btn btn-grad btn-lg" href="${esc(dlUrl)}"${ga('download', 'home-hero-ide')}>${icons.download('sm')}<span>${h.hero.ide}</span></a><a class="btn btn-ghost btn-lg" href="${optiUrl}#get"${ga('cta', 'home-hero-opti')}>${h.hero.opti}</a></div>
-<ul class="points">${h.hero.points.map((x) => `<li>${checkIcon}${x}</li>`).join('')}</ul>
-</div>
-</section>
+  const hero = heroSplit(ctx, {
+    kicker: h.hero.kicker, title: h.hero.title, lead: h.hero.lead, cards: h.hero.cards, cardsLabel: h.hero.cardsLabel,
+    copy: `<div class="cta-row"><a class="btn btn-grad btn-lg" href="${esc(dlUrl)}"${ga('download', 'home-hero-ide')}>${icons.download('sm')}<span>${h.hero.ide}</span></a><a class="btn btn-ghost btn-lg" href="${optiUrl}#get"${ga('cta', 'home-hero-opti')}>${h.hero.opti}</a></div>
+<ul class="points">${h.hero.points.map((x) => `<li>${checkIcon}${x}</li>`).join('')}</ul>`,
+  });
+  const body = `${hero}
 
 <section class="section tight" id="products" aria-labelledby="products-h">
 <div class="wrap">
@@ -664,7 +682,6 @@ ${faq}
     desc: t.meta.homeDesc,
     path: homePath(lang),
     body,
-    scripts: `<script src="${ctx.root}assets/hero-fx.js" defer></script>`,
     ld: companyLd(ctx),
   });
 }
@@ -852,32 +869,19 @@ ${f.shots.length ? `<div class="feature-media">${f.shots.map(([n, a]) => frame(p
   const flow = t.trust.flow.map(([h, p]) => `<li><strong>${h}</strong><span>${p}</span></li>`).join('');
   const steps = t.install.steps.map(([h, p]) => `<li><h3>${h}</h3><p>${p}</p></li>`).join('');
   const faq = t.faq.items.map(([q, a]) => `<details class="faq-item"><summary>${q}</summary><p>${a}</p></details>`).join('\n');
-  const arcs = ['a1', 'a2', 'a3', 'a4', 'a5'].map((c) => `<svg class="arc ${c}" viewBox="0 0 100 100" focusable="false"><circle cx="50" cy="50" r="49" pathLength="100"/></svg>`).join('');
-  const gcards = t.hero.cards.map((c, i) => `<li class="gcard gc${i + 1}" data-d="${[0.55, 1, 0.8, 1.3, 0.65][i]}">${iconTile(c.icon)}<strong>${c.h}</strong><span>${c.p}</span></li>`).join('');
-  const body = `<section class="hero hero-split" aria-labelledby="hero-h">
-<div class="hero-bg" aria-hidden="true">
-<span class="glow g1"><i></i></span><span class="glow g2"><i></i></span>
-<svg class="ring-defs" width="0" height="0" focusable="false"><defs><linearGradient id="ring-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" class="rs1"/><stop offset=".55" class="rs2"/><stop offset="1" class="rs3"/></linearGradient></defs></svg>
-<div class="rings">${arcs}</div>
-</div>
-<div class="wrap hero-inner">
-<div class="hero-copy">
-<p class="kicker">${t.hero.kicker}</p>
-<h1 id="hero-h">${t.hero.title}</h1>
-<p class="lead">${t.hero.lead}</p>
-${downloadBlock(ctx, { id: 'hero-dl' })}
+  const hero = heroSplit(ctx, {
+    kicker: t.hero.kicker, title: t.hero.title, lead: t.hero.lead, cards: t.hero.cards, cardsLabel: t.hero.cardsLabel,
+    copy: `${downloadBlock(ctx, { id: 'hero-dl' })}
 <details class="dl-more"><summary>${t.dl.more}</summary>
 ${assetTable(ctx)}
 <p><a href="${dlHome}"${ga('cta', 'all-downloads')}>${t.dl.allDownloads}</a></p>
 </details>
-${rel.notice ? `<p class="notice">${rel.notice}</p>` : ''}
-</div>
-<ul class="hero-cards" aria-label="${t.hero.cardsLabel}">${gcards}</ul>
-<ul class="stats" aria-label="${t.hero.statsLabel}">${t.hero.stats.map((x) => `<li class="stat"><a href="${x.href}"${ga('cta', 'stat-' + x.href.slice(1))}><b class="stat-n">${x.n}</b><span class="stat-h">${x.h}</span><span class="stat-p">${x.p}</span></a></li>`).join('')}</ul>
+${rel.notice ? `<p class="notice">${rel.notice}</p>` : ''}`,
+    after: `<ul class="stats" aria-label="${t.hero.statsLabel}">${t.hero.stats.map((x) => `<li class="stat"><a href="${x.href}"${ga('cta', 'stat-' + x.href.slice(1))}><b class="stat-n">${x.n}</b><span class="stat-h">${x.h}</span><span class="stat-p">${x.p}</span></a></li>`).join('')}</ul>
 <p class="stats-note">${t.hero.note}</p>
-<div class="hero-shot">${frame(picture(ctx.root, 'hero', t.hero.shotAlt, { eager: true, sizes: '(min-width: 1000px) 1040px, 92vw' }))}</div>
-</div>
-</section>
+<div class="hero-shot">${frame(picture(ctx.root, 'hero', t.hero.shotAlt, { eager: true, sizes: '(min-width: 1000px) 1040px, 92vw' }))}</div>`,
+  });
+  const body = `${hero}
 
 ${perfSections(ctx)}
 
@@ -966,7 +970,6 @@ ${crossBand(ctx, 'ide')}`;
     body,
     subnav: t.subnav.ide,
     preload: preloadHero(ctx.root),
-    scripts: `<script src="${ctx.root}assets/hero-fx.js" defer></script>`,
     ld: ideLd(ctx),
   });
 }
