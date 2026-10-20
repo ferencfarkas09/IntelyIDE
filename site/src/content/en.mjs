@@ -71,6 +71,15 @@ export default {
       lead: 'IntelyHome builds the Mac tools we want on our own machines: an IDE that keeps AI agents on a leash, and an optimizer that treats Intel Macs as first-class. Local-first, honest about what they do, signed and notarized.',
       ide: 'Get IntelyIDE, free',
       opti: 'Try IntelyOpti free',
+      statsCta: 'See IntelyIDE in detail',
+      cardsLabel: 'Highlights',
+      cards: [
+        { icon: 'layers', h: 'IntelyIDE', p: 'A free, open-source IDE for several git repositories.' },
+        { icon: 'sparkles', h: 'IntelyOpti', p: 'A native optimizer built for Intel Macs.' },
+        { icon: 'shield', h: 'Agents on a leash', p: 'They edit. They never commit or push.' },
+        { icon: 'rewind', h: 'Undoable changes', p: 'Rewind in the IDE, auto-revert in IntelyOpti.' },
+        { icon: 'badge', h: 'Signed and notarized', p: 'Developer ID builds, notarized by Apple.' },
+      ],
       points: ['Made by a working developer', 'Signed and notarized builds', 'No dark patterns'],
     },
     products: {
@@ -577,6 +586,7 @@ export default {
     ],
   },
   footer: {
+    motion: { label: 'Animations', on: 'on', off: 'off', hint: 'Your system asks for reduced motion; turn animations on here.' },
     credit: 'IntelyHome is made by Ferenc Farkas, a developer.',
     license: 'IntelyIDE is licensed under GPL-3.0-or-later. IntelyOpti is proprietary software.',
     trademarks:
@@ -614,6 +624,14 @@ export default {
       pricing: 'See pricing',
       fine: '{{trial}}-day free trial, once per Mac. The trial starts inside the app, when you enter your e-mail address.',
       shotAlt: 'IntelyOpti Smart Care dashboard with the Mac health score and the one-click optimize button.',
+      cardsLabel: 'Key features',
+      cards: [
+        { icon: 'activity', h: 'Smart Care', p: 'A health score and a one-click, explained optimize pass.' },
+        { icon: 'trash', h: 'Cleanup', p: 'Caches, logs and duplicates, deleted safely.' },
+        { icon: 'sliders', h: 'Speed Tweaks', p: 'Trim animations, startup items and memory, reversibly.' },
+        { icon: 'zap', h: 'Turbo', p: 'A background-service diet and Intel knobs, all revertible.' },
+        { icon: 'thermo', h: 'Mac Health', p: 'Throttling, temperatures, fans, battery and SSD status.' },
+      ],
       points: ['Signed and notarized', 'Reversible changes', 'Free tools stay free'],
     },
     form: {

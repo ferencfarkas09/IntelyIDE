@@ -1,118 +1,31 @@
-// Hero background: faint glass bubbles that drift and gently move away from the cursor, soft glows that
-// parallax with it, and a glow that trails the pointer. Decorative only (the container is aria-hidden).
-// Without this file the page shows the static CSS glows; with prefers-reduced-motion the bubbles are placed once.
-(() => {
-  const bg = document.querySelector('.hero-bg');
-  if (!bg || bg.querySelector('.rings')) return; // the split hero is driven by the block below
-  const hero = bg.parentElement;
-  const reduce = matchMedia('(prefers-reduced-motion: reduce)');
-  const trail = bg.querySelector('.cursor-glow');
-  const COLORS = ['#2ee6c5', '#7c4dff', '#d946ef', '#2b6cf6', '#ff9a1f'];
-
-  let seed = 11; // fixed seed: the same layout on every load
-  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-
-  const bubbles = Array.from({ length: 12 }, (_, i) => {
-    const r = 12 + rnd() ** 2 * 54;
-    const el = document.createElement('span');
-    el.className = 'bubble';
-    el.style.width = el.style.height = `${r * 2}px`;
-    el.style.setProperty('--c', COLORS[i % COLORS.length]);
-    bg.appendChild(el);
-    return {
-      el, r, depth: 0.3 + rnd() * 0.7,
-      bx: 0.04 + rnd() * 0.92, by: 0.06 + rnd() * 0.78,
-      ph: rnd() * 6.283, sx: 0.1 + rnd() * 0.16, sy: 0.08 + rnd() * 0.14,
-      ax: 14 + rnd() * 26, ay: 12 + rnd() * 24, ox: 0, oy: 0, sc: 1,
-    };
-  });
-
-  let W = 0, H = 0; // H = height of the area the bubbles use: the top of the hero, not the screenshot below it
-  const cur = { x: 0, y: 0 };   // smoothed pointer, hero-local px
-  const tgt = { x: 0, y: 0 };   // raw pointer
-  let active = false, running = false, last = 0, t = 0;
-
-  const measure = () => {
-    const b = hero.getBoundingClientRect();
-    if (!cur.x && !cur.y) { cur.x = tgt.x = b.width / 2; cur.y = tgt.y = b.height * 0.4; }
-    W = b.width; H = Math.min(b.height, 780);
-  };
-
-  function place(dt) {
-    const k = 1 - Math.exp(-dt * 5);
-    cur.x += (tgt.x - cur.x) * k;
-    cur.y += (tgt.y - cur.y) * k;
-    bg.style.setProperty('--px', (((cur.x / W) - 0.5) * 2).toFixed(3));
-    bg.style.setProperty('--py', (((cur.y / H) - 0.5) * 2).toFixed(3));
-    if (trail) trail.style.transform = `translate3d(${cur.x.toFixed(1)}px, ${cur.y.toFixed(1)}px, 0)`;
-    const ease = 1 - Math.exp(-dt * 4);
-    for (const b of bubbles) {
-      const ix = b.bx * W + Math.sin(t * b.sx + b.ph) * b.ax + ((cur.x / W) - 0.5) * b.depth * 36;
-      const iy = b.by * H + Math.cos(t * b.sy + b.ph * 1.3) * b.ay + ((cur.y / H) - 0.5) * b.depth * 28;
-      let tx = 0, ty = 0, near = 0;
-      if (active) {
-        const dx = ix - tgt.x, dy = iy - tgt.y, d = Math.hypot(dx, dy) || 1, reach = 170 + b.r;
-        if (d < reach) { near = (1 - d / reach) ** 2; tx = (dx / d) * near * 90 * (0.5 + b.depth); ty = (dy / d) * near * 90 * (0.5 + b.depth); }
-      }
-      b.ox += (tx - b.ox) * ease; b.oy += (ty - b.oy) * ease;
-      b.sc += ((1 + near * 0.18) - b.sc) * ease;
-      b.el.style.transform = `translate3d(${(ix + b.ox - b.r).toFixed(1)}px, ${(iy + b.oy - b.r).toFixed(1)}px, 0) scale(${b.sc.toFixed(3)})`;
-    }
-  }
-
-  function loop(now) {
-    if (!running) return;
-    const dt = Math.min(0.05, (now - last) / 1000 || 0.016);
-    last = now; t += dt;
-    place(dt);
-    requestAnimationFrame(loop);
-  }
-  const start = () => { if (running || reduce.matches) return; running = true; last = performance.now(); requestAnimationFrame(loop); };
-  const stop = () => { running = false; };
-
-  measure();
-  place(1);
-  bg.classList.add('is-live');
-  new ResizeObserver(() => { measure(); if (!running) place(1); }).observe(hero);
-  new IntersectionObserver(([e]) => (e.isIntersecting ? start() : stop())).observe(hero);
-  reduce.addEventListener('change', () => (reduce.matches ? stop() : start()));
-
-  addEventListener('pointermove', (e) => {
-    if (e.pointerType === 'touch' || reduce.matches) return;
-    const b = hero.getBoundingClientRect();
-    const x = e.clientX - b.left, y = e.clientY - b.top;
-    active = x > -60 && x < b.width + 60 && y > -60 && y < b.height + 60;
-    if (active) { tgt.x = x; tgt.y = y; }
-    trail?.classList.toggle('on', active);
-  }, { passive: true });
-  document.documentElement.addEventListener('pointerleave', () => {
-    active = false; trail?.classList.remove('on');
-    tgt.x = W / 2; tgt.y = H * 0.4;
-  });
-})();
-
-// Split hero (IntelyIDE page): the frosted cards follow the pointer with a eased parallax (a different depth each) and keep a slow
-// idle float of a few pixels. Touch and no-hover devices get the float only; prefers-reduced-motion gets neither. The loop (and the
-// CSS ring animation, through .is-paused) runs only while the hero is on screen and the tab is visible. Transform only.
+// Hero cards (every page): the frosted cards follow the pointer with an eased parallax (a different depth each), keep a slow idle
+// float of a few pixels, and tilt toward the pointer with a light glow when hovered. Touch and no-hover devices get the float
+// only. Everything here is "full motion": when html[data-motion] is "reduced" (see motion.js) nothing moves and the cards are
+// left to the CSS, which still highlights border, glow and sheen. The loop, and the CSS arcs (through .is-paused), run only
+// while the hero is on screen and the tab is visible. Transform and custom properties only; no layout, no libraries.
 (() => {
   const box = document.querySelector('.hero-cards');
   if (!box) return;
+  const root = document.documentElement;
   const hero = box.closest('.hero');
-  const reduce = matchMedia('(prefers-reduced-motion: reduce)');
   const hover = matchMedia('(hover: hover) and (pointer: fine)');
+  const full = () => root.dataset.motion === 'full';
   const cards = [...box.querySelectorAll('.gcard')].map((el, i) => ({
-    el, d: Number(el.dataset.d) || 1, ph: i * 1.9 + 0.6, sp: 0.42 + (i % 3) * 0.11, amp: 3 + (i % 2) * 2.5, x: 0, y: 0,
+    el, d: Number(el.dataset.d) || 1, ph: i * 1.9 + 0.6, sp: 0.42 + (i % 3) * 0.11, amp: 3 + (i % 2) * 2.5,
+    hx: 0, hy: 0, hs: 0, tx: 0, ty: 0, ts: 0, // hover tilt: current and target
   }));
   const tgt = { x: 0, y: 0 }, cur = { x: 0, y: 0 };
   let running = false, visible = true, last = 0, t = 0;
 
   const paint = (dt) => {
-    const k = 1 - Math.exp(-dt * 4.5);
+    const k = 1 - Math.exp(-dt * 4.5), kh = 1 - Math.exp(-dt * 9);
     cur.x += (tgt.x - cur.x) * k; cur.y += (tgt.y - cur.y) * k;
     for (const c of cards) {
+      c.hx += (c.tx - c.hx) * kh; c.hy += (c.ty - c.hy) * kh; c.hs += (c.ts - c.hs) * kh;
       const x = cur.x * 22 * c.d + Math.sin(t * c.sp + c.ph) * c.amp * 0.6;
       const y = cur.y * 18 * c.d + Math.cos(t * c.sp * 1.15 + c.ph) * c.amp;
-      c.el.style.transform = `translate3d(${x.toFixed(2)}px, ${y.toFixed(2)}px, 0)`;
+      const tilt = Math.abs(c.hx) + Math.abs(c.hy) + c.hs > 0.001 ? ` perspective(800px) rotateX(${(c.hy * -7).toFixed(2)}deg) rotateY(${(c.hx * 9).toFixed(2)}deg) scale(${(1 + c.hs * 0.035).toFixed(4)})` : '';
+      c.el.style.transform = `translate3d(${x.toFixed(2)}px, ${y.toFixed(2)}px, 0)${tilt}`;
     }
   };
   const loop = (now) => {
@@ -121,24 +34,40 @@
     last = now; t += dt; paint(dt);
     requestAnimationFrame(loop);
   };
-  const sync = () => {
-    const on = visible && !document.hidden && !reduce.matches;
-    hero.classList.toggle('is-paused', !(visible && !document.hidden));
-    if (on && !running) { running = true; last = performance.now(); requestAnimationFrame(loop); }
-    if (!on) {
-      running = false;
-      if (reduce.matches) { for (const c of cards) c.el.style.transform = ''; tgt.x = tgt.y = cur.x = cur.y = 0; }
-    }
+  const clear = () => {
+    tgt.x = tgt.y = cur.x = cur.y = 0;
+    for (const c of cards) { c.hx = c.hy = c.hs = c.tx = c.ty = c.ts = 0; c.el.style.transform = ''; c.el.style.removeProperty('--mx'); c.el.style.removeProperty('--my'); }
   };
+  const sync = () => {
+    const shown = visible && !document.hidden;
+    hero.classList.toggle('is-paused', !shown);
+    const on = shown && full();
+    if (on && !running) { running = true; last = performance.now(); requestAnimationFrame(loop); }
+    if (!on) { running = false; if (!full()) clear(); }
+  };
+
   new IntersectionObserver(([e]) => { visible = e.isIntersecting; sync(); }).observe(hero);
   document.addEventListener('visibilitychange', sync);
-  reduce.addEventListener('change', sync);
+  window.addEventListener('motionchange', sync);
+
   addEventListener('pointermove', (e) => {
-    if (e.pointerType === 'touch' || !hover.matches || reduce.matches) return;
+    if (e.pointerType === 'touch' || !hover.matches || !full()) return;
     const b = hero.getBoundingClientRect();
     tgt.x = Math.max(-1, Math.min(1, (e.clientX - b.left) / b.width * 2 - 1));
     tgt.y = Math.max(-1, Math.min(1, (e.clientY - b.top) / Math.min(b.height, 900) * 2 - 1));
   }, { passive: true });
   document.documentElement.addEventListener('pointerleave', () => { tgt.x = tgt.y = 0; });
+
+  for (const c of cards) {
+    c.el.addEventListener('pointermove', (e) => {
+      if (e.pointerType === 'touch' || !hover.matches || !full()) return;
+      const r = c.el.getBoundingClientRect();
+      const px = (e.clientX - r.left) / r.width, py = (e.clientY - r.top) / r.height;
+      c.el.style.setProperty('--mx', `${(px * 100).toFixed(1)}%`);
+      c.el.style.setProperty('--my', `${(py * 100).toFixed(1)}%`);
+      c.tx = (px - 0.5) * 2; c.ty = (py - 0.5) * 2; c.ts = 1;
+    });
+    c.el.addEventListener('pointerleave', () => { c.tx = c.ty = c.ts = 0; });
+  }
   sync();
 })();

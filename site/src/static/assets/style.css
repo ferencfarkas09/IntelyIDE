@@ -250,7 +250,11 @@ pre { background: var(--bg-soft); border: 1px solid var(--line); border-radius: 
 .brand-line { margin-bottom: 12px; }
 .legal { max-width: 52rem; margin: 0; font-size: .875rem; }
 
-@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+/* Motion mode: motion.js sets html[data-motion] to full or reduced (the OS setting, unless the visitor chose in the footer).
+   Reduced keeps colour, border, shadow and opacity effects, but no movement. Before the script runs the OS setting decides. */
+@media (prefers-reduced-motion: reduce) { :root:not([data-motion]) *:not(.arc) { animation: none !important; } }
+:root[data-motion='reduced'] *:not(.arc) { animation: none !important; }
+:root:not([data-motion='full']) :is(.dl-btn, .btn, .stat a):hover { transform: none; }
 
 /* Highlights, providers */
 .cards-3 { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
@@ -271,21 +275,13 @@ pre { background: var(--bg-soft); border: 1px solid var(--line); border-radius: 
 .logo-opencode { --m: url(img/providers/opencode.svg); }
 .logo-qwen { --m: url(img/providers/qwen.svg); }
 
-/* Hero background (hero-fx.js adds the bubbles and cursor reaction; the glows work without it) */
-.hero-bg { position: absolute; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; -webkit-mask-image: linear-gradient(#000 520px, transparent 960px); mask-image: linear-gradient(#000 520px, transparent 960px); }
+/* Hero background: soft glows (CSS) and the ring arcs (see Rings below) */
+.hero-bg { position: absolute; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
 .glow { position: absolute; left: var(--l); top: var(--t); width: min(var(--s), 110vw); aspect-ratio: 1; transform: translate3d(calc(var(--px, 0) * var(--d) * 1px), calc(var(--py, 0) * var(--d) * 1px), 0); will-change: transform; }
 .glow i { display: block; width: 100%; height: 100%; border-radius: 50%; background: radial-gradient(circle, var(--gc), transparent 68%); opacity: var(--orb-op); animation: drift var(--dur) ease-in-out infinite alternate; }
 .g1 { --s: 640px; --l: -10%; --t: -150px; --gc: #2ee6c5; --d: -34; --dur: 26s; }
 .g2 { --s: 720px; --l: 48%; --t: -240px; --gc: #7c4dff; --d: 44; --dur: 32s; }
-.g3 { --s: 560px; --l: 72%; --t: 90px; --gc: #d946ef; --d: -48; --dur: 29s; }
-.g4 { --s: 500px; --l: 8%; --t: 300px; --gc: #2b6cf6; --d: 38; --dur: 35s; }
 @keyframes drift { from { transform: translate3d(-4%, -3%, 0) scale(1); } to { transform: translate3d(5%, 6%, 0) scale(1.14); } }
-.bubble { position: absolute; left: 0; top: 0; border-radius: 50%; opacity: 0; transition: opacity 1.4s ease; will-change: transform;
-  background: radial-gradient(circle at 32% 28%, rgb(255 255 255 / .65), transparent 34%), radial-gradient(circle, color-mix(in srgb, var(--c) var(--bub), transparent), color-mix(in srgb, var(--c) calc(var(--bub) / 4), transparent) 72%);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) calc(var(--bub) + 10%), transparent), inset -6px -8px 18px color-mix(in srgb, var(--c) var(--bub), transparent); }
-.is-live .bubble { opacity: var(--bubble-op); }
-.cursor-glow { position: absolute; left: -230px; top: -230px; width: 460px; height: 460px; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--accent) 36%, transparent), transparent 66%); opacity: 0; transition: opacity .6s ease; will-change: transform; }
-.cursor-glow.on { opacity: .6; }
 
 /* Cookie banner and analytics notes */
 .consent { position: fixed; z-index: 70; left: 16px; right: 16px; bottom: 16px; max-width: 680px; margin-inline: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; padding: 16px 20px; background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); font-size: .95rem; }
@@ -467,14 +463,14 @@ html:not(.js) .lead-form { display: none; }
 @media (min-width: 760px) { .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; } }
 .stat a { display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; padding: 22px 20px 20px; text-align: center; text-decoration: none; color: var(--ink); background: color-mix(in srgb, var(--surface) 82%, transparent); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); transition: transform .2s ease, border-color .2s ease; }
 .stat a:hover { border-color: var(--accent); text-decoration: none; }
-@media (prefers-reduced-motion: no-preference) { .stat a:hover { transform: translateY(-3px); } }
+:root[data-motion='full'] .stat a:hover { transform: translateY(-3px); }
 .stat-n { display: block; font-size: clamp(2.1rem, 4.6vw, 3rem); font-weight: 800; letter-spacing: -.035em; line-height: 1.05; background: var(--grad-text); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .stat-h { font-size: 1.1rem; font-weight: 700; letter-spacing: -.01em; }
 .stat-p { font-size: .95rem; line-height: 1.45; color: var(--ink-mute); }
 .stats-note { margin: 16px 0 0; font-size: .875rem; color: var(--ink-mute); text-align: center; }
-@media (prefers-reduced-motion: no-preference) {
-  .stat { animation: rise .7s cubic-bezier(.2, .7, .2, 1) both; }
-  .stat:nth-child(2) { animation-delay: .08s; } .stat:nth-child(3) { animation-delay: .16s; }
+@media all {
+  :root[data-motion='full'] .stat { animation: rise .7s cubic-bezier(.2, .7, .2, 1) both; }
+  :root[data-motion='full'] .stat:nth-child(2) { animation-delay: .08s; } :root[data-motion='full'] .stat:nth-child(3) { animation-delay: .16s; }
   @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 }
 .speed-grid { display: grid; gap: clamp(32px, 5vw, 64px); align-items: center; }
@@ -494,9 +490,9 @@ html:not(.js) .lead-form { display: none; }
 .meter { display: block; height: 100%; border-radius: 999px; transform-origin: left center; }
 .meter-ide { width: 14.3%; min-width: 22px; background: var(--grad); }
 .meter-other { width: 100%; background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--ink-mute) 55%, transparent) 0 8px, color-mix(in srgb, var(--ink-mute) 38%, transparent) 8px 16px); }
-@media (prefers-reduced-motion: no-preference) {
-  .js .bars .meter { animation: grow 1.1s cubic-bezier(.2, .7, .2, 1) both; }
-  .js .bars .meter-ide { animation-duration: .6s; }
+@media all {
+  :root[data-motion='full'] .bars .meter { animation: grow 1.1s cubic-bezier(.2, .7, .2, 1) both; }
+  :root[data-motion='full'] .bars .meter-ide { animation-duration: .6s; }
   @keyframes grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 }
 .bars-cap { margin: 4px 0 0; font-size: .85rem; line-height: 1.5; color: var(--ink-mute); }
@@ -545,17 +541,16 @@ ol.cards { list-style: none; padding: 0; }
 @media (min-width: 960px) {
   .hero-split { --ok: 1; }
   .hero-split .hero-inner { grid-template-columns: minmax(0, 1.12fr) minmax(0, .88fr); }
-  .hero-cards { display: block; position: relative; height: 520px; }
-  .gcard { position: absolute; width: min(16rem, 62%); rotate: var(--rot, 0deg); }
+  .hero-cards { display: block; position: relative; height: 580px; }
+  .gcard { position: absolute; width: min(17rem, 66%); rotate: var(--rot, 0deg); }
   .gc1 { --rot: -4deg; left: 2%; top: 0; }
-  .gc2 { --rot: 3deg; right: 0; top: 15%; }
-  .gc3 { --rot: 2deg; left: 0; top: 33%; }
-  .gc4 { --rot: -3deg; right: 4%; top: 52%; }
-  .gc5 { --rot: 4deg; left: 12%; top: 74%; grid-column: auto; }
+  .gc2 { --rot: 3deg; right: 0; top: 16%; }
+  .gc3 { --rot: 2deg; left: 0; top: 35%; }
+  .gc4 { --rot: -3deg; right: 4%; top: 55%; }
+  .gc5 { --rot: 4deg; left: 12%; top: 78%; grid-column: auto; }
 }
 
 /* Rings: thin C-shaped arcs, each turning at its own speed, started one after another so the gaps wander */
-.hero-split .hero-bg { -webkit-mask-image: none; mask-image: none; }
 .ring-defs { position: absolute; width: 0; height: 0; }
 .rs1 { stop-color: #2ee6c5; } .rs2 { stop-color: #7c4dff; } .rs3 { stop-color: #d946ef; }
 .rings { position: absolute; left: 70%; top: 250px; width: 0; height: 0; }
@@ -570,10 +565,44 @@ ol.cards { list-style: none; padding: 0; }
 @media (min-width: 960px) { .a1 { --s: 380px; } .a2 { --s: 540px; } .a3 { --s: 720px; } .a4 { --s: 920px; } .a5 { --s: 1160px; } }
 @media (prefers-color-scheme: dark) { :root:not([data-theme='light']) .hero-split { --okd: 1.2; } }
 :root[data-theme='dark'] .hero-split { --okd: 1.2; }
-@media (prefers-reduced-motion: no-preference) {
-  .arc { animation: arc-in 1.6s ease-out both, arc-spin var(--dur) linear infinite var(--dir, normal); }
-  .a1 { animation-delay: 0s, 0s; } .a2 { animation-delay: .5s, 1.5s; } .a3 { animation-delay: 1s, 3s; } .a4 { animation-delay: 1.5s, 4.5s; } .a5 { animation-delay: 2s, 6s; }
-  .hero.is-paused .arc { animation-play-state: paused; }
-  @keyframes arc-spin { from { rotate: var(--r0); } to { rotate: calc(var(--r0) + 360deg); } }
-  @keyframes arc-in { from { opacity: 0; } to { opacity: calc(var(--o) * var(--ok, 1) * var(--okd, 1)); } }
-}
+/* Reduced motion: the arcs stay still and only breathe (opacity). Full motion: they turn, started one after another. */
+.arc { animation: arc-breathe 12s ease-in-out infinite; }
+.a2 { animation-delay: -3s; } .a3 { animation-delay: -6s; } .a4 { animation-delay: -9s; } .a5 { animation-delay: -4.5s; }
+:root[data-motion='full'] .arc { animation: arc-in 1.6s ease-out both, arc-spin var(--dur) linear infinite var(--dir, normal); }
+:root[data-motion='full'] .a1 { animation-delay: 0s, 0s; } :root[data-motion='full'] .a2 { animation-delay: .5s, 1.5s; } :root[data-motion='full'] .a3 { animation-delay: 1s, 3s; }
+:root[data-motion='full'] .a4 { animation-delay: 1.5s, 4.5s; } :root[data-motion='full'] .a5 { animation-delay: 2s, 6s; }
+.hero.is-paused .arc { animation-play-state: paused !important; }
+@keyframes arc-spin { from { rotate: var(--r0); } to { rotate: calc(var(--r0) + 360deg); } }
+@keyframes arc-in { from { opacity: 0; } to { opacity: calc(var(--o) * var(--ok, 1) * var(--okd, 1)); } }
+@keyframes arc-breathe { 0%, 100% { opacity: calc(var(--o) * var(--ok, 1) * var(--okd, 1) * .45); } 50% { opacity: calc(var(--o) * var(--ok, 1) * var(--okd, 1)); } }
+
+/* Cards: border, glow and sheen work in every motion mode (no movement); the tilt and the pointer glow are full motion (hero-fx.js) */
+.gcard { transition: border-color .25s ease, box-shadow .25s ease; }
+.gcard > * { position: relative; z-index: 1; }
+.gcard::before, .gcard::after { content: ''; position: absolute; inset: 0; z-index: 0; border-radius: inherit; pointer-events: none; }
+.gcard::before { opacity: 0; transition: opacity .3s ease; background: radial-gradient(260px circle at var(--mx, 50%) var(--my, 0%), color-mix(in srgb, var(--accent) 30%, transparent), transparent 70%); }
+.gcard::after { opacity: 0; background: linear-gradient(115deg, transparent 18%, rgb(255 255 255 / calc(var(--hl) * .7)) 45%, transparent 72%); animation: sheen 8s ease-in-out infinite; }
+.gc2::after { animation-delay: 1.6s; } .gc3::after { animation-delay: 3.2s; } .gc4::after { animation-delay: 4.8s; } .gc5::after { animation-delay: 6.4s; }
+.gcard:hover { border-color: color-mix(in srgb, var(--accent) 65%, transparent); box-shadow: var(--shadow), 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent), 0 20px 44px -18px rgb(124 77 255 / .55), inset 0 1px 0 rgb(255 255 255 / var(--hl)); }
+.gcard:hover::before { opacity: 1; }
+@keyframes sheen { 0%, 58%, 100% { opacity: 0; } 78% { opacity: 1; } }
+.hero.is-paused .gcard::after { animation-play-state: paused; }
+.gcard.is-hover { will-change: transform; }
+
+/* Buttons: glow and border on hover and focus in every motion mode, lift in full motion */
+.btn { transition: filter .2s ease, box-shadow .2s ease, background-color .2s ease, border-color .2s ease; }
+.btn-grad:hover, .btn-grad:focus-visible { box-shadow: 0 18px 38px -12px rgb(124 77 255 / .8), inset 0 1px 0 rgb(255 255 255 / .4); }
+.btn-ghost:hover, .btn-ghost:focus-visible { border-color: var(--accent) !important; box-shadow: 0 10px 26px -14px rgb(124 77 255 / .6); }
+:root[data-motion='full'] .btn:hover { transform: translateY(-2px); }
+.dl-btn:focus-visible { box-shadow: 0 24px 48px -16px rgb(124 77 255 / .75), inset 0 1px 0 rgb(255 255 255 / .45); }
+
+/* Footer toggle for animations */
+.motion-row { margin: 0; align-items: baseline; flex-wrap: wrap; gap: 6px 12px; }
+.motion-hint { font-size: .85rem; color: var(--ink-mute); }
+.motion-hint[hidden] { display: none; }
+
+.hero-split .cta-row, .hero-split .points { justify-content: flex-start; }
+.hero-split .hero-fine { margin-inline: 0; }
+.gcard > strong, .gcard > span:not(.ficon) { min-width: 0; overflow-wrap: anywhere; hyphens: auto; }
+.stats-cta { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin: 4px 0 0; }
+.hero-split .hero-inner > .stats-cta { grid-column: 1 / -1; justify-self: center; margin-top: -8px; }

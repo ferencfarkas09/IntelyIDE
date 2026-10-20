@@ -70,6 +70,15 @@ export default {
       lead: 'Az IntelyHome azokat a Mac-eszközöket építi, amelyeket a saját gépünkön is szeretnénk látni: egy IDE-t, amely pórázon tartja az MI-ügynököket, és egy optimalizálót, amely az Intel Mac-eket teljes értékűnek tekinti. Helyben dolgozik, őszintén elmondja, mit csinál, aláírt és hitelesített.',
       ide: 'Az IntelyIDE ingyen',
       opti: 'Az IntelyOpti ingyenes próbája',
+      statsCta: 'Az IntelyIDE részletesen',
+      cardsLabel: 'Kiemelések',
+      cards: [
+        { icon: 'layers', h: 'IntelyIDE', p: 'Ingyenes, nyílt forráskódú IDE több git repóhoz.' },
+        { icon: 'sparkles', h: 'IntelyOpti', p: 'Natív optimalizáló, Intel Macekhez építve.' },
+        { icon: 'shield', h: 'Pórázon tartott ügynökök', p: 'Szerkesztenek. Sosem commitolnak és nem pusholnak.' },
+        { icon: 'rewind', h: 'Visszavonható változtatások', p: 'Rewind az IDE-ben, visszaállítás az IntelyOptiban.' },
+        { icon: 'badge', h: 'Aláírt és hitelesített', p: 'Developer ID-s kiadások, az Apple hitelesítette.' },
+      ],
       points: ['Egy dolgozó fejlesztő készítette', 'Aláírt és hitelesített kiadások', 'Nincsenek sötét minták'],
     },
     products: {
@@ -576,6 +585,7 @@ export default {
     ],
   },
   footer: {
+    motion: { label: 'Animációk', on: 'be', off: 'ki', hint: 'A rendszered csökkentett mozgást kér; itt bekapcsolhatod az animációkat.' },
     credit: 'Az IntelyHome-ot Farkas Ferenc, egy fejlesztő készíti.',
     license: 'Az IntelyIDE GPL-3.0-or-later licencű. Az IntelyOpti zárt forráskódú szoftver.',
     trademarks:
@@ -613,6 +623,14 @@ export default {
       pricing: 'Árak',
       fine: '{{trial}} napos ingyenes próba, Mac-enként egyszer. A próba az alkalmazásban indul, amikor megadod az e-mail-címedet.',
       shotAlt: 'Az IntelyOpti Smart Care irányítópultja a Mac egészségi pontszámával és az egykattintásos optimalizálás gombbal.',
+      cardsLabel: 'Fő funkciók',
+      cards: [
+        { icon: 'activity', h: 'Smart Care', p: 'Egészségpontszám és egykattintásos, megmagyarázott optimalizálás.' },
+        { icon: 'trash', h: 'Tisztítás', p: 'Gyorsítótárak, naplók és duplikátumok, biztonságos törléssel.' },
+        { icon: 'sliders', h: 'Gyorsító beállítások', p: 'Animációk, indítási elemek és memória, visszavonhatóan.' },
+        { icon: 'zap', h: 'Turbo', p: 'Háttérszolgáltatás-diéta és Intel-specifikus beállítások, mind visszaállítható.' },
+        { icon: 'thermo', h: 'Mac Health', p: 'Lassulás, hőmérséklet, ventilátorok, akku és SSD állapota.' },
+      ],
       points: ['Aláírt és hitelesített', 'Visszavonható változtatások', 'Az ingyenes eszközök ingyenesek maradnak'],
     },
     form: {
