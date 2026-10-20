@@ -6,11 +6,16 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 
 ### Added
 
-- **Scripts: favorites, quick run and Re-run.** The Run panel can pin the scripts you use most: star a script (the star shows on hover) and it moves to a Favorites group at the top of that repository's list, kept for the next launch and separate for each repository. A script that has stopped or failed now shows a Re-run button in its row and in the log bar (a running one has Restart): Re-run goes through the same Start as the first time, so a script that asks for a confirmation (a deploy, say) asks again, and the warning before a second heavy server still applies. The command palette gets "Re-run the last script" and a "Run <repository>: <script>" entry for every favorite of the repositories you have opened in the panel.
-- **MCP server catalog.** Settings > MCP servers > "Add from the catalog..." lists well-known servers ready to add: GitHub (read-only address), Chrome DevTools, Playwright, Context7, Notion, MongoDB (read-only mode), Brave Search and Figma (the desktop app's local server). Choosing one opens the normal editor with the command, arguments or address filled in, and the secrets it needs (a token, a key, a connection string) as empty secret fields that go to the Keychain. Nothing is saved or started until you save it and confirm what it runs, like any server added by hand. Package versions are pinned, so the confirm dialog shows a fixed program; to update one, change the version in its arguments.
 - Work in progress, not released: the code compiles for Linux (x86_64, webkit2gtk 4.1), Windows 10/11 (x86_64, WebView2) and Apple Silicon Macs, in addition to Intel Macs. Linux passes its tests; on Windows the permission checks and many tests are not yet verified. No Linux or Windows package is published; see `docs/install-linux.md` and `docs/install-windows.md` for what works and what is different. Secrets use Windows Credential Manager and the Linux Secret Service (one vault entry, split over several Credential Manager entries when it is large), banners use a Windows toast and `notify-send`, files and links open with `explorer.exe` and `xdg-open`, the terminal starts PowerShell on Windows, and connections to servers are not shared on Windows (OpenSSH for Windows has no `ControlMaster`). Process groups, the process table and the disk-space check are macOS and Linux features; the update swap of the app bundle stays macOS only.
 - Website: a bigger IntelyIDE hero with three headline figures (up to 7x faster startup, up to 6x faster agents, about 30% fewer tokens), a Speed section with an illustrative comparison graphic and an "Agents that start and finish sooner" section, in English and Hungarian. The figures carry the note that results vary with workspace, machine and task.
 - Website: every page hero (home, IntelyIDE, IntelyOpti; English and Hungarian) now uses one shared design: frosted feature cards with pointer parallax, hover tilt and glow, and thin turning arcs behind. Under reduced motion the hero keeps its hover, glow and breathing effects without movement, and a footer toggle ("Animations") lets visitors choose full animations.
+
+## [1.11.0] - 2026-10-20
+
+### Added
+
+- **Scripts: favorites, quick run and Re-run.** The Run panel can pin the scripts you use most: star a script (the star shows on hover) and it moves to a Favorites group at the top of that repository's list, kept for the next launch and separate for each repository. A script that has stopped or failed now shows a Re-run button in its row and in the log bar (a running one has Restart): Re-run goes through the same Start as the first time, so a script that asks for a confirmation (a deploy, say) asks again, and the warning before a second heavy server still applies. The command palette gets "Re-run the last script" and a "Run <repository>: <script>" entry for every favorite of the repositories you have opened in the panel.
+- **MCP server catalog.** Settings > MCP servers > "Add from the catalog..." lists well-known servers ready to add: GitHub (read-only address), Chrome DevTools, Playwright, Context7, Notion, MongoDB (read-only mode), Brave Search and Figma (the desktop app's local server). Choosing one opens the normal editor with the command, arguments or address filled in, and the secrets it needs (a token, a key, a connection string) as empty secret fields that go to the Keychain. Nothing is saved or started until you save it and confirm what it runs, like any server added by hand. Package versions are pinned, so the confirm dialog shows a fixed program; to update one, change the version in its arguments.
 
 ## [1.10.0] - 2026-10-20
 
@@ -268,7 +273,8 @@ First public release. This is alpha software.
 - Providers other than Claude, Happy, MongoDB Studio and Remote are proven only against mocks or on a local machine.
 - Version 0.1.0 still stores its state in the folder `IntelySwitchIDE` and uses Keychain services named after the earlier bundle identifier; a switch to `com.intelyhome.intelyide` with a migration is planned.
 
-[Unreleased]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.10.0...HEAD
+[Unreleased]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.11.0...HEAD
+[1.11.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.10.0...v1.11.0
 [1.10.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.9.0...v1.10.0
 [1.9.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.7.0...v1.8.0

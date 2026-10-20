@@ -1,5 +1,37 @@
 [
   {
+    "version": "1.11.0",
+    "date": "2026-10-20",
+    "headline": {
+      "en": "Favorite scripts with one-click Re-run, and a catalog of ready-made MCP servers.",
+      "hu": "Kedvenc scriptek egykattintásos újrafuttatással, és kész MCP-szerverek katalógusa."
+    },
+    "notes": [
+      {
+        "kind": "new",
+        "title": {
+          "en": "Favorite scripts and Re-run",
+          "hu": "Kedvenc scriptek és újrafuttatás"
+        },
+        "text": {
+          "en": "Star a script in the Run panel and it moves to a Favorites group at the top of that repository's list. A script that has stopped or failed has a Re-run button in its row and in the log bar; a deploy or other script that asks for a confirmation still asks again. The palette gets \"Re-run the last script\".",
+          "hu": "Csillagozz meg egy scriptet a Run panelen, és az a repó listájának tetején a Kedvencek csoportba kerül. A leállt vagy hibával végzett scriptnek van Újrafuttatás gombja a sorában és a naplósávban; a megerősítést kérő script (például egy deploy) újra rákérdez. A parancspaletta kapott egy „Utolsó script újrafuttatása” parancsot."
+        }
+      },
+      {
+        "kind": "new",
+        "title": {
+          "en": "MCP server catalog",
+          "hu": "MCP-szerverek katalógusa"
+        },
+        "text": {
+          "en": "Settings > MCP servers > Add from the catalog lists GitHub, Chrome DevTools, Playwright, Context7, Notion, MongoDB, Brave Search and Figma. Choosing one fills in the editor; you paste any token yourself, and nothing starts until you save it and confirm what it runs.",
+          "hu": "A Beállítások > MCP-szerverek > Hozzáadás a katalógusból a GitHubot, a Chrome DevToolst, a Playwrightot, a Context7-et, a Notiont, a MongoDB-t, a Brave Searchöt és a Figmát sorolja fel. Ha választasz egyet, a szerkesztő kitöltve nyílik meg; a tokent te írod be, és semmi sem indul el, amíg el nem mented és meg nem erősíted, mit futtat."
+        }
+      }
+    ]
+  },
+  {
     "version": "1.10.0",
     "date": "2026-10-20",
     "headline": {
