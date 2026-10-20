@@ -1,10 +1,9 @@
-import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, For, lazy, Show } from "solid-js";
 import { t } from "../../i18n";
 import { ipc } from "../../ipc";
 import type { McpImportResult, McpServerView, McpWorkspaceState } from "../../ipc/mcp";
 import { activeId, activeSummary } from "../../store/workspaces";
 import { announce, Button, Dialog, EmptyState, LayoutGrid, Plug, Skeleton, SplitButton, toast, TriangleAlert, Upload } from "../../ui-kit";
-import { CatalogDialog } from "./CatalogDialog";
 import { templateOf, type CatalogEntry, type ServerTemplate } from "./catalog";
 import { ConfirmRunDialog } from "./ConfirmRunDialog";
 import { createMcpController } from "./controller";
@@ -14,6 +13,9 @@ import { errorInfo, workspaceState } from "./logic";
 import { ServerEditor } from "./ServerEditor";
 import { ServerRow } from "./ServerRow";
 import "./mcp.css";
+
+// The catalog and its list load the first time it is opened, not with the settings page.
+const CatalogDialog = lazy(() => import("./CatalogDialog").then((m) => ({ default: m.CatalogDialog })));
 
 /** What a confirmation was asked for: a Test (the primary button then says "Confirm and test") or the On-by-default switch. */
 type ConfirmIntent = "test" | "enable";
@@ -30,6 +32,8 @@ export default function McpSection() {
   const [removing, setRemoving] = createSignal<string | null>(null);
   const [importing, setImporting] = createSignal(false);
   const [cataloging, setCataloging] = createSignal(false);
+  const [catalogSeen, setCatalogSeen] = createSignal(false);
+  const openCatalog = () => (setCatalogSeen(true), setCataloging(true));
   const [template, setTemplate] = createSignal<ServerTemplate | null>(null);
   const [expanded, setExpanded] = createSignal<ReadonlySet<string>>(new Set());
 
@@ -139,7 +143,7 @@ export default function McpSection() {
   const addButtons = (
     <>
       <Button variant="primary" icon={Plug} disabled={frozen()} onClick={() => setEditor({})}>{t("mcp.add")}</Button>
-      <Button variant="secondary" icon={LayoutGrid} disabled={frozen()} onClick={() => setCataloging(true)}>{t("mcp.catalog.open")}</Button>
+      <Button variant="secondary" icon={LayoutGrid} disabled={frozen()} onClick={openCatalog}>{t("mcp.catalog.open")}</Button>
       <Button variant="secondary" icon={Upload} disabled={frozen()} onClick={() => setImporting(true)}>{t("mcp.import")}</Button>
     </>
   );
@@ -173,7 +177,7 @@ export default function McpSection() {
             menuLabel={t("mcp.addMore")}
             onClick={() => setEditor({})}
             items={[
-              { label: t("mcp.catalog.open"), icon: LayoutGrid, onSelect: () => setCataloging(true) },
+              { label: t("mcp.catalog.open"), icon: LayoutGrid, onSelect: openCatalog },
               { label: t("mcp.import"), icon: Upload, onSelect: () => setImporting(true) },
             ]}
           >
@@ -249,7 +253,9 @@ export default function McpSection() {
         onClose={closeEditor}
         onSaved={saved}
       />
-      <CatalogDialog open={cataloging()} existingNames={names()} onClose={() => setCataloging(false)} onPick={pickFromCatalog} />
+      <Show when={catalogSeen()}>
+        <CatalogDialog open={cataloging()} existingNames={names()} onClose={() => setCataloging(false)} onPick={pickFromCatalog} />
+      </Show>
       <ConfirmRunDialog
         open={!!confirm()}
         server={c.server(confirm()?.id)}

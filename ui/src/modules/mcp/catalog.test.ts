@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import en from "../../i18n/locales/en/mcp.json";
 import hu from "../../i18n/locales/hu/mcp.json";
-import { CATALOG, CATEGORIES, freeName, matchesCatalog, needsNode, needsSecret, templateOf } from "./catalog";
+import { CATALOG, CATEGORIES, entryLine, entryVars, freeName, matchesCatalog, needsNode, needsSecret, templateOf } from "./catalog";
 import { argsProblem, commandProblem, isSecretName, nameProblem, urlProblem, varNameProblem } from "./logic";
 
 const enAll = en as Record<string, string>;
@@ -40,25 +40,49 @@ describe("the MCP catalog", () => {
     }
   });
 
-  it("never carries a value for a secret: variables are names only, and any token-looking name is marked secret", () => {
+  it("never carries a value for a secret: secret variables are names only, plain ones may carry the value that is set for the person", () => {
     for (const e of CATALOG) {
       for (const v of [...(e.env ?? []), ...(e.headers ?? [])]) {
-        expect(Object.keys(v).sort(), `${e.id} ${v.name}`).toEqual(["name", "secret"]);
+        const keys = Object.keys(v).filter((k) => k !== "smoke").sort();
+        if (v.secret) expect(keys, `${e.id} ${v.name}`).toEqual(["name", "secret"]);
+        else expect(keys, `${e.id} ${v.name}`).toEqual(["name", "secret", "value"]);
         if (isSecretName(v.name)) expect(v.secret, `${e.id} ${v.name}`).toBe(true);
       }
       expect((e.args ?? []).filter((a) => a.includes("=")), `${e.id} has a value in its arguments`).toEqual([]);
       expect(e.url ?? "", e.id).not.toMatch(/@|\?/);
     }
     // a connection string holds the password even though its name has no secret word
-    expect(CATALOG.find((e) => e.id === "mongodb")?.env).toEqual([{ name: "MDB_MCP_CONNECTION_STRING", secret: true }]);
+    expect(CATALOG.find((e) => e.id === "mongodb")?.env).toMatchObject([{ name: "MDB_MCP_CONNECTION_STRING", secret: true }]);
+  });
+
+  it("keeps vendors' own telemetry switched off where the tool offers a switch", () => {
+    expect(CATALOG.find((e) => e.id === "xcodebuild")?.env).toEqual([{ name: "XCODEBUILDMCP_SENTRY_DISABLED", secret: false, value: "true" }]);
+    expect(CATALOG.find((e) => e.id === "chrome-devtools")?.args).toEqual(expect.arrayContaining(["--no-usage-statistics"]));
+  });
+
+  it("gives every entry an icon and every category a name in both languages", () => {
+    for (const e of CATALOG) expect(e.icon, e.id).toBeTruthy();
+    for (const c of CATEGORIES) {
+      expect(enAll[`mcp.catalog.cat.${c}`], c).toBeTruthy();
+      expect(huAll[`mcp.catalog.cat.${c}`], c).toBeTruthy();
+    }
+    expect(new Set(CATALOG.map((e) => e.category))).toEqual(new Set(CATEGORIES));
+  });
+
+  it("is bigger than a handful: at least fifteen entries, none of them pointing at a package the registry marks as dropped", () => {
+    expect(CATALOG.length).toBeGreaterThanOrEqual(15);
+    // the reference servers that were archived are not offered
+    for (const dropped of ["@modelcontextprotocol/server-github", "@modelcontextprotocol/server-postgres"]) {
+      expect(CATALOG.flatMap((e) => e.args ?? []).some((a) => a.startsWith(dropped))).toBe(false);
+    }
   });
 
   it("starts the servers that can write in a read-only mode, or says it is read-only because it only reads", () => {
     expect(CATALOG.find((e) => e.id === "github")?.url).toMatch(/\/readonly$/);
     expect(CATALOG.find((e) => e.id === "mongodb")?.args).toContain("--readOnly");
-    for (const id of ["github", "mongodb", "context7", "brave-search"]) expect(CATALOG.find((e) => e.id === id)?.readOnly, id).toBe(true);
+    for (const id of ["github", "mongodb", "context7", "brave-search", "exa", "perplexity"]) expect(CATALOG.find((e) => e.id === id)?.readOnly, id).toBe(true);
     // Notion, Playwright and Chrome can change things: they are not labelled as reading only
-    for (const id of ["notion", "playwright", "chrome-devtools"]) expect(CATALOG.find((e) => e.id === id)?.readOnly, id).toBeUndefined();
+    for (const id of ["notion", "playwright", "chrome-devtools", "firecrawl", "mobile-mcp", "xcodebuild"]) expect(CATALOG.find((e) => e.id === id)?.readOnly, id).toBeUndefined();
   });
 
   it("keeps the usage statistics of the Chrome server switched off", () => {
@@ -92,6 +116,17 @@ describe("the MCP catalog", () => {
     expect(mongo.env[0]).toMatchObject({ name: "MDB_MCP_CONNECTION_STRING", secret: true, secretValue: "" });
     // a second call does not hand out the same row objects (the editor edits them)
     expect(templateOf(CATALOG[0], [])).not.toBe(templateOf(CATALOG[0], []));
+  });
+
+  it("shows the exact program line and the variable names the editor will fill in", () => {
+    const by = (id: string) => CATALOG.find((e) => e.id === id)!;
+    expect(entryLine(by("mongodb"))).toBe("npx -y mongodb-mcp-server@3.1.0 --readOnly");
+    expect(entryLine(by("github"))).toBe("https://api.githubcopilot.com/mcp/readonly");
+    expect(entryVars(by("xcodebuild"))).toEqual({ secret: [], plain: ["XCODEBUILDMCP_SENTRY_DISABLED"] });
+    expect(entryVars(by("notion"))).toEqual({ secret: ["NOTION_TOKEN"], plain: [] });
+    // a plain variable the entry sets becomes a filled row; a secret one stays empty
+    const row = templateOf(by("xcodebuild"), []).env[0];
+    expect(row).toMatchObject({ name: "XCODEBUILDMCP_SENTRY_DISABLED", secret: false, value: "true" });
   });
 
   it("derives what the person has to bring", () => {

@@ -183,3 +183,5 @@
 .mcp-cat__summary { color: var(--text-2); }
 .mcp-cat__meta { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-2); }
 .mcp-cat__meta:empty { display: none; }
+.mcp-cat__line { display: block; min-width: 0; overflow: hidden; color: var(--text-2); font-family: var(--font-mono); font-size: var(--text-xs); text-overflow: ellipsis; white-space: nowrap; }
+.mcp-cat__vars { color: var(--text-3); font-size: var(--text-xs); }

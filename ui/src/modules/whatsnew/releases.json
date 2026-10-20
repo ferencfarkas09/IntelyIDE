@@ -3,8 +3,8 @@
     "version": "1.11.0",
     "date": "2026-10-20",
     "headline": {
-      "en": "Favorite scripts with one-click Re-run, and a catalog of ready-made MCP servers.",
-      "hu": "Kedvenc scriptek egykattintásos újrafuttatással, és kész MCP-szerverek katalógusa."
+      "en": "Favorite scripts with one-click Re-run, and a catalog of fifteen ready-made MCP servers.",
+      "hu": "Kedvenc scriptek egykattintásos újrafuttatással, és tizenöt kész MCP-szerver katalógusa."
     },
     "notes": [
       {
@@ -25,8 +25,8 @@
           "hu": "MCP-szerverek katalógusa"
         },
         "text": {
-          "en": "Settings > MCP servers > Add from the catalog lists GitHub, Chrome DevTools, Playwright, Context7, Notion, MongoDB, Brave Search and Figma. Choosing one fills in the editor; you paste any token yourself, and nothing starts until you save it and confirm what it runs.",
-          "hu": "A Beállítások > MCP-szerverek > Hozzáadás a katalógusból a GitHubot, a Chrome DevToolst, a Playwrightot, a Context7-et, a Notiont, a MongoDB-t, a Brave Searchöt és a Figmát sorolja fel. Ha választasz egyet, a szerkesztő kitöltve nyílik meg; a tokent te írod be, és semmi sem indul el, amíg el nem mented és meg nem erősíted, mit futtat."
+          "en": "Settings > MCP servers > Add from the catalog lists fifteen servers, among them GitHub, Chrome DevTools, Playwright, Mobile MCP, XcodeBuildMCP, MongoDB and Notion. Each row shows the exact line it would run. Choosing one fills in the editor; you paste any token yourself, and nothing starts until you save it and confirm what it runs.",
+          "hu": "A Beállítások > MCP-szerverek > Hozzáadás a katalógusból tizenöt szervert sorol fel, köztük a GitHubot, a Chrome DevToolst, a Playwrightot, a Mobile MCP-t, az XcodeBuildMCP-t, a MongoDB-t és a Notiont. Minden sor megmutatja a pontos parancsot, amelyet futtatna. Ha választasz egyet, a szerkesztő kitöltve nyílik meg; a tokent te írod be, és semmi sem indul el, amíg el nem mented és meg nem erősíted, mit futtat."
         }
       }
     ]

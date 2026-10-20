@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import en from "../../i18n/locales/en/mcp.json";
 import hu from "../../i18n/locales/hu/mcp.json";
 
-const sources = import.meta.glob(["./*.ts", "./*.tsx", "!./*.test.*"], { query: "?raw", import: "default", eager: true }) as Record<string, string>;
+const sources = import.meta.glob(["./*.ts", "./*.tsx", "./catalog.json", "!./*.test.*"], { query: "?raw", import: "default", eager: true }) as Record<string, string>;
 const enAll = en as Record<string, string>;
 const huAll = hu as Record<string, string>;
 

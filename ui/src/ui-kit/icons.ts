@@ -132,6 +132,11 @@ export {
   AtSign,
   Circle,
   MessagesSquare,
+  // MCP catalog
+  Compass,
+  Flame,
+  Hammer,
+  Telescope,
   // team chat channel management
   BellOff,
   LogOut,
