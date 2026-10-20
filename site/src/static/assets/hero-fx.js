@@ -3,7 +3,7 @@
 // Without this file the page shows the static CSS glows; with prefers-reduced-motion the bubbles are placed once.
 (() => {
   const bg = document.querySelector('.hero-bg');
-  if (!bg) return;
+  if (!bg || bg.querySelector('.rings')) return; // the split hero is driven by the block below
   const hero = bg.parentElement;
   const reduce = matchMedia('(prefers-reduced-motion: reduce)');
   const trail = bg.querySelector('.cursor-glow');
@@ -89,4 +89,56 @@
     active = false; trail?.classList.remove('on');
     tgt.x = W / 2; tgt.y = H * 0.4;
   });
+})();
+
+// Split hero (IntelyIDE page): the frosted cards follow the pointer with a eased parallax (a different depth each) and keep a slow
+// idle float of a few pixels. Touch and no-hover devices get the float only; prefers-reduced-motion gets neither. The loop (and the
+// CSS ring animation, through .is-paused) runs only while the hero is on screen and the tab is visible. Transform only.
+(() => {
+  const box = document.querySelector('.hero-cards');
+  if (!box) return;
+  const hero = box.closest('.hero');
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)');
+  const hover = matchMedia('(hover: hover) and (pointer: fine)');
+  const cards = [...box.querySelectorAll('.gcard')].map((el, i) => ({
+    el, d: Number(el.dataset.d) || 1, ph: i * 1.9 + 0.6, sp: 0.42 + (i % 3) * 0.11, amp: 3 + (i % 2) * 2.5, x: 0, y: 0,
+  }));
+  const tgt = { x: 0, y: 0 }, cur = { x: 0, y: 0 };
+  let running = false, visible = true, last = 0, t = 0;
+
+  const paint = (dt) => {
+    const k = 1 - Math.exp(-dt * 4.5);
+    cur.x += (tgt.x - cur.x) * k; cur.y += (tgt.y - cur.y) * k;
+    for (const c of cards) {
+      const x = cur.x * 22 * c.d + Math.sin(t * c.sp + c.ph) * c.amp * 0.6;
+      const y = cur.y * 18 * c.d + Math.cos(t * c.sp * 1.15 + c.ph) * c.amp;
+      c.el.style.transform = `translate3d(${x.toFixed(2)}px, ${y.toFixed(2)}px, 0)`;
+    }
+  };
+  const loop = (now) => {
+    if (!running) return;
+    const dt = Math.min(0.05, (now - last) / 1000 || 0.016);
+    last = now; t += dt; paint(dt);
+    requestAnimationFrame(loop);
+  };
+  const sync = () => {
+    const on = visible && !document.hidden && !reduce.matches;
+    hero.classList.toggle('is-paused', !(visible && !document.hidden));
+    if (on && !running) { running = true; last = performance.now(); requestAnimationFrame(loop); }
+    if (!on) {
+      running = false;
+      if (reduce.matches) { for (const c of cards) c.el.style.transform = ''; tgt.x = tgt.y = cur.x = cur.y = 0; }
+    }
+  };
+  new IntersectionObserver(([e]) => { visible = e.isIntersecting; sync(); }).observe(hero);
+  document.addEventListener('visibilitychange', sync);
+  reduce.addEventListener('change', sync);
+  addEventListener('pointermove', (e) => {
+    if (e.pointerType === 'touch' || !hover.matches || reduce.matches) return;
+    const b = hero.getBoundingClientRect();
+    tgt.x = Math.max(-1, Math.min(1, (e.clientX - b.left) / b.width * 2 - 1));
+    tgt.y = Math.max(-1, Math.min(1, (e.clientY - b.top) / Math.min(b.height, 900) * 2 - 1));
+  }, { passive: true });
+  document.documentElement.addEventListener('pointerleave', () => { tgt.x = tgt.y = 0; });
+  sync();
 })();

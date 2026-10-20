@@ -55,7 +55,7 @@ export default {
     optiCta: 'Ingyenes próba indítása',
   },
   subnav: {
-    ide: [['features', 'Funkciók'], ['trust', 'Bizalom'], ['open-source', 'Nyílt forrás'], ['install', 'Telepítés'], ['faq', 'GYIK']],
+    ide: [['speed', 'Sebesség'], ['agents-fast', 'Ügynökök'], ['features', 'Funkciók'], ['trust', 'Bizalom'], ['open-source', 'Nyílt forrás'], ['install', 'Telepítés'], ['faq', 'GYIK']],
     opti: [['features', 'Funkciók'], ['modes', 'Pro módok'], ['advisor', 'MI-tanácsadó'], ['trial', 'Próba'], ['pricing', 'Árak'], ['security', 'Biztonság'], ['faq', 'GYIK']],
   },
   cross: {
@@ -180,10 +180,61 @@ export default {
     },
   },
   hero: {
-    kicker: 'Ingyenes és nyílt forráskódú · Stabil kiadás',
-    title: 'Minden repó. Egy ablak. <span class="grad">MI, amiben megbízhatsz.</span>',
-    lead: 'Az IntelyIDE gyors, könnyű asztali IDE azoknak, akik egyszerre több git repóban dolgoznak. Az MI-ügynökök segítenek a munkában. Olvashatnak és szerkeszthetnek, de sosem commitolnak és nem pusholnak. Azt te teszed.',
+    kicker: 'Fejlesztőktől fejlesztőknek · Ingyenes és nyílt forráskódú',
+    title: 'Minden repó. Egy ablak. <span class="grad">Hamarabb végző ügynökök.</span>',
+    lead: 'Az IntelyIDE gyors, könnyű asztali IDE azoknak, akik egyszerre több git repóban dolgoznak. Akár 7x gyorsabban indul, mint a leggyakrabban használt IDE-k egy átlagos gépen, az ügynökei pedig akár 6x gyorsabban indulnak és végeznek. Az ügynökök olvashatnak és szerkeszthetnek, de sosem commitolnak és nem pusholnak. Azt te teszed.',
     shotAlt: 'Az IntelyIDE főablaka: a több repót összefogó Változások fa a szerkesztő és egy ügynökpanel mellett.',
+    cardsLabel: 'Fő funkciók',
+    cards: [
+      { icon: 'layers', h: 'Többrepós munkaterület', p: 'Egyetlen Változások fa minden repóhoz.' },
+      { icon: 'shield', h: 'Sosem commitol, nem pushol', p: 'Az ügynök szerkeszt. Te commitolsz és pusholsz.' },
+      { icon: 'users', h: 'Vezető és dolgozók', p: 'A vezető felosztja a feladatot, a dolgozók megosztoznak rajta.' },
+      { icon: 'zap', h: 'Párhuzamos futások', p: 'Több futás egyszerre, akár ugyanazon a repón.' },
+      { icon: 'plug', h: 'MCP és DeepPattern', p: 'Az eszközeid és integrációid egy katalógusban.' },
+    ],
+    statsLabel: 'Az IntelyIDE három számban',
+    stats: [
+      { n: 'akár 7x', h: 'gyorsabb indulás', p: 'bármilyen munkaterülettel, a leggyakrabban használt IDE-khez képest, egy átlagos gépen.', href: '#speed' },
+      { n: 'akár 6x', h: 'gyorsabb ügynökök', p: 'az indítástól a befejezésig, az intelligens ügynökmegoldásnak köszönhetően.', href: '#agents-fast' },
+      { n: 'kb. 30%', h: 'kevesebb token', p: 'az intelligens alügynök-beállításoknak köszönhetően.', href: '#agents-fast' },
+    ],
+    note: 'Az eredmények a munkaterülettől, a géptől és a feladattól függően változnak.',
+  },
+  perf: {
+    speed: {
+      title: 'Bármilyen munkaterület pillanatok alatt megnyílik',
+      lead: 'Sok repó, egy ablak, és nem kell sokat várni, mielőtt dolgozni tudsz. Az IntelyIDE natív, Rust és Tauri alapú héj, nem Electron, és amint beolvasta a repóidat, meg is mutatja őket.',
+      chartTitle: 'Idő, amíg a munkaterület használható',
+      chartTag: 'Szemléltető',
+      chartAlt: 'Szemléltető oszlopdiagram: az IntelyIDE a leggyakrabban használt IDE-k indulási idejének nagyjából a hetedére van szüksége egy átlagos gépen. Az eredmények a munkaterülettől, a géptől és a feladattól függően változnak.',
+      barIde: 'IntelyIDE',
+      barOthers: 'A leggyakrabban használt IDE-k',
+      barIdeVal: 'akár 7x gyorsabb',
+      barOthersVal: 'alap',
+      caption: 'Szemléltető ábra az „akár 7x” értékről: indulás tetszőleges munkaterülettel, egy átlagos gépen. Nem egyetlen konkrét teszt diagramja.',
+      points: [
+        ['Natív, nem böngésző egy dobozban', 'A Rust és Tauri alapú héj a rendszer webnézetét használja, így nincs mit elindítani egy beépített böngészőből.'],
+        ['Minden repóval együtt kész', 'Az ablak a munkaterület összes repóját egyszerre mutatja, egyetlen Változások fában.'],
+        ['Könnyű munka közben is', 'Arra tervezték, hogy egy átlagos Macen is könnyű és gyors maradjon, nem csak egy erősen.'],
+      ],
+    },
+    agents: {
+      title: 'Ügynökök, amelyek hamarabb indulnak és hamarabb végeznek',
+      lead: 'Az intelligens ügynökmegoldás több ügynök között osztja el a feladatot, egyszerre indítja őket, és a drágább erőforrásokat arra tartogatja, ami tényleg kell hozzájuk. Minden futást látsz, és te döntöd el, mi kerül commitba.',
+      cards: [
+        { h: 'Vezető és dolgozók', p: 'Ha egynél több futást indítasz, az 1. futás a vezető. Felosztja a feladatot, minden dolgozónak ad egy részfeladatot, és egyetlen összefoglalót ad neked. Csak a vezető kérdez téged.' },
+        { h: 'Párhuzamos futások', p: 'A dolgozók egymás mellett futnak, nem egymás után, így a független részekből álló feladat hamarabb végez.' },
+        { h: 'Azonnal megnyíló futások', p: 'Az új futás rögtön megnyílik, akkor is, ha a Mac terhelt, így látod, ahogy elindul, és nem kell némán várnod.' },
+        { h: 'Okos alügynök-beállítások', p: 'Minden szerepnek saját modellje, erőfeszítése és eszközei vannak. Az Auto vezető az egyszerűbb részeket könnyebb szerepekre bízza, innen jön a token-megtakarítás.' },
+      ],
+      figuresLabel: 'Az ügynökök számai',
+      figures: [
+        { n: 'akár 6x', p: 'gyorsabb ügynökindítás és -befejezés az intelligens ügynökmegoldásnak köszönhetően' },
+        { n: 'kb. 30%', p: 'kevesebb token az intelligens alügynök-beállításoknak köszönhetően' },
+      ],
+      note: 'Az eredmények a munkaterülettől, a géptől és a feladattól függően változnak.',
+      cta: 'IntelyIDE letöltése',
+    },
   },
   dl: {
     button: 'Letöltés macOS-re',
