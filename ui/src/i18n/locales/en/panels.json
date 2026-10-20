@@ -799,5 +799,6 @@
   "runs.panes.close": "Empty this pane",
   "runs.panes.closeLabel": "Empty pane {n}",
   "runs.panes.resize": "Resize panes",
-  "runs.panes.cmdNext": "Focus next pane"
+  "runs.panes.cmdNext": "Focus next pane",
+  "runs.agent.resizePanel": "Resize the side panel"
 }

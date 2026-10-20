@@ -1,7 +1,7 @@
 import { createEffect, createMemo, createSignal, Match, onCleanup, onMount, Show, Switch, type JSX } from "solid-js";
 import { t } from "../../i18n";
 import { openIntegration } from "../../platform/integrations";
-import { AtSign, Badge, Button, EmptyState, IconButton, Lock, MessageSquare, RefreshCw, Settings, Skeleton, StatusDot, TriangleAlert } from "../../ui-kit";
+import { AtSign, Badge, Button, EmptyState, IconButton, Lock, MessageSquare, RefreshCw, Settings, Skeleton, StatusDot, TriangleAlert, X } from "../../ui-kit";
 import { providerState, refreshHappyStatus, happyStatus } from "../../store/happy";
 import { Conversation } from "./Conversation";
 import { closeMembers, membersPanelOpen } from "./dialogs";
@@ -24,11 +24,12 @@ const openIntegrations = () => {
 };
 
 /** Why the chat is not running, as an empty state: off, no token, signed out (401), not permitted (403), error. */
-function Gate() {
+function Gate(props: { onClose?: () => void }) {
   const state = () => (happyStatus() ? providerState("chat") : undefined);
   const error = () => happyStatus()?.providers.find((p) => p.id === "chat")?.lastError;
   return (
     <div class="hc hc--gate">
+      <Show when={props.onClose}>{(close) => <IconButton class="hc-gate__close" icon={X} label={t("hc.closePanel")} size="sm" onClick={close()} />}</Show>
       <Switch>
         <Match when={state() === "signedOut"}>
           <EmptyState
@@ -105,7 +106,7 @@ function RightPanel(props: { kind: "thread" | "members"; channelId: string; root
   );
 }
 
-function Live() {
+function Live(props: { onClose?: () => void }) {
   let root!: HTMLDivElement;
   const [width, setWidth] = createSignal(0);
   onMount(() => {
@@ -203,6 +204,7 @@ function Live() {
         </Show>
         <IconButton icon={RefreshCw} label={t("hc.refresh")} size="sm" onClick={() => void refreshSummary(true)} />
         <IconButton icon={Settings} label={t("hc.settings")} tooltip={t("hc.settingsTip")} size="sm" onClick={openIntegrations} />
+        <Show when={props.onClose}>{(close) => <IconButton icon={X} label={t("hc.closePanel")} size="sm" onClick={close()} />}</Show>
       </header>
       <Show when={offline() && !active()}>
         <p class="hc-stale">{t("hc.offline.list")}</p>
@@ -234,11 +236,11 @@ function Live() {
   );
 }
 
-/** The right-dock tab. */
-export default function ChatTab() {
+/** The right-dock tab, or the panel beside the run in Agent mode (`onClose` is given there). */
+export default function ChatTab(props: { onClose?: () => void }) {
   return (
-    <Show when={chatLive()} fallback={<Gate />}>
-      <Live />
+    <Show when={chatLive()} fallback={<Gate onClose={props.onClose} />}>
+      <Live onClose={props.onClose} />
     </Show>
   );
 }

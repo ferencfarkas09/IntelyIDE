@@ -32,7 +32,7 @@ export function setAppMode(next: AppMode): void {
   writeStored("intely.layout.mode", next);
 }
 
-export const resetModes = () => (registry.clear(), setMode("editor"), setAgentTab(null));
+export const resetModes = () => (registry.clear(), panelRegistry.clear(), setMode("editor"), setAgentTab(null), setPanelId(null));
 
 /**
  * A tab (Run history, Inspector, Review) that is shown in the middle of the Agent workspace, so opening it from Agent mode
@@ -48,3 +48,42 @@ export const agentTabInstance = (): TabInstance | undefined => {
 };
 /** The tab the user is looking at: the Agent workspace's own, or the editor area's active one. */
 export const visibleTab = (): TabInstance | undefined => (appMode() === "agent" ? agentTabInstance() : activeTab());
+
+/**
+ * A panel docked at the right edge of the Agent workspace, next to the run: Team chat is the first. The Agent workspace replaces
+ * the editor area, so a dock tab opened there would only open behind it; a module that wants something usable beside a run
+ * registers a panel and opens it with `openAgentPanel`. The open one is remembered.
+ */
+export interface AgentPanel {
+  id: string;
+  title: string;
+  /** Lazy: fetched when the panel is first shown. Fills the column; `onClose` is given so the panel can offer its own close button in its header. */
+  component: Component<{ onClose?: () => void }>;
+  /** False while the thing it shows is off (no Happy account, say): the panel is then treated as closed. */
+  when?: () => boolean;
+}
+
+const panelRegistry = createRegistry<AgentPanel>(() => 0, "agentPanel");
+export const registerAgentPanel = panelRegistry.register;
+export const agentPanel = (id: string): AgentPanel | undefined => panelRegistry.get(id);
+
+const PANEL_KEY = "intely.layout.agentPanel";
+const [panelId, setPanelId] = createSignal<string | null>(readStored(PANEL_KEY) || null);
+
+/** The panel on screen: only in Agent mode, only a registered one, and only while its `when` allows. */
+export const agentPanelId = (): string | null => {
+  const id = panelId();
+  const panel = id ? panelRegistry.get(id) : undefined;
+  return appMode() === "agent" && panel && (panel.when?.() ?? true) ? panel.id : null;
+};
+export const agentPanelOpen = (id: string): boolean => agentPanelId() === id;
+
+export function openAgentPanel(id: string): void {
+  setPanelId(id);
+  writeStored(PANEL_KEY, id);
+}
+export function closeAgentPanel(): void {
+  setPanelId(null);
+  writeStored(PANEL_KEY, "");
+}
+export const toggleAgentPanel = (id: string): void => (agentPanelOpen(id) ? closeAgentPanel() : openAgentPanel(id));

@@ -3,25 +3,22 @@ import { t } from "../../i18n";
 import type { ChatChannel } from "../../ipc/happy";
 import { Badge, EmptyState, FileSearch, Hash, IconButton, Input, Lock, MessageSquare, MessagesSquare, Pencil, Plus, Search, Skeleton, Star, StatusDot, Users } from "../../ui-kit";
 import { openBrowseChannels, openNewChannel, openNewMessage, openSearch } from "./dialogs";
-import { channelLabel, norm, sectionsOf, type ListSection } from "./logic";
+import { avatarSlot, channelLabel, listTime, norm, previewLine, sectionsOf, type ListSection } from "./logic";
 import { Avatar } from "./Message";
-import { chatMainView, chatSummary, listSearchTick, openDirect, searchPeople } from "./state";
+import { chatMainView, chatSummary, listSearchTick, myName, openDirect, searchPeople } from "./state";
 
-/** The icon of a conversation by kind: # for public, a lock for private, an avatar for a person, people for a group. */
-function RowIcon(props: { c: ChatChannel }) {
+/** The round picture of a conversation: the person's initials, or a tile with # (channel), a lock (private) or people (group), in the same colours. */
+function ConvoAvatar(props: { c: ChatChannel }) {
   return (
     <Show
       when={props.c.kind === "direct"}
       fallback={
-        <Show
-          when={props.c.kind === "group"}
-          fallback={<span class="hc-row__icon" aria-hidden="true" title={props.c.kind === "private" ? t("hc.sb.private") : undefined}>{props.c.kind === "private" ? <Lock size={13} /> : <Hash size={14} />}</span>}
-        >
-          <span class="hc-row__icon" aria-hidden="true" title={t("hc.sb.group")}><Users size={14} /></span>
-        </Show>
+        <span class="hc-avatar hc-avatar--tile" data-slot={avatarSlot(props.c.name)} style={{ "--hc-avatar": "38px" }} aria-hidden="true" title={props.c.kind === "private" ? t("hc.sb.private") : props.c.kind === "group" ? t("hc.sb.group") : undefined}>
+          {props.c.kind === "private" ? <Lock size={16} /> : props.c.kind === "group" ? <Users size={16} /> : <Hash size={16} />}
+        </span>
       }
     >
-      <Avatar name={props.c.name} size={18} />
+      <Avatar name={props.c.name} size={38} />
     </Show>
   );
 }
@@ -29,12 +26,13 @@ function RowIcon(props: { c: ChatChannel }) {
 function Row(props: { c: ChatChannel; active: boolean; tabbable: boolean; onSelect: (id: string) => void }) {
   const c = () => props.c;
   const unread = () => c().unreadCount;
+  const preview = () => previewLine(c(), myName(), t("hc.you"));
   const label = () => t("hc.row.label", { name: channelLabel(c()), unread: unread(), mentions: c().mentionCount, muted: c().muted ? "yes" : "no" });
   return (
     <button
       type="button"
       role="option"
-      class="hc-row"
+      class="hc-row hc-row--convo"
       data-channel={c().id}
       data-kind={c().kind}
       data-active={props.active ? "" : undefined}
@@ -46,17 +44,25 @@ function Row(props: { c: ChatChannel; active: boolean; tabbable: boolean; onSele
       tabIndex={props.tabbable ? 0 : -1}
       onClick={() => props.onSelect(c().id)}
     >
-      <RowIcon c={c()} />
-      <span class="hc-row__name ui-truncate">{c().name}</span>
-      <Show when={c().starred}>
-        <span class="hc-row__star" aria-hidden="true" title={t("hc.sb.starred")}><Star size={11} /></span>
-      </Show>
-      <Show when={c().mentionCount > 0}>
-        <StatusDot tone="accent" size={6} label={t("hc.mentioned")} />
-      </Show>
-      <Show when={unread() > 0}>
-        <Badge size="sm" numeric tone={c().muted ? "neutral" : "accent"} variant={c().muted ? "subtle" : "solid"}>{unread() > 99 ? "99+" : unread()}</Badge>
-      </Show>
+      <ConvoAvatar c={c()} />
+      <span class="hc-convo">
+        <span class="hc-convo__line">
+          <span class="hc-row__name ui-truncate">{c().name}</span>
+          <Show when={c().starred}>
+            <span class="hc-row__star" aria-hidden="true" title={t("hc.sb.starred")}><Star size={11} /></span>
+          </Show>
+          <Show when={c().lastMessageAtMs}>{(at) => <time class="hc-convo__time ui-tnum" datetime={new Date(at()).toISOString()} aria-hidden="true">{listTime(at(), Date.now())}</time>}</Show>
+        </span>
+        <span class="hc-convo__line">
+          <span class="hc-convo__preview ui-truncate" aria-hidden="true">{preview()}</span>
+          <Show when={c().mentionCount > 0}>
+            <StatusDot tone="accent" size={6} label={t("hc.mentioned")} />
+          </Show>
+          <Show when={unread() > 0}>
+            <Badge size="sm" numeric tone={c().muted ? "neutral" : "accent"} variant={c().muted ? "subtle" : "solid"}>{unread() > 99 ? "99+" : unread()}</Badge>
+          </Show>
+        </span>
+      </span>
     </button>
   );
 }

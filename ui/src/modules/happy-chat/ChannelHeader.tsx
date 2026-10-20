@@ -7,7 +7,7 @@ import "./chat-dialogs.css";
 import { EditChannelDialog, LeaveChannelDialog } from "./ChannelActions";
 import { closeMembers, membersPanelOpen, openMembers, openSearch } from "./dialogs";
 import { muteUntil, type MuteChoice } from "./dialogs-logic";
-import { canManageMembers, describeChannel, isDirectKind } from "./logic";
+import { avatarSlot, canManageMembers, describeChannel, isDirectKind } from "./logic";
 import { Avatar } from "./Message";
 import { chatSummary, setChannelPreferences } from "./state";
 
@@ -53,8 +53,8 @@ export function ChannelHeader(props: ChannelHeaderProps) {
         <IconButton icon={ChevronLeft} label={t("hc.hdr.back")} size="sm" onClick={() => props.onBack?.()} />
       </Show>
       <span class="hch__icon" aria-hidden="true">
-        <Show when={c().kind === "direct"} fallback={<Icon icon={c().kind === "group" ? Users : c().kind === "private" ? Lock : Hash} size={16} />}>
-          <Avatar name={c().name} size={22} />
+        <Show when={c().kind === "direct"} fallback={<span class="hc-avatar hc-avatar--tile" data-slot={avatarSlot(c().name)} style={{ "--hc-avatar": "32px" }}><Icon icon={c().kind === "group" ? Users : c().kind === "private" ? Lock : Hash} size={16} /></span>}>
+          <Avatar name={c().name} size={32} />
         </Show>
       </span>
       <div class="hch__main">

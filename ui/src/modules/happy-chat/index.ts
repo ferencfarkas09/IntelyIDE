@@ -1,13 +1,14 @@
 import { lazy } from "solid-js";
 import { t } from "../../i18n";
 import { registerCommand } from "../../platform/commands";
-import { openDockTab, registerDockTab, toggleDockTab } from "../../platform/dock";
+import { registerDockTab } from "../../platform/dock";
+import { registerAgentPanel } from "../../platform/mode";
 import { registerRailItem } from "../../platform/rail";
 import { registerOverlay } from "../../platform/overlay";
 import { registerStatusItem } from "../../platform/statusbar";
 import { MessageSquare } from "../../ui-kit";
 import { chatBadgeCount } from "./logic";
-import { chatItemVisible, chatLive, chatSummary, chatTabShown, focusChatSearch, openChat } from "./state";
+import { chatItemVisible, chatLive, chatSummary, chatTabShown, focusChatSearch, showChat, toggleChat } from "./state";
 
 /**
  * Team chat ((design notes: integrations-plan) 2.2): the Chat dock tab, the status-bar bubble with the unread count, and toasts for
@@ -34,9 +35,11 @@ export function register(): void {
     badgeUrgent: () => mentions() > 0,
     label: () => t("hc.status.label", { unread: unread(), mentions: mentions(), offline: "no" }),
     pressed: chatTabShown,
-    run: () => (chatTabShown() ? toggleDockTab("chat") : openChat()),
+    run: toggleChat,
   });
   registerDockTab({ id: "chat", get title() { return t("hc.name"); }, icon: MessageSquare, component: lazy(() => import("./ChatTab")) });
-  registerCommand({ id: "chat.show", get title() { return t("hc.cmd.show"); }, get group() { return t("hc.name"); }, keywords: ["messages", "team", "conversation", "csapatchat"], when: chatLive, run: () => openDockTab("chat") });
+  // In Agent mode the editor area (and its dock) is not on screen: the chat sits in a column beside the run instead.
+  registerAgentPanel({ id: "chat", get title() { return t("hc.name"); }, component: lazy(() => import("./ChatTab")), when: chatLive });
+  registerCommand({ id: "chat.show", get title() { return t("hc.cmd.show"); }, get group() { return t("hc.name"); }, keywords: ["messages", "team", "conversation", "csapatchat"], when: chatLive, run: showChat });
   registerCommand({ id: "chat.goto", get title() { return t("hc.cmd.goto"); }, get group() { return t("hc.name"); }, keywords: ["dm", "direct", "channel", "switch", "search"], when: chatLive, run: focusChatSearch });
 }

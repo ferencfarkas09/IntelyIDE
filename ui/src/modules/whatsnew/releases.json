@@ -3,10 +3,21 @@
     "version": "1.11.0",
     "date": "2026-10-20",
     "headline": {
-      "en": "Favorite scripts with one-click Re-run, and a catalog of fifteen ready-made MCP servers.",
-      "hu": "Kedvenc scriptek egykattintásos újrafuttatással, és tizenöt kész MCP-szerver katalógusa."
+      "en": "Team chat beside your agent run, favorite scripts with Re-run, and fifteen ready-made MCP servers.",
+      "hu": "Csapat-chat az ügynökfutás mellett, kedvenc scriptek újrafuttatással, és tizenöt kész MCP-szerver."
     },
     "notes": [
+      {
+        "kind": "new",
+        "title": {
+          "en": "Team chat beside your run",
+          "hu": "Csapat-chat a futás mellett"
+        },
+        "text": {
+          "en": "In Agent mode the chat button now opens the chat as a panel next to the run, so you can talk while an agent works. The chat looks like a messenger: bubbles, pictures, the last words and time in the conversation list, and a rounded message box.",
+          "hu": "Az Agent módban a chat gomb mostantól a futás melletti panelben nyitja meg a chatet, így beszélgethetsz, miközben az ügynök dolgozik. A chat messenger-szerű: buborékok, képek, az utolsó szavak és az idő a beszélgetéslistában, és lekerekített üzenetmező."
+        }
+      },
       {
         "kind": "new",
         "title": {

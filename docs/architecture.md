@@ -138,6 +138,8 @@ A feature module is a folder under `ui/src/modules/` whose `index.ts` exports a 
 
 The catalog in Settings > Integrations is one more registry (`platform/integrations.ts`). A module adds a card with `registerIntegration({ id, name, order, icon, summary, status?, load?, detail? | section?, planned? })`: `detail` is a screen shown inside the tab with a way back (Happy), `section` points at a settings section that already holds the settings (MCP servers, Sentry), `status` is the chip on the card, and `planned` shows a card that opens nothing. `openIntegration(id)` takes a person straight to one of them, which is what the Happy tabs do when they ask for a token. A new integration is one `registerIntegration` call in its own module; the catalog needs no change.
 
+The Agent workspace replaces the editor area (and with it the right dock), so something that has to stay usable beside a run registers an agent panel: `registerAgentPanel({ id, title, component, when? })` in `platform/mode.ts`, and `openAgentPanel(id)`, `closeAgentPanel()` and `toggleAgentPanel(id)` show it as a column at the right edge of the Agent workspace (a `Splitter` pane that is collapsed, not unmounted, while it is closed, so the run next to it keeps its state). Team chat is the first: in the editor `showChat()` opens its dock tab, in Agent mode it opens the panel.
+
 On the Rust side each feature has its own file in `src-tauri/src/modules/`. MongoDB Studio is additionally behind the `mongo-studio` cargo feature, which is on by default. A build without it leaves out the driver and its TLS stack.
 
 ## Data flow of a commit

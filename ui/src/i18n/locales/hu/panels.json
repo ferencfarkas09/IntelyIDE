@@ -799,5 +799,6 @@
   "runs.panes.close": "Panel kiürítése",
   "runs.panes.closeLabel": "{n}. panel kiürítése",
   "runs.panes.resize": "Panelek átméretezése",
-  "runs.panes.cmdNext": "Következő panel fókuszálása"
+  "runs.panes.cmdNext": "Következő panel fókuszálása",
+  "runs.agent.resizePanel": "Oldalpanel átméretezése"
 }
