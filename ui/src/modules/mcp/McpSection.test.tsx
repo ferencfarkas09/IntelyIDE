@@ -37,12 +37,13 @@ const dialog = async (name: string) => (await screen.findByRole("dialog", { name
 const alertDialog = async () => (await screen.findByRole("alertdialog")) as HTMLElement;
 
 describe("<McpSection> list", () => {
-  it("shows the empty state with Add and Import as the only actions, one primary", async () => {
+  it("shows the empty state with Add, the catalog and Import as the only actions, one primary", async () => {
     freshBackend({ empty: true });
     render(() => <McpSection />);
     expect(await screen.findByText("No MCP servers yet")).toBeTruthy();
     const add = screen.getByRole("button", { name: "Add server" });
     expect(add.getAttribute("data-variant")).toBe("primary");
+    expect(screen.getByRole("button", { name: "Add from the catalog..." }).getAttribute("data-variant")).toBe("secondary");
     expect(screen.getByRole("button", { name: "Import from Claude Code..." }).getAttribute("data-variant")).toBe("secondary");
     // the header's split button would be a second primary: it is not there while the list is empty
     expect(screen.queryByRole("button", { name: "More ways to add a server" })).toBeNull();
@@ -106,6 +107,98 @@ describe("<McpSection> list", () => {
     spy.mockImplementation(real);
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
     expect(await row("fixture")).toBeTruthy();
+  });
+});
+
+describe("<McpSection> catalog", () => {
+  it("lists the entries by category, marks what is already added and filters by what you type", async () => {
+    freshBackend({ empty: true });
+    render(() => <McpSection />);
+    fireEvent.click(await screen.findByRole("button", { name: "Add from the catalog..." }));
+    const cat = await dialog("MCP server catalog");
+    for (const name of ["GitHub", "Chrome DevTools", "Playwright", "Context7", "Notion", "MongoDB", "Brave Search", "Figma"]) expect(within(cat).getByRole("listitem", { name })).toBeTruthy();
+    expect(within(cat).getByRole("heading", { name: "Browser" })).toBeTruthy();
+    expect(within(cat).queryByText("Added")).toBeNull();
+    fireEvent.input(within(cat).getByRole("textbox", { name: "Search the catalog" }), { target: { value: "mongo" } });
+    await waitFor(() => expect(within(cat).queryByRole("listitem", { name: "GitHub" })).toBeNull());
+    expect(within(cat).getByRole("listitem", { name: "MongoDB" })).toBeTruthy();
+    fireEvent.input(within(cat).getByRole("textbox", { name: "Search the catalog" }), { target: { value: "zzzz" } });
+    expect(await within(cat).findByText("No catalog entry matches “zzzz”.")).toBeTruthy();
+  });
+
+  it("opens the editor filled in, saves a secret without it ever being shown, and keeps the confirmation for the first run", async () => {
+    freshBackend({ empty: true });
+    const save = vi.spyOn(ipc.mcp, "save");
+    render(() => <McpSection />);
+    fireEvent.click(await screen.findByRole("button", { name: "Add from the catalog..." }));
+    fireEvent.click(within(await dialog("MCP server catalog")).getByRole("button", { name: "Add MongoDB" }));
+    const editor = await dialog("Add MongoDB from the catalog");
+    expect(within(editor).getByText(/Before you save\./)).toBeTruthy();
+    expect((within(editor).getByLabelText("Name") as HTMLInputElement).value).toBe("mongodb");
+    expect((within(editor).getByLabelText("Command") as HTMLInputElement).value).toBe("npx");
+    expect((within(editor).getByLabelText("Arguments") as HTMLTextAreaElement).value).toBe("-y\nmongodb-mcp-server@3.1.0\n--readOnly");
+    const box = within(editor).getByRole("checkbox", { name: "MDB_MCP_CONNECTION_STRING is a secret" }) as HTMLInputElement;
+    expect(box.checked).toBe(true);
+    const field = within(editor).getByLabelText("Value: MDB_MCP_CONNECTION_STRING") as HTMLInputElement;
+    expect(field.type).toBe("password");
+    expect(field.value).toBe("");
+    fireEvent.input(field, { target: { value: CANARY } });
+    fireEvent.click(within(editor).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    expect(save.mock.calls[0][0]).toEqual({
+      name: "mongodb",
+      transport: "stdio",
+      command: "npx",
+      args: ["-y", "mongodb-mcp-server@3.1.0", "--readOnly"],
+      env: [{ name: "MDB_MCP_CONNECTION_STRING", secret: true, secretValue: CANARY }],
+      enabled: true,
+    });
+    const saved = await row("mongodb");
+    // pinned: no "fetches code at every start" warning; and it is not trusted until it is confirmed
+    expect(saved.textContent).not.toMatch(/fetch/i);
+    expect(document.documentElement.outerHTML).not.toContain(CANARY);
+    expect(JSON.stringify(await ipc.mcp.list())).not.toContain(CANARY);
+    const [view] = (await ipc.mcp.list()).servers;
+    expect(view.confirmed).toBe(false);
+  });
+
+  it("is reached from the split button when the list is not empty", async () => {
+    render(() => <McpSection />);
+    await row("fixture");
+    fireEvent.click(await screen.findByRole("button", { name: "More ways to add a server" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Add from the catalog..." }));
+    expect(await dialog("MCP server catalog")).toBeTruthy();
+  });
+
+  it("marks an entry that is already in the list as added and offers it again under the next free name", async () => {
+    freshBackend({ empty: true });
+    await ipc.mcp.save({ name: "github", transport: "http", url: "https://example.com/mcp", enabled: true });
+    render(() => <McpSection />);
+    await row("github");
+    fireEvent.click(await screen.findByRole("button", { name: "More ways to add a server" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Add from the catalog..." }));
+    const cat = await dialog("MCP server catalog");
+    expect(within(within(cat).getByRole("listitem", { name: "GitHub" })).getByText("Added")).toBeTruthy();
+    expect(within(within(cat).getByRole("listitem", { name: "Playwright" })).queryByText("Added")).toBeNull();
+    fireEvent.click(within(cat).getByRole("button", { name: "Add GitHub" }));
+    const editor = await dialog("Add GitHub from the catalog");
+    expect((within(editor).getByLabelText("Name") as HTMLInputElement).value).toBe("github-2");
+    expect((within(editor).getByLabelText("Address (URL)") as HTMLInputElement).value).toBe("https://api.githubcopilot.com/mcp/readonly");
+    const header = within(editor).getByRole("checkbox", { name: "Authorization is a secret" }) as HTMLInputElement;
+    expect(header.checked && header.disabled).toBe(true);
+  });
+
+  it("opens a plain editor, not a catalog one, after a catalog editor was closed", async () => {
+    freshBackend({ empty: true });
+    render(() => <McpSection />);
+    fireEvent.click(await screen.findByRole("button", { name: "Add from the catalog..." }));
+    fireEvent.click(within(await dialog("MCP server catalog")).getByRole("button", { name: "Add GitHub" }));
+    fireEvent.click(within(await dialog("Add GitHub from the catalog")).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Add GitHub from the catalog" })).toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "Add server" }));
+    const editor = await dialog("Add MCP server");
+    expect((within(editor).getByLabelText("Name") as HTMLInputElement).value).toBe("");
+    expect(within(editor).queryByText(/Before you save\./)).toBeNull();
   });
 });
 

@@ -3,7 +3,8 @@ import { createStore, produce, unwrap } from "solid-js/store";
 import { t, type MessageKey } from "../../i18n";
 import { ipc } from "../../ipc";
 import type { McpSaveInput, McpServerView, McpTransport } from "../../ipc/mcp";
-import { Button, Dialog, FormGroup, FormRow, Input, SegmentedControl, Switch, TextArea } from "../../ui-kit";
+import { Button, Dialog, FormGroup, FormRow, Info, Input, SegmentedControl, Switch, TextArea } from "../../ui-kit";
+import type { ServerTemplate } from "./catalog";
 import { argsFromText, argsProblem, argsToText, commandProblem, editorErrorKey, errorField, errorInfo, nameProblem, urlProblem, type EditorField } from "./logic";
 import { VarListEditor } from "./VarListEditor";
 import { blankRow, firstRowProblem, rowsFromViews, rowsSnapshot, rowsToInputs, type VarRow } from "./varRows";
@@ -12,6 +13,8 @@ export interface ServerEditorProps {
   open: boolean;
   /** The record being edited; none = a new server. */
   server?: McpServerView;
+  /** A catalog entry to start a NEW server from: the fields are filled in, nothing is saved until the person saves. Ignored when editing. */
+  template?: ServerTemplate;
   /** Names of every server: the one being edited is left out here. */
   existingNames: readonly string[];
   readOnly?: boolean;
@@ -61,14 +64,15 @@ export function ServerEditor(props: ServerEditorProps) {
           return;
         }
         const s = props.server;
-        setName(s?.name ?? "");
-        setTransport(s?.transport ?? "stdio");
-        setCommand(s?.command ?? "");
-        setArgsText(argsToText(s?.args ?? []));
-        setUrl(s?.url ?? "");
+        const tpl = s ? undefined : props.template;
+        setName(s?.name ?? tpl?.name ?? "");
+        setTransport(s?.transport ?? tpl?.transport ?? "stdio");
+        setCommand(s?.command ?? tpl?.command ?? "");
+        setArgsText(argsToText(s?.args ?? tpl?.args ?? []));
+        setUrl(s?.url ?? tpl?.url ?? "");
         setEnabled(s?.enabled ?? true);
-        setEnv("rows", rowsFromViews(s?.env ?? []));
-        setHeaders("rows", rowsFromViews(s?.headers ?? []));
+        setEnv("rows", s ? rowsFromViews(s.env) : (tpl?.env ?? []).map((r) => ({ ...r })));
+        setHeaders("rows", s ? rowsFromViews(s.headers) : (tpl?.headers ?? []).map((r) => ({ ...r })));
         setErrors({});
         setDiscard(false);
         setInitial(snapshot());
@@ -151,7 +155,7 @@ export function ServerEditor(props: ServerEditorProps) {
         open={props.open}
         onClose={requestClose}
         size="lg"
-        title={props.server ? t("mcp.editor.titleEdit", { name: props.server.name }) : t("mcp.editor.titleNew")}
+        title={props.server ? t("mcp.editor.titleEdit", { name: props.server.name }) : props.template ? t("mcp.catalog.editorTitle", { name: props.template.title }) : t("mcp.editor.titleNew")}
         footer={
           <>
             <Button variant="secondary" onClick={requestClose}>{t("mcp.cancel")}</Button>
@@ -161,6 +165,14 @@ export function ServerEditor(props: ServerEditorProps) {
         }
       >
         <div class="mcp-editor">
+          <Show when={!props.server && props.template}>
+            {(tpl) => (
+              <div class="mcp-note" data-tone="info" role="note">
+                <Info size={14} aria-hidden="true" />
+                <span class="mcp-note__text"><strong>{t("mcp.catalog.setupLabel")}.</strong> {t(tpl().setup)}</span>
+              </div>
+            )}
+          </Show>
           <FormGroup>
             <FormRow label={t("mcp.field.name")} description={t("mcp.field.nameHint")} labelFor={ids.name}>
               <div class="mcp-field">

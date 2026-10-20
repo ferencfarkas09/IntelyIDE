@@ -3,7 +3,9 @@ import { t } from "../../i18n";
 import { ipc } from "../../ipc";
 import type { McpImportResult, McpServerView, McpWorkspaceState } from "../../ipc/mcp";
 import { activeId, activeSummary } from "../../store/workspaces";
-import { announce, Button, Dialog, EmptyState, Plug, Skeleton, SplitButton, toast, TriangleAlert, Upload } from "../../ui-kit";
+import { announce, Button, Dialog, EmptyState, LayoutGrid, Plug, Skeleton, SplitButton, toast, TriangleAlert, Upload } from "../../ui-kit";
+import { CatalogDialog } from "./CatalogDialog";
+import { templateOf, type CatalogEntry, type ServerTemplate } from "./catalog";
 import { ConfirmRunDialog } from "./ConfirmRunDialog";
 import { createMcpController } from "./controller";
 import { ImportDialog } from "./ImportDialog";
@@ -27,6 +29,8 @@ export default function McpSection() {
   const [confirm, setConfirm] = createSignal<{ id: string; then: ConfirmIntent; changed: boolean } | null>(null);
   const [removing, setRemoving] = createSignal<string | null>(null);
   const [importing, setImporting] = createSignal(false);
+  const [cataloging, setCataloging] = createSignal(false);
+  const [template, setTemplate] = createSignal<ServerTemplate | null>(null);
   const [expanded, setExpanded] = createSignal<ReadonlySet<string>>(new Set());
 
   const meta = () => c.meta();
@@ -100,9 +104,21 @@ export default function McpSection() {
     }
   }
 
+  /** A catalog entry was chosen: the editor opens on a new server with the entry's fields filled in. */
+  function pickFromCatalog(entry: CatalogEntry) {
+    setTemplate(templateOf(entry, names()));
+    setCataloging(false);
+    setEditor({});
+  }
+
+  function closeEditor() {
+    setEditor(null);
+    setTemplate(null);
+  }
+
   function saved(view: McpServerView, thenTest: boolean) {
     c.applyView(view);
-    setEditor(null);
+    closeEditor();
     if (thenTest) void startTest(view);
   }
 
@@ -123,6 +139,7 @@ export default function McpSection() {
   const addButtons = (
     <>
       <Button variant="primary" icon={Plug} disabled={frozen()} onClick={() => setEditor({})}>{t("mcp.add")}</Button>
+      <Button variant="secondary" icon={LayoutGrid} disabled={frozen()} onClick={() => setCataloging(true)}>{t("mcp.catalog.open")}</Button>
       <Button variant="secondary" icon={Upload} disabled={frozen()} onClick={() => setImporting(true)}>{t("mcp.import")}</Button>
     </>
   );
@@ -155,7 +172,10 @@ export default function McpSection() {
             disabled={frozen()}
             menuLabel={t("mcp.addMore")}
             onClick={() => setEditor({})}
-            items={[{ label: t("mcp.import"), icon: Upload, onSelect: () => setImporting(true) }]}
+            items={[
+              { label: t("mcp.catalog.open"), icon: LayoutGrid, onSelect: () => setCataloging(true) },
+              { label: t("mcp.import"), icon: Upload, onSelect: () => setImporting(true) },
+            ]}
           >
             {t("mcp.add")}
           </SplitButton>
@@ -223,11 +243,13 @@ export default function McpSection() {
       <ServerEditor
         open={!!editor()}
         server={editing()}
+        template={template() ?? undefined}
         existingNames={names().filter((n) => n !== editing()?.name)}
         readOnly={frozen()}
-        onClose={() => setEditor(null)}
+        onClose={closeEditor}
         onSaved={saved}
       />
+      <CatalogDialog open={cataloging()} existingNames={names()} onClose={() => setCataloging(false)} onPick={pickFromCatalog} />
       <ConfirmRunDialog
         open={!!confirm()}
         server={c.server(confirm()?.id)}
