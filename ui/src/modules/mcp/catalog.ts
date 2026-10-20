@@ -1,25 +1,31 @@
 import type { MessageKey } from "../../i18n";
 import type { McpTransport } from "../../ipc/mcp";
-import { Database, FileSearch, FileText, GitBranch, Globe, Layers, MousePointerClick, Search, type LucideIcon } from "../../ui-kit";
+import { Brain, Compass, Database, FileSearch, FileText, Flame, GitBranch, Globe, Hammer, Layers, MousePointerClick, Search, Smartphone, Sparkles, Telescope, type LucideIcon } from "../../ui-kit";
+import data from "./catalog.json";
 import { blankRow, type VarRow } from "./varRows";
 
 /*
- * Ready-made entries for well-known MCP servers (Settings > MCP servers > Add from the catalog). An entry is only a starting point:
- * choosing one opens the normal editor with every field filled in, and nothing is saved, started or confirmed until the person saves
- * it there and confirms what runs, like any server added by hand. No entry carries a secret: a variable that needs one is listed by
- * NAME and marked secret, and the value is typed into the editor (it goes to the Keychain and is never shown again).
+ * Ready-made entries for well-known MCP servers (Settings > MCP servers > Add from the catalog). The list is `catalog.json`. An entry
+ * is only a starting point: choosing one opens the normal editor with every field filled in, and nothing is saved, started or
+ * confirmed until the person saves it there and confirms what runs, like any server added by hand. No entry carries a secret: a
+ * variable that needs one is listed by NAME and marked secret, and the value is typed into the editor (it goes to the Keychain and
+ * is never shown again).
  *
  * Package versions are pinned on purpose (`pkg@1.2.3` is what the confirm dialog treats as a fixed program; a tag such as `@latest`
- * would be fetched anew at every start). To update one, edit the version in its arguments. Every launch line below was checked
- * against the package's own README and the registry when the entry was added.
+ * would be fetched anew at every start). To update one, edit the version in its arguments. `node scripts/mcp/catalog-smoke.mjs`
+ * starts every program of the list with dummy secrets and does the MCP handshake; `--latest` lists the pins that are behind.
  */
 
-export type CatalogCategory = "code" | "browser" | "docs" | "data" | "search" | "design";
+export type CatalogCategory = "code" | "browser" | "mobile" | "docs" | "data" | "search" | "design" | "thinking";
 
 export interface CatalogVar {
   name: string;
-  /** Always true for tokens, keys and connection strings: the editor locks the box and asks for the value. */
+  /** True for tokens, keys and connection strings: the editor locks the box and asks for the value. */
   secret: boolean;
+  /** A plain variable that is set for the person (a switch that turns a vendor's telemetry off, say). Never for a secret. */
+  value?: string;
+  /** Test data only (`catalog-smoke.mjs`): a made-up value of the right shape for a server that checks its input at start. Never shown or sent. */
+  smoke?: string;
 }
 
 export interface CatalogEntry {
@@ -43,104 +49,17 @@ export interface CatalogEntry {
   setup: MessageKey;
 }
 
-export const CATEGORIES: readonly CatalogCategory[] = ["code", "browser", "docs", "data", "search", "design"];
+export const CATEGORIES: readonly CatalogCategory[] = ["code", "browser", "mobile", "docs", "data", "search", "design", "thinking"];
 
-export const CATALOG: readonly CatalogEntry[] = [
-  {
-    id: "github",
-    title: "GitHub",
-    icon: GitBranch,
-    category: "code",
-    transport: "http",
-    url: "https://api.githubcopilot.com/mcp/readonly",
-    headers: [{ name: "Authorization", secret: true }],
-    readOnly: true,
-    summary: "mcp.catalog.github.summary",
-    setup: "mcp.catalog.github.setup",
-  },
-  {
-    id: "chrome-devtools",
-    title: "Chrome DevTools",
-    icon: Globe,
-    category: "browser",
-    transport: "stdio",
-    command: "npx",
-    args: ["-y", "chrome-devtools-mcp@1.11.0", "--no-usage-statistics", "--no-performance-crux"],
-    summary: "mcp.catalog.chromeDevtools.summary",
-    setup: "mcp.catalog.chromeDevtools.setup",
-  },
-  {
-    id: "playwright",
-    title: "Playwright",
-    icon: MousePointerClick,
-    category: "browser",
-    transport: "stdio",
-    command: "npx",
-    args: ["-y", "@playwright/mcp@0.0.83"],
-    summary: "mcp.catalog.playwright.summary",
-    setup: "mcp.catalog.playwright.setup",
-  },
-  {
-    id: "context7",
-    title: "Context7",
-    icon: FileSearch,
-    category: "docs",
-    transport: "stdio",
-    command: "npx",
-    args: ["-y", "@upstash/context7-mcp@4.4.4"],
-    readOnly: true,
-    summary: "mcp.catalog.context7.summary",
-    setup: "mcp.catalog.context7.setup",
-  },
-  {
-    id: "notion",
-    title: "Notion",
-    icon: FileText,
-    category: "docs",
-    transport: "stdio",
-    command: "npx",
-    args: ["-y", "@notionhq/notion-mcp-server@2.5.2"],
-    env: [{ name: "NOTION_TOKEN", secret: true }],
-    summary: "mcp.catalog.notion.summary",
-    setup: "mcp.catalog.notion.setup",
-  },
-  {
-    id: "mongodb",
-    title: "MongoDB",
-    icon: Database,
-    category: "data",
-    transport: "stdio",
-    command: "npx",
-    args: ["-y", "mongodb-mcp-server@3.1.0", "--readOnly"],
-    env: [{ name: "MDB_MCP_CONNECTION_STRING", secret: true }],
-    readOnly: true,
-    summary: "mcp.catalog.mongodb.summary",
-    setup: "mcp.catalog.mongodb.setup",
-  },
-  {
-    id: "brave-search",
-    title: "Brave Search",
-    icon: Search,
-    category: "search",
-    transport: "stdio",
-    command: "npx",
-    args: ["-y", "@brave/brave-search-mcp-server@2.1.4", "--transport", "stdio"],
-    env: [{ name: "BRAVE_API_KEY", secret: true }],
-    readOnly: true,
-    summary: "mcp.catalog.braveSearch.summary",
-    setup: "mcp.catalog.braveSearch.setup",
-  },
-  {
-    id: "figma",
-    title: "Figma",
-    icon: Layers,
-    category: "design",
-    transport: "http",
-    url: "http://127.0.0.1:3845/mcp",
-    summary: "mcp.catalog.figma.summary",
-    setup: "mcp.catalog.figma.setup",
-  },
-];
+/** The icons the data file may name. */
+const ICONS = { GitBranch, Globe, MousePointerClick, FileSearch, FileText, Database, Search, Layers, Smartphone, Sparkles, Brain, Compass, Flame, Hammer, Telescope } satisfies Record<string, LucideIcon>;
+
+/** The shape of `catalog.json`, the one list the screen, the smoke script (`scripts/mcp/catalog-smoke.mjs`) and the tests read. */
+interface CatalogRecord extends Omit<CatalogEntry, "icon"> {
+  icon: keyof typeof ICONS;
+}
+
+export const CATALOG: readonly CatalogEntry[] = (data as CatalogRecord[]).map((record) => ({ ...record, icon: ICONS[record.icon] }));
 
 /** What the editor is opened with: the entry's fields, a free server name, and the text to show above the form. */
 export interface ServerTemplate {
@@ -165,7 +84,7 @@ export function freeName(id: string, taken: readonly string[]): string {
   }
 }
 
-const rowOf = (v: CatalogVar): VarRow => ({ ...blankRow(), name: v.name, secret: v.secret });
+const rowOf = (v: CatalogVar): VarRow => ({ ...blankRow(), name: v.name, secret: v.secret, value: v.secret ? "" : (v.value ?? "") });
 
 export function templateOf(entry: CatalogEntry, taken: readonly string[]): ServerTemplate {
   return {
@@ -190,3 +109,12 @@ export function matchesCatalog(entry: CatalogEntry, query: string, summary: stri
   const q = query.trim().toLowerCase();
   return !q || entry.title.toLowerCase().includes(q) || entry.id.includes(q) || summary.toLowerCase().includes(q);
 }
+
+/** The program line of a stdio entry, or the address of an http one: what the confirm dialog will show later. */
+export const entryLine = (entry: CatalogEntry): string => (entry.transport === "http" ? (entry.url ?? "") : [entry.command, ...(entry.args ?? [])].join(" "));
+
+/** The names of the variables and headers the entry sets or asks for. */
+export const entryVars = (entry: CatalogEntry): { secret: string[]; plain: string[] } => {
+  const all = [...(entry.env ?? []), ...(entry.headers ?? [])];
+  return { secret: all.filter((v) => v.secret).map((v) => v.name), plain: all.filter((v) => !v.secret).map((v) => v.name) };
+};

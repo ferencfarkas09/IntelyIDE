@@ -116,8 +116,14 @@ describe("<McpSection> catalog", () => {
     render(() => <McpSection />);
     fireEvent.click(await screen.findByRole("button", { name: "Add from the catalog..." }));
     const cat = await dialog("MCP server catalog");
-    for (const name of ["GitHub", "Chrome DevTools", "Playwright", "Context7", "Notion", "MongoDB", "Brave Search", "Figma"]) expect(within(cat).getByRole("listitem", { name })).toBeTruthy();
+    for (const name of ["GitHub", "Chrome DevTools", "Playwright", "Context7", "Notion", "MongoDB", "Brave Search", "Figma", "Firecrawl", "Exa", "Tavily", "Perplexity", "Mobile MCP", "XcodeBuildMCP", "Sequential Thinking"]) expect(within(cat).getByRole("listitem", { name })).toBeTruthy();
     expect(within(cat).getByRole("heading", { name: "Browser" })).toBeTruthy();
+    expect(within(cat).getByRole("heading", { name: "Mobile" })).toBeTruthy();
+    // each row names the exact program it would run and the variables it asks for
+    const mongo = within(cat).getByRole("listitem", { name: "MongoDB" });
+    expect(within(mongo).getByText("npx -y mongodb-mcp-server@3.1.0 --readOnly")).toBeTruthy();
+    expect(within(mongo).getByText("Asks for MDB_MCP_CONNECTION_STRING.")).toBeTruthy();
+    expect(within(within(cat).getByRole("listitem", { name: "XcodeBuildMCP" })).getByText("Sets XCODEBUILDMCP_SENTRY_DISABLED.")).toBeTruthy();
     expect(within(cat).queryByText("Added")).toBeNull();
     fireEvent.input(within(cat).getByRole("textbox", { name: "Search the catalog" }), { target: { value: "mongo" } });
     await waitFor(() => expect(within(cat).queryByRole("listitem", { name: "GitHub" })).toBeNull());

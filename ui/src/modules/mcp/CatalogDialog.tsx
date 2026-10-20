@@ -1,7 +1,7 @@
 import { createMemo, createSignal, For, Show } from "solid-js";
 import { t, type MessageKey } from "../../i18n";
 import { Badge, Button, Check, Dialog, Icon, Input, Search } from "../../ui-kit";
-import { CATALOG, CATEGORIES, matchesCatalog, needsNode, needsSecret, type CatalogCategory, type CatalogEntry } from "./catalog";
+import { CATALOG, CATEGORIES, entryLine, entryVars, matchesCatalog, needsNode, needsSecret, type CatalogCategory, type CatalogEntry } from "./catalog";
 
 export interface CatalogDialogProps {
   open: boolean;
@@ -14,10 +14,12 @@ export interface CatalogDialogProps {
 const CATEGORY_KEY: Record<CatalogCategory, MessageKey> = {
   code: "mcp.catalog.cat.code",
   browser: "mcp.catalog.cat.browser",
+  mobile: "mcp.catalog.cat.mobile",
   docs: "mcp.catalog.cat.docs",
   data: "mcp.catalog.cat.data",
   search: "mcp.catalog.cat.search",
   design: "mcp.catalog.cat.design",
+  thinking: "mcp.catalog.cat.thinking",
 };
 
 /**
@@ -64,6 +66,13 @@ export function CatalogDialog(props: CatalogDialogProps) {
                           <Show when={has(e.id)}><Badge size="sm" tone="ok" icon={Check}>{t("mcp.catalog.added")}</Badge></Show>
                         </div>
                         <p class="mcp-cat__summary">{t(e.summary)}</p>
+                        <code class="mcp-cat__line" title={entryLine(e)}>{entryLine(e)}</code>
+                        <Show when={entryVars(e).secret.length + entryVars(e).plain.length > 0}>
+                          <p class="mcp-cat__vars">
+                            <Show when={entryVars(e).secret.length > 0}>{t("mcp.catalog.asksFor", { names: entryVars(e).secret.join(", ") })}</Show>
+                            <Show when={entryVars(e).plain.length > 0}> {t("mcp.catalog.sets", { names: entryVars(e).plain.join(", ") })}</Show>
+                          </p>
+                        </Show>
                         <div class="mcp-cat__meta">
                           <Show when={e.readOnly}><Badge size="sm" tone="info">{t("mcp.catalog.badge.readOnly")}</Badge></Show>
                           <Show when={needsNode(e)}><Badge size="sm" tone="neutral">{t("mcp.catalog.badge.node")}</Badge></Show>

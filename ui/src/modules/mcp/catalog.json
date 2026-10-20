@@ -1,0 +1,279 @@
+[
+  {
+    "id": "github",
+    "title": "GitHub",
+    "icon": "GitBranch",
+    "category": "code",
+    "transport": "http",
+    "url": "https://api.githubcopilot.com/mcp/readonly",
+    "headers": [
+      {
+        "name": "Authorization",
+        "secret": true
+      }
+    ],
+    "readOnly": true,
+    "summary": "mcp.catalog.github.summary",
+    "setup": "mcp.catalog.github.setup"
+  },
+  {
+    "id": "chrome-devtools",
+    "title": "Chrome DevTools",
+    "icon": "Globe",
+    "category": "browser",
+    "transport": "stdio",
+    "command": "npx",
+    "args": [
+      "-y",
+      "chrome-devtools-mcp@1.11.0",
+      "--no-usage-statistics",
+      "--no-performance-crux"
+    ],
+    "summary": "mcp.catalog.chromeDevtools.summary",
+    "setup": "mcp.catalog.chromeDevtools.setup"
+  },
+  {
+    "id": "playwright",
+    "title": "Playwright",
+    "icon": "MousePointerClick",
+    "category": "browser",
+    "transport": "stdio",
+    "command": "npx",
+    "args": [
+      "-y",
+      "@playwright/mcp@0.0.83"
+    ],
+    "summary": "mcp.catalog.playwright.summary",
+    "setup": "mcp.catalog.playwright.setup"
+  },
+  {
+    "id": "context7",
+    "title": "Context7",
+    "icon": "FileSearch",
+    "category": "docs",
+    "transport": "stdio",
+    "command": "npx",
+    "args": [
+      "-y",
+      "@upstash/context7-mcp@4.4.4"
+    ],
+    "readOnly": true,
+    "summary": "mcp.catalog.context7.summary",
+    "setup": "mcp.catalog.context7.setup"
+  },
+  {
+    "id": "notion",
+    "title": "Notion",
+    "icon": "FileText",
+    "category": "docs",
+    "transport": "stdio",
+    "command": "npx",
+    "args": [
+      "-y",
+      "@notionhq/notion-mcp-server@2.5.2"
+    ],
+    "env": [
+      {
+        "name": "NOTION_TOKEN",
+        "secret": true
+      }
+    ],
+    "summary": "mcp.catalog.notion.summary",
+    "setup": "mcp.catalog.notion.setup"
+  },
+  {
+    "id": "mongodb",
+    "title": "MongoDB",
+    "icon": "Database",
+    "category": "data",
+    "transport": "stdio",
+    "command": "npx",
+    "args": [
+      "-y",
+      "mongodb-mcp-server@3.1.0",
+      "--readOnly"
+    ],
+    "env": [
+      {
+        "name": "MDB_MCP_CONNECTION_STRING",
+        "secret": true,
+        "smoke": "mongodb://127.0.0.1:1/smoke"
+      }
+    ],
+    "readOnly": true,
+    "summary": "mcp.catalog.mongodb.summary",
+    "setup": "mcp.catalog.mongodb.setup"
+  },
+  {
+    "id": "brave-search",
+    "title": "Brave Search",
+    "icon": "Search",
+    "category": "search",
+    "transport": "stdio",
+    "command": "npx",
+    "args": [
+      "-y",
+      "@brave/brave-search-mcp-server@2.1.4",
+      "--transport",
+      "stdio"
+    ],
+    "env": [
+      {
+        "name": "BRAVE_API_KEY",
+        "secret": true
+      }
+    ],
+    "readOnly": true,
+    "summary": "mcp.catalog.braveSearch.summary",
+    "setup": "mcp.catalog.braveSearch.setup"
+  },
+  {
+    "id": "figma",
+    "title": "Figma",
+    "icon": "Layers",
+    "category": "design",
+    "transport": "http",
+    "url": "http://127.0.0.1:3845/mcp",
+    "summary": "mcp.catalog.figma.summary",
+    "setup": "mcp.catalog.figma.setup"
+  },
+  {
+    "id": "firecrawl",
+    "title": "Firecrawl",
+    "icon": "Flame",
+    "category": "search",
+    "transport": "stdio",
+    "command": "npx",
+    "args": [
+      "-y",
+      "firecrawl-mcp@3.33.4"
+    ],
+    "env": [
+      {
+        "name": "FIRECRAWL_API_KEY",
+        "secret": true
+      }
+    ],
+    "summary": "mcp.catalog.firecrawl.summary",
+    "setup": "mcp.catalog.firecrawl.setup"
+  },
+  {
+    "id": "exa",
+    "title": "Exa",
+    "icon": "Compass",
+    "category": "search",
+    "transport": "stdio",
+    "command": "npx",
+    "args": [
+      "-y",
+      "exa-mcp-server@3.4.2"
+    ],
+    "env": [
+      {
+        "name": "EXA_API_KEY",
+        "secret": true
+      }
+    ],
+    "readOnly": true,
+    "summary": "mcp.catalog.exa.summary",
+    "setup": "mcp.catalog.exa.setup"
+  },
+  {
+    "id": "tavily",
+    "title": "Tavily",
+    "icon": "Telescope",
+    "category": "search",
+    "transport": "stdio",
+    "command": "npx",
+    "args": [
+      "-y",
+      "tavily-mcp@0.2.22"
+    ],
+    "env": [
+      {
+        "name": "TAVILY_API_KEY",
+        "secret": true
+      }
+    ],
+    "summary": "mcp.catalog.tavily.summary",
+    "setup": "mcp.catalog.tavily.setup"
+  },
+  {
+    "id": "perplexity",
+    "title": "Perplexity",
+    "icon": "Sparkles",
+    "category": "search",
+    "transport": "stdio",
+    "command": "npx",
+    "args": [
+      "-y",
+      "@perplexity-ai/mcp-server@1.3.0"
+    ],
+    "env": [
+      {
+        "name": "PERPLEXITY_API_KEY",
+        "secret": true
+      }
+    ],
+    "readOnly": true,
+    "summary": "mcp.catalog.perplexity.summary",
+    "setup": "mcp.catalog.perplexity.setup"
+  },
+  {
+    "id": "mobile-mcp",
+    "title": "Mobile MCP",
+    "icon": "Smartphone",
+    "category": "mobile",
+    "transport": "stdio",
+    "command": "npx",
+    "args": [
+      "-y",
+      "@mobilenext/mobile-mcp@1.0.12"
+    ],
+    "summary": "mcp.catalog.mobileMcp.summary",
+    "setup": "mcp.catalog.mobileMcp.setup"
+  },
+  {
+    "id": "xcodebuild",
+    "title": "XcodeBuildMCP",
+    "icon": "Hammer",
+    "category": "mobile",
+    "transport": "stdio",
+    "command": "npx",
+    "args": [
+      "-y",
+      "xcodebuildmcp@2.7.0",
+      "mcp"
+    ],
+    "env": [
+      {
+        "name": "XCODEBUILDMCP_SENTRY_DISABLED",
+        "secret": false,
+        "value": "true"
+      }
+    ],
+    "summary": "mcp.catalog.xcodebuild.summary",
+    "setup": "mcp.catalog.xcodebuild.setup"
+  },
+  {
+    "id": "sequential-thinking",
+    "title": "Sequential Thinking",
+    "icon": "Brain",
+    "category": "thinking",
+    "transport": "stdio",
+    "command": "npx",
+    "args": [
+      "-y",
+      "@modelcontextprotocol/server-sequential-thinking@2.0.0"
+    ],
+    "env": [
+      {
+        "name": "DISABLE_THOUGHT_LOGGING",
+        "secret": false,
+        "value": "true"
+      }
+    ],
+    "summary": "mcp.catalog.sequentialThinking.summary",
+    "setup": "mcp.catalog.sequentialThinking.setup"
+  }
+]

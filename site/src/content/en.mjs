@@ -301,6 +301,7 @@ export default {
       { id: 'remote', h: 'Phone gateway', p: 'Approve or answer agent runs from your phone through your own relay, end-to-end encrypted.' },
       { id: 'notifications', h: 'Notifications', p: 'A banner and a Dock count when a run needs you, asks a question, finishes or fails.' },
       { id: 'integrations', h: 'Integrations', p: 'Happy, MCP servers, Sentry and DeepPattern in one catalog, with a connection status where there is one. More services later, as more cards.' },
+      { id: 'mcp', h: 'A catalog of MCP servers', p: 'More than a dozen ready-made servers, from GitHub and Chrome DevTools to MongoDB and XcodeBuildMCP, added with one click and your own token.' },
       { id: 'partners', h: 'Works with DeepPattern.ai and Happy Solutions', p: 'Two services with their own card in Settings > Integrations: second opinions on your code, and your Happy account next to it.' },
       { id: 'providers', h: 'Bring your own agent', p: 'Claude is the main path. Codex, Gemini, Copilot and more plug in as experimental providers.' },
       { id: 'mongo', h: 'MongoDB Studio', p: 'Read-only by default, with AI-assisted queries in English or Hungarian.' },
@@ -425,6 +426,20 @@ export default {
           'DeepPattern: second opinions on your code and plans from a panel of models. Install and activate it with its own installer (the key never enters the IDE), check it, add it to your agents and audit your changes. A new service is one more card in the same catalog',
         ],
         shots: [['integrations', 'Settings, Integrations: cards for Happy, MCP servers, Sentry and DeepPattern; each card shows its connection status.']],
+      },
+      {
+        id: 'mcp',
+        h: 'MCP servers: a catalog of ready-made tools for your agents',
+        p: 'Settings > MCP servers > Add from the catalog lists well-known servers, so nobody has to hunt for a command line. Choose one and the editor opens with everything filled in. You paste the token yourself, and nothing starts until you save it and confirm exactly what it runs.',
+        list: [
+          'Code and the browser: GitHub (through its read-only address), Chrome DevTools and Playwright',
+          'Phones and builds: Mobile MCP for simulators, emulators and real devices, and XcodeBuildMCP for Xcode projects',
+          'Docs, notes and designs: Context7, Notion and Figma. Data: MongoDB, started in read-only mode',
+          'The web: Brave Search, Exa, Tavily, Perplexity and Firecrawl. Reasoning: Sequential Thinking',
+          'Every package is pinned to an exact version, and each program was started and asked for its tools before it went into the catalog. A row shows the exact line it would run and the variables it asks for',
+          'Product names belong to their owners; being listed does not mean they endorse IntelyIDE',
+        ],
+        shots: [['mcp-catalog', 'Settings, MCP servers: the catalog of ready-made servers, each with the exact program it would run.']],
       },
       {
         id: 'mongo',

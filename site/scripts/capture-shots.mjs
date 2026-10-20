@@ -192,6 +192,19 @@ SHOTS.integrations = async (c) => {
   await sleep(600);
   await dismissToasts(c);
 };
+SHOTS["mcp-catalog"] = async (c) => {
+  await openSettings(c, "MCP servers");
+  await waitText(c, "Add server");
+  // an empty list offers the catalog as a button, a list of servers behind the split button's menu
+  if (!(await text(c)).includes("Add from the catalog...")) {
+    await c.clickEl("button", "More ways to add a server");
+    await sleep(300);
+  }
+  await clickText(c, "Add from the catalog...");
+  await waitText(c, "XcodeBuildMCP");
+  await sleep(600);
+  await dismissToasts(c);
+};
 SHOTS.providers = async (c) => {
   await openSettings(c, "Providers");
   // Experimental providers switch on: the Codex, Gemini, Copilot, ... cards appear.
