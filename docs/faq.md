@@ -1,6 +1,6 @@
 # FAQ and troubleshooting
 
-This page answers the questions people ask first and lists the fixes for the problems they hit first. Applies to version 1.9.0. Statements about files and behaviour were checked against the source; where something is not verified, the text says so.
+This page answers the questions people ask first and lists the fixes for the problems they hit first. Applies to version 1.10.0. Statements about files and behaviour were checked against the source; where something is not verified, the text says so.
 
 ## About the project
 

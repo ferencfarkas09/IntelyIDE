@@ -1,6 +1,6 @@
 # Runs on servers
 
-IntelyIDE can run an agent on a server you own, over `ssh`, instead of on your Mac. The agent's shell commands, file edits and the Claude CLI all run on the server, in the server's copy of your repositories. The permission rules stay in the IDE and judge the server's files, so an agent there is held to the same hard stops as one on your Mac (best-effort, as everywhere: see [safety.md](safety.md)). Applies to version 1.9.0.
+IntelyIDE can run an agent on a server you own, over `ssh`, instead of on your Mac. The agent's shell commands, file edits and the Claude CLI all run on the server, in the server's copy of your repositories. The permission rules stay in the IDE and judge the server's files, so an agent there is held to the same hard stops as one on your Mac (best-effort, as everywhere: see [safety.md](safety.md)). Applies to version 1.10.0.
 
 Typical use: a build server with a lot of CPU and RAM, and a task such as "run this prompt on 3 agents on the big server and 2 on my Mac".
 
