@@ -300,6 +300,7 @@ export default {
       { id: 'remote', h: 'Telefonos átjáró', p: 'Hagyd jóvá vagy válaszold meg az ügynökfutásokat a telefonodról, a saját relédon át, végpontok közt titkosítva.' },
       { id: 'notifications', h: 'Értesítések', p: 'Banner és Dock-számláló, ha egy futásnak szüksége van rád, kérdez, lefutott vagy hibára futott.' },
       { id: 'integrations', h: 'Integrációk', p: 'A Happy, az MCP-szerverek, a Sentry és a DeepPattern egy katalógusban, és ahol van, a csatlakozás állapota is látszik. Később további szolgáltatások, újabb kártyaként.' },
+      { id: 'mcp', h: 'MCP-szerverek katalógusa', p: 'Több mint egy tucat kész szerver, a GitHubtól és a Chrome DevToolstól a MongoDB-ig és az XcodeBuildMCP-ig, egy kattintással és a saját tokenjeddel.' },
       { id: 'partners', h: 'DeepPattern.ai és Happy Solutions', p: 'Két szolgáltatás saját kártyával a Beállítások > Integrációk lapon: második vélemény a kódodra, és a Happy-fiókod mellette.' },
       { id: 'providers', h: 'Hozd a saját ügynöködet', p: 'A Claude a fő út. A Codex, Gemini, Copilot és mások kísérleti providerként csatlakoznak.' },
       { id: 'mongo', h: 'MongoDB Studio', p: 'Alapból csak olvasható, MI-támogatott lekérdezésekkel angolul vagy magyarul.' },
@@ -424,6 +425,20 @@ export default {
           'DeepPattern: második vélemény a kódodra és a terveidre egy modelltestülettől. A saját telepítőjével telepíted és aktiválod (a kulcs sosem kerül az IDE-be), ellenőrizheted, hozzáadhatod az ügynökeidhez, és átvilágíttathatod a változásaidat. Egy új szolgáltatás csak egy újabb kártya ugyanabban a katalógusban',
         ],
         shots: [['integrations', 'Beállítások, Integrációk: kártyák a Happy-hez, az MCP-szerverekhez, a Sentryhez és a DeepPatternhez; minden kártya mutatja a csatlakozás állapotát.']],
+      },
+      {
+        id: 'mcp',
+        h: 'MCP-szerverek: kész eszközök katalógusa az ügynökeidnek',
+        p: 'A Beállítások > MCP-szerverek > Hozzáadás a katalógusból ismert szervereket sorol fel, így senkinek sem kell parancssort keresgélnie. Válassz egyet, és a szerkesztő minden mezővel kitöltve nyílik meg. A tokent te írod be, és semmi sem indul el, amíg el nem mented és meg nem erősíted, pontosan mit futtat.',
+        list: [
+          'Kód és böngésző: a GitHub (a csak olvasásra szóló címén), a Chrome DevTools és a Playwright',
+          'Telefonok és buildek: a Mobile MCP szimulátorokhoz, emulátorokhoz és valódi eszközökhöz, az XcodeBuildMCP pedig Xcode-projektekhez',
+          'Dokumentáció, jegyzetek és tervek: Context7, Notion és Figma. Adat: a MongoDB, csak olvasó módban indítva',
+          'A web: Brave Search, Exa, Tavily, Perplexity és Firecrawl. Gondolkodás: Sequential Thinking',
+          'Minden csomag pontos verzióra rögzített, és minden programot elindítottunk és lekérdeztük az eszközeit, mielőtt bekerült a katalógusba. Egy sor megmutatja a pontos parancsot, amelyet futtatna, és a változókat, amelyeket kér',
+          'A terméknevek a tulajdonosaiké; a felsorolás nem jelenti, hogy támogatnák az IntelyIDE-t',
+        ],
+        shots: [['mcp-catalog', 'Beállítások, MCP-szerverek: a kész szerverek katalógusa, mindegyik a pontos programsorával.']],
       },
       {
         id: 'mongo',
