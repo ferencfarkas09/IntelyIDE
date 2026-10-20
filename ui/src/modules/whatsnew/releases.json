@@ -1,5 +1,26 @@
 [
   {
+    "version": "1.10.0",
+    "date": "2026-10-20",
+    "headline": {
+      "en": "See several agent runs at once, side by side or stacked.",
+      "hu": "Több ügynökfutás egyszerre, egymás mellett vagy egymás alatt."
+    },
+    "notes": [
+      {
+        "kind": "new",
+        "title": {
+          "en": "Run panes in the Agent tab",
+          "hu": "Futás-panelek az Agent fülön"
+        },
+        "text": {
+          "en": "Show one, two or three runs side by side, two or three stacked, or a 2x2 grid. Drag a run from the list into a pane, drag a pane header to swap two panes, drag the dividers to resize. The layout is remembered per workspace, and narrow windows fall back to fewer panes by themselves.",
+          "hu": "Egy, két vagy három futás egymás mellett, kettő vagy három egymás alatt, vagy 2x2 rács. Húzz egy futást a listából egy panelbe, húzd a panel fejlécét két panel cseréjéhez, és az elválasztókat az átméretezéshez. Az elrendezést a program munkaterületenként megjegyzi, és keskeny ablaknál magától kevesebb panelt mutat."
+        }
+      }
+    ]
+  },
+  {
     "version": "1.9.0",
     "date": "2026-10-18",
     "headline": {
