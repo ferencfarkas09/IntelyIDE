@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ScriptInfo } from "../../ipc/run";
-import { appendLog, groupScripts, MAX_LOG_LINES, searchLines, statusTone } from "./logic";
+import { appendLog, favoriteScripts, groupScripts, lastStarted, MAX_LOG_LINES, parseFavorites, searchLines, statusTone, toggleId } from "./logic";
 
 const s = (name: string, group: ScriptInfo["group"]): ScriptInfo => ({ id: `npm:${name}`, name, source: "npm", group, safety: "normal", reasons: [], forbiddenToAgents: false, envNames: [], runner: `npm run ${name}` });
 
@@ -13,6 +13,35 @@ describe("groupScripts", () => {
     expect(groupScripts(all, "st").flatMap((g) => g.scripts.map((x) => x.name))).toEqual(["start"]);
     expect(groupScripts(all, "lint").map((g) => g.group)).toEqual(["lint"]);
     expect(groupScripts(all, "zzz")).toEqual([]);
+  });
+});
+
+describe("favorites", () => {
+  const all = [s("lint", "lint"), s("start", "start"), s("build-and-publish", "build"), s("dev", "dev")];
+  it("keeps the starred order, drops scripts that no longer exist and applies the filter", () => {
+    const ids = ["npm:build-and-publish", "npm:gone", "npm:start"];
+    expect(favoriteScripts(all, ids).map((x) => x.name)).toEqual(["build-and-publish", "start"]);
+    expect(favoriteScripts(all, ids, "pub").map((x) => x.name)).toEqual(["build-and-publish"]);
+    expect(favoriteScripts(all, [])).toEqual([]);
+  });
+  it("lists a favorite once: groupScripts skips it, and an emptied group disappears", () => {
+    const groups = groupScripts(all, "", new Set(["npm:build-and-publish"]));
+    expect(groups.map((g) => g.group)).toEqual(["start", "dev", "lint"]);
+    expect(groupScripts(all, "", new Set(["npm:lint", "npm:start"])).flatMap((g) => g.scripts.map((x) => x.name))).toEqual(["dev", "build-and-publish"]);
+  });
+  it("toggles an id in and out, appending to the end", () => {
+    expect(toggleId(["a"], "b")).toEqual(["a", "b"]);
+    expect(toggleId(["a", "b"], "a")).toEqual(["b"]);
+  });
+  it("reads stored favorites defensively", () => {
+    expect(parseFavorites(null)).toEqual({});
+    expect(parseFavorites("not json")).toEqual({});
+    expect(parseFavorites("[1,2]")).toEqual({});
+    expect(parseFavorites(JSON.stringify({ r1: ["a", "a", 3, "", "b"], r2: "nope", r3: [] }))).toEqual({ r1: ["a", "b"] });
+  });
+  it("picks the most recently started server for Re-run last", () => {
+    expect(lastStarted([])).toBeUndefined();
+    expect(lastStarted([{ id: "a", startedAt: 5 }, { id: "b", startedAt: 9 }, { id: "c", startedAt: 7 }])?.id).toBe("b");
   });
 });
 

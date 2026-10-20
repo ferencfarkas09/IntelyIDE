@@ -25,4 +25,11 @@ describe("run module", () => {
     expect(statusItems("left").map((i) => i.id)).toContain("run");
     expect(availableCommands().map((c) => c.id)).toContain("run.stopAll");
   });
+
+  it("offers Re-run the last script only once something has been started", () => {
+    register();
+    expect(availableCommands().map((c) => c.id)).not.toContain("run.rerunLast");
+    applyServerState({ id: "r:npm:dev", repoId: "r", script: "npm:dev", runner: "npm run dev", status: "exited", startedAt: 1, ports: [], procs: 0, exitCode: 0 });
+    expect(availableCommands().map((c) => c.id)).toContain("run.rerunLast");
+  });
 });

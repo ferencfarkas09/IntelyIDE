@@ -3,7 +3,7 @@ import { t } from "../../i18n";
 import { registerCommand } from "../../platform/commands";
 import { activeToolWindow, registerRailItem, setToolWindow } from "../../platform/rail";
 import { registerStatusItem } from "../../platform/statusbar";
-import { liveServers, wireDevServers } from "../../store/devservers";
+import { devServers, liveServers, wireDevServers } from "../../store/devservers";
 import { Play } from "../../ui-kit";
 
 const show = () => setToolWindow("bottom", "run");
@@ -39,6 +39,18 @@ export function register(): void {
       show();
       (await store()).requestFilterFocus();
     },
+  });
+  registerCommand({
+    id: "run.rerunLast",
+    get title() {
+      return t("run.cmd.rerunLast");
+    },
+    get group() {
+      return t("run.title");
+    },
+    keywords: ["again", "restart", "repeat", "last"],
+    when: () => devServers().length > 0,
+    run: async () => (await store()).rerunLast(),
   });
   registerCommand({ id: "run.stopAll", get title() { return t("run.cmd.stopAll"); }, get group() { return t("run.title"); }, keywords: ["kill", "servers"], when: () => liveServers().length > 0, run: async () => (await store()).stopAll() });
 }

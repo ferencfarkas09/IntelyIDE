@@ -1,14 +1,18 @@
 import { createSignal } from "solid-js";
 import { t } from "../../i18n";
 import { ipc } from "../../ipc";
-import type { Catalog, ProcessAccess, ScriptInfo } from "../../ipc/run";
+import type { Catalog, ProcessAccess, ScriptInfo, ServerInfo } from "../../ipc/run";
 import { registerCommand } from "../../platform/commands";
 import type { Disposer } from "../../platform/registry";
-import { applyServerState, dropServer, wireDevServers } from "../../store/devservers";
+import { applyServerState, devServers, dropServer, isLive, wireDevServers } from "../../store/devservers";
 import { errorText } from "../../store/snapshots";
 import { workspace } from "../../store/workspace";
 import { toast } from "../../ui-kit";
-import { appendLog, serverId, type LogLine } from "./logic";
+import { readStored, writeStored } from "../../ui-kit/storage";
+import { appendLog, type Favorites, lastStarted, parseFavorites, serverId, toggleId, type LogLine } from "./logic";
+
+/** Starred scripts per repo; a convenience of this machine, so it lives in localStorage and never leaves the webview. */
+export const FAVORITES_KEY = "intely.run.favorites.v1";
 
 type CatalogState = { catalog: Catalog } | { error: string } | "loading";
 
@@ -19,6 +23,7 @@ const [logs, setLogs] = createSignal<Record<string, readonly LogLine[]>>({});
 const [commands, setCommands] = createSignal<Record<string, string>>({});
 const [access, setAccessState] = createSignal<ProcessAccess | undefined>(undefined);
 const [focusTick, setFocusTick] = createSignal(0);
+const [favorites, setFavorites] = createSignal<Favorites>(parseFavorites(readStored(FAVORITES_KEY)));
 const floors = new Map<string, number>();
 const historyRequested = new Set<string>();
 let wired = false;
@@ -33,6 +38,21 @@ export const selectedServerId = selected;
 export const processAccess = access;
 export const revealedCommand = (key: string): string | undefined => commands()[key];
 export const logOf = (id: string | undefined): readonly LogLine[] => (id ? (logs()[id] ?? []) : []);
+
+const NO_IDS: readonly string[] = [];
+export const favoriteIds = (repo: string): readonly string[] => favorites()[repo] ?? NO_IDS;
+export const isFavorite = (repo: string, script: string): boolean => favoriteIds(repo).includes(script);
+
+/** Stars or unstars a script of a repo and keeps the palette commands in step. */
+export function toggleFavorite(repo: string, script: string): void {
+  const ids = toggleId(favoriteIds(repo), script);
+  setFavorites((all) => {
+    const { [repo]: _old, ...rest } = all;
+    return ids.length ? { ...rest, [repo]: ids } : rest;
+  });
+  writeStored(FAVORITES_KEY, JSON.stringify(favorites()));
+  syncPaletteCommands();
+}
 
 const repos = () => [...(workspace()?.repos ?? [])].sort((a, b) => a.order - b.order);
 export const repoList = repos;
@@ -152,6 +172,29 @@ export function confirmPending(): void {
   else void doStart(p.repoId, p.script, p.confirmed, true);
 }
 
+const catalogScript = (repo: string, script: string): ScriptInfo | undefined => {
+  const state = catalogs()[repo];
+  return state && typeof state === "object" && "catalog" in state ? state.catalog.scripts.find((s) => s.id === script) : undefined;
+};
+
+/**
+ * Run a script again. A running one is restarted. A finished one goes through the same Start as the first time: a script that asks for a
+ * confirmation asks again (a deploy is not repeated by one stray click) and the check for a second heavy server still runs.
+ */
+export async function rerun(server: Pick<ServerInfo, "id" | "repoId" | "script" | "runner" | "status">): Promise<void> {
+  if (isLive(server)) return restartServer(server.id);
+  await loadCatalog(server.repoId);
+  const script = catalogScript(server.repoId, server.script);
+  if (script) requestStart(server.repoId, script);
+  else toast.error(t("run.toast.start", { runner: server.runner }), t("run.noScripts"));
+}
+
+/** The palette's "Re-run the last script". */
+export function rerunLast(): void {
+  const last = lastStarted(devServers());
+  if (last) void rerun(last);
+}
+
 export const stopServer = (id: string): void => void ipc.run.stop(id).catch((e) => toast.error(t("run.toast.stop"), errorText(e)));
 export const restartServer = (id: string): void => void ipc.run.restart(id).then(applyServerState, (e) => toast.error(t("run.toast.restart"), errorText(e)));
 export const stopAll = (): void => void ipc.run.stopAll().catch((e) => toast.error(t("run.toast.stopAll"), errorText(e)));
@@ -167,7 +210,7 @@ export function dismissServer(id: string): void {
   });
 }
 
-// Palette: one command per start / dev script of every loaded catalog ("Run admin: start").
+// Palette: one command per start / dev script and per favorite of every loaded catalog ("Run admin: start").
 let paletteDisposers: Disposer[] = [];
 function syncPaletteCommands(): void {
   paletteDisposers.forEach((d) => d());
@@ -175,9 +218,10 @@ function syncPaletteCommands(): void {
   for (const repo of repos()) {
     const state = catalogs()[repo.id];
     if (!state || typeof state === "string" || "error" in state) continue;
-    for (const script of state.catalog.scripts.filter((s) => s.group === "start" || s.group === "dev")) {
+    const starred = favoriteIds(repo.id);
+    for (const script of state.catalog.scripts.filter((s) => s.group === "start" || s.group === "dev" || starred.includes(s.id))) {
       paletteDisposers.push(
-        registerCommand({ id: `run.start:${repo.id}:${script.id}`, get title() { return t("run.cmd.runOf", { repo: repo.name, script: script.name }); }, get group() { return t("run.title"); }, keywords: ["start", "dev server", "script", script.runner], run: () => requestStart(repo.id, script) }),
+        registerCommand({ id: `run.start:${repo.id}:${script.id}`, get title() { return t("run.cmd.runOf", { repo: repo.name, script: script.name }); }, get group() { return t("run.title"); }, keywords: ["start", "dev server", "script", "favorite", script.runner], run: () => requestStart(repo.id, script) }),
       );
     }
   }
@@ -194,6 +238,7 @@ export function resetRunStore(): void {
   setCommands({});
   setAccessState(undefined);
   setPending(undefined);
+  setFavorites(parseFavorites(readStored(FAVORITES_KEY)));
   floors.clear();
   historyRequested.clear();
   paletteDisposers.forEach((d) => d());

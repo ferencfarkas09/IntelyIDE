@@ -74,7 +74,8 @@
     "a.b.workers.dev": "placeholder relay host in tests",
     "r.example.workers.dev": "placeholder relay host in tests",
     "get.example.dev": "placeholder host in mock data",
-    "deeppattern.ai": "website of DeepPattern, a service IntelyIDE connects to; linked from the website's Works with section at the maintainer's request, nothing is loaded from it"
+    "deeppattern.ai": "website of DeepPattern, a service IntelyIDE connects to; linked from the website's Works with section at the maintainer's request, nothing is loaded from it",
+    "api.githubcopilot.com": "address of the GitHub MCP server offered in the MCP catalog; contacted only after the person adds that entry and pastes a token of their own"
   },
   "allowedText": {
     "te\u0040pelda.hu": "placeholder address in the Hungarian example text of the website's contact form (an example, not a contact point)",

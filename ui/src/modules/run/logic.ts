@@ -21,8 +21,47 @@ export interface ScriptGroupView {
   scripts: ScriptInfo[];
 }
 
-export function groupScripts(scripts: readonly ScriptInfo[], query = ""): ScriptGroupView[] {
-  return GROUP_ORDER.map((group) => ({ group, label: groupLabel(group), scripts: scripts.filter((s) => s.group === group && matchesFilter(s, query)) })).filter((g) => g.scripts.length > 0);
+/** `skip` holds script ids that are listed elsewhere (the favorites), so a script never shows twice. */
+export function groupScripts(scripts: readonly ScriptInfo[], query = "", skip: ReadonlySet<string> = new Set()): ScriptGroupView[] {
+  return GROUP_ORDER.map((group) => ({ group, label: groupLabel(group), scripts: scripts.filter((s) => s.group === group && !skip.has(s.id) && matchesFilter(s, query)) })).filter((g) => g.scripts.length > 0);
+}
+
+/** Favorite script ids per repo: pinned to the top of the list, in the order they were starred. */
+export type Favorites = Record<string, readonly string[]>;
+
+/** Reads the stored favorites; anything that is not a list of strings per repo is dropped. */
+export function parseFavorites(raw: string | null): Favorites {
+  if (!raw) return {};
+  try {
+    const value: unknown = JSON.parse(raw);
+    if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+    const out: Record<string, string[]> = {};
+    for (const [repo, ids] of Object.entries(value)) {
+      if (!Array.isArray(ids)) continue;
+      const clean = [...new Set(ids.filter((id): id is string => typeof id === "string" && id.length > 0))];
+      if (clean.length) out[repo] = clean;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+/** The list with `id` added at the end, or removed when it is there. */
+export const toggleId = (ids: readonly string[], id: string): string[] => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]);
+
+/** The favorites of a repo that still exist in its catalog (a removed script just drops out) and match the filter, in starred order. */
+export function favoriteScripts(scripts: readonly ScriptInfo[], ids: readonly string[], query = ""): ScriptInfo[] {
+  const byId = new Map(scripts.map((s) => [s.id, s]));
+  return ids.flatMap((id) => {
+    const found = byId.get(id);
+    return found && matchesFilter(found, query) ? [found] : [];
+  });
+}
+
+/** The server entry that "Re-run last" acts on: the one that was started most recently, running or not. */
+export function lastStarted<T extends Pick<ServerInfo, "id" | "startedAt">>(servers: readonly T[]): T | undefined {
+  return servers.reduce<T | undefined>((best, s) => (!best || s.startedAt >= best.startedAt ? s : best), undefined);
 }
 
 export function statusLabel(status: ServerStatus): string {
