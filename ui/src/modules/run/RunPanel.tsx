@@ -4,14 +4,14 @@ import { openSettings } from "../../platform/settings";
 import { setToolWindow } from "../../platform/rail";
 import { devServers, formatRss, heavyServers, isLive, liveServers } from "../../store/devservers";
 import {
-  Badge, Button, ChevronDown, ChevronRight, Dialog, EmptyState, ExternalLink, Icon, IconButton, Input, Play, RepoBadge, RotateCw, Search, ShieldAlert, Square, StatusDot, Trash2, Tooltip, X,
+  Badge, Button, ChevronDown, ChevronRight, Dialog, EmptyState, ExternalLink, Icon, IconButton, Input, Play, RepoBadge, RotateCw, Search, ShieldAlert, Square, Star, StatusDot, Trash2, Tooltip, X,
 } from "../../ui-kit";
 import type { ScriptGroup, ScriptInfo, ServerInfo } from "../../ipc/run";
 import { highlight, parseAnsi } from "./ansi";
-import { COLLAPSED_BY_DEFAULT, groupScripts, heapLabel, searchLines, serverId, statusLabel, statusTone } from "./logic";
+import { COLLAPSED_BY_DEFAULT, favoriteScripts, groupScripts, heapLabel, searchLines, serverId, statusLabel, statusTone } from "./logic";
 import {
-  cancelPending, catalogState, clearLog, confirmPending, currentRepoId, dismissServer, logOf, openServer, pendingStart, processAccess, refreshAccess, repoList, requestStart, restartServer, revealedCommand,
-  filterFocusTick, selectedServerId, selectRepo, selectServer, stopAll, stopServer, toggleCommand, wire,
+  cancelPending, catalogState, clearLog, confirmPending, currentRepoId, dismissServer, favoriteIds, isFavorite, logOf, openServer, pendingStart, processAccess, refreshAccess, repoList, requestStart, rerun, restartServer,
+  revealedCommand, filterFocusTick, selectedServerId, selectRepo, selectServer, stopAll, stopServer, toggleCommand, toggleFavorite, wire,
 } from "./store";
 import "./run.css";
 
@@ -22,20 +22,36 @@ function ScriptRow(props: { repoId: string; script: ScriptInfo }) {
   const live = () => !!server() && isLive(server()!);
   const blocked = () => processAccess() && !processAccess()!.startable;
   const command = () => revealedCommand(`${props.repoId}:${props.script.id}`);
+  const favorite = () => isFavorite(props.repoId, props.script.id);
+  const finished = () => !!server() && !live();
   return (
     <div class="run-script" data-running={live() ? "" : undefined} data-selected={selectedServerId() === serverId(props.repoId, props.script.id) ? "" : undefined}>
       <div class="run-script__main" onClick={() => server() && selectServer(server()!.id)}>
         <Show
           when={live()}
           fallback={
-            <IconButton
-              icon={Play}
-              label={t("run.runLabel", { runner: props.script.runner })}
-              tooltip={blocked() ? t("run.blockedTip") : t("run.runLabel", { runner: props.script.runner })}
-              size="sm"
-              disabled={blocked()}
-              onClick={(e) => (e.stopPropagation(), requestStart(props.repoId, props.script))}
-            />
+            <Show
+              when={finished()}
+              fallback={
+                <IconButton
+                  icon={Play}
+                  label={t("run.runLabel", { runner: props.script.runner })}
+                  tooltip={blocked() ? t("run.blockedTip") : t("run.runLabel", { runner: props.script.runner })}
+                  size="sm"
+                  disabled={blocked()}
+                  onClick={(e) => (e.stopPropagation(), requestStart(props.repoId, props.script))}
+                />
+              }
+            >
+              <IconButton
+                icon={RotateCw}
+                label={t("run.rerunLabel", { runner: props.script.runner })}
+                tooltip={blocked() ? t("run.blockedTip") : t("run.rerunLabel", { runner: props.script.runner })}
+                size="sm"
+                disabled={blocked()}
+                onClick={(e) => (e.stopPropagation(), rerun(server()!))}
+              />
+            </Show>
           }
         >
           <IconButton icon={Square} label={t("run.stopLabel", { runner: props.script.runner })} size="sm" variant="secondary" onClick={(e) => (e.stopPropagation(), stopServer(server()!.id))} />
@@ -64,6 +80,25 @@ function ScriptRow(props: { repoId: string; script: ScriptInfo }) {
             </span>
           )}
         </Show>
+        <Show when={live()}>
+          <IconButton
+            icon={RotateCw}
+            class="run-script__act"
+            label={t("run.restartLabel", { runner: props.script.runner })}
+            size="sm"
+            disabled={blocked() || server()?.status === "stopping"}
+            onClick={(e) => (e.stopPropagation(), rerun(server()!))}
+          />
+        </Show>
+        <IconButton
+          icon={Star}
+          class="run-script__act run-script__star"
+          data-on={favorite() ? "" : undefined}
+          pressed={favorite()}
+          label={favorite() ? t("run.favoriteRemove", { name: props.script.name }) : t("run.favoriteAdd", { name: props.script.name })}
+          size="sm"
+          onClick={(e) => (e.stopPropagation(), toggleFavorite(props.repoId, props.script.id))}
+        />
         <Tooltip label={command() === undefined ? t("run.showCommand") : t("run.hideCommand")}>
           <button type="button" class="run-script__peek" aria-label={command() === undefined ? t("run.showCommandOf", { name: props.script.name }) : t("run.hideCommandOf", { name: props.script.name })} aria-expanded={command() !== undefined} onClick={(e) => (e.stopPropagation(), toggleCommand(props.repoId, props.script))}>
             <Icon icon={ChevronDown} size={12} />
@@ -80,12 +115,14 @@ function ScriptRow(props: { repoId: string; script: ScriptInfo }) {
 function ScriptList(props: { repoId: string; filter: string }) {
   const state = () => catalogState(props.repoId);
   const [open, setOpen] = createSignal<Partial<Record<ScriptGroup, boolean>>>({});
+  const [favOpen, setFavOpen] = createSignal(true);
   const isOpen = (g: ScriptGroup, filtering: boolean) => filtering || (open()[g] ?? !COLLAPSED_BY_DEFAULT.includes(g));
   const catalog = () => {
     const s = state();
     return typeof s === "object" && "catalog" in s ? s.catalog : undefined;
   };
-  const groups = createMemo(() => groupScripts(catalog()?.scripts ?? [], props.filter));
+  const favorites = createMemo(() => favoriteScripts(catalog()?.scripts ?? [], favoriteIds(props.repoId), props.filter));
+  const groups = createMemo(() => groupScripts(catalog()?.scripts ?? [], props.filter, new Set(favoriteIds(props.repoId))));
   return (
     <div class="run-list" role="list" aria-label={t("run.scripts")}>
       <Show when={state() === "loading" || state() === undefined}><div class="run-note">{t("run.reading")}</div></Show>
@@ -96,7 +133,19 @@ function ScriptList(props: { repoId: string; filter: string }) {
         {(c) => (
           <>
             <For each={c().notes}>{(n) => <div class="run-note">{n}</div>}</For>
-            <For each={groups()} fallback={<div class="run-note">{props.filter.trim() ? t("run.noMatch", { filter: props.filter }) : t("run.noScripts")}</div>}>
+            <Show when={favorites().length > 0}>
+              <section class="run-group run-group--favorites">
+                <button type="button" class="run-group__head" aria-expanded={favOpen() || !!props.filter} onClick={() => setFavOpen((o) => !o)}>
+                  <Icon icon={favOpen() || props.filter ? ChevronDown : ChevronRight} size={12} />
+                  <span>{t("run.favorites")}</span>
+                  <span class="run-group__count ui-tnum">{favorites().length}</span>
+                </button>
+                <Show when={favOpen() || !!props.filter}>
+                  <For each={favorites()}>{(s) => <ScriptRow repoId={props.repoId} script={s} />}</For>
+                </Show>
+              </section>
+            </Show>
+            <For each={groups()} fallback={<Show when={favorites().length === 0}><div class="run-note">{props.filter.trim() ? t("run.noMatch", { filter: props.filter }) : t("run.noScripts")}</div></Show>}>
               {(g) => (
                 <section class="run-group">
                   <button type="button" class="run-group__head" aria-expanded={isOpen(g.group, !!props.filter)} onClick={() => setOpen((o) => ({ ...o, [g.group]: !isOpen(g.group, false) }))}>
@@ -165,7 +214,15 @@ function LogView() {
                 trailing={query() ? <span class="ui-tnum run-log__count">{lines().length}</span> : undefined}
               />
               <IconButton icon={Trash2} label={t("run.clearLog")} size="sm" onClick={() => clearLog(s().id)} />
-              <Show when={isLive(s())} fallback={<IconButton icon={X} label={t("run.forget")} size="sm" onClick={() => dismissServer(s().id)} />}>
+              <Show
+                when={isLive(s())}
+                fallback={
+                  <>
+                    <Button size="sm" variant="secondary" icon={RotateCw} disabled={!!processAccess() && !processAccess()!.startable} onClick={() => rerun(s())}>{t("run.rerun")}</Button>
+                    <IconButton icon={X} label={t("run.forget")} size="sm" onClick={() => dismissServer(s().id)} />
+                  </>
+                }
+              >
                 <IconButton icon={RotateCw} label={t("run.restart")} size="sm" disabled={s().status === "stopping"} onClick={() => restartServer(s().id)} />
               </Show>
             </div>
@@ -271,7 +328,12 @@ export default function RunPanel() {
   const live = () => liveServers().length;
   const startFirst = () => {
     const state = currentRepoId() ? catalogState(currentRepoId()!) : undefined;
-    const scripts = typeof state === "object" && "catalog" in state ? groupScripts(state.catalog.scripts, filter()).flatMap((g) => g.scripts) : [];
+    // the order on screen: the favorites first, then the groups
+    const starred = currentRepoId() ? favoriteIds(currentRepoId()!) : [];
+    const scripts =
+      typeof state === "object" && "catalog" in state
+        ? [...favoriteScripts(state.catalog.scripts, starred, filter()), ...groupScripts(state.catalog.scripts, filter(), new Set(starred)).flatMap((g) => g.scripts)]
+        : [];
     if (scripts.length === 1 || (scripts.length > 0 && filter())) requestStart(currentRepoId()!, scripts[0]);
   };
   return (

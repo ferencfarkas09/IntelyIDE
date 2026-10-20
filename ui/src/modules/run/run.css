@@ -35,6 +35,12 @@
 .run-script__rss { min-width: 44px; text-align: right; }
 .run-script__peek { display: grid; flex: none; place-items: center; width: 20px; height: 20px; color: var(--text-4); background: none; border: 0; border-radius: var(--radius-1); opacity: 0; }
 .run-script__main:hover .run-script__peek, .run-script__peek:focus-visible, .run-script__peek[aria-expanded="true"] { opacity: 1; }
+.run-script__act { opacity: 0; }
+.run-script__main:hover .run-script__act, .run-script__act:focus-visible, .run-script__act[data-on] { opacity: 1; }
+.run-script__star[data-on] { color: var(--warn); }
+.run-script__star[aria-pressed="true"] { background: none; }
+.run-script__star[aria-pressed="true"]:hover { background: var(--surface-hover); }
+.run-script__star[data-on] svg { fill: currentColor; }
 .run-script__peek:hover { color: var(--text-1); background: var(--surface-hover); }
 .run-script__peek[aria-expanded="true"] { transform: rotate(180deg); }
 .run-script__command { display: block; margin: 0 var(--space-1) var(--space-1) 36px; padding: 4px 8px; overflow-wrap: anywhere; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--text-2); background: var(--surface-2); border-radius: var(--radius-1); }
