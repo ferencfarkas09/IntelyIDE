@@ -72,8 +72,8 @@
 .hcd-hit__snippet { color: var(--text-2); font-size: var(--text-sm); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
 /* ---- Channel header ---- */
-.hch { display: flex; align-items: center; gap: var(--space-1); flex: none; min-width: 0; min-height: 40px; padding: var(--space-1) var(--space-2) var(--space-1) var(--space-2); box-shadow: inset 0 -1px 0 var(--border-subtle); }
-.hch__icon { display: inline-grid; place-items: center; flex: none; width: 22px; color: var(--text-3); }
+.hch { display: flex; align-items: center; gap: var(--space-2); flex: none; min-width: 0; min-height: 52px; padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3); box-shadow: inset 0 -1px 0 var(--border-subtle); }
+.hch__icon { display: inline-grid; place-items: center; flex: none; width: 32px; color: var(--text-3); }
 .hch__main { display: flex; flex: 1 1 0; flex-direction: column; min-width: 0; line-height: 1.25; }
 .hch__name { margin: 0; color: var(--text-1); font-size: var(--text-md); font-weight: var(--weight-semibold); }
 .hch__topic { display: block; max-width: 100%; padding: 0; border: 0; background: none; color: var(--text-3); font: inherit; font-size: var(--text-xs); text-align: left; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; cursor: pointer; }

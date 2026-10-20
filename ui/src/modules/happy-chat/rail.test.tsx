@@ -8,18 +8,18 @@ import type { ChatSummary } from "../../ipc/happy";
 const [live, setLive] = createSignal(true);
 const [summary, setSummary] = createSignal<Partial<ChatSummary> | undefined>();
 const [shown, setShown] = createSignal(false);
-const openChat = vi.fn();
-const toggleDockTab = vi.fn();
+const toggleChat = vi.fn();
+const showChat = vi.fn();
 
 vi.mock("./state", () => ({
   chatLive: () => live(),
   chatItemVisible: () => live(),
   chatSummary: () => summary(),
   chatTabShown: () => shown(),
-  openChat: (...a: unknown[]) => openChat(...a),
+  toggleChat: () => toggleChat(),
+  showChat: () => showChat(),
   focusChatSearch: () => {},
 }));
-vi.mock("../../platform/dock", async (orig) => ({ ...(await orig<typeof import("../../platform/dock")>()), toggleDockTab: (id: string) => toggleDockTab(id) }));
 
 import { register } from "./index";
 
@@ -27,8 +27,8 @@ beforeEach(() => {
   setLive(true);
   setSummary({ unreadTotal: 0, mentionTotal: 0, threadUnread: 0 });
   setShown(false);
-  openChat.mockClear();
-  toggleDockTab.mockClear();
+  toggleChat.mockClear();
+  showChat.mockClear();
   register();
 });
 afterEach(() => {
@@ -66,12 +66,13 @@ describe("Team chat rail item", () => {
     expect(screen.getByRole("button", { name: "Team chat, 3 unread, 1 mention" })).toBeTruthy();
   });
 
-  it("opens the chat dock tab, and hides the dock when it is already showing", () => {
+  it("hands the click to the chat's own toggle, which knows whether the dock or the Agent panel is showing", () => {
     render(() => <Rail />);
     fireEvent.click(screen.getByRole("button", { name: /Team chat/ }));
-    expect(openChat).toHaveBeenCalledTimes(1);
+    expect(toggleChat).toHaveBeenCalledTimes(1);
     setShown(true);
     fireEvent.click(screen.getByRole("button", { name: /Team chat/ }));
-    expect(toggleDockTab).toHaveBeenCalledWith("chat");
+    expect(toggleChat).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("button", { name: /Team chat/ }).getAttribute("aria-pressed")).toBe("true");
   });
 });

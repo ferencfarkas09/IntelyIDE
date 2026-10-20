@@ -1,12 +1,13 @@
-import { createEffect, lazy, Match, on, Show, Switch } from "solid-js";
+import { createEffect, lazy, Match, on, Show, Suspense, Switch } from "solid-js";
+import { Dynamic } from "solid-js/web";
 import { RunView } from "../../components/chat/ChatPanel";
 import { StartingRunView } from "../../components/chat/Starting";
 import { t } from "../../i18n";
 import { execute } from "../../platform/commands";
-import { agentTabInstance, showTabInAgent } from "../../platform/mode";
+import { agentPanel, agentPanelId, agentTabInstance, closeAgentPanel, showTabInAgent } from "../../platform/mode";
 import { agentAnnouncement, agentRow, selectedAgentId } from "../../store/agents";
 import { startingInFront, startingRun } from "../../store/starting";
-import { Bot, Button, EmptyState, Plus, Splitter } from "../../ui-kit";
+import { Bot, Button, EmptyState, Plus, Spinner, Splitter } from "../../ui-kit";
 import { InspectorSlot } from "./InspectorSlot";
 import { NeedsYouInbox } from "./NeedsYouInbox";
 import { paneState, shownCount } from "./panes";
@@ -83,21 +84,53 @@ function Centre() {
   );
 }
 
-/** Agent mode: sessions on the left, the transcript in the middle, the Inspector on the right. */
+/** The column at the right edge (Team chat): what a module registered with `registerAgentPanel`. The panel draws its own header and gets `onClose`. */
+function SidePanel() {
+  const panel = () => {
+    const id = agentPanelId();
+    return id ? agentPanel(id) : undefined;
+  };
+  return (
+    <Show when={panel()} keyed>
+      {(p) => (
+        <aside class="agent-panel" aria-label={p.title} data-testid="agent-panel">
+          <Suspense fallback={<div class="agent-panel__loading"><Spinner /></div>}>
+            <Dynamic component={p.component} onClose={closeAgentPanel} />
+          </Suspense>
+        </aside>
+      )}
+    </Show>
+  );
+}
+
+/** Agent mode: sessions on the left, the transcript in the middle, the Inspector and, when one is open, a side panel such as Team chat on the right. */
 export default function AgentWorkspace() {
   return (
     <div class="agent" data-testid="agent-workspace">
       <Splitter
-        first={<SessionsSidebar />}
-        second={
-          <Splitter first={<Centre />} second={<InspectorSlot />} primary="second" defaultSize={320} min={260} max={560} minOther={420} storageKey="agent.inspector" label={t("runs.agent.resizeInspector")} />
+        first={
+          <Splitter
+            first={<SessionsSidebar />}
+            second={
+              <Splitter first={<Centre />} second={<InspectorSlot />} primary="second" defaultSize={320} min={260} max={560} minOther={420} storageKey="agent.inspector" label={t("runs.agent.resizeInspector")} />
+            }
+            defaultSize={300}
+            min={240}
+            max={460}
+            minOther={680}
+            storageKey="agent.sessions"
+            label={t("runs.agent.resizeSessions")}
+          />
         }
-        defaultSize={300}
-        min={240}
-        max={460}
-        minOther={680}
-        storageKey="agent.sessions"
-        label={t("runs.agent.resizeSessions")}
+        second={<SidePanel />}
+        primary="second"
+        collapsed={!agentPanelId()}
+        defaultSize={380}
+        min={300}
+        max={720}
+        minOther={760}
+        storageKey="agent.panel"
+        label={t("runs.agent.resizePanel")}
       />
     </div>
   );

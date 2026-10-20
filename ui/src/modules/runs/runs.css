@@ -3,6 +3,9 @@
 .agent > .ui-splitter { flex: 1 1 auto; min-width: 0; min-height: 0; }
 .agent-centre { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--surface-1); }
 .agent-centre > .ui-empty { flex: 1 1 0; }
+.agent-panel { display: flex; flex: 1 1 0; flex-direction: column; min-width: 0; min-height: 0; height: 100%; background: var(--surface-1); }
+.agent-panel > * { flex: 1 1 0; min-height: 0; }
+.agent-panel__loading { display: flex; align-items: center; justify-content: center; }
 .agent-tabview { display: flex; flex: 1 1 0; flex-direction: column; min-height: 0; }
 .agent-tabview__bar { display: flex; flex: none; align-items: center; gap: var(--space-2); height: 36px; padding: 0 var(--space-3) 0 var(--space-2); box-shadow: inset 0 -1px 0 var(--border-subtle); }
 .agent-tabview__title { min-width: 0; color: var(--text-2); font-size: var(--text-sm); }

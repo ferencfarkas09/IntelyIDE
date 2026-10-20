@@ -34,6 +34,20 @@ const startOfDay = (ms: number): number => {
   return d.getTime();
 };
 
+/** The time column of the conversation list: the clock time today, else the day (`Yesterday`, `Mon, 28 Sep`). */
+export const listTime = (ms: number, nowMs: number): string => (startOfDay(ms) === startOfDay(nowMs) ? hhmm(ms) : dayLabel(ms, nowMs));
+
+/** The second line of a conversation row: what was said last, with who said it when that is not obvious (a person's own chat shows only "You: " for your words). */
+export function previewLine(c: { kind: string; lastPreview?: string | null; lastSender?: string | null }, me: string | undefined, you: string): string {
+  const text = (c.lastPreview ?? "").replace(/\s+/g, " ").trim();
+  if (!text) return "";
+  const sender = (c.lastSender ?? "").trim();
+  if (!sender) return text;
+  const mine = !!me && sender.toLowerCase() === me.toLowerCase();
+  if (c.kind === "direct") return mine ? `${you}: ${text}` : text;
+  return `${mine ? you : sender}: ${text}`;
+}
+
 /** `Today`, `Yesterday`, `Mon, 28 Sep` (with the year when it is not this one). Local time. */
 export function dayLabel(ms: number, nowMs: number): string {
   const day = startOfDay(ms);

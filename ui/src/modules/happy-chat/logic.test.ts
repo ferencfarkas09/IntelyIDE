@@ -21,7 +21,9 @@ import {
   initials,
   isCreditsCode,
   listSections,
+  listTime,
   norm,
+  previewLine,
   safeHttpsUrl,
   summarizeNotes,
   tokenize,
@@ -403,5 +405,33 @@ describe("formatBytes", () => {
     expect(formatBytes(1536)).toBe("1.5 KB");
     expect(formatBytes(3.2 * 1024 * 1024)).toBe("3.2 MB");
     expect(formatBytes(-1)).toBe("");
+  });
+});
+
+describe("conversation rows", () => {
+  const NOW = new Date(2026, 9, 20, 15, 30).getTime();
+  it("shows the clock time today and the day otherwise", () => {
+    expect(listTime(new Date(2026, 9, 20, 9, 5).getTime(), NOW)).toBe("09:05");
+    expect(listTime(new Date(2026, 9, 19, 23, 59).getTime(), NOW)).toBe(dayLabel(new Date(2026, 9, 19, 23, 59).getTime(), NOW));
+    expect(listTime(new Date(2026, 9, 12, 8, 0).getTime(), NOW)).toBe(dayLabel(new Date(2026, 9, 12, 8, 0).getTime(), NOW));
+  });
+
+  it("puts who said it before what was said in a channel or a group, and \"You\" for your own words", () => {
+    const text = { lastPreview: "See you at 3", lastSender: "Anna" };
+    expect(previewLine({ kind: "channel", ...text }, "Elek", "You")).toBe("Anna: See you at 3");
+    expect(previewLine({ kind: "group", ...text }, "Elek", "You")).toBe("Anna: See you at 3");
+    expect(previewLine({ kind: "channel", ...text }, "anna", "You")).toBe("You: See you at 3");
+  });
+
+  it("leaves the name out of a person's own chat, except to mark your own words", () => {
+    expect(previewLine({ kind: "direct", lastPreview: "Hello", lastSender: "Anna" }, "Elek", "You")).toBe("Hello");
+    expect(previewLine({ kind: "direct", lastPreview: "Hello", lastSender: "Elek" }, "Elek", "You")).toBe("You: Hello");
+  });
+
+  it("folds line breaks, and is empty for a conversation with nothing said", () => {
+    expect(previewLine({ kind: "channel", lastPreview: "a\n\n  b", lastSender: "Anna" }, undefined, "You")).toBe("Anna: a b");
+    expect(previewLine({ kind: "channel", lastPreview: "text" }, undefined, "You")).toBe("text");
+    expect(previewLine({ kind: "channel", lastPreview: "", lastSender: "Anna" }, undefined, "You")).toBe("");
+    expect(previewLine({ kind: "channel" }, undefined, "You")).toBe("");
   });
 });

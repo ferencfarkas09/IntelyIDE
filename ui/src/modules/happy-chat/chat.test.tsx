@@ -253,6 +253,32 @@ describe("conversation", () => {
     expect(conv.querySelector("[data-mention]")).toBeTruthy();
   });
 
+  it("draws every message as a bubble: others on the left under their name, yours on the right, with the sender still readable", async () => {
+    await bring();
+    render(() => <ChatTab />);
+    const conv = await openRow(/^#general/);
+    await within(conv).findAllByText(/Jó reggelt mindenkinek/);
+    const messages = within(conv).getAllByTestId("chat-message").filter((el) => el.classList.contains("hc-msg"));
+    expect(messages.length).toBeGreaterThan(2);
+    for (const el of messages) {
+      const bubble = el.querySelector(".hc-bubble");
+      expect(bubble, el.textContent ?? "").toBeTruthy();
+      // the words are inside the bubble; reactions and the thread footer stay outside it, under it
+      expect(bubble!.querySelector(".hc-msg__text, .hc-card, .hc-edit")).toBeTruthy();
+      expect(bubble!.querySelector(".hc-reactions, .hc-thread-foot")).toBeNull();
+    }
+    const mine = messages.filter((el) => el.hasAttribute("data-mine"));
+    const theirs = messages.filter((el) => !el.hasAttribute("data-mine"));
+    expect(theirs.length).toBeGreaterThan(0);
+    // yours carry no picture (CSS) but the author's name is still in the page for a screen reader
+    for (const el of mine) {
+      const head = el.querySelector(".hc-msg__name");
+      if (head) expect(head.textContent).toBe("You");
+    }
+    // a message that opens a group shows a name and a picture; the ones that follow only the bubble
+    expect(theirs.some((el) => el.querySelector(".hc-msg__head .hc-msg__name") && el.querySelector(".hc-avatar"))).toBe(true);
+  });
+
   it("opens a link through Rust, never in the webview", async () => {
     await bring();
     render(() => <ChatTab />);
@@ -529,10 +555,17 @@ describe("sidebar", () => {
     expect(within(nav).getByRole("button", { name: "Browse channels" })).toBeTruthy();
     expect(within(nav).getAllByRole("button", { name: "New channel" }).length).toBeGreaterThan(0);
     expect(within(nav).getAllByRole("button", { name: "New message" }).length).toBe(2);
-    // Icons by kind: a lock for private, people for a group, an avatar for a person.
-    expect(nav.querySelector('[data-channel="c_management"] .hc-row__icon')).toBeTruthy();
-    expect(nav.querySelector('[data-channel="g_u_2_u_3"] .hc-row__icon')).toBeTruthy();
+    // Pictures by kind: a tile with a lock for private, people for a group, # for a channel, the initials for a person.
+    expect(nav.querySelector('[data-channel="c_management"] .hc-avatar--tile')).toBeTruthy();
+    expect(nav.querySelector('[data-channel="g_u_2_u_3"] .hc-avatar--tile')).toBeTruthy();
+    expect(nav.querySelector('[data-channel="c_general"] .hc-avatar--tile')).toBeTruthy();
     expect(nav.querySelector('[data-channel="d_anna"] .hc-avatar')).toBeTruthy();
+    expect(nav.querySelector('[data-channel="d_anna"] .hc-avatar--tile')).toBeNull();
+    // Messenger rows: what was said last, and when.
+    const anna = nav.querySelector('[data-channel="d_anna"]')!;
+    expect(anna.querySelector(".hc-convo__preview")?.textContent?.length).toBeGreaterThan(0);
+    expect(anna.querySelector("time.hc-convo__time")).toBeTruthy();
+    expect(nav.querySelector('[data-channel="g_u_2_u_3"] .hc-convo__preview')?.textContent).toContain(": ");
     fireEvent.click(within(nav).getByRole("button", { name: "Browse channels" }));
     expect(chatDialog()?.kind).toBe("browse");
   });

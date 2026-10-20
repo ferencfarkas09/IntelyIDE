@@ -509,5 +509,6 @@
   "hc.search.dlg.channels": "Csatornák",
   "hc.search.dlg.people": "Emberek",
   "hc.search.dlg.inThread": "szál",
-  "hc.search.dlg.joinHint": "Nyilvános csatorna, kiválasztással csatlakozhatsz"
+  "hc.search.dlg.joinHint": "Nyilvános csatorna, kiválasztással csatlakozhatsz",
+  "hc.closePanel": "Chat bezárása"
 }

@@ -509,5 +509,6 @@
   "hc.search.dlg.channels": "Channels",
   "hc.search.dlg.people": "People",
   "hc.search.dlg.inThread": "thread",
-  "hc.search.dlg.joinHint": "Public channel, select to join"
+  "hc.search.dlg.joinHint": "Public channel, select to join",
+  "hc.closePanel": "Close the chat"
 }

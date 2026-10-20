@@ -7,7 +7,8 @@ import { createStore, produce } from "solid-js/store";
 import { t } from "../../i18n";
 import { ipc } from "../../ipc";
 import type { ChatChannel, ChatEvent, ChatMember, ChatMessage, ChatPerson, ChatPreferences, ChatSearch, ChatSendOptions, MessageChange, ChatSummary, ThreadSummary } from "../../ipc/happy";
-import { activeDockTab, dockVisible, openDockTab } from "../../platform/dock";
+import { activeDockTab, dockVisible, openDockTab, toggleDockTab } from "../../platform/dock";
+import { agentPanelOpen, appMode, closeAgentPanel, openAgentPanel } from "../../platform/mode";
 import { chatPrefs, happyStatus, providerState } from "../../store/happy";
 import { announce, readStored, toast, writeStored } from "../../ui-kit";
 import { channelLabel, clip, createToastGate, failMessage, firstUnreadId, isCreditsCode, newClientId, trimWindow, upsertMessage, type ChatToastView } from "./logic";
@@ -91,7 +92,20 @@ const UP: ReadonlySet<string> = new Set(["ready", "degraded"]);
 /** The provider is switched on, has a token that works, and is not signed out or forbidden. */
 export const chatLive = (): boolean => !!happyStatus()?.config.master && !!chatPrefs()?.enabled && UP.has(providerState("chat") ?? "");
 export const chatItemVisible = (): boolean => chatLive() && !!chatPrefs()?.showInStatusBar;
-export const chatTabShown = (): boolean => dockVisible() && activeDockTab()?.id === "chat";
+/** Chat is on screen: its dock tab in the editor, or its panel beside the run in Agent mode. */
+export const chatTabShown = (): boolean => agentPanelOpen("chat") || (appMode() === "editor" && dockVisible() && activeDockTab()?.id === "chat");
+
+/** Shows the chat where the person is: the panel at the right of the Agent workspace, or the dock tab of the editor. */
+export function showChat(): void {
+  if (appMode() === "agent") openAgentPanel("chat");
+  else openDockTab("chat");
+}
+/** The rail button and the "Chat" command: open it, or close it when it is already on screen. */
+export function toggleChat(): void {
+  if (!chatTabShown()) return showChat();
+  if (appMode() === "agent") closeAgentPanel();
+  else toggleDockTab("chat");
+}
 
 const me = (): { id: string; name: string } => ({ id: happyStatus()?.user?.id ?? "me", name: happyStatus()?.user?.name ?? t("hc.you") });
 export const myName = (): string | undefined => happyStatus()?.user?.name;
@@ -116,7 +130,7 @@ const gate = createToastGate({
 
 /** Opens the dock on Chat and goes to a conversation (toast action, palette, status bar). */
 export function openChat(channelId?: string): void {
-  openDockTab("chat");
+  showChat();
   if (channelId) {
     setActiveChannel(channelId);
     setScreen("conversation");
@@ -157,7 +171,7 @@ export function openChatAt(target: ChatTarget): void {
 const [searchTick, setSearchTick] = createSignal(0);
 export const listSearchTick = searchTick;
 export const focusChatSearch = (): void => {
-  openDockTab("chat");
+  showChat();
   setScreen("list");
   setSearchTick((n) => n + 1);
 };

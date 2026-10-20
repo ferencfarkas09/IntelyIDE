@@ -172,46 +172,48 @@ export function MessageRow(props: { msg: ChatMessage; grouped: boolean; known: r
               <time class="hc-msg__time" datetime={new Date(m().createdAtMs).toISOString()}>{hhmm(m().createdAtMs)}</time>
             </div>
           </Show>
-          <Show when={m().pinned && !m().deleted}>
-            <span class="hc-msg__pinned"><Icon icon={Pin} size={12} />{t("hc.msg.pinned")}</span>
-          </Show>
-          <Show when={!m().deleted} fallback={<p class="hc-msg__text hc-msg__text--deleted">{t("hc.deleted")}</p>}>
-            <Show
-              when={!editing()}
-              fallback={<Editor msg={m()} onDone={() => setEditing(false)} />}
-            >
+          <div class="hc-bubble" data-deleted={m().deleted ? "" : undefined} data-card={cardKind() && !editing() && !m().deleted ? "" : undefined} data-editing={editing() ? "" : undefined}>
+            <Show when={m().pinned && !m().deleted}>
+              <span class="hc-msg__pinned"><Icon icon={Pin} size={12} />{t("hc.msg.pinned")}</span>
+            </Show>
+            <Show when={!m().deleted} fallback={<p class="hc-msg__text hc-msg__text--deleted">{t("hc.deleted")}</p>}>
               <Show
-                when={cardKind()}
-                fallback={
-                  <p class="hc-msg__text ui-selectable">
-                    <MessageText text={m().text} known={props.known} />
-                    <Show when={m().edited}><span class="hc-msg__edited"> {t("hc.edited")}</span></Show>
-                  </p>
-                }
+                when={!editing()}
+                fallback={<Editor msg={m()} onDone={() => setEditing(false)} />}
               >
-                {(kind) => (
-                  <div class="hc-card" data-kind={kind()}>
-                    <Icon icon={kind() === "meeting" ? Video : FileText} size={14} />
-                    <span class="hc-card__kind">{kind() === "meeting" ? t("hc.msg.meeting") : t("hc.msg.record")}</span>
-                    <span class="hc-card__text ui-selectable"><MessageText text={m().text} known={props.known} /></span>
-                  </div>
-                )}
+                <Show
+                  when={cardKind()}
+                  fallback={
+                    <p class="hc-msg__text ui-selectable">
+                      <MessageText text={m().text} known={props.known} />
+                      <Show when={m().edited}><span class="hc-msg__edited"> {t("hc.edited")}</span></Show>
+                    </p>
+                  }
+                >
+                  {(kind) => (
+                    <div class="hc-card" data-kind={kind()}>
+                      <Icon icon={kind() === "meeting" ? Video : FileText} size={14} />
+                      <span class="hc-card__kind">{kind() === "meeting" ? t("hc.msg.meeting") : t("hc.msg.record")}</span>
+                      <span class="hc-card__text ui-selectable"><MessageText text={m().text} known={props.known} /></span>
+                    </div>
+                  )}
+                </Show>
               </Show>
             </Show>
-          </Show>
-          <Show when={!m().deleted && m().attachments.length > 0}>
-            <ul class="hc-files">
-              <For each={m().attachments}>
-                {(a) => (
-                  <li class="hc-file" aria-label={t("hc.msg.attachment", { name: a.name })}>
-                    <Icon icon={Paperclip} size={12} />
-                    <span class="hc-file__name ui-truncate">{a.name}</span>
-                    <span class="hc-file__size ui-tnum">{formatBytes(a.size)}</span>
-                  </li>
-                )}
-              </For>
-            </ul>
-          </Show>
+            <Show when={!m().deleted && m().attachments.length > 0}>
+              <ul class="hc-files">
+                <For each={m().attachments}>
+                  {(a) => (
+                    <li class="hc-file" aria-label={t("hc.msg.attachment", { name: a.name })}>
+                      <Icon icon={Paperclip} size={12} />
+                      <span class="hc-file__name ui-truncate">{a.name}</span>
+                      <span class="hc-file__size ui-tnum">{formatBytes(a.size)}</span>
+                    </li>
+                  )}
+                </For>
+              </ul>
+            </Show>
+          </div>
           <Show when={!m().deleted && m().reactions.length > 0}>
             <div class="hc-reactions">
               <For each={m().reactions}>
