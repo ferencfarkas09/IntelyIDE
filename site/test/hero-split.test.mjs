@@ -59,10 +59,19 @@ describe('shared hero', () => {
     }
   }
 
-  it('shows the "Results vary" note only on the page with figures', () => {
+  it('shows the three figures and the "Results vary" note on the IntelyIDE page and the home page, not on IntelyOpti', () => {
     for (const [lang, t] of [['en', en], ['hu', hu]]) {
-      assert.ok(html[`ide-${lang}`].includes(t.hero.note));
-      assert.ok(!html[`home-${lang}`].includes(t.hero.note));
+      for (const key of ['ide', 'home']) {
+        const page = html[`${key}-${lang}`];
+        const hero = page.slice(page.indexOf('class="hero hero-split"'), page.indexOf('</section>', page.indexOf('class="hero hero-split"')));
+        assert.equal((hero.match(/<li class="stat">/g) ?? []).length, 3, `${key} ${lang}`);
+        for (const x of t.hero.stats) assert.ok(hero.includes(`<b class="stat-n">${x.n}</b>`));
+        assert.ok(hero.includes(`<p class="stats-note">${t.hero.note}</p>`));
+      }
+      assert.match(html[`home-${lang}`], /<a href="[^"]*intelyide\/#speed"/);
+      assert.match(html[`home-${lang}`], new RegExp(`<p class="stats-cta"><a class="btn btn-ghost" href="[^"]*intelyide/"[^>]*>`));
+      assert.ok(html[`home-${lang}`].includes(t.home.hero.statsCta));
+      assert.doesNotMatch(html[`opti-${lang}`], /class="stat"|stats-note/);
       assert.ok(!html[`opti-${lang}`].includes(t.hero.note));
     }
   });

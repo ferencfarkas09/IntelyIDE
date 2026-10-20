@@ -71,6 +71,7 @@ export default {
       lead: 'IntelyHome builds the Mac tools we want on our own machines: an IDE that keeps AI agents on a leash, and an optimizer that treats Intel Macs as first-class. Local-first, honest about what they do, signed and notarized.',
       ide: 'Get IntelyIDE, free',
       opti: 'Try IntelyOpti free',
+      statsCta: 'See IntelyIDE in detail',
       cardsLabel: 'Highlights',
       cards: [
         { icon: 'layers', h: 'IntelyIDE', p: 'A free, open-source IDE for several git repositories.' },

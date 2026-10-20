@@ -70,6 +70,7 @@ export default {
       lead: 'Az IntelyHome azokat a Mac-eszközöket építi, amelyeket a saját gépünkön is szeretnénk látni: egy IDE-t, amely pórázon tartja az MI-ügynököket, és egy optimalizálót, amely az Intel Mac-eket teljes értékűnek tekinti. Helyben dolgozik, őszintén elmondja, mit csinál, aláírt és hitelesített.',
       ide: 'Az IntelyIDE ingyen',
       opti: 'Az IntelyOpti ingyenes próbája',
+      statsCta: 'Az IntelyIDE részletesen',
       cardsLabel: 'Kiemelések',
       cards: [
         { icon: 'layers', h: 'IntelyIDE', p: 'Ingyenes, nyílt forráskódú IDE több git repóhoz.' },

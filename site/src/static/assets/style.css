@@ -604,3 +604,5 @@ ol.cards { list-style: none; padding: 0; }
 .hero-split .cta-row, .hero-split .points { justify-content: flex-start; }
 .hero-split .hero-fine { margin-inline: 0; }
 .gcard > strong, .gcard > span:not(.ficon) { min-width: 0; overflow-wrap: anywhere; hyphens: auto; }
+.stats-cta { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin: 4px 0 0; }
+.hero-split .hero-inner > .stats-cta { grid-column: 1 / -1; justify-self: center; margin-top: -8px; }

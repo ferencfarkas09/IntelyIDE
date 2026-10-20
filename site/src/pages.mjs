@@ -297,6 +297,13 @@ function withSticky(ctx, product) {
 const iconTile = (name) => `<span class="ficon">${icon(name, 22)}</span>`;
 const external = (ctx) => ` target="_blank" rel="noopener noreferrer"`;
 
+/** The three headline figures with the "results vary" note (IntelyIDE page and home page). `prefix` makes the card links absolute to the IDE page. */
+function heroStats(t, prefix = '', gaPrefix = 'stat') {
+  const cards = t.hero.stats.map((x) => `<li class="stat"><a href="${prefix}${x.href}"${ga('cta', `${gaPrefix}-${x.href.slice(1)}`)}><b class="stat-n">${x.n}</b><span class="stat-h">${x.h}</span><span class="stat-p">${x.p}</span></a></li>`).join('');
+  return `<ul class="stats" aria-label="${t.hero.statsLabel}">${cards}</ul>
+<p class="stats-note">${t.hero.note}</p>`;
+}
+
 /**
  * The hero used by every page: big left headline and copy, five frosted feature cards on the right and thin turning arcs
  * behind them (hero-fx.js drives the cards, motion.js decides full or reduced motion). Only the content differs per page.
@@ -616,6 +623,8 @@ function home(ctx0) {
     kicker: h.hero.kicker, title: h.hero.title, lead: h.hero.lead, cards: h.hero.cards, cardsLabel: h.hero.cardsLabel,
     copy: `<div class="cta-row"><a class="btn btn-grad btn-lg" href="${esc(dlUrl)}"${ga('download', 'home-hero-ide')}>${icons.download('sm')}<span>${h.hero.ide}</span></a><a class="btn btn-ghost btn-lg" href="${optiUrl}#get"${ga('cta', 'home-hero-opti')}>${h.hero.opti}</a></div>
 <ul class="points">${h.hero.points.map((x) => `<li>${checkIcon}${x}</li>`).join('')}</ul>`,
+    after: `${heroStats(t, ideUrl, 'home-stat')}
+<p class="stats-cta"><a class="btn btn-ghost" href="${ideUrl}"${ga('cta', 'home-stats-ide')}>${h.hero.statsCta}</a><a class="btn btn-grad" href="${esc(dlUrl)}"${ga('download', 'home-stats-download')}>${icons.download('sm')}<span>${h.hero.ide}</span></a></p>`,
   });
   const body = `${hero}
 
@@ -877,8 +886,7 @@ ${assetTable(ctx)}
 <p><a href="${dlHome}"${ga('cta', 'all-downloads')}>${t.dl.allDownloads}</a></p>
 </details>
 ${rel.notice ? `<p class="notice">${rel.notice}</p>` : ''}`,
-    after: `<ul class="stats" aria-label="${t.hero.statsLabel}">${t.hero.stats.map((x) => `<li class="stat"><a href="${x.href}"${ga('cta', 'stat-' + x.href.slice(1))}><b class="stat-n">${x.n}</b><span class="stat-h">${x.h}</span><span class="stat-p">${x.p}</span></a></li>`).join('')}</ul>
-<p class="stats-note">${t.hero.note}</p>
+    after: `${heroStats(t)}
 <div class="hero-shot">${frame(picture(ctx.root, 'hero', t.hero.shotAlt, { eager: true, sizes: '(min-width: 1000px) 1040px, 92vw' }))}</div>`,
   });
   const body = `${hero}
