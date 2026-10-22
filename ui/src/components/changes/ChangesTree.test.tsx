@@ -1,7 +1,9 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
+import { lazy, type Component } from "solid-js";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { App } from "../../app/App";
 import { installLayoutStubs } from "../../app/testLayout";
+import { registerChangeBadge } from "../../platform/changeBadges";
 import { clearSelectedFile, selectedFile } from "../../store/selection";
 import { resetTreeState } from "./treeState";
 
@@ -37,6 +39,21 @@ describe("ChangesTree", () => {
     expect(backend.getAttribute("aria-checked")).toBe("true");
     expect(row("orderController.js").getAttribute("aria-level")).toBe("2");
     expect(row("Unversioned files").getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("keeps the tree on screen while a lazy row badge loads (a boundary around the whole panel would swap it for the spinner)", async () => {
+    let load!: () => void;
+    const Late = lazy(() => new Promise<{ default: Component }>((resolve) => (load = () => resolve({ default: () => <i data-testid="late-badge" /> }))));
+    const off = registerChangeBadge({ id: "late", component: Late });
+    try {
+      await mountLoaded();
+      expect(document.querySelector(".tool-loading")).toBeNull();
+      expect(tree()).toBeTruthy();
+      load();
+      expect((await screen.findAllByTestId("late-badge")).length).toBeGreaterThan(0);
+    } finally {
+      off();
+    }
   });
 
   it("toggles a file with Space on the keyboard cursor and turns the repo checkbox mixed", async () => {

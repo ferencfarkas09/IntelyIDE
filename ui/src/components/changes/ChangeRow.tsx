@@ -1,4 +1,4 @@
-import { createMemo, createSignal, For, Show, type JSX } from "solid-js";
+import { createMemo, createSignal, For, Show, Suspense, type JSX } from "solid-js";
 import { Dynamic } from "solid-js/web";
 import { changeBadgeSlots } from "../../platform/changeBadges";
 import type { Change, GuardState, RepoSnapshot } from "../../ipc";
@@ -151,7 +151,14 @@ function FileLikeRow(props: ChangeRowProps & { change: Change; hint: string }) {
         {nameOf(props.change.path)}
       </span>
       <AgentDot repoId={props.row.repoId} path={props.change.path} />
-      <For each={changeBadgeSlots()}>{(slot) => <Dynamic component={slot.component} repoId={props.row.repoId} path={props.change.path} />}</For>
+      {/* A badge may be a lazy component: its own boundary, so its first load never swaps the whole panel for the spinner (and resets the scroll). */}
+      <For each={changeBadgeSlots()}>
+        {(slot) => (
+          <Suspense>
+            <Dynamic component={slot.component} repoId={props.row.repoId} path={props.change.path} />
+          </Suspense>
+        )}
+      </For>
       <Show when={props.hint || renamedFrom()}>
         <span class="ui-path-hint">{[props.hint, renamedFrom()].filter(Boolean).join("  ·  ")}</span>
       </Show>

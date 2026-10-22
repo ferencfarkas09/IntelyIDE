@@ -1,10 +1,11 @@
 // Localization checker (Wave 3 X1, backlog #3): which languages still miss the i18n keys the working tree adds,
 // a matrix tab, a badge in the Changes tree, and "Translate missing" with a per-key review. A lazy extra with a
 // Settings toggle: while it is off only the Settings section exists, nothing is loaded, watched or drawn.
-import { createEffect, createRoot, lazy } from "solid-js";
+import { createEffect, createRoot } from "solid-js";
 import { t } from "../../i18n";
 import { registerCommand } from "../../platform/commands";
 import { registerChangeBadge } from "../../platform/changeBadges";
+import { lazy } from "../../platform/lazy";
 import { registerOverlay } from "../../platform/overlay";
 import { registerSettingsSection } from "../../platform/settings";
 import { openTab, registerTabType } from "../../platform/tabs";

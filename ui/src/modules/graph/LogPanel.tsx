@@ -37,6 +37,9 @@ function Toolbar() {
   };
   onCleanup(() => clearTimeout(timer));
   const [branches] = createResource(shownRepoIds, async (ids) => (await ipc.graph.branchMatrix(ids)).branches.map((b) => b.name));
+  // Not `branches()`: reading it while it loads suspends the nearest boundary, which is the whole Log window (toggling a repo chip
+  // would swap it for the spinner and scroll the commit list back to the top). The names that were loaded stay until the new ones are.
+  const branchNames = () => (branches.state === "ready" || branches.state === "refreshing" ? branches.latest : undefined) ?? [];
   return (
     <div class="glog__bar" role="toolbar" aria-label={t("graph.log.filters")}>
       <div class="glog__chips" role="group" aria-label={t("graph.log.repos")}>
@@ -52,7 +55,7 @@ function Toolbar() {
           )}
         </For>
       </div>
-      <Select size="sm" wrapperClass="glog__select" aria-label={t("graph.log.branch")} value={branch()} onChange={setBranch} options={[{ value: "", label: t("graph.log.allBranches") }, ...(branches() ?? []).map((name) => ({ value: name, label: name }))]} />
+      <Select size="sm" wrapperClass="glog__select" aria-label={t("graph.log.branch")} value={branch()} onChange={setBranch} options={[{ value: "", label: t("graph.log.allBranches") }, ...branchNames().map((name) => ({ value: name, label: name }))]} />
       <Input size="sm" wrapperClass="glog__author" aria-label={t("graph.log.author")} placeholder={t("graph.log.author")} value={author()} onInput={(e) => setAuthor(e.currentTarget.value)} />
       <Select size="sm" wrapperClass="glog__select" aria-label={t("graph.log.date")} value={period()} onChange={setPeriod} options={periods()} />
       <Input size="sm" wrapperClass="glog__search" aria-label={t("graph.log.search")} data-log-search placeholder={t("graph.log.searchPlaceholder")} leading={<Icon icon={Search} size={12} />} value={typed()} onInput={(e) => search(e.currentTarget.value)} />
