@@ -105,6 +105,31 @@ pub struct Issue {
     pub error_type: Option<String>,
     pub error_value: Option<String>,
     pub is_unhandled: bool,
+    /// Sentry's own triage: `high`, `medium` or `low`. Absent on a Sentry that does not set one.
+    pub priority: Option<String>,
+    /// Why the issue is open: `new`, `ongoing`, `escalating`, `regressed` or `archived_until_escalating`.
+    pub substatus: Option<String>,
+}
+
+/// A person or a team an issue can be given to (one row of the assign menu).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Assignee {
+    /// `user` or `team`.
+    pub kind: String,
+    /// The user id or the team id, as Sentry's `assignedTo` wants it (`user:42`, `team:7`).
+    pub id: String,
+    pub name: String,
+    /// Shown next to a name to tell two people apart; a team has none.
+    pub email: Option<String>,
+}
+
+/// Who an issue is assigned to; no value means "nobody".
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssignTo {
+    pub kind: String,
+    pub id: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

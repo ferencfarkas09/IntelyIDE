@@ -2,7 +2,7 @@
 // `setSentryApi`.
 import { call } from "../../ipc/rpc";
 import { inTauri } from "../l10n/api";
-import type { SentryConnection, SentryDetail, SentryEvent, SentryIssue, SentryPage, SentryProblem, SentryProject, SentryQuery, SentryStatus } from "./types";
+import type { SentryAssignee, SentryAssignTo, SentryConnection, SentryDetail, SentryEvent, SentryIssue, SentryPage, SentryProblem, SentryProject, SentryQuery, SentryStatus } from "./types";
 
 export interface SentryApi {
   status(): Promise<SentryStatus>;
@@ -14,7 +14,13 @@ export interface SentryApi {
   issues(query: SentryQuery): Promise<SentryPage>;
   issue(id: string): Promise<SentryDetail>;
   assignMe(id: string): Promise<SentryIssue>;
+  /** The people and the teams of the organization (asked when the assign menu opens). */
+  assignees(): Promise<SentryAssignee[]>;
+  /** Gives the issue to a user or a team; `null` takes it back from whoever has it. */
+  assign(id: string, to: SentryAssignTo | null): Promise<SentryIssue>;
   setStatus(id: string, status: "resolved" | "unresolved" | "ignored"): Promise<SentryIssue>;
+  /** Resolves the issue with the next release instead of now. */
+  resolveNextRelease(id: string): Promise<SentryIssue>;
   openExternal(url: string): Promise<void>;
 }
 
@@ -35,7 +41,10 @@ const tauriApi: SentryApi = {
   issues: (query) => call("sentry_issues", { query: { ...query, project: query.project ?? null, cursor: query.cursor ?? null, limit: query.limit ?? null } }),
   issue: (id) => call("sentry_issue", { id }),
   assignMe: (id) => call("sentry_assign_me", { id }),
+  assignees: () => call("sentry_assignees", {}),
+  assign: (id, to) => call("sentry_assign", { id, to }),
   setStatus: (id, status) => call("sentry_set_status", { id, status }),
+  resolveNextRelease: (id) => call("sentry_resolve_next_release", { id }),
   openExternal: (url) => call("open_external", { url }),
 };
 
@@ -73,15 +82,16 @@ interface Seed {
   status?: string;
   unhandled?: boolean;
   assigned?: string;
+  substatus?: string;
 }
 
 const SEEDS: Seed[] = [
-  { title: "TypeError: Cannot read properties of undefined (reading 'id')", culprit: "src/api/orders.js in loadOrder", level: "error", project: 0, count: 412, users: 63, firstDays: 12, lastHours: 0.4, type: "TypeError", value: "Cannot read properties of undefined (reading 'id')", unhandled: true },
-  { title: "MongoServerSelectionError: connection timed out", culprit: "src/lib/db.js in connect", level: "fatal", project: 0, count: 38, users: 0, firstDays: 3, lastHours: 2, type: "MongoServerSelectionError", value: "connection timed out after 30000 ms", unhandled: true },
+  { title: "TypeError: Cannot read properties of undefined (reading 'id')", culprit: "src/api/orders.js in loadOrder", level: "error", project: 0, count: 412, users: 63, firstDays: 12, lastHours: 0.4, type: "TypeError", value: "Cannot read properties of undefined (reading 'id')", unhandled: true, substatus: "escalating" },
+  { title: "MongoServerSelectionError: connection timed out", culprit: "src/lib/db.js in connect", level: "fatal", project: 0, count: 38, users: 0, firstDays: 3, lastHours: 2, type: "MongoServerSelectionError", value: "connection timed out after 30000 ms", unhandled: true, substatus: "new" },
   { title: "ValidationError: delivery fee must be a number", culprit: "src/api/controllers/orderController.js in createOrder", level: "warning", project: 0, count: 951, users: 120, firstDays: 40, lastHours: 1, type: "ValidationError", value: "delivery fee must be a number" },
   { title: "Error: Request failed with status code 502", culprit: "src/services/invoiceService.js in sendInvoice", level: "error", project: 0, count: 77, users: 21, firstDays: 6, lastHours: 9, type: "Error", value: "Request failed with status code 502", assigned: "Peter Kovacs" },
   { title: "RangeError: Invalid time value", culprit: "src/utils/dates.js in formatDay", level: "error", project: 0, count: 15, users: 4, firstDays: 20, lastHours: 70, type: "RangeError", value: "Invalid time value", status: "ignored" },
-  { title: "TypeError: orders.map is not a function", culprit: "src/components/pages/orders/OrdersTable.tsx in OrdersTable", level: "error", project: 1, count: 203, users: 41, firstDays: 5, lastHours: 3, type: "TypeError", value: "orders.map is not a function", unhandled: true },
+  { title: "TypeError: orders.map is not a function", culprit: "src/components/pages/orders/OrdersTable.tsx in OrdersTable", level: "error", project: 1, count: 203, users: 41, firstDays: 5, lastHours: 3, type: "TypeError", value: "orders.map is not a function", unhandled: true, substatus: "regressed" },
   { title: "ChunkLoadError: Loading chunk 14 failed", culprit: "webpack/runtime/load script", level: "error", project: 1, count: 560, users: 190, firstDays: 25, lastHours: 0.2, type: "ChunkLoadError", value: "Loading chunk 14 failed" },
   { title: "Warning: Each child in a list should have a unique key", culprit: "src/components/layout/Header.tsx in Header", level: "info", project: 1, count: 1204, users: 310, firstDays: 60, lastHours: 0.1, type: "Warning", value: "Each child in a list should have a unique key" },
   { title: "NetworkError: Failed to fetch", culprit: "app/services/api.ts in request", level: "error", project: 2, count: 330, users: 88, firstDays: 9, lastHours: 5, type: "NetworkError", value: "Failed to fetch", unhandled: true },
@@ -115,9 +125,19 @@ function buildIssues(now: number): SentryIssue[] {
       errorType: s.type,
       errorValue: s.value,
       isUnhandled: !!s.unhandled,
+      priority: s.level === "fatal" || s.users >= 100 ? "high" : s.level === "error" ? "medium" : "low",
+      substatus: status === "unresolved" ? (s.substatus && wave === 0 ? s.substatus : "ongoing") : null,
     };
   }).sort((a, b) => b.lastSeen.localeCompare(a.lastSeen));
 }
+
+const PEOPLE: SentryAssignee[] = [
+  { kind: "user", id: "42", name: "Ferenc Farkas", email: "ferenc@acme.example.invalid" },
+  { kind: "user", id: "77", name: "Peter Kovacs", email: "peter@acme.example.invalid" },
+  { kind: "user", id: "78", name: "Anna Toth", email: "anna@acme.example.invalid" },
+  { kind: "team", id: "7", name: "#backend", email: null },
+  { kind: "team", id: "8", name: "#mobile", email: null },
+];
 
 function eventFor(issue: SentryIssue): SentryEvent {
   const file = issue.culprit.split(" in ")[0] || "src/app.js";
@@ -200,8 +220,10 @@ export function createMockSentry(now: number = Date.now()): SentryApi {
     async issues(q) {
       const words = q.query.toLowerCase().split(/\s+/).filter((w) => w && !w.includes(":"));
       const level = /(?:^|\s)level:(\w+)/.exec(q.query)?.[1];
+      const unassigned = /(?:^|\s)is:unassigned(?:\s|$)/.test(q.query);
+      const mine = /(?:^|\s)assigned:me(?:\s|$)/.test(q.query);
       const since = now - (PERIOD_MS[q.period] ?? 14 * D);
-      let list = all.filter((i) => (q.status === "all" || i.status === q.status) && Date.parse(i.lastSeen) >= since && (!q.project || i.project?.id === q.project) && (!level || i.level === level));
+      let list = all.filter((i) => (q.status === "all" || i.status === q.status) && Date.parse(i.lastSeen) >= since && (!q.project || i.project?.id === q.project) && (!level || i.level === level) && (!unassigned || !i.assignedTo) && (!mine || i.assignedTo?.id === "42"));
       list = list.filter((i) => words.every((w) => `${i.title} ${i.culprit} ${i.shortId} ${i.errorValue ?? ""}`.toLowerCase().includes(w)));
       const by: Record<string, (a: SentryIssue, b: SentryIssue) => number> = {
         date: (a, b) => b.lastSeen.localeCompare(a.lastSeen),
@@ -222,8 +244,19 @@ export function createMockSentry(now: number = Date.now()): SentryApi {
     async assignMe(id) {
       return patch(id, { assignedTo: { kind: "user", id: "42", name: "Ferenc Farkas" } });
     },
+    async assignees() {
+      return structuredClone(PEOPLE);
+    },
+    async assign(id, to) {
+      const who = to && PEOPLE.find((p) => p.kind === to.kind && p.id === to.id);
+      if (to && !who) throw { code: "badRequest", message: "Sentry knows no such user or team" };
+      return patch(id, { assignedTo: who ? { kind: who.kind, id: who.id, name: who.name } : null });
+    },
     async setStatus(id, next) {
-      return patch(id, { status: next });
+      return patch(id, { status: next, substatus: next === "unresolved" ? "ongoing" : null });
+    },
+    async resolveNextRelease(id) {
+      return patch(id, { status: "resolved", substatus: null });
     },
     async openExternal() {},
   };

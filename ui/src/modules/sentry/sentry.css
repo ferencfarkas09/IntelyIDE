@@ -79,3 +79,14 @@
 .sentry-result { margin: var(--space-2) 0 0; color: var(--danger); font-size: var(--text-sm); }
 .sentry-result[data-ok] { color: var(--ok); }
 .sentry-result__warn { color: var(--warn); }
+
+/* a row is the issue's button plus the Fix button laid over its right edge: a button inside a button is not allowed */
+.sentry-item { position: relative; }
+.sentry-item__fix { position: absolute; right: var(--space-3); bottom: 8px; opacity: 0; transition: opacity var(--dur-fast) var(--ease); }
+.sentry-item:hover .sentry-item__fix, .sentry-item:focus-within .sentry-item__fix, .sentry-item__fix[data-loading] { opacity: 1; }
+.sentry-assign { min-width: 150px; }
+.sentry-runs { display: flex; flex-direction: column; gap: var(--space-1); }
+.sentry-runs__list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.sentry-runs__run { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); padding: 6px 0; box-shadow: inset 0 -1px 0 var(--border-subtle); }
+.sentry-runs__title { flex: 1 1 160px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-sm); }
+.sentry-runs__cause { flex: 1 1 100%; color: var(--text-3); font-size: var(--text-xs); overflow-wrap: anywhere; }

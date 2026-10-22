@@ -723,7 +723,7 @@
   "integrations.catalog.notConnected": "Nincs csatlakoztatva",
   "integrations.catalog.happy.summary": "A Happy-fiókod chatje, feladatai, Time Tracere, Meetje és értesítései a kódod mellett.",
   "integrations.catalog.mcp.summary": "További eszközök az ágenseknek: általad választott MCP-szerverek stdio-n vagy HTTP-n, a titkok a Keychainben, minden eszközre külön szabállyal.",
-  "integrations.catalog.sentry.summary": "Olvasd a Sentry-hibáidat, és add át az egyiket egy ágensnek javításra.",
+  "integrations.catalog.sentry.summary": "Olvasd a Sentry-hibáidat, és javíts ki egyet egy kattintással: az IntelyFIX kiválasztja a repót és a promptot, és elindít egy ágenst.",
   "integrations.catalog.deeppattern.summary": "Második vélemény kódra, tervekre és ötletekre egy modelltestülettől. Telepítsd a motort, aktiváld a kulcsoddal, és add hozzá az ügynökeidhez.",
   "dp.state.loading": "Ellenőrzés…",
   "dp.state.notInstalled": "Nincs telepítve",

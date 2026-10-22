@@ -22,6 +22,7 @@ import { register as team } from "./team";
 import { register as hygiene } from "./hygiene";
 import { register as inspector } from "./inspector";
 import { register as integrations } from "./integrations";
+import { register as intelyfix } from "./intelyfix";
 import { register as mcp } from "./mcp";
 import { register as mongo } from "./mongo";
 import { register as l10n } from "./l10n";
@@ -91,6 +92,7 @@ export const MODULES: readonly FeatureModule[] = [
   { id: "whatsnew", register: whatsnew },
   { id: "usage", register: usage },
   { id: "sentry", register: sentry },
+  { id: "intelyfix", register: intelyfix },
   { id: "deeppattern", register: deepPattern },
 ];
 

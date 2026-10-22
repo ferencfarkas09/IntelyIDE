@@ -55,6 +55,26 @@ export interface SentryIssue {
   errorType: string | null;
   errorValue: string | null;
   isUnhandled: boolean;
+  /** Sentry's own triage (`high`, `medium`, `low`); null on a Sentry that sets none. */
+  priority?: "high" | "medium" | "low" | string | null;
+  /** Why the issue is open: `new`, `ongoing`, `escalating`, `regressed`...; null when unknown. */
+  substatus?: string | null;
+}
+
+/** A person or a team an issue can be given to (one row of the assign menu). */
+export interface SentryAssignee {
+  kind: "user" | "team";
+  /** The user id or the team id (what `assignedTo` is built from). */
+  id: string;
+  name: string;
+  /** Tells two people with one name apart; a team has none. */
+  email: string | null;
+}
+
+/** Who an issue goes to; `null` where this is asked for means "nobody". */
+export interface SentryAssignTo {
+  kind: "user" | "team";
+  id: string;
 }
 
 export interface SentryPage {
@@ -65,6 +85,8 @@ export interface SentryPage {
 export type StatusFilter = "unresolved" | "resolved" | "ignored" | "all";
 export type PeriodFilter = "24h" | "7d" | "14d" | "30d" | "90d";
 export type SortFilter = "date" | "freq" | "new" | "user";
+/** Whose issues the list shows: everyone's, the ones nobody has taken (what a fixer wants), or mine. */
+export type AssigneeFilter = "any" | "unassigned" | "me";
 
 /** What the list is asked for. Empty fields are "no such filter". */
 export interface SentryQuery {
@@ -72,6 +94,8 @@ export interface SentryQuery {
   status: StatusFilter;
   period: PeriodFilter;
   sort: SortFilter;
+  /** Added to the words as Sentry's `is:unassigned` or `assigned:me` when the list is asked for; absent means everyone's. */
+  assignee?: AssigneeFilter;
   project?: string | null;
   cursor?: string | null;
   limit?: number | null;

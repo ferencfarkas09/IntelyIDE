@@ -63,7 +63,7 @@ Agents are part of the same window, within limits:
 <details>
 <summary>More modules (experimental, off by default)</summary>
 
-- **Sentry issues.** List the issues of one organization with filters and search, open the newest event with its stack and hand an issue to an agent ("Fix with agent"). It needs your own token and asks Sentry nothing until you add one; it has not been tried against a live Sentry server yet.
+- **IntelyFIX (Sentry issues).** List the issues of one organization with filters and search, open the newest event with its stack, assign an issue to yourself, a teammate or a team, and fix it with one click: IntelyFIX picks the repository, builds the prompt from the stack and starts an agent that edits but never commits (you read the change and commit it), then offers to mark the issue resolved. It needs your own token and asks Sentry nothing until you add one; it has not been tried against a live Sentry server yet.
 - **MongoDB Studio.** Browse collections with your own connections; credentials go to the macOS Keychain.
 - **Happy integrations.** An optional module for one company's services (time tracker, chat, tasks). It is off by default, has no preset server, and is of no use to most people.
 - **Other agent providers.** Providers other than Claude are proven only against test doubles.

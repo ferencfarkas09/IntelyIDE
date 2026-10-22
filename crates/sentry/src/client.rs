@@ -64,6 +64,9 @@ const RULES: &[(&str, &str)] = &[
     ("GET", "/api/0/organizations/{}/issues/{}/events/latest/"),
     ("GET", "/api/0/users/me/"),
     ("PUT", "/api/0/organizations/{}/issues/{}/"),
+    // the people and the teams an issue can be given to (the assign menu); read only, one page of each
+    ("GET", "/api/0/organizations/{}/members/"),
+    ("GET", "/api/0/organizations/{}/teams/"),
 ];
 
 pub fn allowed(method: &str, path: &str) -> bool {
@@ -274,7 +277,11 @@ mod tests {
         assert!(allowed("PUT", "/api/0/organizations/acme/issues/123/"));
         assert!(allowed("GET", "/api/0/users/me/"));
         assert!(!allowed("PUT", "/api/0/organizations/acme/"), "no change of the organization");
-        assert!(!allowed("GET", "/api/0/organizations/acme/members/"));
+        assert!(allowed("GET", "/api/0/organizations/acme/members/"));
+        assert!(allowed("GET", "/api/0/organizations/acme/teams/"));
+        assert!(!allowed("POST", "/api/0/organizations/acme/members/"), "the lists are read only");
+        assert!(!allowed("GET", "/api/0/organizations/acme/members/42/"), "one member is not asked for");
+        assert!(!allowed("DELETE", "/api/0/organizations/acme/teams/"));
         assert!(!allowed("DELETE", "/api/0/organizations/acme/issues/123/"));
         assert!(!allowed("GET", "/api/0/organizations/a%2Fb/issues/"));
         assert!(!allowed("GET", "/api/0/organizations/../issues/"));
@@ -344,7 +351,7 @@ mod tests {
     #[tokio::test]
     async fn a_request_outside_the_list_is_refused_before_anything_is_sent() {
         let (base, seen) = serve(vec![ok("{}")]).await;
-        let e = client(&base).get("/api/0/organizations/acme/members/", &[]).await.unwrap_err();
+        let e = client(&base).get("/api/0/organizations/acme/members/42/", &[]).await.unwrap_err();
         assert_eq!(e.code, "badRequest");
         assert!(seen.lock().unwrap().is_empty());
     }

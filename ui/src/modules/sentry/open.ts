@@ -4,9 +4,9 @@ import { openTab } from "../../platform/tabs";
 
 export const SENTRY_TAB_ID = "sentry";
 
-/** One Sentry tab: in Agent mode it shows in the middle of the Agent workspace, otherwise in the editor area. */
+/** One IntelyFIX tab (the Sentry issues): in Agent mode it shows in the middle of the Agent workspace, otherwise in the editor area. */
 export function openSentry(): string {
-  const id = openTab({ type: "sentry", id: SENTRY_TAB_ID, title: t("sentry.name") });
+  const id = openTab({ type: "sentry", id: SENTRY_TAB_ID, title: t("intelyfix.name") });
   if (appMode() === "agent") showTabInAgent(id);
   return id;
 }

@@ -8,7 +8,7 @@ use serde_json::{json, Value};
 
 use crate::client::{validate_base, Client};
 use crate::parse;
-use crate::types::{ApiProblem, Config, Connection, Issue, IssueDetail, IssuePage, IssueQuery, Project, Status};
+use crate::types::{ApiProblem, AssignTo, Assignee, Config, Connection, Issue, IssueDetail, IssuePage, IssueQuery, Project, Status};
 
 const NS: &str = "sentry";
 const TOKEN_KEY: &str = "sentry.token";
@@ -216,6 +216,32 @@ impl Sentry {
         self.update(id, json!({ "assignedTo": format!("user:{user_id}") })).await
     }
 
+    /// The people and the teams an issue can be given to: the members first, then the teams. The members are the point of the call, so
+    /// their failure is the call's; a team list that cannot be read (a token without `team:read`) only leaves the teams out.
+    pub async fn assignees(&self) -> Result<Vec<Assignee>, ApiProblem> {
+        let (client, c) = self.client()?;
+        let mut all = parse::members(&client.get(&format!("/api/0/organizations/{}/members/", c.org), &[]).await?.body);
+        if let Ok(r) = client.get(&format!("/api/0/organizations/{}/teams/", c.org), &[]).await {
+            all.extend(parse::teams(&r.body));
+        }
+        Ok(all)
+    }
+
+    /// Gives the issue to a person or a team, or to nobody (`None`).
+    pub async fn assign(&self, id: &str, to: Option<AssignTo>) -> Result<Issue, ApiProblem> {
+        let value = match to {
+            None => String::new(),
+            Some(a) if matches!(a.kind.as_str(), "user" | "team") && !a.id.is_empty() && a.id.len() <= 20 && a.id.bytes().all(|b| b.is_ascii_digit()) => format!("{}:{}", a.kind, a.id),
+            Some(_) => return Err(ApiProblem::new("badRequest", "An issue is given to a user or a team, by the id Sentry shows")),
+        };
+        self.update(id, json!({ "assignedTo": value })).await
+    }
+
+    /// Resolves the issue "in the next release": it comes back as a regression only if a release newer than the current one sees it again.
+    pub async fn resolve_in_next_release(&self, id: &str) -> Result<Issue, ApiProblem> {
+        self.update(id, json!({ "status": "resolved", "statusDetails": { "inNextRelease": true } })).await
+    }
+
     pub async fn set_status(&self, id: &str, status: &str) -> Result<Issue, ApiProblem> {
         if !STATUSES.contains(&status) {
             return Err(ApiProblem::new("badRequest", "A status is resolved, unresolved or ignored"));
@@ -408,6 +434,58 @@ mod tests {
         assert_eq!(r.sentry.set_status("11", "resolved").await.unwrap().status, "resolved");
         assert!(seen.lock().unwrap()[0].ends_with(r#"{"status":"resolved"}"#));
         assert_eq!(r.sentry.set_status("11", "deleted").await.unwrap_err().code, "badRequest");
+    }
+
+    #[tokio::test]
+    async fn the_assign_menu_lists_members_then_teams_and_survives_a_team_list_it_may_not_read() {
+        let r = rig();
+        let members = r#"[{"id":"1","user":{"id":"42","name":"Ferenc","email":"f@b.invalid","isActive":true}}]"#;
+        let (base, seen) = serve(vec![ok(members), ok(r#"[{"id":"7","slug":"backend"}]"#)]).await;
+        ready(&base, &r).await;
+        let list = r.sentry.assignees().await.unwrap();
+        assert_eq!(list.iter().map(|a| (a.kind.as_str(), a.id.as_str(), a.name.as_str())).collect::<Vec<_>>(), vec![("user", "42", "Ferenc"), ("team", "7", "#backend")]);
+        let asked = seen.lock().unwrap().clone();
+        assert!(asked[0].starts_with("GET /api/0/organizations/acme/members/ ") && asked[1].starts_with("GET /api/0/organizations/acme/teams/ "), "{asked:?}");
+
+        let (base, _) = serve(vec![ok(members), status(403, "{}")]).await;
+        ready(&base, &r).await;
+        assert_eq!(r.sentry.assignees().await.unwrap().len(), 1, "no team:read: the people still show");
+        let (base, _) = serve(vec![status(403, "{}")]).await;
+        ready(&base, &r).await;
+        assert_eq!(r.sentry.assignees().await.unwrap_err().code, "forbidden", "the members are the point: their failure is told");
+    }
+
+    #[tokio::test]
+    async fn an_issue_is_given_to_a_user_a_team_or_nobody_and_nothing_else() {
+        let r = rig();
+        for (to, body) in [
+            (Some(AssignTo { kind: "user".into(), id: "42".into() }), r#"{"assignedTo":"user:42"}"#),
+            (Some(AssignTo { kind: "team".into(), id: "7".into() }), r#"{"assignedTo":"team:7"}"#),
+            (None, r#"{"assignedTo":""}"#),
+        ] {
+            let (base, seen) = serve(vec![ok(ISSUE)]).await;
+            ready(&base, &r).await;
+            r.sentry.assign("11", to).await.unwrap();
+            let put = seen.lock().unwrap()[0].clone();
+            assert!(put.starts_with("PUT /api/0/organizations/acme/issues/11/ ") && put.ends_with(body), "{put}");
+        }
+        for bad in [("admin", "1"), ("user", ""), ("user", "4 2"), ("user", "42:team:7"), ("team", "../x")] {
+            let (base, seen) = serve(vec![ok(ISSUE)]).await;
+            ready(&base, &r).await;
+            let e = r.sentry.assign("11", Some(AssignTo { kind: bad.0.into(), id: bad.1.into() })).await.unwrap_err();
+            assert_eq!(e.code, "badRequest", "{bad:?}");
+            assert!(seen.lock().unwrap().is_empty(), "nothing is sent for {bad:?}");
+        }
+    }
+
+    #[tokio::test]
+    async fn resolving_in_the_next_release_sends_the_status_with_its_detail() {
+        let r = rig();
+        let (base, seen) = serve(vec![ok(r#"{"id":"11","title":"Boom","status":"resolved"}"#)]).await;
+        ready(&base, &r).await;
+        assert_eq!(r.sentry.resolve_in_next_release("11").await.unwrap().status, "resolved");
+        let put = seen.lock().unwrap()[0].clone();
+        assert!(put.ends_with(r#"{"status":"resolved","statusDetails":{"inNextRelease":true}}"#), "{put}");
     }
 
     #[tokio::test]

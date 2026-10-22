@@ -1,19 +1,57 @@
 import { createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { t } from "../../i18n";
 import { openSettings } from "../../platform/settings";
-import { ArrowLeft, Badge, Bug, Button, CircleCheck, EmptyState, ExternalLink, IconButton, Input, RefreshCw, RotateCcw, Search, Select, Skeleton, Sparkles, UserPlus, toast } from "../../ui-kit";
+import { agentRows } from "../../store/agents";
+import { ArrowLeft, Badge, Bug, Button, CircleCheck, Copy, EmptyState, ExternalLink, Eye, IconButton, Input, RefreshCw, RotateCcw, Search, Select, Skeleton, Sparkles, SplitButton, toast } from "../../ui-kit";
 import { lazyLabels } from "../../components/lazyLabels";
+import { fixIssue } from "../intelyfix/fix";
+import { fixPrefs, loadFixPrefs } from "../intelyfix/prefs";
+import { fixPrompt } from "../intelyfix/prompt";
+import { pickFixRepos } from "../intelyfix/repos";
+import { repos } from "../../store/workspace";
 import { sentryApi } from "./api";
 import { agoLabel, initials, shortCount, whenLabel } from "./format";
-import { fixWithAgent, resolveLinked, runsOf, startLinkWatcher } from "./links";
-import { levelTone, PERIODS, SORTS, STATUSES } from "./logic";
-import { assignMe, detail, detailLoading, detailProblem, filters, issues, loadMore, loaded, loadProjects, loadStatus, loading, loadingMore, nextCursor, problem, projects, reload, select, selectedId, setFilters, setIssueStatus, status } from "./store";
-import type { PeriodFilter, SentryException, SentryIssue, SentryProblem, SortFilter, StatusFilter } from "./types";
+import { fixStateOf, links, resolveLinked, runsOf, showRun, startLinkWatcher } from "./links";
+import { ASSIGNEES, levelTone, PERIODS, SORTS, STATUSES } from "./logic";
+import { assignees, assignMe, assignTo, detail, detailLoading, detailProblem, filters, issues, loadAssignees, loadMore, loaded, loadProjects, loadStatus, loading, loadingMore, nextCursor, problem, projects, reload, select, selectedId, setFilters, setIssueStatus, status } from "./store";
+import type { AssigneeFilter, PeriodFilter, SentryException, SentryIssue, SentryProblem, SortFilter, StatusFilter } from "./types";
 import "./sentry.css";
 
 const STATUS_LABEL = lazyLabels<StatusFilter>({ unresolved: "sentry.status.unresolved", resolved: "sentry.status.resolved", ignored: "sentry.status.ignored", all: "sentry.status.all" });
 const PERIOD_LABEL = lazyLabels<PeriodFilter>({ "24h": "sentry.period.24h", "7d": "sentry.period.7d", "14d": "sentry.period.14d", "30d": "sentry.period.30d", "90d": "sentry.period.90d" });
 const SORT_LABEL = lazyLabels<SortFilter>({ date: "sentry.sort.date", freq: "sentry.sort.freq", new: "sentry.sort.new", user: "sentry.sort.user" });
+const ASSIGNEE_LABEL = lazyLabels<AssigneeFilter>({ any: "intelyfix.assignee.any", unassigned: "intelyfix.assignee.unassigned", me: "intelyfix.assignee.me" });
+const RUN_LABEL = lazyLabels<"running" | "needsYou" | "done" | "error" | "gone">({ running: "intelyfix.run.running", needsYou: "intelyfix.run.needsYou", done: "intelyfix.run.done", error: "intelyfix.run.error", gone: "intelyfix.run.gone" });
+
+/** The issue whose fix is being started (reading it, assigning it, starting the run): its buttons wait. */
+const [fixing, setFixing] = createSignal<string | undefined>(undefined);
+
+/** Fix, once at a time; a failure to read the issue is told, everything after that is a notice or the New run dialog. */
+async function startFix(id: string, opts?: { review?: boolean }): Promise<void> {
+  if (fixing()) return;
+  setFixing(id);
+  try {
+    await fixIssue(id, opts);
+  } catch (e) {
+    toast.error(t("sentry.fix.failed"), problemText(e as SentryProblem));
+  } finally {
+    setFixing(undefined);
+  }
+}
+
+/** The prompt the fix would start with, on the clipboard, for the issue in the detail (to use in any other tool). */
+async function copyPrompt(id: string): Promise<void> {
+  try {
+    await loadFixPrefs();
+    const d = await sentryApi().issue(id);
+    const found = pickFixRepos(d.issue.project?.slug, fixPrefs().repoMap, repos());
+    const text = fixPrompt({ detail: d, template: fixPrefs().template, repos: found && { primary: found.primary.map((r) => r.name), related: found.related.map((r) => r.name) } });
+    await navigator.clipboard.writeText(text);
+    toast.success(t("intelyfix.promptCopied", { id: d.issue.shortId }));
+  } catch (e) {
+    toast.error(t("intelyfix.promptFailed"), (e as { message?: string })?.message);
+  }
+}
 
 /** What a failure says, in words the user can act on. */
 export function problemText(p: SentryProblem): string {
@@ -30,10 +68,28 @@ export function problemText(p: SentryProblem): string {
   }
 }
 
+/** The small badges of a row: what Sentry says about the issue (regressed, escalating, new, high priority) and where its fix stands. */
+function RowChips(props: { issue: SentryIssue }) {
+  const i = () => props.issue;
+  const state = () => fixStateOf(i().id);
+  return (
+    <>
+      <Show when={state() === "fixing"}><Badge size="sm" tone="info">{t("intelyfix.chip.fixing")}</Badge></Show>
+      <Show when={state() === "ready"}><Badge size="sm" tone="ok">{t("intelyfix.chip.ready")}</Badge></Show>
+      <Show when={state() === "triage"}><Badge size="sm" tone="warn">{t("intelyfix.chip.triage")}</Badge></Show>
+      <Show when={i().status === "unresolved" && i().substatus === "regressed"}><Badge size="sm" tone="danger">{t("intelyfix.chip.regressed")}</Badge></Show>
+      <Show when={i().status === "unresolved" && i().substatus === "escalating"}><Badge size="sm" tone="warn">{t("intelyfix.chip.escalating")}</Badge></Show>
+      <Show when={i().status === "unresolved" && i().substatus === "new"}><Badge size="sm" tone="info">{t("intelyfix.chip.new")}</Badge></Show>
+      {/* a regression, an escalation and a new issue already say it is urgent */}
+      <Show when={i().status === "unresolved" && i().priority === "high" && !["regressed", "escalating", "new"].includes(i().substatus ?? "")}><Badge size="sm" tone="warn">{t("intelyfix.chip.high")}</Badge></Show>
+    </>
+  );
+}
+
 function IssueRow(props: { issue: SentryIssue; now: number; active: boolean }) {
   const i = () => props.issue;
   return (
-    <li>
+    <li class="sentry-item">
       <button type="button" class="sentry-row" data-active={props.active ? "" : undefined} data-status={i().status} aria-current={props.active ? "true" : undefined} onClick={() => void select(i().id)}>
         <span class="sentry-row__dot" data-tone={levelTone(i().level)} title={i().level} aria-hidden="true" />
         <span class="sentry-row__main">
@@ -48,6 +104,7 @@ function IssueRow(props: { issue: SentryIssue; now: number; active: boolean }) {
             <Show when={i().isUnhandled}>
               <Badge size="sm" tone="warn">{t("sentry.unhandled")}</Badge>
             </Show>
+            <RowChips issue={i()} />
           </span>
         </span>
         <span class="sentry-row__nums ui-tnum">
@@ -59,7 +116,59 @@ function IssueRow(props: { issue: SentryIssue; now: number; active: boolean }) {
           {(a) => <span class="sentry-row__who" title={a().name} aria-label={t("sentry.assignedTo", { name: a().name })}>{initials(a().name)}</span>}
         </Show>
       </button>
+      <Show when={i().status === "unresolved"}>
+        <IconButton class="sentry-item__fix" icon={Sparkles} size="sm" label={t("intelyfix.fixRow", { id: i().shortId })} loading={fixing() === i().id} disabled={!!fixing() && fixing() !== i().id} onClick={() => void startFix(i().id)} />
+      </Show>
     </li>
+  );
+}
+
+/** One run started from the issue: how it stands, what it said at its end, and a way into it. */
+function RunLine(props: { agentId: string }) {
+  const row = () => agentRows().find((r) => r.agentId === props.agentId);
+  const link = () => links()[props.agentId];
+  const state = () => (row()?.status ?? "gone") as "running" | "needsYou" | "done" | "error" | "gone";
+  return (
+    <li class="sentry-runs__run">
+      <Badge size="sm" tone={state() === "done" ? "ok" : state() === "error" ? "danger" : state() === "needsYou" ? "warn" : "neutral"}>{RUN_LABEL[state()]}</Badge>
+      <Show when={link()?.verdict}>{(v) => <Badge size="sm" tone={v() === "fixed" ? "ok" : "warn"}>{t(v() === "fixed" ? "intelyfix.verdict.fixed" : "intelyfix.verdict.needs-triage")}</Badge>}</Show>
+      <span class="sentry-runs__title">{row()?.title ?? link()?.title}</span>
+      <Show when={link()?.cause}>{(c) => <span class="sentry-runs__cause">{t("intelyfix.run.cause", { cause: c() })}</span>}</Show>
+      <Show when={row()}><Button size="sm" variant="ghost" onClick={() => showRun(props.agentId)}>{t("intelyfix.openRun")}</Button></Show>
+    </li>
+  );
+}
+
+/** "Assign to...": me, nobody, a person or a team of the organization. The placeholder says who has it now. */
+function AssignControl(props: { issue: SentryIssue }) {
+  const [busy, setBusy] = createSignal(false);
+  const options = createMemo(() => [
+    { value: "me", label: t("intelyfix.assign.me") },
+    { value: "none", label: t("intelyfix.assign.nobody") },
+    ...assignees().map((a) => ({ value: `${a.kind}:${a.id}`, label: a.email ? t("intelyfix.assign.person", { name: a.name, email: a.email }) : a.name })),
+  ]);
+  const choose = async (value: string) => {
+    setBusy(true);
+    try {
+      const updated = value === "me" ? await assignMe(props.issue.id) : value === "none" ? await assignTo(props.issue.id, null) : await assignTo(props.issue.id, { kind: value.startsWith("team:") ? "team" : "user", id: value.split(":")[1] });
+      toast.success(updated.assignedTo ? t("intelyfix.assigned", { id: props.issue.shortId, name: updated.assignedTo.name }) : t("intelyfix.unassigned", { id: props.issue.shortId }));
+    } catch (e) {
+      toast.error(t("sentry.assign.failed"), problemText(e as SentryProblem));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Select
+      size="sm"
+      wrapperClass="sentry-assign"
+      aria-label={t("intelyfix.assignTo")}
+      placeholder={props.issue.assignedTo ? t("sentry.assignedTo", { name: props.issue.assignedTo.name }) : t("intelyfix.assignTo")}
+      options={options()}
+      value={undefined}
+      disabled={busy()}
+      onChange={(v) => void choose(v)}
+    />
   );
 }
 
@@ -95,6 +204,7 @@ function Frames(props: { ex: SentryException }) {
 
 function Detail(props: { now: number }) {
   const [busy, setBusy] = createSignal<string | undefined>(undefined);
+  onMount(() => void loadAssignees());
   const d = createMemo(() => detail());
   const run = async (what: string, job: () => Promise<unknown>, failed: string) => {
     setBusy(what);
@@ -132,13 +242,38 @@ function Detail(props: { now: number }) {
                   </div>
                 </div>
                 <div class="sentry-detail__actions">
-                  <Button size="sm" variant="primary" icon={Sparkles} loading={busy() === "fix"} onClick={() => void run("fix", () => fixWithAgent(i().id), t("sentry.fix.failed"))}>{t("sentry.fix")}</Button>
-                  <Button size="sm" variant="secondary" icon={UserPlus} loading={busy() === "assign"} onClick={() => void run("assign", () => assignMe(i().id).then(() => toast.success(t("sentry.assigned"))), t("sentry.assign.failed"))}>{t("sentry.assign")}</Button>
+                  <Show when={!resolved()}>
+                    <SplitButton
+                      size="sm"
+                      variant="primary"
+                      icon={Sparkles}
+                      loading={fixing() === i().id}
+                      menuLabel={t("intelyfix.fixMore")}
+                      onClick={() => void startFix(i().id)}
+                      items={[
+                        { label: t("intelyfix.fixReview"), icon: Eye, onSelect: () => void startFix(i().id, { review: true }) },
+                        { label: t("intelyfix.copyPrompt"), icon: Copy, onSelect: () => void copyPrompt(i().id) },
+                      ]}
+                    >
+                      {t("intelyfix.fix")}
+                    </SplitButton>
+                  </Show>
+                  <AssignControl issue={i()} />
                   <Show
                     when={!resolved()}
                     fallback={<Button size="sm" variant="secondary" icon={RotateCcw} loading={busy() === "status"} onClick={() => void run("status", () => setIssueStatus(i().id, "unresolved"), t("sentry.status.failed"))}>{t("sentry.reopen")}</Button>}
                   >
-                    <Button size="sm" variant="secondary" icon={CircleCheck} loading={busy() === "status"} onClick={() => void run("status", () => resolveLinked({ issueId: i().id, shortId: i().shortId }), t("sentry.status.failed"))}>{t("sentry.resolve")}</Button>
+                    <SplitButton
+                      size="sm"
+                      variant="secondary"
+                      icon={CircleCheck}
+                      loading={busy() === "status"}
+                      menuLabel={t("intelyfix.resolveMore")}
+                      onClick={() => void run("status", () => resolveLinked({ issueId: i().id, shortId: i().shortId }), t("sentry.status.failed"))}
+                      items={[{ label: t("intelyfix.resolveNext"), icon: CircleCheck, onSelect: () => void run("status", () => resolveLinked({ issueId: i().id, shortId: i().shortId }, { nextRelease: true }), t("sentry.status.failed")) }]}
+                    >
+                      {t("sentry.resolve")}
+                    </SplitButton>
                   </Show>
                   <IconButton icon={ExternalLink} size="sm" label={t("sentry.open")} onClick={() => void sentryApi().openExternal(i().permalink).catch((e) => toast.error(t("sentry.open.failed"), problemText(e as SentryProblem)))} />
                 </div>
@@ -150,7 +285,12 @@ function Detail(props: { now: number }) {
                 <div><dt>{t("sentry.lastSeen")}</dt><dd>{whenLabel(i().lastSeen) || "–"}</dd></div>
               </dl>
               <Show when={runsOf(i().id).length}>
-                <p class="sentry-detail__runs">{t("sentry.linkedRuns", { n: runsOf(i().id).length })}</p>
+                <section class="sentry-runs" aria-label={t("intelyfix.runs")}>
+                  <h4 class="sentry-detail__h">{t("intelyfix.runs")}</h4>
+                  <ul class="sentry-runs__list">
+                    <For each={runsOf(i().id).slice().reverse()}>{(id) => <RunLine agentId={id} />}</For>
+                  </ul>
+                </section>
               </Show>
               <Show when={det().event} fallback={<p class="sentry-detail__note">{t("sentry.noEvent")}</p>}>
                 {(ev) => (
@@ -180,13 +320,14 @@ function Detail(props: { now: number }) {
   );
 }
 
-/** The Sentry tab: the issues of the organization with filters, search, counts and times, and one issue with its newest event. */
+/** The IntelyFIX tab: the Sentry issues of the organization with filters, search, counts and times, one issue with its newest event, and one-click Fix. */
 export default function SentryTab() {
   const [now, setNow] = createSignal(Date.now());
   const [words, setWords] = createSignal(filters().query);
   let typing: ReturnType<typeof setTimeout> | undefined;
   onMount(() => {
     startLinkWatcher();
+    void loadFixPrefs();
     void (async () => {
       const s = await loadStatus();
       if (s?.configured) {
@@ -224,6 +365,7 @@ export default function SentryTab() {
           <Select size="sm" aria-label={t("sentry.filter.status")} options={options(STATUSES, STATUS_LABEL)} value={filters().status} onChange={(v) => apply({ status: v })} />
           <Select size="sm" aria-label={t("sentry.filter.period")} options={options(PERIODS, PERIOD_LABEL)} value={filters().period} onChange={(v) => apply({ period: v })} />
           <Select size="sm" aria-label={t("sentry.filter.sort")} options={options(SORTS, SORT_LABEL)} value={filters().sort} onChange={(v) => apply({ sort: v })} />
+          <Select size="sm" aria-label={t("intelyfix.filter.assignee")} options={options(ASSIGNEES, ASSIGNEE_LABEL)} value={filters().assignee ?? "any"} onChange={(v) => apply({ assignee: v })} />
           <Select size="sm" aria-label={t("sentry.filter.project")} options={projectOptions()} value={filters().project ?? ""} onChange={(v) => apply({ project: v || null })} />
           <IconButton icon={RefreshCw} size="sm" label={t("sentry.refresh")} loading={loading()} onClick={() => void reload()} />
         </header>
