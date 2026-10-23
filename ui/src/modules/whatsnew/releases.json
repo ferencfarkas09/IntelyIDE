@@ -1,5 +1,37 @@
 [
   {
+    "version": "1.12.0",
+    "date": "2026-10-23",
+    "headline": {
+      "en": "IntelyFIX: fix a Sentry issue with one click, and lists that no longer jump back while you scroll.",
+      "hu": "IntelyFIX: egy Sentry hiba javítása egy kattintással, és a listák többé nem ugranak vissza görgetés közben."
+    },
+    "notes": [
+      {
+        "kind": "new",
+        "title": {
+          "en": "IntelyFIX: fix a Sentry issue with one click",
+          "hu": "IntelyFIX: egy Sentry hiba javítása egy kattintással"
+        },
+        "text": {
+          "en": "The Sentry tab is now IntelyFIX. Press Fix on an issue and IntelyFIX assigns it, picks the repository (you can map each Sentry project to one in Settings > IntelyFIX), builds the prompt from the stack and the steps before the error, starts an agent and links the run to the issue. The agent edits but never commits: you read the change and commit it, then mark the issue resolved, now or with the next release. You can also give an issue to a teammate or a team, filter the unassigned issues, review the prompt first, or copy it.",
+          "hu": "A Sentry fül mostantól az IntelyFIX. Nyomd meg a Javítás gombot egy hibán, és az IntelyFIX hozzárendeli, kiválasztja a repót (a Beállítások > IntelyFIX részben minden Sentry projekthez megadhatsz egyet), a veremből és a hiba előtti lépésekből összeállítja a promptot, elindít egy ügynököt, és a futást a hibához köti. Az ügynök szerkeszt, de soha nem commitol: a változást te olvasod el és te commitolod, majd megjelölöd a hibát megoldottnak, akár azonnal, akár a következő kiadással. Egy hibát átadhatsz csapattársnak vagy csapatnak, szűrheted a gazdátlan hibákat, előbb átnézheted a promptot, vagy kimásolhatod."
+        }
+      },
+      {
+        "kind": "fixed",
+        "title": {
+          "en": "Scrolling no longer jumps back",
+          "hu": "A görgetés többé nem ugrik vissza"
+        },
+        "text": {
+          "en": "Clicking a commit in the Log no longer throws the commit list back to the top, a slow scroll up in a streaming answer is no longer pulled back to the end (in the agent transcript and in the team chat), and the Changes tree keeps its place when an extra adds a badge to the rows.",
+          "hu": "A Napló egy commitjára kattintva a commitlista már nem ugrik vissza az elejére, egy folyamatosan érkező válaszban a lassú felfelé görgetést már nem húzza vissza a végére (az ügynökfutás átiratában és a csapat-chatben sem), és a Változások fa megtartja a helyét, ha egy bővítmény jelvényt tesz a sorokra."
+        }
+      }
+    ]
+  },
+  {
     "version": "1.11.0",
     "date": "2026-10-20",
     "headline": {
