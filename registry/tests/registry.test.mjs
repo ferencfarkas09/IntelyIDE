@@ -418,6 +418,15 @@ describe("routing", () => {
     assert.equal(wrong.status, 405);
     assert.equal(wrong.headers.get("allow"), "POST");
   });
+  it("refuses to work without the secret that keys the hashes", async () => {
+    for (const PEPPER of [undefined, "", "short"]) {
+      const env = makeEnv({ PEPPER, ADMIN_TOKEN: ADMIN });
+      assert.equal((await register(env)).status, 503);
+      assert.equal((await call(env, "/admin/api/summary", { token: ADMIN })).status, 503);
+      assert.equal((await call(env, "/v1/health")).status, 200, "health still answers");
+      assert.equal(count(env, "users"), 0);
+    }
+  });
   it("hides internal errors", async () => {
     const env = makeEnv();
     env.DB = { prepare() { throw new Error("secret detail anna@example.com"); } };

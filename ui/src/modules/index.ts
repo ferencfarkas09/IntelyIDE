@@ -1,6 +1,7 @@
 // One line per feature module. A module is a folder with an index.ts exporting `register()`; it adds its pieces to the
 // platform registries (rail, tabs, commands, settings, status bar, editor extensions) and nothing else. Only the owner of
 // the module edits its folder; this file is complete and never changes when a module grows.
+import { register as account } from "./account";
 import { register as attachments } from "./attachments";
 import { register as branches } from "./branches";
 import { register as brief } from "./brief";
@@ -93,6 +94,7 @@ export const MODULES: readonly FeatureModule[] = [
   { id: "usage", register: usage },
   { id: "sentry", register: sentry },
   { id: "intelyfix", register: intelyfix },
+  { id: "account", register: account },
   { id: "deeppattern", register: deepPattern },
 ];
 

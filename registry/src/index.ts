@@ -17,6 +17,8 @@ export async function handle(req: Request, env: Env): Promise<Response> {
   const url = new URL(req.url);
   try {
     if (url.pathname === "/v1/health") return api.json(200, { ok: true, notice: api.noticeOf(env) });
+    // without its secret the fingerprints and the request counters would be hashed with nothing: refuse instead of storing them weakly
+    if ((env.PEPPER ?? "").length < 16) return api.json(503, { ok: false, error: "not_configured" });
     if (url.pathname === "/admin" || url.pathname.startsWith("/admin/")) return await admin(req, env, url);
     const route = ROUTES[url.pathname];
     if (!route) return api.json(404, { ok: false, error: "not_found" });

@@ -143,6 +143,7 @@ export {
   Star,
   UserMinus,
   UserPlus,
+  UserRound,
   Users,
   // team chat messages and sidebar
   MessageSquareReply,

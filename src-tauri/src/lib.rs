@@ -242,6 +242,13 @@ pub fn run() {
             modules::sentry::sentry_assign,
             modules::sentry::sentry_resolve_next_release,
             modules::sentry::sentry_set_status,
+            modules::registry::registry_status,
+            modules::registry::registry_register,
+            modules::registry::registry_decline,
+            modules::registry::registry_me,
+            modules::registry::registry_newsletter,
+            modules::registry::registry_forget,
+            modules::registry::registry_reconsent,
             modules::happy::happy_status,
             modules::happy::happy_set_config,
             modules::happy::happy_save_token,
@@ -629,6 +636,8 @@ pub fn run() {
             modules::servers::setup_state(app)?;
             modules::happy::setup(app)?;
             modules::sentry::setup(app)?;
+            // ==== registry state (nothing is sent before the person agreed on the first-start screen) ====
+            modules::registry::setup(app)?;
             // ==== beta M1 mongo state (cargo feature mongo-studio; opens nothing) ====
             #[cfg(feature = "mongo-studio")]
             modules::mongo::setup(app)?;

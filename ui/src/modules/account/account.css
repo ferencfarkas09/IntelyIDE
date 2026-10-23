@@ -1,0 +1,16 @@
+.account { display: flex; flex-direction: column; gap: var(--space-3, 12px); font-size: var(--text-sm, 13px); line-height: 1.5; }
+.account__lead { margin: 0; color: var(--fg, inherit); }
+.account__list { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 4px; }
+.account__never { margin: 0; color: var(--fg-muted, #78716c); }
+.account__where { margin: 0; color: var(--fg-muted, #78716c); font-size: var(--text-xs, 12px); }
+.account__link { background: none; border: 0; padding: 0; color: var(--accent, #2563eb); cursor: pointer; text-decoration: underline; font: inherit; }
+.account__fields { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3, 12px); }
+.account__field { display: flex; flex-direction: column; gap: 4px; }
+.account__field > label { font-weight: 600; }
+.account__checks { display: flex; flex-direction: column; gap: 8px; }
+.account__error { color: var(--danger, #b91c1c); font-size: var(--text-xs, 12px); margin: 0; }
+@media (max-width: 560px) { .account__fields { grid-template-columns: 1fr; } }
+.account-set__table { width: 100%; border-collapse: collapse; font-size: var(--text-xs, 12px); }
+.account-set__table th { text-align: left; font-weight: 600; color: var(--fg-muted, #78716c); padding: 4px 12px 4px 0; white-space: nowrap; width: 40%; }
+.account-set__table td { padding: 4px 0; word-break: break-word; }
+.account-set__row-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }

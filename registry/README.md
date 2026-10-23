@@ -50,7 +50,7 @@ pnpm install --ignore-workspace
 pnpm exec wrangler login
 pnpm exec wrangler d1 create intelyide-registry --jurisdiction eu    # copy the database_id it prints into wrangler.jsonc, under d1_databases
 pnpm migrate:remote
-pnpm exec wrangler secret put PEPPER          # a long random string; never change it later (it keys the fingerprint hash)
+pnpm exec wrangler secret put PEPPER          # at least 16 random characters, never changed later (it keys the fingerprint hash; without it the Worker answers 503)
 pnpm exec wrangler secret put ADMIN_TOKEN     # at least 24 characters
 BREVO_API_KEY=... pnpm brevo:setup --sender-email news@your-domain --sender-name IntelyIDE   # optional; then set the three vars it prints and:
 pnpm exec wrangler secret put BREVO_API_KEY
