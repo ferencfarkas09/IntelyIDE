@@ -1,10 +1,11 @@
 // API contract (Wave 4, backlog #10 and #11): contract-drift detector between the backend swagger and the client
 // repos, plus a read-only swagger explorer. A lazy extra with a Settings toggle: while it is off only the Settings
 // section exists, nothing is loaded, scanned or drawn.
-import { createEffect, createRoot, lazy } from "solid-js";
+import { createEffect, createRoot } from "solid-js";
 import { t } from "../../i18n";
 import { registerCommand } from "../../platform/commands";
 import { registerChangeBadge } from "../../platform/changeBadges";
+import { lazy } from "../../platform/lazy";
 import { registerOverlay } from "../../platform/overlay";
 import { registerSettingsSection } from "../../platform/settings";
 import { openTab, registerTabType } from "../../platform/tabs";

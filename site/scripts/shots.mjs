@@ -18,6 +18,7 @@ export const SHOTS = {
   providers: 'Settings > Providers: provider cards and the Experimental providers switch',
   integrations: 'Settings > Integrations: the catalog with Happy, MCP servers, Sentry and DeepPattern',
   'mcp-catalog': 'Settings > MCP servers: the catalog of ready-made servers, each with its exact program line',
+  intelyfix: 'IntelyFIX: the Sentry issues with their chips, and one issue open with Fix, assign and resolve',
   'api-contract': 'API contract view: contract-drift findings',
   appearance: 'Settings > Appearance: themes and accent colors',
   palette: 'Command palette',
@@ -42,6 +43,6 @@ export const OPTI_WIDTHS = [720, 1440, 2400];
 /** Intrinsic size (w, h) the <img> declares at the 1440 variant, to avoid layout shift. */
 export const DEFAULT_DIMS = [1440, 923];
 export const DIMS = {
-  integrations: [1440, 900], 'mcp-catalog': [1440, 900], team: [1440, 900], 'team-memory': [1440, 900], 'team-chat': [1440, 900], 'team-commits': [1440, 900], 'api-explorer': [1440, 900],
+  integrations: [1440, 900], 'mcp-catalog': [1440, 900], intelyfix: [1440, 900], team: [1440, 900], 'team-memory': [1440, 900], 'team-chat': [1440, 900], 'team-commits': [1440, 900], 'api-explorer': [1440, 900],
 };
 export const OPTI_DIMS = [1440, 960];

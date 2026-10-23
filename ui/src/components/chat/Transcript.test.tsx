@@ -95,6 +95,36 @@ describe("<Transcript> follow mode", () => {
     expect(jump()).toBeNull();
   });
 
+  it("does not pull a slow scroll up back to the end while the answer streams", async () => {
+    const [v, setV] = createSignal(view());
+    let seq = 10;
+    const stream = () => setV((cur) => reduceEvents(cur, [ev(++seq, { kind: "user.message", messageId: `m${seq}`, text: "more" })]));
+    render(() => <Transcript agentId="a1" view={v()} />);
+    const log = await scroller();
+    const frames = manualFrames();
+    frames.flush();
+    log.scrollTop = 4600;
+    fireEvent.scroll(log);
+
+    // A few pixels up: still inside the margin that counts as "at the bottom" for a scroll that is not going up.
+    log.scrollTop = 4560;
+    log.dispatchEvent(new WheelEvent("wheel", { deltaY: -40 }));
+    fireEvent.scroll(log);
+    frames.flush();
+    stream();
+    frames.flush();
+    expect(log.scrollTop).toBe(4560);
+    expect(jump()).toBeTruthy();
+
+    // Scrolling back down into the margin picks following up again.
+    log.scrollTop = 4590;
+    fireEvent.scroll(log);
+    stream();
+    frames.flush();
+    expect(log.scrollTop).toBe(5000);
+    expect(jump()).toBeNull();
+  });
+
   it("holds the pin until the release has looked at the scroll position, whichever frame was queued first", async () => {
     const [v, setV] = createSignal(view());
     let seq = 10;

@@ -1,0 +1,12 @@
+.ifx { display: flex; flex-direction: column; gap: var(--space-4); }
+.ifx__intro, .ifx__note { margin: 0; color: var(--text-3); font-size: var(--text-sm); }
+.ifx__map { display: flex; flex-direction: column; gap: var(--space-2); align-items: flex-start; }
+.ifx__also { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
+.ifx__alsoLabel { color: var(--text-3); font-size: var(--text-xs); }
+.ifx__tokens { display: block; overflow-wrap: anywhere; font-size: var(--text-xs); }
+.ifx__warn { display: block; margin-top: 2px; color: var(--warn); font-size: var(--text-xs); }
+.ifx__template { width: 100%; font-size: var(--text-xs); }
+.ifx__row { display: flex; gap: var(--space-2); margin-top: var(--space-1); }
+.ifx__preview { margin-top: var(--space-2); font-size: var(--text-sm); }
+.ifx__preview > summary { cursor: default; color: var(--text-2); }
+.ifx__previewText { max-height: 360px; margin: var(--space-2) 0 0; padding: var(--space-3); overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--surface-2); border-radius: var(--radius-md); font-size: var(--text-xs); }

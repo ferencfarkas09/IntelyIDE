@@ -1,6 +1,6 @@
-// The Sentry integration: the issues of one organization with filters and search, one issue with its newest event, and "Fix with
-// agent" (assign to me, start a run, offer "Mark as resolved" when it is done). A tab, a command and a Settings section; nothing is
-// requested until a token and an organization are saved and the tab is opened.
+// The Sentry integration and the IntelyFIX tab: the issues of one organization with filters and search, one issue with its newest event,
+// and one-click Fix (assign, start a run with the right prompt, offer "Mark as resolved" when it is done; see `modules/intelyfix`). A tab, a
+// command and a Settings section; nothing is requested until a token and an organization are saved and the tab is opened.
 import { lazy } from "solid-js";
 import { t } from "../../i18n";
 import { registerCommand } from "../../platform/commands";
@@ -13,12 +13,12 @@ import { sentryApi } from "./api";
 import { setConfigStatus, status } from "./store";
 
 export function register(): void {
-  registerTabType({ type: "sentry", get title() { return t("sentry.name"); }, icon: Bug, component: lazy(() => import("./SentryTab")), canClose: true });
+  registerTabType({ type: "sentry", get title() { return t("intelyfix.name"); }, icon: Bug, component: lazy(() => import("./SentryTab")), canClose: true });
   registerCommand({
     id: "sentry.open",
-    get title() { return t("sentry.cmd.open"); },
+    get title() { return t("intelyfix.cmd.open"); },
     get group() { return t("group.agents"); },
-    keywords: ["sentry", "issues", "errors", "exceptions", "crash", "bugs", "fix", "monitoring"],
+    keywords: ["intelyfix", "sentry", "issues", "errors", "exceptions", "crash", "bugs", "fix", "autofix", "monitoring"],
     run: () => void openSentry(),
   });
   registerSettingsSection({

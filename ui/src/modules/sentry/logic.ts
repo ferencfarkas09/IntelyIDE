@@ -1,15 +1,23 @@
-// The Sentry views' arithmetic: filters, wording, and the prompt an agent starts from. Pure.
-import type { PeriodFilter, SentryDetail, SentryFrame, SentryIssue, SentryQuery, SortFilter, StatusFilter } from "./types";
+// The Sentry views' arithmetic: filters and wording (the prompt an agent starts from is `intelyfix/prompt.ts`). Pure.
+import type { AssigneeFilter, PeriodFilter, SentryIssue, SentryQuery, SortFilter, StatusFilter } from "./types";
 
 export const PERIODS: readonly PeriodFilter[] = ["24h", "7d", "14d", "30d", "90d"];
 export const SORTS: readonly SortFilter[] = ["date", "freq", "new", "user"];
 export const STATUSES: readonly StatusFilter[] = ["unresolved", "resolved", "ignored", "all"];
+export const ASSIGNEES: readonly AssigneeFilter[] = ["any", "unassigned", "me"];
 
-export const DEFAULT_QUERY: SentryQuery = { query: "", status: "unresolved", period: "14d", sort: "date", project: null };
+export const DEFAULT_QUERY: SentryQuery = { query: "", status: "unresolved", period: "14d", sort: "date", assignee: "any", project: null };
 
 /** True when two queries ask for the same list (the cursor and the page size do not count). */
 export const sameList = (a: SentryQuery, b: SentryQuery): boolean =>
-  a.query.trim() === b.query.trim() && a.status === b.status && a.period === b.period && a.sort === b.sort && (a.project ?? null) === (b.project ?? null);
+  a.query.trim() === b.query.trim() && a.status === b.status && a.period === b.period && a.sort === b.sort && (a.assignee ?? "any") === (b.assignee ?? "any") && (a.project ?? null) === (b.project ?? null);
+
+/** What Sentry is asked: the words, plus `is:unassigned` or `assigned:me` for an assignee filter. The filter is not sent as a field of its own. */
+export function listQuery(q: SentryQuery): SentryQuery {
+  const token = q.assignee === "unassigned" ? "is:unassigned" : q.assignee === "me" ? "assigned:me" : "";
+  const { assignee: _assignee, ...rest } = q;
+  return { ...rest, query: [q.query.trim(), token].filter(Boolean).join(" ") };
+}
 
 /** Colour of a level's dot: fatal and error are danger, warning is warn, the rest is calm. */
 export function levelTone(level: string): "danger" | "warn" | "neutral" {
@@ -33,37 +41,5 @@ export function ago(iso: string, now: number): { unit: "minute" | "hour" | "day"
   return { unit: "day", n: Math.round(min / (24 * 60)) };
 }
 
-const frameLine = (f: SentryFrame): string => `  at ${f.function || "(anonymous)"} (${f.filename || "unknown"}${f.line ? `:${f.line}` : ""})${f.inApp ? "" : "  [library]"}`;
-
-/**
- * What a fix run starts from: the issue, the newest event's exception with its stack (the app's own frames last, the failing call
- * on the last line), and what to do with it. Nothing here is a secret the issue did not already show: the backend scrubbed the text.
- */
-export function fixPrompt(detail: SentryDetail): string {
-  const { issue, event } = detail;
-  const lines = [`Fix the Sentry issue ${issue.shortId}: ${issue.title}`, ""];
-  lines.push(`- Where: ${issue.culprit || "unknown"}${issue.project ? ` (project ${issue.project.slug})` : ""}`);
-  lines.push(`- Seen ${issue.count} time${issue.count === 1 ? "" : "s"} by ${issue.userCount} user${issue.userCount === 1 ? "" : "s"}, first ${issue.firstSeen || "?"}, last ${issue.lastSeen || "?"}${issue.isUnhandled ? ", unhandled" : ""}`);
-  if (event) {
-    if (event.release) lines.push(`- Release: ${event.release}${event.environment ? `, environment ${event.environment}` : ""}`);
-    else if (event.environment) lines.push(`- Environment: ${event.environment}`);
-    if (event.requestUrl) lines.push(`- Request: ${event.requestUrl}`);
-    for (const ex of event.exceptions.slice(-2)) {
-      lines.push("", `${ex.kind}: ${ex.value}`);
-      const inApp = ex.frames.filter((f) => f.inApp);
-      const shown = (inApp.length ? inApp : ex.frames).slice(-8);
-      for (const f of shown) {
-        lines.push(frameLine(f));
-        const mid = f.context.find((c) => c.line === f.line);
-        if (mid) lines.push(`      ${mid.line}| ${mid.code.trim()}`);
-      }
-    }
-    const trail = event.breadcrumbs.slice(-5).filter((b) => b.message);
-    if (trail.length) lines.push("", "Last steps before it failed:", ...trail.map((b) => `  - ${b.category ? `[${b.category}] ` : ""}${b.message}`));
-  }
-  lines.push("", `Sentry: ${issue.permalink}`, "", "Find the cause in the code, fix it, and add or update a test that would have caught it. Do not commit or push: I review the change first.");
-  return lines.join("\n");
-}
-
-/** A short title for the run list. */
+/** The start of the title of a fix run: a run that appears after the dialog path is found by it. */
 export const fixTitleStart = (issue: SentryIssue): string => `Fix the Sentry issue ${issue.shortId}`;

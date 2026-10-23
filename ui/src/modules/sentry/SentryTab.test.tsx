@@ -47,7 +47,7 @@ describe("<SentryTab>", () => {
     const { api, calls } = spy({ status: async (): Promise<SentryStatus> => ({ baseUrl: "https://sentry.io", org: "", hasToken: false, configured: false }) });
     setSentryApi(api);
     render(() => <SentryTab />);
-    expect(await screen.findByText("Connect Sentry")).toBeTruthy();
+    expect(await screen.findByText("Connect Sentry to use IntelyFIX")).toBeTruthy();
     expect(calls.issues).toEqual([]);
     fireEvent.click(screen.getByRole("button", { name: "Open Sentry settings" }));
     expect(settingsOpen()).toBe(true);
@@ -58,13 +58,13 @@ describe("<SentryTab>", () => {
     setSentryApi(api);
     render(() => <SentryTab />);
     const list = await screen.findByTestId("sentry-list");
-    await waitFor(() => expect(within(list).getAllByRole("button").length).toBeGreaterThan(5));
+    await waitFor(() => expect(list.querySelectorAll(".sentry-row").length).toBeGreaterThan(5));
     expect(calls.issues[0]).toMatchObject({ status: "unresolved", period: "14d", sort: "date", cursor: null });
-    const first = within(list).getAllByRole("button")[0];
+    const first = list.querySelector<HTMLElement>(".sentry-row")!;
     expect(first.textContent).toMatch(/shop-/);
     fireEvent.click(first);
     const detail = await screen.findByTestId("sentry-detail");
-    await waitFor(() => expect(within(detail).getByRole("button", { name: "Fix with agent" })).toBeTruthy());
+    await waitFor(() => expect(within(detail).getByRole("button", { name: "Fix with IntelyFIX" })).toBeTruthy());
     expect(within(detail).getByText("Events")).toBeTruthy();
     expect(detail.querySelector(".sentry-frame[data-app]")).toBeTruthy();
     expect(first.getAttribute("aria-current")).toBe("true");
@@ -100,11 +100,12 @@ describe("<SentryTab>", () => {
     setSentryApi(api);
     render(() => <SentryTab />);
     const list = await screen.findByTestId("sentry-list");
-    await waitFor(() => expect(within(list).getAllByRole("button").length).toBe(25));
+    const rows = () => list.querySelectorAll(".sentry-row");
+    await waitFor(() => expect(rows().length).toBe(25));
     fireEvent.click(screen.getByRole("button", { name: "Load more" }));
-    await waitFor(() => expect(within(list).getAllByRole("button").length).toBeGreaterThan(25));
+    await waitFor(() => expect(rows().length).toBeGreaterThan(25));
     expect(calls.issues.at(-1)?.cursor).toBe("0:25:0");
-    expect(new Set([...list.querySelectorAll("button")].map((b) => b.textContent)).size).toBe(list.querySelectorAll("button").length);
+    expect(new Set([...rows()].map((b) => b.textContent)).size).toBe(rows().length);
     await waitFor(() => expect(screen.queryByRole("button", { name: "Load more" })).toBeNull());
   });
 
@@ -119,24 +120,24 @@ describe("<SentryTab>", () => {
     expect(await screen.findByText("No issues")).toBeTruthy();
   });
 
-  it("assigns the issue to me, then opens the New run dialog filled with what the agent needs", async () => {
+  it("assigns the issue to me, then opens the New run dialog filled with what the agent needs when it cannot tell the repository", async () => {
     const { api, calls } = spy();
     setSentryApi(api);
     const off = registerCommand({ id: "runs.new", title: "New run", group: "Agents", run: () => undefined });
     render(() => <SentryTab />);
     const list = await screen.findByTestId("sentry-list");
-    await waitFor(() => expect(within(list).getAllByRole("button").length).toBeGreaterThan(0));
-    const target = within(list).getAllByRole("button")[0];
+    await waitFor(() => expect(list.querySelectorAll(".sentry-row").length).toBeGreaterThan(0));
+    const target = list.querySelector<HTMLElement>(".sentry-row")!;
     fireEvent.click(target);
-    fireEvent.click(await screen.findByRole("button", { name: "Fix with agent" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Fix with IntelyFIX" }));
     await waitFor(() => expect(newRunPrefill()).toBeTruthy());
     expect(calls.assign).toHaveLength(1);
     const prompt = newRunPrefill()!.prompt;
     expect(prompt.startsWith("Fix the Sentry issue ")).toBe(true);
-    expect(prompt).toContain("Do not commit or push");
+    expect(prompt).toMatch(/Do not commit, push, branch/);
     expect(prompt).toContain("Sentry: https://sentry.io/organizations/acme/issues/");
     // the row shows who it is assigned to now
-    await waitFor(() => expect(within(list).getAllByRole("button")[0].querySelector(".sentry-row__who:not([data-empty])")).toBeTruthy());
+    await waitFor(() => expect(list.querySelector(".sentry-row .sentry-row__who:not([data-empty])")).toBeTruthy());
     off();
   });
 
@@ -147,9 +148,9 @@ describe("<SentryTab>", () => {
     const off = registerCommand({ id: "runs.new", title: "New run", group: "Agents", run: () => undefined });
     render(() => <SentryTab />);
     const list = await screen.findByTestId("sentry-list");
-    await waitFor(() => expect(within(list).getAllByRole("button").length).toBeGreaterThan(0));
-    fireEvent.click(within(list).getAllByRole("button")[0]);
-    fireEvent.click(await screen.findByRole("button", { name: "Fix with agent" }));
+    await waitFor(() => expect(list.querySelectorAll(".sentry-row").length).toBeGreaterThan(0));
+    fireEvent.click(list.querySelector<HTMLElement>(".sentry-row")!);
+    fireEvent.click(await screen.findByRole("button", { name: "Fix with IntelyFIX" }));
     await waitFor(() => expect(newRunPrefill()).toBeTruthy());
     expect(warn).toHaveBeenCalledWith("The issue was not assigned to you", "This token is not a person's");
     off();
@@ -160,8 +161,8 @@ describe("<SentryTab>", () => {
     setSentryApi(api);
     render(() => <SentryTab />);
     const list = await screen.findByTestId("sentry-list");
-    await waitFor(() => expect(within(list).getAllByRole("button").length).toBeGreaterThan(0));
-    fireEvent.click(within(list).getAllByRole("button")[0]);
+    await waitFor(() => expect(list.querySelectorAll(".sentry-row").length).toBeGreaterThan(0));
+    fireEvent.click(list.querySelector<HTMLElement>(".sentry-row")!);
     fireEvent.click(await screen.findByRole("button", { name: "Mark as resolved" }));
     await waitFor(() => expect(calls.status.at(-1)?.[1]).toBe("resolved"));
     const reopen = await screen.findByRole("button", { name: "Reopen" });

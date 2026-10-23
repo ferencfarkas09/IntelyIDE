@@ -2,8 +2,8 @@
 import { batch, createSignal } from "solid-js";
 import { readStored, writeStored } from "../../ui-kit";
 import { sentryApi, problemOf } from "./api";
-import { DEFAULT_QUERY, PERIODS, SORTS, STATUSES, sameList } from "./logic";
-import type { SentryDetail, SentryIssue, SentryProblem, SentryProject, SentryQuery, SentryStatus } from "./types";
+import { ASSIGNEES, DEFAULT_QUERY, listQuery, PERIODS, SORTS, STATUSES, sameList } from "./logic";
+import type { SentryAssignee, SentryAssignTo, SentryDetail, SentryIssue, SentryProblem, SentryProject, SentryQuery, SentryStatus } from "./types";
 
 const FILTERS_KEY = "intely.sentry.filters";
 
@@ -16,6 +16,7 @@ function readFilters(): SentryQuery {
       ...(raw && STATUSES.includes(raw.status as never) ? { status: raw.status! } : {}),
       ...(raw && PERIODS.includes(raw.period as never) ? { period: raw.period! } : {}),
       ...(raw && SORTS.includes(raw.sort as never) ? { sort: raw.sort! } : {}),
+      ...(raw && ASSIGNEES.includes(raw.assignee as never) ? { assignee: raw.assignee! } : {}),
       ...(raw && typeof raw.project === "string" && /^\d+$/.test(raw.project) ? { project: raw.project } : {}),
     };
   } catch {
@@ -71,7 +72,7 @@ export async function reload(): Promise<void> {
   const asked = filters();
   setLoading(true);
   try {
-    const page = await sentryApi().issues({ ...asked, cursor: null });
+    const page = await sentryApi().issues({ ...listQuery(asked), cursor: null });
     if (ticket !== listTicket) return;
     batch(() => {
       setIssues(page.issues);
@@ -100,7 +101,7 @@ export async function loadMore(): Promise<void> {
   const asked = filters();
   setLoadingMore(true);
   try {
-    const page = await sentryApi().issues({ ...asked, cursor });
+    const page = await sentryApi().issues({ ...listQuery(asked), cursor });
     if (ticket !== listTicket || !sameList(asked, filters())) return;
     batch(() => {
       const seen = new Set(issues().map((i) => i.id));
@@ -165,8 +166,37 @@ export async function assignMe(id: string): Promise<SentryIssue> {
   return updated;
 }
 
-export async function setIssueStatus(id: string, next: "resolved" | "unresolved" | "ignored"): Promise<SentryIssue> {
-  const updated = await sentryApi().setStatus(id, next).catch((e) => Promise.reject(problemOf(e)));
+/** `nextRelease`: resolve it with the next release instead of now (it only comes back if a newer release sees it again). */
+export async function setIssueStatus(id: string, next: "resolved" | "unresolved" | "ignored", opts?: { nextRelease?: boolean }): Promise<SentryIssue> {
+  const call = next === "resolved" && opts?.nextRelease ? sentryApi().resolveNextRelease(id) : sentryApi().setStatus(id, next);
+  const updated = await call.catch((e) => Promise.reject(problemOf(e)));
+  applyIssue(updated);
+  return updated;
+}
+
+const [assignees, setAssignees] = createSignal<SentryAssignee[]>([]);
+const [assigneesLoaded, setAssigneesLoaded] = createSignal(false);
+export { assignees, assigneesLoaded };
+let assigneesAsking: Promise<void> | undefined;
+let assigneesRetryAt = 0;
+const ASSIGNEES_RETRY_MS = 5 * 60_000;
+
+/**
+ * The people and teams of the organization, asked once per session (when an issue is opened). A failure (a token without `member:read`,
+ * a network problem) leaves the list empty and is not asked again for a few minutes, so opening one issue after another does not repeat it.
+ */
+export function loadAssignees(): Promise<void> {
+  if (assigneesLoaded() || Date.now() < assigneesRetryAt) return Promise.resolve();
+  return (assigneesAsking ??= sentryApi()
+    .assignees()
+    .then((list) => void batch(() => (setAssignees(list), setAssigneesLoaded(true))))
+    .catch(() => void ((assigneesRetryAt = Date.now() + ASSIGNEES_RETRY_MS), setAssignees([])))
+    .finally(() => void (assigneesAsking = undefined)));
+}
+
+/** Gives the issue to a user or a team, or to nobody (`null`). */
+export async function assignTo(id: string, to: SentryAssignTo | null): Promise<SentryIssue> {
+  const updated = await sentryApi().assign(id, to).catch((e) => Promise.reject(problemOf(e)));
   applyIssue(updated);
   return updated;
 }
@@ -184,6 +214,10 @@ export function resetSentry(): void {
     setProblem(undefined);
     setLoaded(false);
     setProjects([]);
+    setAssignees([]);
+    setAssigneesLoaded(false);
+    assigneesAsking = undefined;
+    assigneesRetryAt = 0;
     setSelectedId(undefined);
     setDetail(undefined);
     setDetailLoading(false);

@@ -3,8 +3,10 @@ import { createEffect, createMemo, createSignal, For, Match, on, onCleanup, Show
 import { buildRows, isExitPlan, pendingPermissions, pendingQuestions, type AgentView, type NoteItem, type TranscriptItem, type TranscriptRow } from "../../store/agent-reducer";
 import { agentRow, agentView, answerPermission, answerQuestion, sendMessage, sendNote } from "../../store/agents";
 import { ArrowDown, EmptyState, IconButton, MessageSquare, ScrollArea } from "../../ui-kit";
+import { keepsFollowing, scrollMove } from "../../ui-kit/follow";
 import { CONTINUE_TEXT, ErrorCard, PermissionCard, PlanCard, QuestionCard, ThinkingBlock, TurnMarker } from "./Cards";
 import { PlanApprovalCard } from "./PlanApprovalCard";
+import { estimateRow } from "./rowSize";
 import { Markdown } from "./Markdown";
 import { ToolCard } from "./Tools";
 import { NoteRow, noteFailure } from "./Notes";
@@ -161,7 +163,7 @@ export function Transcript(props: { agentId: string; view: AgentView; readOnly?:
       return rows().length;
     },
     getScrollElement: () => scrollEl() ?? null,
-    estimateSize: () => 72,
+    estimateSize: (i) => estimateRow(rows()[i]),
     getItemKey: (i) => rows()[i]?.key ?? i,
     overscan: 8,
   });
@@ -208,34 +210,40 @@ export function Transcript(props: { agentId: string; view: AgentView; readOnly?:
   );
   // Rows grow after they are measured, which also moves scrollTop away from the bottom; that is layout, not the user.
   // So a scroll event can only turn following ON; turning it off needs a sign of intent (wheel up, touch, scrollbar drag, keys).
+  // Close to the bottom counts as the bottom only for a scroll that is not going up (see `keepsFollowing`).
+  let lastTop = 0;
   const onScroll = () => {
     const el = scrollEl();
     if (!el) return;
-    if (gap(el) < STICK_PX) setStick(true);
+    const move = scrollMove(lastTop, el.scrollTop);
+    lastTop = el.scrollTop;
+    if (keepsFollowing(gap(el), move, STICK_PX)) setStick(true);
     else if (dragging) setStick(false);
   };
   let dragging = false;
   // The wheel event fires before the scroll position changes, so the decision waits one frame; `releasing` holds every pin until then.
   let releaseFrame = 0;
-  const release = () => {
+  // `up`: the sign of intent says "up" (wheel up, PageUp, Home, ArrowUp); a touch or a drag says it by where the scroll ended up.
+  const release = (up = false) => {
     releasing = true;
     cancelAnimationFrame(pinFrame);
     cancelAnimationFrame(releaseFrame);
+    const from = scrollEl()?.scrollTop ?? 0;
     releaseFrame = requestAnimationFrame(() => {
       releasing = false;
       const el = scrollEl();
-      if (el) setStick(gap(el) < STICK_PX);
+      if (el) setStick(keepsFollowing(gap(el), up ? "up" : scrollMove(from, el.scrollTop), STICK_PX));
     });
   };
   const watch = (el: HTMLDivElement) => {
-    el.addEventListener("wheel", (e) => e.deltaY < 0 && release(), { passive: true });
-    el.addEventListener("touchmove", release, { passive: true });
+    el.addEventListener("wheel", (e) => e.deltaY < 0 && release(true), { passive: true });
+    el.addEventListener("touchmove", () => release(), { passive: true });
     el.addEventListener("pointerdown", (e) => {
       if (e.target !== el) return;
       dragging = true;
       addEventListener("pointerup", () => ((dragging = false), release()), { once: true });
     });
-    el.addEventListener("keydown", (e) => ["PageUp", "Home", "ArrowUp"].includes(e.key) && release());
+    el.addEventListener("keydown", (e) => ["PageUp", "Home", "ArrowUp"].includes(e.key) && release(true));
     new ResizeObserver(() => mayPin() && (el.scrollTop = el.scrollHeight)).observe(el.firstElementChild ?? el);
     setScrollEl(el);
   };

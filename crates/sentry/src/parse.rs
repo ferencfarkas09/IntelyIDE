@@ -3,7 +3,7 @@
 
 use serde_json::Value;
 
-use crate::types::{Actor, Breadcrumb, ContextLine, EventSummary, ExceptionInfo, Frame, Issue, Project, Tag};
+use crate::types::{Actor, Assignee, Breadcrumb, ContextLine, EventSummary, ExceptionInfo, Frame, Issue, Project, Tag};
 
 const MAX_FRAMES: usize = 30;
 const MAX_CRUMBS: usize = 15;
@@ -90,6 +90,8 @@ pub fn issue(v: &Value) -> Option<Issue> {
         error_type: opt_text(meta, "type").map(|s| shown(&s, 120)),
         error_value: opt_text(meta, "value").map(|s| shown(&s, 400)),
         is_unhandled: v.get("isUnhandled").and_then(Value::as_bool).unwrap_or(false),
+        priority: opt_text(v, "priority").map(|s| shown(&s, 20)),
+        substatus: opt_text(v, "substatus").map(|s| shown(&s, 40)),
     })
 }
 
@@ -112,6 +114,46 @@ pub fn next_cursor(link: Option<&str>) -> Option<String> {
         }
     }
     None
+}
+
+const MAX_ASSIGNEES: usize = 200;
+
+/// The people of the organization: an active member with a user behind it, named by the user's name, else the e-mail address. A
+/// pending invitation has no user yet and cannot take an issue, so it is left out.
+pub fn members(v: &Value) -> Vec<Assignee> {
+    v.as_array()
+        .map(|rows| {
+            rows.iter()
+                .filter_map(|m| {
+                    let user = m.get("user").filter(|u| u.is_object())?;
+                    let id = id_of(user.get("id")?);
+                    if id.is_empty() || user.get("isActive").and_then(Value::as_bool) == Some(false) {
+                        return None;
+                    }
+                    let email = opt_text(user, "email").or_else(|| opt_text(m, "email")).map(|e| shown(&e, 120));
+                    let name = shown(&opt_text(user, "name").or_else(|| email.clone()).or_else(|| opt_text(user, "username")).unwrap_or_else(|| id.clone()), 80);
+                    Some(Assignee { kind: "user".to_owned(), id, name, email })
+                })
+                .take(MAX_ASSIGNEES)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// The teams of the organization, named by their slug (`#backend`), as Sentry shows them.
+pub fn teams(v: &Value) -> Vec<Assignee> {
+    v.as_array()
+        .map(|rows| {
+            rows.iter()
+                .filter_map(|t| {
+                    let id = id_of(t.get("id")?);
+                    let slug = opt_text(t, "slug").or_else(|| opt_text(t, "name"))?;
+                    (!id.is_empty()).then(|| Assignee { kind: "team".to_owned(), id, name: format!("#{}", shown(&slug, 60)), email: None })
+                })
+                .take(MAX_ASSIGNEES)
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// The id of the signed-in user from `/users/me/`, and a name to show.
@@ -240,6 +282,30 @@ mod tests {
         assert_eq!(t.assigned_to, Some(Actor { kind: "team".into(), id: "3".into(), name: "backend".into() }));
         let u = issue(&json!({ "id": "1", "title": "t", "assignedTo": { "id": "9", "email": "a@b.invalid" } })).unwrap();
         assert_eq!(u.assigned_to.map(|a| (a.kind, a.name)), Some(("user".to_owned(), "a@b.invalid".to_owned())));
+    }
+
+    #[test]
+    fn the_priority_and_the_reason_an_issue_is_open_are_read_when_sentry_sends_them() {
+        let i = issue(&json!({ "id": "1", "title": "t", "priority": "high", "substatus": "regressed" })).unwrap();
+        assert_eq!((i.priority.as_deref(), i.substatus.as_deref()), (Some("high"), Some("regressed")));
+        let none = issue(&json!({ "id": "1", "title": "t", "priority": "", "substatus": null })).unwrap();
+        assert_eq!((none.priority, none.substatus), (None, None));
+    }
+
+    #[test]
+    fn the_members_are_the_active_people_with_a_user_and_the_teams_are_named_by_slug() {
+        let list = members(&json!([
+            { "id": "1", "email": "a@b.invalid", "user": { "id": "42", "name": "Ferenc Farkas", "email": "a@b.invalid", "isActive": true } },
+            { "id": "2", "email": "pending@b.invalid", "user": null },
+            { "id": "3", "user": { "id": 43, "email": "only-mail@b.invalid" } },
+            { "id": "4", "user": { "id": "44", "name": "Gone", "isActive": false } },
+            { "id": "5", "user": { "name": "No id" } }
+        ]));
+        assert_eq!(list.iter().map(|m| (m.kind.as_str(), m.id.as_str(), m.name.as_str())).collect::<Vec<_>>(), vec![("user", "42", "Ferenc Farkas"), ("user", "43", "only-mail@b.invalid")]);
+        assert_eq!(list[0].email.as_deref(), Some("a@b.invalid"));
+        assert_eq!(members(&json!({ "detail": "no" })), vec![]);
+        let t = teams(&json!([{ "id": "7", "slug": "backend", "name": "Backend" }, { "slug": "no-id" }, { "id": 8, "name": "Mobile" }]));
+        assert_eq!(t.iter().map(|x| (x.kind.as_str(), x.id.as_str(), x.name.as_str())).collect::<Vec<_>>(), vec![("team", "7", "#backend"), ("team", "8", "#Mobile")]);
     }
 
     #[test]

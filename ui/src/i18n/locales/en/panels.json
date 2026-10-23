@@ -723,7 +723,7 @@
   "integrations.catalog.notConnected": "Not connected",
   "integrations.catalog.happy.summary": "Chat, tasks, Time Tracer, Meet and notifications of your Happy account, next to your code.",
   "integrations.catalog.mcp.summary": "More tools for agents: MCP servers you choose, over stdio or HTTP, with secrets in the Keychain and a rule for every tool.",
-  "integrations.catalog.sentry.summary": "Read your Sentry issues and hand one to an agent to fix.",
+  "integrations.catalog.sentry.summary": "Read your Sentry issues, and fix one with a click: IntelyFIX picks the repository and the prompt and starts an agent.",
   "integrations.catalog.deeppattern.summary": "Second opinions on code, plans and ideas from a panel of models. Install the engine, activate it with your key, and add it to your agents.",
   "dp.state.loading": "Checking…",
   "dp.state.notInstalled": "Not installed",

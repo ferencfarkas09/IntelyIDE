@@ -300,6 +300,7 @@ export default {
       { id: 'remote', h: 'Telefonos átjáró', p: 'Hagyd jóvá vagy válaszold meg az ügynökfutásokat a telefonodról, a saját relédon át, végpontok közt titkosítva.' },
       { id: 'notifications', h: 'Értesítések', p: 'Banner és Dock-számláló, ha egy futásnak szüksége van rád, kérdez, lefutott vagy hibára futott.' },
       { id: 'integrations', h: 'Integrációk', p: 'A Happy, az MCP-szerverek, a Sentry és a DeepPattern egy katalógusban, és ahol van, a csatlakozás állapota is látszik. Később további szolgáltatások, újabb kártyaként.' },
+      { id: 'intelyfix', h: 'IntelyFIX: Sentry hibák javítása egy kattintással', p: 'Nyomd meg a Javítás gombot egy hibán: a hozzárendelést, a repót, a promptot és az ügynökfutást beállítjuk helyetted. A változást te olvasod el és te commitolod.' },
       { id: 'mcp', h: 'MCP-szerverek katalógusa', p: 'Több mint egy tucat kész szerver, a GitHubtól és a Chrome DevToolstól a MongoDB-ig és az XcodeBuildMCP-ig, egy kattintással és a saját tokenjeddel.' },
       { id: 'partners', h: 'DeepPattern.ai és Happy Solutions', p: 'Két szolgáltatás saját kártyával a Beállítások > Integrációk lapon: második vélemény a kódodra, és a Happy-fiókod mellette.' },
       { id: 'providers', h: 'Hozd a saját ügynöködet', p: 'A Claude a fő út. A Codex, Gemini, Copilot és mások kísérleti providerként csatlakoznak.' },
@@ -425,6 +426,20 @@ export default {
           'DeepPattern: második vélemény a kódodra és a terveidre egy modelltestülettől. A saját telepítőjével telepíted és aktiválod (a kulcs sosem kerül az IDE-be), ellenőrizheted, hozzáadhatod az ügynökeidhez, és átvilágíttathatod a változásaidat. Egy új szolgáltatás csak egy újabb kártya ugyanabban a katalógusban',
         ],
         shots: [['integrations', 'Beállítások, Integrációk: kártyák a Happy-hez, az MCP-szerverekhez, a Sentryhez és a DeepPatternhez; minden kártya mutatja a csatlakozás állapotát.']],
+      },
+      {
+        id: 'intelyfix',
+        h: 'IntelyFIX: egy Sentry hiba javítása egy kattintással',
+        p: 'Listázd a Sentry szervezeted hibáit, add át az egyiket magadnak, egy csapattársnak vagy egy csapatnak, és nyomd meg a Javítás gombot. Az IntelyFIX kiválasztja a repót, a veremből és a hiba előtti lépésekből megírja a promptot, és elindít egy ügynököt. Az ügynök szerkeszt, és soha nem commitol és nem pushol: a változást a Változások fában te olvasod el, te commitolod, és te jelölöd a hibát megoldottnak.',
+        list: [
+          'Egy kattintás hozzárendeli a hibát, kitalálja a repót (minden Sentry projekthez megadhatsz egyet, az vele együtt módosulható repókkal, például egy frontend backendjével), összeállítja a promptot, elindítja a futást, és a hibához köti',
+          'A prompt tartalmazza, milyen gyakran és mióta fordul elő, a kiadást, hogy visszatért-e vagy erősödik-e, a vermet a hibás hívás körüli kóddal, a hiba előtti lépéseket és egy tippet az alkalmazás fajtájához. Írhatsz saját sablont, megnézheted előnézetben, vagy kimásolhatod egy másik eszközhöz',
+          'Egy sor mutatja: Javítás folyamatban, Javítás kész vagy Kézi átnézés kell; ha az ügynök azt mondja, hogy nem tudta biztonságosan megjavítani, a Megoldva gomb helyett a futását kapod. Lezárhatod azonnal vagy a következő kiadással',
+          'Szűrők a gazdátlan és a hozzád rendelt hibákra, hozzárendelési menü a szervezet embereivel és csapataival, és az, amit a Sentry mond az egyes hibákról: új, visszatért, erősödik, magas prioritás',
+          'Semmi sem fut a kattintásod nélkül, és ami döntést kíván (nem derült ki a repó, elutasították az indítást, vagy előbb el akarod olvasni a promptot), az kitöltve nyitja meg az Új futás ablakot',
+          'A Sentryt a saját tokenjeddel olvassa, amely a Kulcskarikádban van, és semmit sem kérdez a Sentrytől, amíg nem adsz meg egyet. A Sentry és a neve a tulajdonosáé; az IntelyIDE független tőle, és ő nem támogatja',
+        ],
+        shots: [['intelyfix', 'IntelyFIX: a Sentry hibák, mindegyiknél azzal, amit a Sentry mond róla, és egy megnyitott hiba a Javítás az IntelyFIX-szel, a hozzárendelés és a lezárás gombbal.']],
       },
       {
         id: 'mcp',

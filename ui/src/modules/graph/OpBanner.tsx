@@ -1,4 +1,4 @@
-import { createResource, For, Show } from "solid-js";
+import { createMemo, createResource, For, Show, Suspense } from "solid-js";
 import { t } from "../../i18n";
 import { ipc } from "../../ipc";
 import type { OpOutcome } from "../../ipc/graph";
@@ -12,8 +12,11 @@ import { openRebase } from "./rebaseState";
 /** Rebases and cherry-picks that stopped, in the shown repos: continue or abort them from the Log. */
 export function OpBanner() {
   const heads = () => repos().map((r) => snapshots()[r.id]?.head.oid ?? "").join(",");
+  // The snapshots change with every edit in a working tree, and a source that is a new object each time would fetch again each time:
+  // the same repos at the same heads are the same question.
+  const source = createMemo(() => ({ ids: shownRepoIds(), heads: heads() }), undefined, { equals: (a, b) => a.heads === b.heads && a.ids.join(",") === b.ids.join(",") });
   const [ops, { refetch }] = createResource(
-    () => ({ ids: shownRepoIds(), heads: heads() }),
+    source,
     async ({ ids }) => (await Promise.all(ids.map((id) => ipc.graph.opState(id).catch(() => null)))).filter((o): o is OpOutcome => !!o && opBlocked(o)),
   );
 
@@ -28,21 +31,24 @@ export function OpBanner() {
     await Promise.all([refreshSnapshots(o.repoId), reloadLog(), refetch()]);
   };
 
+  // `latest`: the banner stays while it is asked again. Its own boundary: loading it must never swap the whole Log window for the spinner.
   return (
-    <Show when={(ops() ?? []).length > 0}>
-      <div class="glog__ops" role="alert">
-        <For each={ops()}>
-          {(o) => (
-            <div class="glog__op">
-              <Badge tone="danger" icon={GitMerge} size="sm">{repoConfig(o.repoId)?.name ?? o.repoId}</Badge>
-              <span class="glog__op-text ui-truncate" title={o.conflictFiles.join(", ")}>{describeOp(o)}</span>
-              <Show when={o.kind === "rebase"}><Button size="sm" variant="ghost" onClick={() => openRebase(o.repoId)}>{t("graph.op.open")}</Button></Show>
-              <Button size="sm" variant="primary" onClick={() => void act(o, "continue")}>{t("graph.op.continue")}</Button>
-              <Button size="sm" variant="ghost" onClick={() => void act(o, "abort")}>{t("graph.op.abort")}</Button>
-            </div>
-          )}
-        </For>
-      </div>
-    </Show>
+    <Suspense>
+      <Show when={(ops.latest ?? []).length > 0}>
+        <div class="glog__ops" role="alert">
+          <For each={ops.latest}>
+            {(o) => (
+              <div class="glog__op">
+                <Badge tone="danger" icon={GitMerge} size="sm">{repoConfig(o.repoId)?.name ?? o.repoId}</Badge>
+                <span class="glog__op-text ui-truncate" title={o.conflictFiles.join(", ")}>{describeOp(o)}</span>
+                <Show when={o.kind === "rebase"}><Button size="sm" variant="ghost" onClick={() => openRebase(o.repoId)}>{t("graph.op.open")}</Button></Show>
+                <Button size="sm" variant="primary" onClick={() => void act(o, "continue")}>{t("graph.op.continue")}</Button>
+                <Button size="sm" variant="ghost" onClick={() => void act(o, "abort")}>{t("graph.op.abort")}</Button>
+              </div>
+            )}
+          </For>
+        </div>
+      </Show>
+    </Suspense>
   );
 }

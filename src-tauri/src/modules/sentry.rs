@@ -1,13 +1,13 @@
 //! Tauri glue of the Sentry integration on top of `intely_sentry`: the saved address and organization, the token (it never
 //! reaches the webview: it goes in through `sentry_save_token` and stays in the Keychain), and the issue calls.
-//! The test jails never reach the network, and the two calls that change something at Sentry (assign, set status) are refused in
+//! The test jails never reach the network, and the calls that change something at Sentry (assign, set status) are refused in
 //! read-only mode like a git push is.
 
 use std::sync::Arc;
 
 use intely_core::jail::{Jail, Mode};
 use intely_core::EngineError;
-use intely_sentry::{ApiProblem, Connection, Issue, IssueDetail, IssuePage, IssueQuery, Project, Sentry, Status};
+use intely_sentry::{ApiProblem, AssignTo, Assignee, Connection, Issue, IssueDetail, IssuePage, IssueQuery, Project, Sentry, Status};
 use tauri::{Manager, State};
 
 use super::settings::SettingsState;
@@ -98,6 +98,27 @@ pub async fn sentry_issue(state: State<'_, SentryState>, id: String) -> Res<Issu
 pub async fn sentry_assign_me(state: State<'_, SentryState>, id: String) -> Res<Issue> {
     network(&Jail::global(), true)?;
     state.svc()?.assign_me(&id).await.map_err(engine)
+}
+
+/// The people and the teams the assign menu offers (asked when the menu opens, not with the list).
+#[tauri::command]
+pub async fn sentry_assignees(state: State<'_, SentryState>) -> Res<Vec<Assignee>> {
+    network(&Jail::global(), false)?;
+    state.svc()?.assignees().await.map_err(engine)
+}
+
+/// Gives the issue to a user or a team; no `to` takes it back from whoever has it.
+#[tauri::command]
+pub async fn sentry_assign(state: State<'_, SentryState>, id: String, to: Option<AssignTo>) -> Res<Issue> {
+    network(&Jail::global(), true)?;
+    state.svc()?.assign(&id, to).await.map_err(engine)
+}
+
+/// Resolves the issue with the next release instead of now.
+#[tauri::command]
+pub async fn sentry_resolve_next_release(state: State<'_, SentryState>, id: String) -> Res<Issue> {
+    network(&Jail::global(), true)?;
+    state.svc()?.resolve_in_next_release(&id).await.map_err(engine)
 }
 
 /// `resolved`, `unresolved` or `ignored`.

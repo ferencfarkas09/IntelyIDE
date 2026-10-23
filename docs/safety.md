@@ -329,3 +329,13 @@ This document makes claims about code, so each can be checked with a command. No
 - Push dialog: `cd ui && npx vitest run src/components/push`.
 - End to end on throwaway fixtures: `scripts/e2e/run.sh`.
 - Does a real agent get past the layers on your machine? `node scripts/enforcement-suite.mjs` (real model calls; read its header first).
+
+## IntelyFIX: a Sentry issue becomes a prompt (`modules/intelyfix`, `modules/sentry`, `crates/sentry`)
+
+One click on Fix assigns the issue, starts a run and hands it a prompt built from the issue. What that adds, and what it does not change:
+
+- **Nothing starts without your click**, and a start that the host would ask about (no safety net, a mode it will not run, the write lease, no free slot) or that needs a decision (no repository could be told) opens the New run dialog filled in instead of starting. Settings > IntelyFIX can make Fix always open the dialog.
+- **The hard stops are the same for this run as for any other.** The default prompt tells the agent not to commit, push or branch, and the broker refuses it if it tries; you read the change in the Changes tree and commit it yourself. The mode is Accept edits or Ask, never Bypass (a stored `bypass` is read as Accept edits).
+- **The text of an event is not trusted.** A message, a breadcrumb or a request URL in a Sentry event can be written by anyone who can make your app raise an error, and it reaches the agent as part of the prompt. The backend masks secret shapes and control characters and cuts every field (`crates/sentry/src/parse.rs`), and the prompt is capped at 12000 characters, but no filter makes such text trustworthy. What bounds it is the broker, not the prompt: the hard stops, the secret rules, the jail and the permission mode hold whatever the prompt says. Use Ask mode (Settings > IntelyFIX > Mode) for a project whose events can be written by outsiders.
+- **Sentry is asked for the least it needs.** The request allow-list of `crates/sentry/src/client.rs` gains two reads, the people and the teams of the organization (the assign menu, one page each, kept in memory only); everything else is as before: https only, no redirects, the token redacted on every error path, nothing asked until a token and an organization are saved. Changing an issue (assigning it, resolving it) is refused in read-only mode, like a push.
+- **What is stored.** The preferences (who gets the issue, the role, the mode, the repository map, the prompt template) are in `settings.json` under `intelyfix`, no secrets; the link between an issue and its runs is in the webview's local storage, 200 entries at most.

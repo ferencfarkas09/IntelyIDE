@@ -1,6 +1,7 @@
 import { createVirtualizer } from "@tanstack/solid-virtual";
 import { createEffect, createMemo, createSignal, For, Match, on, onCleanup, Show, Switch } from "solid-js";
 import { ArrowDown, Button, IconButton, ScrollArea, Spinner } from "../../ui-kit";
+import { keepsFollowing, scrollMove } from "../../ui-kit/follow";
 import { t } from "../../i18n";
 import type { Row } from "./logic";
 import { MessageRow } from "./Message";
@@ -147,10 +148,14 @@ export function MessageList(props: {
     void backToLatest(props.channelId);
   };
 
+  // Close to the bottom counts as the bottom only for a scroll that is not going up (see `keepsFollowing`).
+  let lastTop = 0;
   const onScroll = () => {
     const el = scrollEl();
     if (!el) return;
-    if (gap(el) < STICK_PX) {
+    const move = scrollMove(lastTop, el.scrollTop);
+    lastTop = el.scrollTop;
+    if (keepsFollowing(gap(el), move, STICK_PX)) {
       setStick(true);
       setUnseen(0);
     } else if (intent) setStick(false);
@@ -160,11 +165,13 @@ export function MessageList(props: {
   };
   // Rows grow after they are measured, which moves scrollTop away from the bottom; that is layout, not the user. Only a sign of intent turns following off.
   let intent = false;
-  const release = () => {
+  // `up`: the sign of intent says "up" (wheel up, PageUp, Home, ArrowUp); a touch or a drag says it by where the scroll ended up.
+  const release = (up = false) => {
     intent = true;
+    const from = scrollEl()?.scrollTop ?? 0;
     requestAnimationFrame(() => {
       const el = scrollEl();
-      if (el) setStick(gap(el) < STICK_PX);
+      if (el) setStick(keepsFollowing(gap(el), up ? "up" : scrollMove(from, el.scrollTop), STICK_PX));
       intent = false;
     });
   };
@@ -172,13 +179,13 @@ export function MessageList(props: {
     el.addEventListener("wheel", (e) => {
       if (e.deltaY < 0) {
         holdGap = undefined;
-        release();
+        release(true);
         // Already at the top, so no scroll event will come: a wheel up there is the ask for earlier messages.
         if (el.scrollTop < TOP_PX && props.hasMore && !props.loadingOlder) loadOlder();
       }
     }, { passive: true });
-    el.addEventListener("touchmove", release, { passive: true });
-    el.addEventListener("keydown", (e) => ["PageUp", "Home", "ArrowUp"].includes(e.key) && release());
+    el.addEventListener("touchmove", () => release(), { passive: true });
+    el.addEventListener("keydown", (e) => ["PageUp", "Home", "ArrowUp"].includes(e.key) && release(true));
     el.addEventListener("pointerdown", (e) => {
       if (e.target !== el) return;
       intent = true;

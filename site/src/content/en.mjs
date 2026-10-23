@@ -301,6 +301,7 @@ export default {
       { id: 'remote', h: 'Phone gateway', p: 'Approve or answer agent runs from your phone through your own relay, end-to-end encrypted.' },
       { id: 'notifications', h: 'Notifications', p: 'A banner and a Dock count when a run needs you, asks a question, finishes or fails.' },
       { id: 'integrations', h: 'Integrations', p: 'Happy, MCP servers, Sentry and DeepPattern in one catalog, with a connection status where there is one. More services later, as more cards.' },
+      { id: 'intelyfix', h: 'IntelyFIX: Sentry issues fixed with one click', p: 'Press Fix on an issue: the assignment, the repository, the prompt and the agent run are set up for you. You read the change and commit it.' },
       { id: 'mcp', h: 'A catalog of MCP servers', p: 'More than a dozen ready-made servers, from GitHub and Chrome DevTools to MongoDB and XcodeBuildMCP, added with one click and your own token.' },
       { id: 'partners', h: 'Works with DeepPattern.ai and Happy Solutions', p: 'Two services with their own card in Settings > Integrations: second opinions on your code, and your Happy account next to it.' },
       { id: 'providers', h: 'Bring your own agent', p: 'Claude is the main path. Codex, Gemini, Copilot and more plug in as experimental providers.' },
@@ -426,6 +427,20 @@ export default {
           'DeepPattern: second opinions on your code and plans from a panel of models. Install and activate it with its own installer (the key never enters the IDE), check it, add it to your agents and audit your changes. A new service is one more card in the same catalog',
         ],
         shots: [['integrations', 'Settings, Integrations: cards for Happy, MCP servers, Sentry and DeepPattern; each card shows its connection status.']],
+      },
+      {
+        id: 'intelyfix',
+        h: 'IntelyFIX: fix a Sentry issue with one click',
+        p: 'List the issues of your Sentry organization, give one to yourself, a teammate or a team, and press Fix. IntelyFIX picks the repository, writes the prompt from the stack and the steps before the error, and starts an agent. The agent edits and never commits or pushes: you read the change in the Changes tree, commit it, and mark the issue resolved.',
+        list: [
+          'One click assigns the issue, works out the repository (map each Sentry project to a repository, with the repositories that may change with it, such as the backend of a front end), builds the prompt, starts the run and links it to the issue',
+          'The prompt carries how often and since when, the release, whether it is a regression or escalating, the stack with the code around the failing call, the steps before it and a hint for the kind of app. You can write your own template, preview it, or copy it for another tool',
+          'A row shows Fixing, Fix ready or Needs triage; when the agent says it could not fix the issue safely, you get its run instead of a Resolve button. Resolve now or with the next release',
+          'Filters for the unassigned issues and for yours, an assign menu with the people and teams of the organization, and what Sentry says about each issue: new, regressed, escalating, high priority',
+          'Nothing runs without your click, and anything that needs a decision (no repository could be told, the start is refused, or you want to read the prompt first) opens the New run dialog, filled in',
+          'It reads Sentry with your own token, kept in your Keychain, and asks Sentry nothing until you add one. Sentry and its name belong to their owner; IntelyIDE is independent of it and not endorsed by it',
+        ],
+        shots: [['intelyfix', 'IntelyFIX: the Sentry issues with what Sentry says about each, and one issue open with Fix with IntelyFIX, assign and resolve.']],
       },
       {
         id: 'mcp',

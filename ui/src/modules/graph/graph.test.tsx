@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
+import { Suspense } from "solid-js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // The dev machine is slow under load; these tests wait on lazy UI and the mock IPC.
@@ -12,12 +13,13 @@ vi.mock("../../store/workspace", () => {
   return { repos: () => repos, repoConfig: (id: string) => repos.find((r) => r.id === id), workspace: () => ({ repos }) };
 });
 
-import { ipc } from "../../ipc";
+import { ipc, type RepoSnapshot } from "../../ipc";
 import { createMockGraph } from "../../ipc/mock/graph";
 import { resetCommands, getCommand } from "../../platform/commands";
 import { editorExtensions, resetEditorExtensions } from "../../platform/editor-ext";
 import { resetKeymap } from "../../platform/keymap";
 import { activeToolWindow, getRailItem, resetRail } from "../../platform/rail";
+import { applySnapshot, resetSnapshots } from "../../store/snapshots";
 import { resetStatusItems, statusItems } from "../../platform/statusbar";
 import { getTabType, resetTabs } from "../../platform/tabs";
 import { layoutRows } from "./lanes";
@@ -136,6 +138,54 @@ describe("<LogPanel>", () => {
     await waitFor(() => expect(new Set(rows().map((r) => r.repoId))).toEqual(new Set(["admin"])), SLOW);
     setAuthor("nobody");
     await waitFor(() => expect(screen.getByText("No commits match")).toBeDefined(), SLOW);
+  });
+
+  it("keeps the window on screen while the detail of a selected commit loads", async () => {
+    // The tool window sits in a boundary of its own (ToolPanel). A resource read that suspends it swaps the whole window for the
+    // spinner, and the commit list comes back scrolled to the top: every click on a commit threw the reader back.
+    render(() => (
+      <Suspense fallback={<i data-testid="host-spinner" />}>
+        <LogPanel />
+      </Suspense>
+    ));
+    await waitFor(() => expect(document.querySelectorAll(".glog__row")).toHaveLength(10), SLOW);
+    const list = document.querySelector(".glog__list")!;
+    const rowsNow = () => document.querySelectorAll(".glog__row");
+
+    fireEvent.click(rowsNow()[0]);
+    expect(screen.queryByTestId("host-spinner")).toBeNull();
+    const pane = await screen.findByLabelText("Commit details");
+    await waitFor(() => expect(pane.querySelectorAll(".gdetail__file").length).toBeGreaterThan(1), SLOW);
+
+    fireEvent.click(rowsNow()[1]);
+    expect(screen.queryByTestId("host-spinner")).toBeNull();
+    expect(document.querySelector(".glog__list")).toBe(list);
+    await waitFor(() => expect(screen.getByLabelText("Commit details").querySelector(".gdetail__loading")).toBeNull(), SLOW);
+    expect(document.querySelector(".glog__list")).toBe(list);
+  });
+
+  it("does not ask for the stopped operations again when a snapshot changes nothing they depend on", async () => {
+    // Snapshots arrive with every edit in a working tree; the banner's question (which repos, at which heads) did not change.
+    const opState = vi.spyOn(ipc.graph, "opState");
+    const snapshot = (revision: number, oid: string) => ({ repoId: "backend", revision, head: { oid, branch: "main" }, changes: [] }) as unknown as RepoSnapshot;
+    try {
+      render(() => <LogPanel />);
+      await waitFor(() => expect(document.querySelectorAll(".glog__row")).toHaveLength(10), SLOW);
+      applySnapshot(snapshot(1, "aaa"));
+      await waitFor(() => expect(opState.mock.calls.length).toBeGreaterThanOrEqual(4), SLOW);
+      await new Promise((r) => setTimeout(r, 50));
+      const settled = opState.mock.calls.length;
+
+      applySnapshot(snapshot(2, "aaa"));
+      applySnapshot(snapshot(3, "aaa"));
+      await new Promise((r) => setTimeout(r, 100));
+      expect(opState.mock.calls.length).toBe(settled);
+
+      applySnapshot(snapshot(4, "bbb"));
+      await waitFor(() => expect(opState.mock.calls.length).toBeGreaterThan(settled), SLOW);
+    } finally {
+      resetSnapshots();
+    }
   });
 
   it("offers continue and abort for a rebase that stopped", async () => {

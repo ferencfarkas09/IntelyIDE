@@ -63,7 +63,7 @@ Agents are part of the same window, within limits:
 <details>
 <summary>More modules (experimental, off by default)</summary>
 
-- **Sentry issues.** List the issues of one organization with filters and search, open the newest event with its stack and hand an issue to an agent ("Fix with agent"). It needs your own token and asks Sentry nothing until you add one; it has not been tried against a live Sentry server yet.
+- **IntelyFIX (Sentry issues).** List the issues of one organization with filters and search, open the newest event with its stack, assign an issue to yourself, a teammate or a team, and fix it with one click: IntelyFIX picks the repository, builds the prompt from the stack and starts an agent that edits but never commits (you read the change and commit it), then offers to mark the issue resolved. It needs your own token and asks Sentry nothing until you add one; it has not been tried against a live Sentry server yet.
 - **MongoDB Studio.** Browse collections with your own connections; credentials go to the macOS Keychain.
 - **Happy integrations.** An optional module for one company's services (time tracker, chat, tasks). It is off by default, has no preset server, and is of no use to most people.
 - **Other agent providers.** Providers other than Claude are proven only against test doubles.
@@ -118,7 +118,7 @@ The full layer table, the enforcement suite and its results are in [docs/safety.
 
 ## Status and known limitations
 
-This is version 1.11.0. It has been used mostly by its author, on an Intel Mac.
+This is version 1.12.0. It has been used mostly by its author, on an Intel Mac.
 
 - Write mode is not judged suitable for unattended daily use on repositories you cannot restore.
 - The agent protections are best-effort. See the safety model above.
@@ -138,7 +138,7 @@ This is version 1.11.0. It has been used mostly by its author, on an Intel Mac.
 <!--dmg:available-->
 ### macOS installer (DMG)
 
-1. Download `IntelyIDE_1.11.0_universal.dmg` from the Releases page of this repository. It is one universal app that runs natively on Intel and Apple Silicon Macs. If you are unsure which Mac you have: Apple menu > About This Mac.
+1. Download `IntelyIDE_1.12.0_universal.dmg` from the Releases page of this repository. It is one universal app that runs natively on Intel and Apple Silicon Macs. If you are unsure which Mac you have: Apple menu > About This Mac.
 2. Check the download. `shasum -a 256 --ignore-missing -c SHA256SUMS` in the download folder detects a corrupted download only; the checksums come from the same page as the file, so they cannot prove where it came from.
 3. Open the DMG and drag IntelyIDE to Applications, then open it from there.
 4. First launch. <!--dmg:v:adhoc,developer-id--><!--This build is not notarized, so macOS refuses the first launch: on macOS 15 and later open System Settings > Privacy & Security, scroll to the message about IntelyIDE, choose Open Anyway and confirm; on macOS 13 and 14 right-click the app and choose Open. Do this only for a file you downloaded from this repository's Releases page.--><!--/dmg:v--><!--dmg:v:notarized-->The app is notarized and opens normally.<!--/dmg:v-->
