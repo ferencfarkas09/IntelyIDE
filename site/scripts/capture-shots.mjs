@@ -205,6 +205,16 @@ SHOTS["mcp-catalog"] = async (c) => {
   await sleep(600);
   await dismissToasts(c);
 };
+SHOTS.intelyfix = async (c) => {
+  await dismissToasts(c);
+  await palette(c, "IntelyFIX");
+  await waitText(c, "Escalating");
+  // the escalating one of the backend: its chips, and Fix, assign and resolve in the detail
+  await clickText(c, "Cannot read properties of undefined", "[data-testid=sentry-list]");
+  await waitText(c, "Fix with IntelyFIX");
+  await sleep(800);
+  await dismissToasts(c);
+};
 SHOTS.providers = async (c) => {
   await openSettings(c, "Providers");
   // Experimental providers switch on: the Codex, Gemini, Copilot, ... cards appear.
