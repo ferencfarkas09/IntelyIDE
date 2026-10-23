@@ -17,8 +17,8 @@
     "bundle:keygen": "node scripts/gen-bundle-key.mjs"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "5.20261003.1",
+    "@cloudflare/workers-types": "5.20261016.1",
     "typescript": "7.0.2",
-    "wrangler": "4.147.0"
+    "wrangler": "4.151.1"
   }
 }
