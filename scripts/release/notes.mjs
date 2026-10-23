@@ -42,7 +42,7 @@ const NOT_IN_BUILD = [
   "MongoDB AI-find and deploying the Remote relay: both need a source checkout.",
 ];
 const UPDATES =
-  "IntelyIDE has no telemetry. Once a day, and when you choose Check for updates, it downloads one small signed feed file from the project's GitHub Pages site (ferencfarkas09.github.io); the request carries no identifier and can be switched off in Settings. An update is installed only after your click and after its signature has been verified. The bundled Node.js and the pinned SDK version change only with a new IntelyIDE release.";
+  "IntelyIDE does not track what you do. If you register on the first start, the IntelyIDE registry stores your name, email address and computer details until you delete them in Settings > Account & data. Once a day, and when you choose Check for updates, it downloads one small signed feed file from the project's GitHub Pages site (ferencfarkas09.github.io); the request carries no identifier and can be switched off in Settings. An update is installed only after your click and after its signature has been verified. The bundled Node.js and the pinned SDK version change only with a new IntelyIDE release.";
 const SAFETY =
   "IntelyIDE is alpha software and starts writable: commits, pushes and file changes happen when you ask. Agents ask for approval by default and are blocked from committing and pushing by several best-effort layers; they are not a sandbox. Use it on repositories you can restore.";
 

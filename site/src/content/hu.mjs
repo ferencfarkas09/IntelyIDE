@@ -146,7 +146,7 @@ export default {
       items: [
         { icon: 'badge', h: 'Aláírt és hitelesített', p: 'Developer ID-vel aláírva, az Apple által hitelesítve. Mindkét alkalmazás figyelmeztetés nélkül nyílik meg.' },
         { icon: 'feed', h: 'Ellenőrzött frissítések', p: 'Az IntelyOpti csak olyan frissítést telepít, amelynek az aláírása érvényes, így a megváltoztatott fájlt elutasítja. Az IntelyIDE közvetlenül a GitHubról jelzi az új verziókat.' },
-        { icon: 'chart', h: 'Hozzájáruláshoz kötött analitika', p: 'Ez az oldal addig nem tölt be analitikát, amíg el nem fogadod. Az IntelyIDE-ben egyáltalán nincs analitika.' },
+        { icon: 'chart', h: 'Hozzájáruláshoz kötött analitika', p: 'Ez az oldal addig nem tölt be analitikát, amíg el nem fogadod. Az IntelyIDE-ben nincs analitika: az egyetlen, rólad szóló adat, amit elküldhet, az első indításkor általad elfogadott, nem kötelező regisztráció.' },
         { icon: 'contrast', h: 'Világos és sötét', p: 'Mindkét alkalmazás és ez az oldal is követi a rendszertémát, és kézzel is átkapcsolhatod.' },
         { icon: 'globe', h: 'Angol és magyar', p: 'Ez az oldal mindkét nyelven kézzel írt. Az IntelyIDE 53 felületi nyelven érhető el.' },
         { icon: 'cpu', h: 'Intel-natív', p: 'Azokra az Intel Mac-ekre építve, amelyekről sok eszköz csendben lemondott.' },
@@ -173,7 +173,7 @@ export default {
       items: [
         ['Mely Mac-eket támogatják az alkalmazások?', 'Az IntelyIDE egyetlen univerzális build Intel és Apple Silicon Mac-ekre (macOS 13.5 vagy újabb). Az IntelyOpti Intel Mac-ekre épült, és macOS {{minMac}} vagy újabb kell hozzá.'],
         ['Mi kerül pénzbe?', 'Az IntelyIDE ingyenes és nyílt forráskódú. Az IntelyOptinak van egy ingyenes szintje, amely ingyenes marad, egy {{trial}} napos ingyenes próbája mindenre, utána {{yearly}} évente vagy {{lifetime}} élethosszra, Mac-enként.'],
-        ['Hazatelefonálnak az alkalmazások?', 'Az IntelyIDE-ben nincs analitika, naponta egyszer megnézi a GitHubon, van-e újabb verzió. Az IntelyOpti e-mail-címet kér a próba indításához, és az MI-tanácsadója semmit sem küld el, amíg meg nem nyomod a Megosztást.'],
+        ['Hazatelefonálnak az alkalmazások?', 'Az IntelyIDE-ben nincs analitika, naponta egyszer megnézi a GitHubon, van-e újabb verzió. Ha az első indításkor regisztrálsz (nem kötelező), elküldi a nevedet, az email-címedet és a számítógéped adatait az IntelyIDE nyilvántartásának, és minden indításkor egy rövid jelzést az alkalmazás verziójával; mindezt megnézheted és törölheted a Beállításokban. Az IntelyOpti e-mail-címet kér a próba indításához, és az MI-tanácsadója semmit sem küld el, amíg meg nem nyomod a Megosztást.'],
         ['Ki áll mögötte?', 'Az IntelyHome Farkas Ferenc, egy fejlesztő. A kérdések és hibajelentések a GitHub Issues és Discussions felületére mennek.'],
       ],
       more: 'További kérdések: IntelyIDE GYIK és IntelyOpti GYIK',
@@ -556,7 +556,7 @@ export default {
     signedH: 'Aláírt és hitelesített',
     signedP: 'Az appot és a lemezképet Developer ID-vel írták alá, és az Apple hitelesítette (notarizálta), így a macOS az első indításkor figyelmeztetés nélkül megnyitja az IntelyIDE-t, offline is.',
     privH: 'Helyi elsőbbség',
-    privP: 'A munkád a gépeden marad. A hitelesítő adatok a macOS Kulcskarikában vannak. Az IntelyIDE nem küld telemetriát. Naponta egyszer, egy egyszeri tájékoztatás után megkérdezi a GitHub nyilvános API-ját, hogy van-e újabb kiadás, és csak a verziószámát küldi el. Ez kikapcsolható.',
+    privP: 'A munkád a gépeden marad. A hitelesítő adatok a macOS Kulcskarikában vannak. Az IntelyIDE nem követi, mit csinálsz. A regisztráció az első indításkor nem kötelező: ha belegyezel, az IntelyIDE nyilvántartása eltárolja a nevedet, az email-címedet és a számítógéped adatait, amelyeket a Beállításokban megnézhetsz és törölhetsz. Naponta egyszer, egy egyszeri tájékoztatás után megkérdezi a GitHub nyilvános API-ját, hogy van-e újabb kiadás, és csak a verziószámát küldi el. Ez kikapcsolható.',
   },
   open: {
     title: 'Ingyenes és nyílt forráskódú',
@@ -878,7 +878,7 @@ export default {
           id: 'apps', h: 'Az alkalmazások',
           paras: [],
           list: [
-            'Az IntelyIDE-ben nincs analitika. Naponta egyszer, egy egyszeri értesítés után, megkérdezi a nyilvános GitHub API-t, van-e újabb kiadás, és csak a verziószámát küldi el. Ezt kikapcsolhatod.',
+            'Az IntelyIDE-ben nincs analitika. A regisztráció az első indításkor nem kötelező: ha belegyezel, az IntelyIDE nyilvántartása eltárolja a nevedet, az email-címedet és a számítógéped adatait, amelyeket a Beállításokban megnézhetsz és törölhetsz. Naponta egyszer, egy egyszeri értesítés után, megkérdezi a nyilvános GitHub API-t, van-e újabb kiadás, és csak a verziószámát küldi el. Ezt kikapcsolhatod.',
             'Az IntelyOpti a frissítéseit a GitHubról, kriptográfiailag aláírt kiadásokként kapja. Az MI-tanácsadója semmit sem küld, amíg meg nem nyomod a Megosztást, és akkor is csak egy kitakart pillanatképet az általad választott MI-eszköznek. Annak az eszköznek saját adatvédelmi feltételei vannak.',
           ],
         },

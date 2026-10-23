@@ -2,9 +2,30 @@
 
 This page states what IntelyIDE stores on your Mac, what can leave it and when, and which of these statements a script re-checks. Applies to version 1.12.0.
 
-IntelyIDE has no telemetry: it sends no usage data, identifiers or crash reports to anyone, and there is no account. It does make a few network requests, only when you use the matching feature: your own `claude` installation talks to its vendor, `git` talks to your remotes, and the optional modules you switch on (MongoDB Studio, Remote, Happy) talk to the servers you configure.
+IntelyIDE does not track what you do: it has no analytics and no crash reports, and nothing about your work leaves your computer. One thing is optional and asks first: the first start offers to register this computer with the IntelyIDE registry (see [Registration and usage details](#registration-and-usage-details)); nothing is sent before you agree. Apart from that it makes a few network requests, only when you use the matching feature: your own `claude` installation talks to its vendor, `git` talks to your remotes, and the optional modules you switch on (MongoDB Studio, Remote, Happy) talk to the servers you configure.
 
 Every row of the tables below names the source file that implements it. Where a statement could not be verified in code it says "not verified".
+
+## Registration and usage details
+
+From version 1.13.0 the first start asks whether to register this computer with the IntelyIDE registry: a service run by the owner of the project on Cloudflare, reached at `api.intelyhome.com` (its code is in `registry/` in this repository, and `crates/registry` is the app side). Registering is optional. "Not now" sends nothing, and the screen does not come back by itself; you can register later in Settings > Account & data. This is privacy notice 2026-10-23, and the app asks again whenever the version of the notice changes (nothing is sent until you answer).
+
+What the registry stores when you agree, which is also what the first-start screen lists:
+
+- your name and email address as you typed them, and the version of this notice you agreed to, with the time;
+- your newsletter choice. The box is unticked. Ticking it makes the registry ask Brevo, the mailing service, to send you a confirmation email; nothing else is sent until you click the link in it (double opt-in). Settings turns it off again;
+- for each computer you register: a fingerprint, which is a SHA-256 hash made in the app from the machine id of the operating system (on macOS the hardware UUID, which never leaves the app) and hashed once more at the registry with a secret, so it cannot be turned back into the machine id; the system and its version, the processor type, the number of cores, the memory in whole gigabytes, the language and the time zone of the app, the app version, when it was first and last started, and how many times it was started (counted at most once an hour);
+- the country, region and city that Cloudflare derives from the address of your connection, when you register and when the app starts.
+
+Not stored: your IP address (the registry reads it only to limit how often one address can call it, as the input of a salted hash in a counter that is deleted after a day; it is written to no record), the host name or user name of the computer, repository names, file names, prompts, answers, or anything else you do in the app.
+
+When something is sent: when you press Register, and afterwards one small request when the app starts, 45 seconds after the start and at most once an hour, that tells the registry the app version and the details above so they stay current. Development builds and the test jail (`INTELY_E2E`) send nothing by themselves. The registry hands the app a random key; it is kept in the macOS Keychain (`registry.token`) and not in `settings.json`, and the registry keeps only its hash.
+
+Where and for how long: the registry is a Cloudflare Worker with a D1 database. A daily job deletes computers not seen for two years, and the people left with no computer and no newsletter. The newsletter address stays at Brevo until you unsubscribe or delete your data.
+
+Look and delete: Settings > Account & data shows what the registry stores about you, read from the registry itself, turns the newsletter on and off, and deletes your data. Delete removes this computer from the registry, and you with it when it was your only one, together with the newsletter contact, and forgets the key here; if the registry cannot be reached nothing changes and you can try again. If you registered several computers with one address, delete each of them, or ask in [GitHub Discussions](https://github.com/ferencfarkas09/IntelyIDE/discussions) to have everything under the address deleted; the owner will ask you to prove the address first. Do not post your email address in the discussion.
+
+The network code is `crates/registry/src/client.rs`: HTTPS to the one host, five requests (register, ping, me, newsletter, forget), no redirects, 5 s connect and 15 s total timeout, 64 KiB response limit. `scripts/release/verify-no-telemetry.mjs` checks that the host is the recorded one and named on this page, and that this page states the version of the notice the app shows.
 
 ## New-version notice (version 1.2.0)
 
@@ -100,7 +121,7 @@ Masking is pattern based and best-effort. The run log and `refusals.log` are not
 
 ## Components that may use the network
 
-The Rust crates allowed to depend on a network library are `remote`, `team`, `relay_bundle`, `relay_deploy`, `happy`, `sentry`, `mongo`, `mcp`, `preview-proxy` and `updater`. `mcp` makes a request only when you press the connection test of an MCP server, and only to the address you entered for it. In the sidecar, only `sidecar/src/sdk-install.ts` may use the network. `scripts/release/verify-no-telemetry.mjs` fails when any other crate or sidecar file does, or when a package from its deny list (analytics, crash reporting and similar names) appears in a lockfile. A new network-capable crate has to be added to the script, its test and this page together.
+The Rust crates allowed to depend on a network library are `remote`, `team`, `relay_bundle`, `relay_deploy`, `happy`, `sentry`, `mongo`, `mcp`, `preview-proxy`, `updater` and `registry`. `mcp` makes a request only when you press the connection test of an MCP server, and only to the address you entered for it. In the sidecar, only `sidecar/src/sdk-install.ts` may use the network. `scripts/release/verify-no-telemetry.mjs` fails when any other crate or sidecar file does, or when a package from its deny list (analytics, crash reporting and similar names) appears in a lockfile. A new network-capable crate has to be added to the script, its test and this page together.
 
 ## Read, export and delete your data
 
@@ -113,7 +134,7 @@ The Rust crates allowed to depend on a network library are `remote`, `team`, `re
 
 | Check | What it covers |
 |---|---|
-| `scripts/release/verify-no-telemetry.mjs` (`pnpm release:no-telemetry`) | Lockfile deny list, the Content Security Policy, browser network APIs in the UI, network dependencies per crate, network use in the sidecar, the Tauri capability set and the updater host list |
+| `scripts/release/verify-no-telemetry.mjs` (`pnpm release:no-telemetry`) | Lockfile deny list, the Content Security Policy, browser network APIs in the UI, network dependencies per crate, network use in the sidecar, the Tauri capability set, the updater host list, and the registry host and the version of the privacy notice |
 | A reading of the code (this page) | The rows above, each verified against the file it names |
 | Idle-socket test of the packaged app (smoke S-10) | Not run yet for this version |
 
