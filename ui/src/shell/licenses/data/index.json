@@ -2,7 +2,7 @@
   "schema": 1,
   "generator": {
     "tool": "scripts/licenses/gen.mjs",
-    "cargoLockSha256": "3f881c652d515010cdffae186ce88949a750450090c8bd3ddb241c00420d4f12",
+    "cargoLockSha256": "85859adf3ea45c8f7dce3919d364e5da8e1b3ef540e6f09b97dff3ed3b97d676",
     "pnpmLockSha256": {
       "root": "df9baa0a5a3fba972b303e06487d0ef0d94ce1c1964afb3d4f3bdb16339aec50",
       "remote-web": "671ec4d0bc03ce2b693a132dd3c59e313000320d28deb78e89f6db4f46c54998",
@@ -3025,10 +3025,10 @@
       "verdict": "ok"
     },
     {
-      "id": "cargo:ctutils@0.4.2",
+      "id": "cargo:ctutils@0.4.5",
       "kind": "cargo",
       "name": "ctutils",
-      "version": "0.4.2",
+      "version": "0.4.5",
       "expression": "Apache-2.0 OR MIT",
       "chosen": [
         "MIT"
@@ -3044,8 +3044,8 @@
         "app"
       ],
       "distributed": true,
-      "homepage": "https://github.com/RustCrypto/utils/tree/master/ctselect",
-      "sourceUrl": "https://crates.io/crates/ctutils/0.4.2",
+      "homepage": "https://github.com/RustCrypto/utils",
+      "sourceUrl": "https://crates.io/crates/ctutils/0.4.5",
       "verdict": "ok"
     },
     {
