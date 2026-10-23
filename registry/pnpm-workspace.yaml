@@ -6,3 +6,6 @@ allowBuilds:
   workerd: false
 minimumReleaseAgeExclude:
   - '@cloudflare/workers-types@5.20261003.1'
+# sharp comes in through wrangler's dev server (miniflare). 0.35.4 carries CVE-2026-96889 (librsvg, GHSA-wq5f-xc86-pv6w); 0.35.5 is the fix.
+overrides:
+  sharp: 0.35.5
