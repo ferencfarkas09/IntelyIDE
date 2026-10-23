@@ -19,7 +19,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT = resolvePath(HERE, "../..");
 
 // Crates (directory names under crates/) that may use the network. Every one is named in docs/privacy.md.
-export const ALLOWED_CRATES = ["remote", "team", "relay_bundle", "relay_deploy", "happy", "sentry", "mongo", "mcp", "preview-proxy", "updater"];
+export const ALLOWED_CRATES = ["remote", "team", "relay_bundle", "relay_deploy", "happy", "sentry", "mongo", "mcp", "preview-proxy", "updater", "registry"];
 // Root package of the shipped binary in Cargo.lock.
 export const ROOT_PACKAGE = "intely-switch-ide";
 
@@ -51,6 +51,8 @@ export const RUST_NET_ALLOW = [
 export const SIDECAR_NET_FILE = "sidecar/src/sdk-install.ts";
 // (8) the capability set recorded for the main window (test asserts the same literal)
 export const EXPECTED_PERMISSIONS = ["core:default", "core:window:allow-start-dragging", "core:window:allow-toggle-maximize"];
+// (11) the one host crates/registry talks to (the optional registration the person agrees to on the first-start screen)
+export const REGISTRY_HOSTS = ["api.intelyhome.com"];
 // (10) hosts of crates/updater/src/endpoints.rs (updater-spec 4.6); a suffix entry starts with a dot
 export const UPDATER_HOSTS = ["ferencfarkas09.github.io", "github.com", "raw.githubusercontent.com"];
 export const UPDATER_HOST_SUFFIXES = [".githubusercontent.com"];
@@ -456,6 +458,28 @@ export function checkEndpoints(root) {
 }
 
 // ---------- driver ----------
+// ---------- (11) registry host and notice ----------
+/**
+ * The registration is the only thing the app sends about its person, and only after the person agreed. This keeps it honest: the address
+ * in `crates/registry` is https, on the recorded host, that host is named in docs/privacy.md, and the version of the privacy notice
+ * the first-start screen shows is stated there too (so a change of the text cannot go out without the page that explains it).
+ */
+export function checkRegistry(root, privacy) {
+  const file = "crates/registry/src/types.rs";
+  const t = read(root, file);
+  if (t === null) return [P("registry", file, "crates/registry is not built yet")];
+  const out = [];
+  const url = /pub const REGISTRY_URL: &str = "([^"]*)";/.exec(t)?.[1];
+  const host = url ? /^https:\/\/([a-z0-9.-]+)$/i.exec(url)?.[1]?.toLowerCase() : undefined;
+  if (!host) out.push(V("registry", file, null, "REGISTRY_URL is not a plain https address"));
+  else if (!REGISTRY_HOSTS.includes(host)) out.push(V("registry", file, null, `host ${host} is not in the recorded list`));
+  else if (privacy !== null && !privacy.includes(host)) out.push(V("registry", "docs/privacy.md", null, `the registry host ${host} is not named`));
+  const notice = /pub const NOTICE: &str = "(\d{4}-\d{2}-\d{2})";/.exec(t)?.[1];
+  if (!notice) out.push(V("registry", file, null, "NOTICE is not a date"));
+  else if (privacy !== null && !privacy.includes(`notice ${notice}`)) out.push(V("registry", "docs/privacy.md", null, `the version of the privacy notice (notice ${notice}) is not stated`));
+  return out;
+}
+
 export function runAll(root) {
   const privacy = read(root, "docs/privacy.md");
   const groups = [
@@ -469,6 +493,7 @@ export function runAll(root) {
     ["graph", () => checkGraph(root)],
     ["capabilities", () => checkCapabilities(root)],
     ["endpoints", () => checkEndpoints(root)],
+    ["registry", () => checkRegistry(root, privacy)],
   ];
   return groups.map(([id, fn]) => ({ id, items: fn() }));
 }

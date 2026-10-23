@@ -1,0 +1,24 @@
+{
+  "name": "intelyide-registry",
+  "version": "0.0.0",
+  "private": true,
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "description": "IntelyIDE registry: a Cloudflare Worker with a D1 database. Keeps the name and email of people who registered in the app, their newsletter choice and the details of the computers they run IntelyIDE on. Nothing is stored before the person agreed in the app.",
+  "engines": { "node": ">=22.18" },
+  "packageManager": "pnpm@11.5.3",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --test --test-concurrency=1 \"tests/*.test.mjs\"",
+    "dev": "wrangler dev --local --ip 127.0.0.1 --port 8788",
+    "migrate:local": "wrangler d1 migrations apply DB --local",
+    "migrate:remote": "wrangler d1 migrations apply DB --remote",
+    "deploy": "wrangler deploy",
+    "brevo:setup": "node scripts/brevo-setup.mjs"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261003.1",
+    "typescript": "7.0.2",
+    "wrangler": "4.147.0"
+  }
+}

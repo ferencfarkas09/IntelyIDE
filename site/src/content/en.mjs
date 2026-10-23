@@ -147,7 +147,7 @@ export default {
       items: [
         { icon: 'badge', h: 'Signed and notarized', p: 'Developer ID signed and notarized by Apple. Both apps open without a warning.' },
         { icon: 'feed', h: 'Verified updates', p: 'IntelyOpti installs an update only if its signature verifies, so a changed file is rejected. IntelyIDE tells you about new versions straight from GitHub.' },
-        { icon: 'chart', h: 'Consent-gated analytics', p: 'This site loads no analytics until you accept. IntelyIDE has no analytics at all.' },
+        { icon: 'chart', h: 'Consent-gated analytics', p: 'This site loads no analytics until you accept. IntelyIDE has no analytics: the only thing it can send about you is the optional registration you agree to on the first start.' },
         { icon: 'contrast', h: 'Light and dark', p: 'Both apps and this site follow your system theme, and you can switch by hand.' },
         { icon: 'globe', h: 'English and Hungarian', p: 'This site is hand-written in both. IntelyIDE ships 53 interface languages.' },
         { icon: 'cpu', h: 'Intel-native', p: 'Built for the Intel Macs that many tools quietly stopped caring about.' },
@@ -174,7 +174,7 @@ export default {
       items: [
         ['Which Macs do the apps support?', 'IntelyIDE is one universal build for Intel and Apple Silicon Macs (macOS 13.5 or later). IntelyOpti is built for Intel Macs and needs macOS 26 or later.'],
         ['What costs money?', 'IntelyIDE is free and open source. IntelyOpti has a free tier that stays free, a {{trial}}-day free trial of everything, then {{yearly}} per year or {{lifetime}} lifetime, per Mac.'],
-        ['Do the apps phone home?', 'IntelyIDE has no analytics and checks GitHub once a day for a newer version. IntelyOpti asks for an e-mail address to start its trial, and its AI Advisor sends nothing until you press Share.'],
+        ['Do the apps phone home?', 'IntelyIDE has no analytics and checks GitHub once a day for a newer version. If you register on the first start (optional), it sends your name, email address and computer details to the IntelyIDE registry, and a short note with the app version each time it starts; you can see and delete all of it in Settings. IntelyOpti asks for an e-mail address to start its trial, and its AI Advisor sends nothing until you press Share.'],
         ['Who is behind it?', 'IntelyHome is Ferenc Farkas, a developer. Questions and bug reports go to GitHub Issues and Discussions.'],
       ],
       more: 'More questions: IntelyIDE FAQ and IntelyOpti FAQ',
@@ -557,7 +557,7 @@ export default {
     signedH: 'Signed and notarized',
     signedP: 'The app and the disk image are signed with a Developer ID and notarized by Apple, so macOS opens IntelyIDE on the first launch without a warning, even offline.',
     privH: 'Local-first',
-    privP: 'Your work stays on your machine. Credentials are stored in the macOS Keychain. IntelyIDE has no telemetry. Once a day, after a one-time notice, it asks the public GitHub API whether a newer release exists and sends nothing but its version number. You can turn that off.',
+    privP: 'Your work stays on your machine. Credentials are stored in the macOS Keychain. IntelyIDE does not track what you do. Registering on the first start is optional: if you agree, the IntelyIDE registry stores your name, email address and details of your computer, and you can see and delete them in Settings. Once a day, after a one-time notice, it asks the public GitHub API whether a newer release exists and sends nothing but its version number. You can turn that off.',
   },
   open: {
     title: 'Free and open source',
@@ -879,7 +879,7 @@ export default {
           id: 'apps', h: 'The apps',
           paras: [],
           list: [
-            'IntelyIDE has no analytics. Once a day, after a one-time notice, it asks the public GitHub API whether a newer release exists and sends nothing but its version number. You can turn that off.',
+            'IntelyIDE has no analytics. Registering on the first start is optional: if you agree, the IntelyIDE registry stores your name, email address and details of your computer, and you can see and delete them in Settings. Once a day, after a one-time notice, it asks the public GitHub API whether a newer release exists and sends nothing but its version number. You can turn that off.',
             'IntelyOpti receives its updates from GitHub through cryptographically signed releases. Its AI Advisor sends nothing until you press Share, and then only a redacted snapshot to the AI tool you chose. That tool has its own privacy terms.',
           ],
         },

@@ -18,7 +18,7 @@ Several best-effort layers are meant to stop it: a `git` shim first on the agent
 
 ### Does it use the network?
 
-Git operations you start use your normal Git remotes. Agents talk to the provider you configure. Runs on a server you added go through your own `ssh`. The app has no telemetry. A notification for new versions is planned; no update check is implemented in this version. What each feature sends is listed in [privacy.md](privacy.md).
+Git operations you start use your normal Git remotes. Agents talk to the provider you configure. Runs on a server you added go through your own `ssh`. The app does not track what you do. The only thing it can send about you is the optional registration on the first start, which you can see and delete in Settings > Account & data. A notification for new versions is planned; no update check is implemented in this version. What each feature sends is listed in [privacy.md](privacy.md).
 
 ### How many runs can work at once?
 

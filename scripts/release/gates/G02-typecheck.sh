@@ -6,8 +6,8 @@ heavy "tsc protocol" pnpm --filter @intely/protocol exec tsc --noEmit
 heavy "tsc sidecar" pnpm --filter @intely/sidecar exec tsc --noEmit
 heavy "tsc ui" pnpm --filter @intely/ui exec tsc --noEmit
 
-# remote-web and remote-relay are not members of the root workspace: they have their own install.
-for dir in remote-web remote-relay; do
+# remote-web, remote-relay and registry are not members of the root workspace: they have their own install.
+for dir in remote-web remote-relay registry; do
   if [ ! -f "$ROOT/$dir/tsconfig.json" ]; then
     skip "tsc $dir" "no tsconfig.json"
   elif [ ! -d "$ROOT/$dir/node_modules" ]; then

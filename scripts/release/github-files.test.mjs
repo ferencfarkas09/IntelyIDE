@@ -169,7 +169,7 @@ const mustCover = [
   "/src-tauri/tauri.release.conf.json", "/src-tauri/Info.plist", "/src-tauri/entitlements-node.plist", "/src-tauri/build.rs", "/src-tauri/src/integrity.rs",
   "/src-tauri/src/modules/updater.rs", "/site/data/release.json",
   "/sidecar/src/env.ts", "/sidecar/src/sdk.ts", "/sidecar/src/sdk-install.ts", "/sidecar/src/adapters/",
-  "/crates/remote/", "/crates/relay_bundle/", "/crates/relay_deploy/", "/remote-relay/", "/remote-web/",
+  "/crates/remote/", "/crates/relay_bundle/", "/crates/relay_deploy/", "/remote-relay/", "/remote-web/", "/registry/",
   "/crates/preview-proxy/", "/crates/mongo/", "/crates/term/",
   "/sidecar/sdk-pin/", "/sidecar/package.json", "/package.json", "/pnpm-workspace.yaml", "/pnpm-lock.yaml", "/Cargo.lock",
   "/remote-relay/pnpm-lock.yaml", "/remote-web/pnpm-lock.yaml", "/deny.toml",

@@ -1,0 +1,33 @@
+{
+  // IntelyIDE registry (Cloudflare Worker + D1). Local development: `pnpm migrate:local && pnpm dev`. README.md has the deploy steps.
+  // Nothing here names an account. Secrets are never in this file: ADMIN_TOKEN, PEPPER, BREVO_API_KEY (`wrangler secret put <NAME>`).
+  "name": "intelyide-registry",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  // No Worker logs: the requests carry names and email addresses.
+  "observability": { "enabled": false },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "intelyide-registry",
+      // Create the database in the EU first: `wrangler d1 create intelyide-registry --jurisdiction eu`, then put its id here (or let `wrangler deploy` provision it).
+      "migrations_dir": "migrations"
+    }
+  ],
+  // Once a day: drop stale rate counters and computers not seen for RETENTION_DAYS, and ask the newsletter provider who confirmed.
+  "triggers": { "crons": ["17 3 * * *"] },
+  // To serve it on your own domain, uncomment and use a host of a zone in your account:
+  // "routes": [{ "pattern": "api.intelyhome.com", "custom_domain": true }],
+  "vars": {
+    // The version (a date) of the privacy notice the app shows; stored with each consent.
+    "NOTICE_VERSION": "2026-10-23",
+    // Computers not seen for this many days are deleted.
+    "RETENTION_DAYS": "730",
+    // "brevo" or "none". With "none" the newsletter choice is stored but nothing is sent anywhere.
+    "NEWSLETTER_PROVIDER": "none",
+    // Brevo: the list of IntelyIDE users and the double opt-in template (run `pnpm brevo:setup` to create both), and where the confirmation link lands.
+    "BREVO_LIST_ID": "",
+    "BREVO_DOI_TEMPLATE_ID": "",
+    "NEWSLETTER_REDIRECT_URL": "https://intelyhome.com/newsletter/confirmed/"
+  }
+}

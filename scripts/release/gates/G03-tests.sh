@@ -23,6 +23,12 @@ if [ "$GATE_FULL" = "1" ]; then
     # Not `pnpm test`: that fails the pnpm 11 dependency-status check in this package (PROGRESS, Wave 3).
     step "remote-relay tests" bash -c 'cd remote-relay && node --test --test-concurrency=1 "tests/*.test.mjs"'
   fi
+
+  if [ ! -d "$ROOT/registry/tests" ]; then
+    skip "registry tests" "no tests directory"
+  else
+    step "registry tests" bash -c 'cd registry && node --test --test-concurrency=1 "tests/*.test.mjs"'
+  fi
 fi
 
 step "licenses:test" pnpm licenses:test
