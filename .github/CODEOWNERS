@@ -41,6 +41,7 @@
 /crates/relay_deploy/   @ferencfarkas09
 /remote-relay/          @ferencfarkas09
 /remote-web/            @ferencfarkas09
+/registry/              @ferencfarkas09
 /crates/preview-proxy/  @ferencfarkas09
 /crates/mongo/          @ferencfarkas09
 /crates/term/           @ferencfarkas09
@@ -54,6 +55,7 @@
 /Cargo.lock                             @ferencfarkas09
 /remote-relay/pnpm-lock.yaml            @ferencfarkas09
 /remote-web/pnpm-lock.yaml              @ferencfarkas09
+/registry/pnpm-lock.yaml                @ferencfarkas09
 /deny.toml                              @ferencfarkas09
 /scripts/release/node-pin.json          @ferencfarkas09
 /scripts/release/forbidden-strings.txt  @ferencfarkas09
