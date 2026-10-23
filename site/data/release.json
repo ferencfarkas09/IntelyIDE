@@ -1,20 +1,20 @@
 {
   "_comment": "Single source of truth for every download fact on the site. Replace each REPLACE_ME before a production build.",
-  "version": "1.11.0",
+  "version": "1.12.0",
   "status": "stable",
-  "date": "2026-10-20",
+  "date": "2026-10-23",
   "minMacOS": "13.5",
   "signed": true,
   "windowsSigned": false,
-  "notesUrl": "https://github.com/ferencfarkas09/IntelyIDE/releases/tag/v1.11.0",
-  "sha256sumsUrl": "https://github.com/ferencfarkas09/IntelyIDE/releases/download/v1.11.0/SHA256SUMS",
+  "notesUrl": "https://github.com/ferencfarkas09/IntelyIDE/releases/tag/v1.12.0",
+  "sha256sumsUrl": "https://github.com/ferencfarkas09/IntelyIDE/releases/download/v1.12.0/SHA256SUMS",
   "assets": {
     "mac": {
-      "name": "IntelyIDE_1.11.0_universal.dmg",
-      "url": "https://github.com/ferencfarkas09/IntelyIDE/releases/download/v1.11.0/IntelyIDE_1.11.0_universal.dmg",
+      "name": "IntelyIDE_1.12.0_universal.dmg",
+      "url": "https://github.com/ferencfarkas09/IntelyIDE/releases/download/v1.12.0/IntelyIDE_1.12.0_universal.dmg",
       "arch": "universal",
-      "size": 32833682,
-      "sha256": "aba37074bb50fa3f8f0ab38aca6d673c0f05e3bf6b97108a2dc86b46c72bfded"
+      "size": 32883926,
+      "sha256": "98dbae836cdbae7536cf1f9947b35ea794b9079fc612b4d9d896653fa0f8d3fd"
     }
   }
 }
