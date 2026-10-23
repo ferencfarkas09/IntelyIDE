@@ -1,5 +1,26 @@
 [
   {
+    "version": "1.13.0",
+    "date": "2026-10-23",
+    "headline": {
+      "en": "Register this computer if you like: we see who uses IntelyIDE and on what, and you see and delete what is stored.",
+      "hu": "Regisztrálhatod ezt a számítógépet, ha szeretnéd: látjuk, ki használja az IntelyIDE-t és min, te pedig megnézheted és törölheted, amit tárolunk."
+    },
+    "notes": [
+      {
+        "kind": "new",
+        "title": {
+          "en": "Optional registration, newsletter and computer details",
+          "hu": "Nem kötelező regisztráció, hírlevél és a számítógép adatai"
+        },
+        "text": {
+          "en": "The first start now asks whether to register this computer. If you agree, the IntelyIDE registry stores your name and email address and details of the computer: a fingerprint hash, system and version, processor type, cores, memory, language, time zone, app version, when you start the app, and the country and city your connection suggests. It never stores your IP address, files, repositories, prompts or anything you do in the app. The newsletter is a separate, unticked box and starts only after you confirm by email. Not now sends nothing. Settings > Account & data shows exactly what is stored, turns the newsletter on or off and deletes your data.",
+          "hu": "Az első indítás mostantól megkérdezi, regisztrálod-e ezt a számítógépet. Ha belegyezel, az IntelyIDE nyilvántartása eltárolja a nevedet, az email-címedet és a számítógép adatait: ujjlenyomat-hash, rendszer és verzió, processzortípus, magok, memória, nyelv, időzóna, az alkalmazás verziója, az indítások ideje, és az ország és város, amelyet a kapcsolatod sugall. Soha nem tárolja az IP-címedet, a fájljaidat, tárolóidat, promptjaidat vagy bármit, amit az alkalmazásban csinálsz. A hírlevél külön, alapból üres négyzet, és csak az emailes megerősítésed után indul. A Most nem semmit sem küld. A Beállítások > Fiók és adatok megmutatja, pontosan mit tárolunk, be- és kikapcsolja a hírlevelet, és törli az adataidat."
+        }
+      }
+    ]
+  },
+  {
     "version": "1.12.0",
     "date": "2026-10-23",
     "headline": {

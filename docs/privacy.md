@@ -1,6 +1,6 @@
 # Privacy
 
-This page states what IntelyIDE stores on your Mac, what can leave it and when, and which of these statements a script re-checks. Applies to version 1.12.0.
+This page states what IntelyIDE stores on your Mac, what can leave it and when, and which of these statements a script re-checks. Applies to version 1.13.0.
 
 IntelyIDE does not track what you do: it has no analytics and no crash reports, and nothing about your work leaves your computer. One thing is optional and asks first: the first start offers to register this computer with the IntelyIDE registry (see [Registration and usage details](#registration-and-usage-details)); nothing is sent before you agree. Apart from that it makes a few network requests, only when you use the matching feature: your own `claude` installation talks to its vendor, `git` talks to your remotes, and the optional modules you switch on (MongoDB Studio, Remote, Happy) talk to the servers you configure.
 
