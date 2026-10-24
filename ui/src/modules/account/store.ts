@@ -79,10 +79,15 @@ export async function reconsent(accept: boolean): Promise<RegistryStatus> {
 export const openPrivacy = (): Promise<void> => registryApi().openExternal(PRIVACY_URL).catch(() => {});
 
 /** The words for a problem the person can act on; anything else shows the registry's own message. */
-export function problemKey(p: RegistryProblem): "account.err.offline" | "account.err.rateLimited" | "account.err.name" | "account.err.email" | "account.err.consent" | undefined {
+export function problemKey(p: RegistryProblem): "account.err.offline" | "account.err.unavailable" | "account.err.rateLimited" | "account.err.name" | "account.err.email" | "account.err.consent" | undefined {
   switch (p.code) {
     case "offline":
       return "account.err.offline";
+    // the registry answered, but not with what the app expects (a server error, or another service on the host): nothing the person can fix
+    case "badResponse":
+    case "server":
+    case "tryLater":
+      return "account.err.unavailable";
     case "rateLimited":
       return "account.err.rateLimited";
     case "invalidName":

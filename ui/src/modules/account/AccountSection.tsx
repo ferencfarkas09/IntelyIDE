@@ -3,7 +3,7 @@ import { fmt, t } from "../../i18n";
 import { Badge, Button, Dialog, FormGroup, FormRow, toast, type Tone } from "../../ui-kit";
 import { registryApi } from "./api";
 import "./account.css";
-import { forget, loadStatus, openPrivacy, openRegister, problemOf, setNewsletter, status } from "./store";
+import { forget, loadStatus, openPrivacy, openRegister, problemKey, problemOf, setNewsletter, status } from "./store";
 import type { StoredData } from "./types";
 
 const NEWSLETTER = {
@@ -27,7 +27,8 @@ export default function AccountSection() {
 
   const fail = (e: unknown) => {
     const p = problemOf(e);
-    toast.error(t("account.set.failed"), p.code === "offline" ? t("account.err.offline") : p.message);
+    const key = problemKey(p);
+    toast.error(t("account.set.failed"), key ? t(key) : p.message);
   };
 
   const show = async () => {
