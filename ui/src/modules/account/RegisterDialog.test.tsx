@@ -101,6 +101,19 @@ describe("the first-start screen", () => {
     expect(dialog()).toBe("register");
   });
 
+  it("says the registry is unavailable in the person's language when the host answers something unexpected", async () => {
+    const api = fake(base, { register: vi.fn(async () => Promise.reject({ code: "badResponse", message: "The registry answered with 404" })) });
+    render(() => <RegisterDialog />);
+    await screen.findByRole("dialog");
+    fill("Anna", "anna@example.com");
+    fireEvent.click(screen.getByRole("checkbox", { name: /I agree that this is stored/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Register" }));
+    expect(await screen.findByText("The registry is not available right now. Try again a little later.")).toBeTruthy();
+    expect(screen.queryByText(/answered with 404/)).toBeNull();
+    expect(api.register).toHaveBeenCalledOnce();
+    expect(dialog()).toBe("register");
+  });
+
   it("treats Not now and Escape as the same answer: nothing is sent and it is remembered", async () => {
     const api = fake(base);
     render(() => <RegisterDialog />);

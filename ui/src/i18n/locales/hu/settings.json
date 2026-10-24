@@ -155,6 +155,7 @@
   "account.err.email": "Adj meg érvényes email-címet.",
   "account.err.consent": "A regisztrációhoz pipáld be az elfogadást.",
   "account.err.offline": "A nyilvántartás nem érhető el. Ellenőrizd a kapcsolatot, és próbáld újra.",
+  "account.err.unavailable": "A nyilvántartás most nem érhető el. Próbáld újra egy kicsit később.",
   "account.err.rateLimited": "Túl sok próbálkozás. Várj pár percet, és próbáld újra.",
   "account.err.generic": "Ez nem sikerült: {message}",
   "account.again.title": "Az adatvédelmi tájékoztató megváltozott",

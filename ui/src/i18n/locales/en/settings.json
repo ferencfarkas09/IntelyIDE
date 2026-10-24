@@ -155,6 +155,7 @@
   "account.err.email": "Enter a valid email address.",
   "account.err.consent": "Tick the agreement to register.",
   "account.err.offline": "The registry could not be reached. Check the connection and try again.",
+  "account.err.unavailable": "The registry is not available right now. Try again a little later.",
   "account.err.rateLimited": "Too many tries. Wait a few minutes and try again.",
   "account.err.generic": "That did not work: {message}",
   "account.again.title": "The privacy notice changed",
