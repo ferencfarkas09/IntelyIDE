@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 pub const NOTICE: &str = "2026-10-23";
 
 /// Where the registry lives: the only host this crate talks to. Shown on the first-start screen and in Settings.
-pub const REGISTRY_URL: &str = "https://api.intelyhome.com";
+pub const REGISTRY_URL: &str = "https://registry.intelyhome.com";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
