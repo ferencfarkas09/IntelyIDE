@@ -52,7 +52,7 @@ export const SIDECAR_NET_FILE = "sidecar/src/sdk-install.ts";
 // (8) the capability set recorded for the main window (test asserts the same literal)
 export const EXPECTED_PERMISSIONS = ["core:default", "core:window:allow-start-dragging", "core:window:allow-toggle-maximize"];
 // (11) the one host crates/registry talks to (the optional registration the person agrees to on the first-start screen)
-export const REGISTRY_HOSTS = ["api.intelyhome.com"];
+export const REGISTRY_HOSTS = ["registry.intelyhome.com"];
 // (10) hosts of crates/updater/src/endpoints.rs (updater-spec 4.6); a suffix entry starts with a dot
 export const UPDATER_HOSTS = ["ferencfarkas09.github.io", "github.com", "raw.githubusercontent.com"];
 export const UPDATER_HOST_SUFFIXES = [".githubusercontent.com"];

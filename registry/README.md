@@ -57,7 +57,7 @@ pnpm exec wrangler secret put BREVO_API_KEY
 pnpm deploy
 ```
 
-Serve it on your own host by uncommenting `routes` in `wrangler.jsonc` (for example `api.intelyhome.com`, a host of a zone in your account). Then set `Cloudflare Access` for `/admin*` (Zero Trust > Access > Applications).
+`pnpm deploy` also serves the Worker on `registry.intelyhome.com` (`routes` in `wrangler.jsonc`): the app has that host built in, so the zone must be in your account and the name must not have a DNS record yet. Do not use `api.intelyhome.com`; that is the IntelyOpti API. Check it with `curl https://registry.intelyhome.com/v1/health`, which answers `{"ok":true,"notice":"..."}`. Then set `Cloudflare Access` for `/admin*` (Zero Trust > Access > Applications); leave `/v1/*` open, the app calls it.
 
 The privacy notice the app shows has a version, `NOTICE_VERSION` (a date). When the text changes, change the date in the app and here together; the app asks again for consent when the date of its notice is newer than the one it stored.
 

@@ -8,7 +8,7 @@ Every row of the tables below names the source file that implements it. Where a 
 
 ## Registration and usage details
 
-From version 1.13.0 the first start asks whether to register this computer with the IntelyIDE registry: a service run by the owner of the project on Cloudflare, reached at `api.intelyhome.com` (its code is in `registry/` in this repository, and `crates/registry` is the app side). Registering is optional. "Not now" sends nothing, and the screen does not come back by itself; you can register later in Settings > Account & data. This is privacy notice 2026-10-23, and the app asks again whenever the version of the notice changes (nothing is sent until you answer).
+From version 1.13.0 the first start asks whether to register this computer with the IntelyIDE registry: a service run by the owner of the project on Cloudflare, reached at `registry.intelyhome.com` (its code is in `registry/` in this repository, and `crates/registry` is the app side). Registering is optional. "Not now" sends nothing, and the screen does not come back by itself; you can register later in Settings > Account & data. This is privacy notice 2026-10-23, and the app asks again whenever the version of the notice changes (nothing is sent until you answer).
 
 What the registry stores when you agree, which is also what the first-start screen lists:
 

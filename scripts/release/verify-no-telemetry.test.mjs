@@ -376,22 +376,22 @@ describe("(10) updater endpoints", () => {
 describe("(11) registry host and notice", () => {
   const TYPES = (url, notice) => `pub const NOTICE: &str = "${notice}";\npub const REGISTRY_URL: &str = "${url}";\n`;
   const reg = (url, notice, privacy) => tree({ "crates/registry/src/types.rs": TYPES(url, notice), "docs/privacy.md": privacy });
-  const DOC = `${ALLOWED_CRATES.join(" ")} sdk-install api.intelyhome.com (notice 2026-10-23)\n`;
+  const DOC = `${ALLOWED_CRATES.join(" ")} sdk-install registry.intelyhome.com (notice 2026-10-23)\n`;
   it("is pending until the crate exists", () => assert.equal(checkRegistry(tree(), "x")[0].pending, true));
-  it("passes the recorded host and a stated notice", () => assert.deepEqual(checkRegistry(reg("https://api.intelyhome.com", "2026-10-23", DOC), DOC), []));
+  it("passes the recorded host and a stated notice", () => assert.deepEqual(checkRegistry(reg("https://registry.intelyhome.com", "2026-10-23", DOC), DOC), []));
   it("fails a host that is not recorded, a plain-http address and one with a path or a query", () => {
-    for (const url of ["https://example.com", "http://api.intelyhome.com", "https://api.intelyhome.com/v1", "https://api.intelyhome.com?x=1", "https://evil.api.intelyhome.com.example.com"]) {
+    for (const url of ["https://example.com", "http://registry.intelyhome.com", "https://registry.intelyhome.com/v1", "https://registry.intelyhome.com?x=1", "https://evil.registry.intelyhome.com.example.com"]) {
       assert.equal(checkRegistry(reg(url, "2026-10-23", DOC), DOC).length, 1, url);
     }
   });
   it("fails when docs/privacy.md does not name the host or does not state the notice version", () => {
-    const noHost = DOC.replace("api.intelyhome.com", "");
-    assert.match(checkRegistry(reg("https://api.intelyhome.com", "2026-10-23", noHost), noHost)[0].detail, /not named/);
+    const noHost = DOC.replace("registry.intelyhome.com", "");
+    assert.match(checkRegistry(reg("https://registry.intelyhome.com", "2026-10-23", noHost), noHost)[0].detail, /not named/);
     const oldNotice = DOC.replace("notice 2026-10-23", "notice 2025-01-01");
-    assert.match(checkRegistry(reg("https://api.intelyhome.com", "2026-10-23", oldNotice), oldNotice)[0].detail, /not stated/);
+    assert.match(checkRegistry(reg("https://registry.intelyhome.com", "2026-10-23", oldNotice), oldNotice)[0].detail, /not stated/);
   });
-  it("fails a NOTICE that is not a date", () => assert.equal(checkRegistry(reg("https://api.intelyhome.com", "soon", DOC), DOC).length, 1));
-  it("records exactly one host", () => assert.deepEqual(REGISTRY_HOSTS, ["api.intelyhome.com"]));
+  it("fails a NOTICE that is not a date", () => assert.equal(checkRegistry(reg("https://registry.intelyhome.com", "soon", DOC), DOC).length, 1));
+  it("records exactly one host", () => assert.deepEqual(REGISTRY_HOSTS, ["registry.intelyhome.com"]));
 });
 
 describe("driver and the real tree", () => {

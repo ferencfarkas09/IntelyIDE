@@ -16,8 +16,9 @@
   ],
   // Once a day: drop stale rate counters and computers not seen for RETENTION_DAYS, and ask the newsletter provider who confirmed.
   "triggers": { "crons": ["17 3 * * *"] },
-  // To serve it on your own domain, uncomment and use a host of a zone in your account:
-  // "routes": [{ "pattern": "api.intelyhome.com", "custom_domain": true }],
+  // The app has this host built in (crates/registry/src/types.rs). It must be a name of its own: api.intelyhome.com is the IntelyOpti API.
+  // `wrangler deploy` creates the DNS record; the zone must be in your account and the name must have no record yet.
+  "routes": [{ "pattern": "registry.intelyhome.com", "custom_domain": true }],
   "vars": {
     // The version (a date) of the privacy notice the app shows; stored with each consent.
     "NOTICE_VERSION": "2026-10-23",
