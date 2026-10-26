@@ -46,7 +46,7 @@ With `NEWSLETTER_PROVIDER` set to `brevo`, a ticked box makes the Worker ask Bre
 
 ```
 cd registry
-pnpm install --ignore-workspace
+pnpm install
 pnpm exec wrangler login
 pnpm exec wrangler d1 create intelyide-registry --jurisdiction eu    # copy the database_id it prints into wrangler.jsonc, under d1_databases
 pnpm migrate:remote
@@ -54,10 +54,12 @@ pnpm exec wrangler secret put PEPPER          # at least 16 random characters, n
 pnpm exec wrangler secret put ADMIN_TOKEN     # at least 24 characters
 BREVO_API_KEY=... pnpm brevo:setup --sender-email news@your-domain --sender-name IntelyIDE   # optional; then set the three vars it prints and:
 pnpm exec wrangler secret put BREVO_API_KEY
-pnpm deploy
+pnpm run deploy
 ```
 
-`pnpm deploy` also serves the Worker on `registry.intelyhome.com` (`routes` in `wrangler.jsonc`): the app has that host built in, so the zone must be in your account and the name must not have a DNS record yet. Do not use `api.intelyhome.com`; that is the IntelyOpti API. Check it with `curl https://registry.intelyhome.com/v1/health`, which answers `{"ok":true,"notice":"..."}`. Then set `Cloudflare Access` for `/admin*` (Zero Trust > Access > Applications); leave `/v1/*` open, the app calls it.
+Type `pnpm run deploy`, not `pnpm deploy`: pnpm has a built-in `deploy` command (it copies a workspace package into a folder) that never runs the script of `package.json`.
+
+`pnpm run deploy` also serves the Worker on `registry.intelyhome.com` (`routes` in `wrangler.jsonc`): the app has that host built in, so the zone must be in your account and the name must not have a DNS record yet. Do not use `api.intelyhome.com`; that is the IntelyOpti API. Check it with `curl https://registry.intelyhome.com/v1/health`, which answers `{"ok":true,"notice":"..."}`. Then set `Cloudflare Access` for `/admin*` (Zero Trust > Access > Applications); leave `/v1/*` open, the app calls it.
 
 The privacy notice the app shows has a version, `NOTICE_VERSION` (a date). When the text changes, change the date in the app and here together; the app asks again for consent when the date of its notice is newer than the one it stored.
 
@@ -65,7 +67,7 @@ The privacy notice the app shows has a version, `NOTICE_VERSION` (a date). When 
 
 ```
 cd registry
-pnpm install --ignore-workspace
+pnpm install
 pnpm typecheck
 pnpm test             # the handlers against real SQLite (node:sqlite), Brevo faked; seconds
 pnpm migrate:local && pnpm dev   # wrangler dev --local on 127.0.0.1:8788, with a local D1
