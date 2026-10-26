@@ -38,7 +38,7 @@ Binary frame 64 KB (over it: close 1009); control frame 8 KB; snapshot 128 KB de
 ## Run and test locally (no login, no network service)
 ```
 cd remote-relay
-pnpm install --ignore-workspace      # own lockfile, wrangler pinned to 4.147.0
+pnpm install                          # own pnpm root and lockfile, wrangler pinned to 4.147.0 (not --ignore-workspace: it skips allowBuilds in pnpm-workspace.yaml and pnpm 11 stops with ERR_PNPM_IGNORED_BUILDS)
 pnpm typecheck
 pnpm test:unit                        # pure functions, seconds
 pnpm test                             # starts wrangler dev on loopback three times, about 2 minutes on the Intel laptop
