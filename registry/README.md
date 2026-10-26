@@ -46,7 +46,7 @@ With `NEWSLETTER_PROVIDER` set to `brevo`, a ticked box makes the Worker ask Bre
 
 ```
 cd registry
-pnpm install --ignore-workspace
+pnpm install
 pnpm exec wrangler login
 pnpm exec wrangler d1 create intelyide-registry --jurisdiction eu    # copy the database_id it prints into wrangler.jsonc, under d1_databases
 pnpm migrate:remote
@@ -67,7 +67,7 @@ The privacy notice the app shows has a version, `NOTICE_VERSION` (a date). When 
 
 ```
 cd registry
-pnpm install --ignore-workspace
+pnpm install
 pnpm typecheck
 pnpm test             # the handlers against real SQLite (node:sqlite), Brevo faked; seconds
 pnpm migrate:local && pnpm dev   # wrangler dev --local on 127.0.0.1:8788, with a local D1
