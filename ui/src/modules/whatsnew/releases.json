@@ -1,5 +1,26 @@
 [
   {
+    "version": "1.13.1",
+    "date": "2026-10-26",
+    "headline": {
+      "en": "Registration now asks the right host. 1.13.0 asked another service and could not register anyone.",
+      "hu": "A regisztráció most a megfelelő szervert kérdezi. Az 1.13.0 egy másik szolgáltatást kérdezett, ezért senkit sem tudott regisztrálni."
+    },
+    "notes": [
+      {
+        "kind": "fixed",
+        "title": {
+          "en": "Registration works again",
+          "hu": "A regisztráció újra működik"
+        },
+        "text": {
+          "en": "Version 1.13.0 sent the registration to the wrong host, so the first-start screen ended with \"The registry answered with 404\" and nothing was registered. Version 1.13.1 asks the registry's own host, registry.intelyhome.com. If you typed your details into the screen in 1.13.0, they went to that other host, which refused them, and nowhere else. Register again in Settings > Account & data if you wish. An unexpected answer from the registry now shows a message in your language.",
+          "hu": "Az 1.13.0 rossz szervernek küldte a regisztrációt, ezért az első indítás képernyője \"A nyilvántartás 404-gyel válaszolt\" üzenettel ért véget, és senki sem regisztrált. Az 1.13.1 a nyilvántartás saját szerverét kérdezi, a registry.intelyhome.com címet. Ha az 1.13.0-ban beírtad az adataidat a képernyőre, azok ahhoz a másik szerverhez mentek, amely elutasította őket, máshová nem. Ha szeretnéd, regisztrálj újra a Beállítások > Fiók és adatok oldalon. A nyilvántartás váratlan válaszát mostantól a te nyelveden írjuk ki."
+        }
+      }
+    ]
+  },
+  {
     "version": "1.13.0",
     "date": "2026-10-23",
     "headline": {
