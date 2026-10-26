@@ -11,6 +11,17 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 - Website: a bigger IntelyIDE hero with three headline figures (up to 7x faster startup, up to 6x faster agents, about 30% fewer tokens), a Speed section with an illustrative comparison graphic and an "Agents that start and finish sooner" section, in English and Hungarian. The figures carry the note that results vary with workspace, machine and task.
 - Website: every page hero (home, IntelyIDE, IntelyOpti; English and Hungarian) now uses one shared design: frosted feature cards with pointer parallax, hover tilt and glow, and thin turning arcs behind. Under reduced motion the hero keeps its hover, glow and breathing effects without movement, and a footer toggle ("Animations") lets visitors choose full animations.
 
+## [1.13.1] - 2026-10-26
+
+### Fixed
+
+- **Registration in 1.13.0 could not work: it asked the wrong host.** Version 1.13.0 had `api.intelyhome.com` built in, which is the IntelyOpti API, another service of the owner. It did not know the registration request and answered 404, so the first-start screen ended with "The registry answered with 404" and nothing was registered. If you typed your name and email address into that screen, they went to that host, which answered 404, and nowhere else; no registration was made. The app now asks the registry's own host, `registry.intelyhome.com` (`docs/privacy.md`, the release check `verify-no-telemetry` and `registry/wrangler.jsonc` name the same host). Update to 1.13.1 and register again if you wish.
+- A registry answer the app does not expect (a server error, another service on the host) is now shown in your language ("The registry is not available right now. Try again a little later." / Hungarian) in the first-start screen and in Settings > Account & data, instead of the English text of the server.
+
+### Security
+
+- Updated `crypto-bigint` from 0.7.5 to 0.7.6 (a lock file update only) for a new RustSec advisory: the relay's signature code (`p256`/`ecdsa`) uses it, and the old version branched on secret integers, which can leak through timing.
+
 ## [1.13.0] - 2026-10-23
 
 ### Added
@@ -295,7 +306,8 @@ First public release. This is alpha software.
 - Providers other than Claude, Happy, MongoDB Studio and Remote are proven only against mocks or on a local machine.
 - Version 0.1.0 still stores its state in the folder `IntelySwitchIDE` and uses Keychain services named after the earlier bundle identifier; a switch to `com.intelyhome.intelyide` with a migration is planned.
 
-[Unreleased]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.13.0...HEAD
+[Unreleased]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.13.1...HEAD
+[1.13.1]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.13.0...v1.13.1
 [1.13.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.12.0...v1.13.0
 [1.12.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.11.0...v1.12.0
 [1.11.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.10.0...v1.11.0
