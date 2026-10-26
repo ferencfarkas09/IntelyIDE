@@ -20,7 +20,7 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 
 ### Security
 
-- Updated `crypto-bigint` from 0.7.5 to 0.7.6 (a lock file update only) for a new RustSec advisory: the relay's signature code (`p256`/`ecdsa`) uses it, and the old version branched on secret integers, which can leak through timing.
+- Updated `crypto-bigint` from 0.7.5 to 0.7.10 and `ctutils` to 0.4.6 (a lock file update only) for a new RustSec advisory: the relay's signature code (`p256`/`ecdsa`) uses them, and the old version branched on secret integers, which can leak through timing. Version 0.7.6, the first fixed one, was yanked, so the newest release is used.
 
 ## [1.13.0] - 2026-10-23
 

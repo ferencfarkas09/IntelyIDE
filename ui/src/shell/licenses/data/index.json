@@ -2,7 +2,7 @@
   "schema": 1,
   "generator": {
     "tool": "scripts/licenses/gen.mjs",
-    "cargoLockSha256": "081cfe981c94bfa7faf7b9d6480f202b0b9acc525fd5d8dc8e4522556231aaef",
+    "cargoLockSha256": "0d90fe7184d662ab36ca0c61e063ad9f379b7fee947bb0e64b07950c8e29c942",
     "pnpmLockSha256": {
       "root": "df9baa0a5a3fba972b303e06487d0ef0d94ce1c1964afb3d4f3bdb16339aec50",
       "remote-web": "671ec4d0bc03ce2b693a132dd3c59e313000320d28deb78e89f6db4f46c54998",
@@ -2814,10 +2814,10 @@
       "verdict": "ok"
     },
     {
-      "id": "cargo:crypto-bigint@0.7.6",
+      "id": "cargo:crypto-bigint@0.7.10",
       "kind": "cargo",
       "name": "crypto-bigint",
-      "version": "0.7.6",
+      "version": "0.7.10",
       "expression": "Apache-2.0 OR MIT",
       "chosen": [
         "MIT"
@@ -2834,7 +2834,7 @@
       ],
       "distributed": true,
       "homepage": "https://github.com/RustCrypto/crypto-bigint",
-      "sourceUrl": "https://crates.io/crates/crypto-bigint/0.7.6",
+      "sourceUrl": "https://crates.io/crates/crypto-bigint/0.7.10",
       "verdict": "ok"
     },
     {
@@ -3025,10 +3025,10 @@
       "verdict": "ok"
     },
     {
-      "id": "cargo:ctutils@0.4.5",
+      "id": "cargo:ctutils@0.4.6",
       "kind": "cargo",
       "name": "ctutils",
-      "version": "0.4.5",
+      "version": "0.4.6",
       "expression": "Apache-2.0 OR MIT",
       "chosen": [
         "MIT"
@@ -3045,7 +3045,7 @@
       ],
       "distributed": true,
       "homepage": "https://github.com/RustCrypto/utils",
-      "sourceUrl": "https://crates.io/crates/ctutils/0.4.5",
+      "sourceUrl": "https://crates.io/crates/ctutils/0.4.6",
       "verdict": "ok"
     },
     {
