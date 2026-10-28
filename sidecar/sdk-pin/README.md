@@ -71,6 +71,14 @@ The pin was then refreshed once, by hand, for three security releases in the tre
 6.17.0): only those three entries of the lock changed, and the manifest was regenerated from the `npm ci` tree of the new
 lock (6669 files, changes only in those three packages and in `package-lock.json`).
 
+It was refreshed a second time for the security advisories of the pinned peers: `@modelcontextprotocol/sdk` 1.31.0 to 1.32.1
+(four advisories, all fixed in 1.32.0; 1.32.1 is the same code plus documentation), `zod` 4.6.5 to 4.6.7 (fixed in 4.6.6) and the
+transitive `ip-address` 10.7.3 to 10.7.4 (the first fixed version; `express-rate-limit` asks for `^10.2.0`). The Agent SDK itself
+stays at 0.3.287 and its peer ranges (`@modelcontextprotocol/sdk ^1.29.0`, `zod ^4.0.0`) are met, so no `overrides` entry is needed.
+Again only those lock entries changed (npm computed them, the entries were merged into the committed lock), `npm ci` accepted every
+tarball, `npm audit` on that tree reports 0 vulnerabilities, and the manifest was regenerated from the `npm ci` tree (6669 files;
+changes only in those three packages and in `package.json` and `package-lock.json`).
+
 Still open: `npm audit signatures` (step 3 above, release gate G2) has **not** been run on the new tree, because the machine that
 made the change could not download the registry's signing keys. A human has to run it once (`npm ci --ignore-scripts
 --omit=optional` in a directory holding `package.json` and `package-lock.json`, then `npm audit signatures`) and look at the result.
