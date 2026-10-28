@@ -53,6 +53,15 @@ describe("version arithmetic", () => {
     expect(bumpBuild("9007199254740993")).toBe("9007199254740994");
   });
 
+  it("never offers a value the file could not hold", () => {
+    const bare = { ...f("version", "version", "1.5"), numeric: true };
+    expect(nextValue(bare, "minor")).toBe("1.6"); // two parts stay two parts
+    expect(nextValue(bare, "patch")).toBeUndefined(); // 1.5.1 is not a JSON number
+    const xcode = { ...f("MARKETING_VERSION", "version", "1.0.0", "App.xcodeproj/project.pbxproj"), kind: "pbxproj" as const };
+    expect(nextValue(xcode, "patch")).toBe("1.0.1");
+    expect(nextValue(f("CURRENT_PROJECT_VERSION", "build", "007"), "build")).toBe("8"); // no leading zero is written back
+  });
+
   it("applies a button only to the fields it is meant for", () => {
     expect(nextValue(f("version", "version", "1.0.0"), "patch")).toBe("1.0.1");
     expect(nextValue(f("version", "version", "1.0.0"), "build")).toBeUndefined();

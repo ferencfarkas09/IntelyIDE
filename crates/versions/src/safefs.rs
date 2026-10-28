@@ -33,7 +33,7 @@ fn stale<T>(rel: &str) -> Result<T, VersionsError> {
 #[cfg(unix)]
 mod imp {
     use super::*;
-    use rustix::fs::{fchmod, fstat, fsync, openat, renameat, unlinkat, AtFlags, FileType, Mode, OFlags, Stat, CWD};
+    use rustix::fs::{fchmod, fstat, openat, renameat, unlinkat, AtFlags, FileType, Mode, OFlags, Stat, CWD};
     use rustix::io::Errno;
     use std::fs::File;
     use std::io::{Read, Write};
@@ -113,7 +113,8 @@ mod imp {
         let result = (|| -> Result<(), VersionsError> {
             let mut f = File::from(fd);
             f.write_all(text.as_bytes()).map_err(io_err)?;
-            fsync(&f).map_err(errno_err)?;
+            // std flushes the disk cache too on macOS (a plain fsync does not)
+            f.sync_all().map_err(io_err)?;
             fchmod(&f, mode).map_err(errno_err)?;
             if let Some(want) = expect {
                 // one more look right before the swap: the time left for someone else's edit to be lost is that of this read

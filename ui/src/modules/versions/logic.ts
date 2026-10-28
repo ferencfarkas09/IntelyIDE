@@ -51,10 +51,13 @@ export function bumpBuild(value: string): string | undefined {
  */
 export const isPlaceholder = (field: Field): boolean => field.role === "version" && field.value === "0.0.0";
 
-/** The value of a field after pressing a button, or undefined when the button does not apply to it. */
+/**
+ * The value of a field after pressing a button, or undefined when the button does not apply to it. A button never makes a value
+ * the file could not hold (Patch on a bare number `1.5` would give `1.5.1`): such a field is left as it is.
+ */
 export function nextValue(field: Field, how: Bump | "build"): string | undefined {
-  if (how === "build") return field.role === "build" ? bumpBuild(field.value) : undefined;
-  return field.role === "version" && !isPlaceholder(field) ? bumpVersion(field.value, how) : undefined;
+  const next = how === "build" ? (field.role === "build" ? bumpBuild(field.value) : undefined) : field.role === "version" && !isPlaceholder(field) ? bumpVersion(field.value, how) : undefined;
+  return next !== undefined && validValue(field, next) ? next : undefined;
 }
 
 /** Edits for every field of the repo a button applies to; fields it does not apply to are left as they are. */
