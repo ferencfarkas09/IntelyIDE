@@ -114,6 +114,35 @@ describe("the first-start screen", () => {
     expect(dialog()).toBe("register");
   });
 
+  it("accepts an address with an apostrophe, which the registry and the app accept too", async () => {
+    const api = fake(base);
+    render(() => <RegisterDialog />);
+    await screen.findByRole("dialog");
+    fill("Anna O'Brien", "o'brien@example.com");
+    fireEvent.click(screen.getByRole("checkbox", { name: /I agree that this is stored/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Register" }));
+    await waitFor(() => expect(api.register).toHaveBeenCalledOnce());
+    expect((api.register.mock.calls[0][0] as { email: string }).email).toBe("o'brien@example.com");
+  });
+
+  it("does not take Escape for 'Not now' while the request is in flight: its answer decides", async () => {
+    let release: () => void = () => {};
+    const api = fake(base, { register: vi.fn(() => new Promise<RegistryStatus>((resolve) => (release = () => resolve(registered)))) });
+    render(() => <RegisterDialog />);
+    await screen.findByRole("dialog");
+    fill("Anna", "anna@example.com");
+    fireEvent.click(screen.getByRole("checkbox", { name: /I agree that this is stored/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Register" }));
+    await waitFor(() => expect(api.register).toHaveBeenCalledOnce());
+    fireEvent.keyDown(document, { key: "Escape" });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.queryByRole("dialog")).not.toBeNull();
+    expect(api.decline).not.toHaveBeenCalled();
+    release();
+    await waitFor(() => expect(dialog()).toBeUndefined());
+    expect(status()?.state).toBe("registered");
+  });
+
   it("treats Not now and Escape as the same answer: nothing is sent and it is remembered", async () => {
     const api = fake(base);
     render(() => <RegisterDialog />);

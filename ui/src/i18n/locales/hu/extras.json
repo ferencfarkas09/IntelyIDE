@@ -975,7 +975,7 @@
   "versions.section.title": "Verziók",
   "versions.section.desc": "Egy panel a munkaterület minden tárolójának verziójához: package.json, Xcode- és Android-buildszámok, Cargo, Tauri, Expo, pyproject és pubspec.",
   "versions.section.enable": "A Verziók panel megjelenítése",
-  "versions.section.enableDesc": "Hozzáadja a panelt és a parancsát. Amíg nem nyomod meg az Alkalmaz gombot, csak olvas, és soha nem commitol, és nem címkéz.",
+  "versions.section.enableDesc": "Hozzáadja a panelt és a parancsát. Amíg nem nyomod meg az Alkalmaz gombot, csak olvas, és soha nem commitol, illetve nem címkéz.",
   "versions.section.enableAria": "A Verziók panel megjelenítése",
   "versions.all": "Minden tároló",
   "versions.bump.patch": "Patch",
