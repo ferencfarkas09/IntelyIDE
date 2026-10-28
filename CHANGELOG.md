@@ -4,6 +4,8 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [1.14.0] - 2026-10-28
+
 ### Added
 
 - **Versions panel.** A new panel (command palette: Open Versions; Settings > Versions) lists the version files of every repository in the workspace and changes them together: `package.json` and its `package-lock.json`, Xcode `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`, literal `Info.plist` values, Android `versionName` and `versionCode`, `Cargo.toml`, `tauri.conf.json`, Expo `app.json`, `pyproject.toml` and `pubspec.yaml`. Patch, Minor, Major and Build +1 work on one repository or on all of them, any value can be typed, the exact diff is shown before anything is written, and a file that changed in the meantime is refused. Only the version text changes; nothing is committed or tagged and nothing leaves the computer (`docs/versions.md`). New: `crates/versions`, `src-tauri/src/modules/versions.rs` (`versions_scan`, `versions_plan`, `versions_apply`) and `ui/src/modules/versions`.
@@ -16,19 +18,14 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 
 - Updated the npm dependencies of the app and its tools to their newest minor and patch releases (the Solid and Vite toolchain, `lucide-solid`, CodeMirror, `marked`, `dompurify`, `jsdom`, Vitest, Wrangler, `@tauri-apps/cli`, `@tanstack/solid-virtual`) and the Rust dependencies (Tauri 2.12.5 and its build and runtime crates, `serde_json`, `uuid`, `sha2`, `zeroize`, `plist`, `libc`, `keyring-core`; lock file only). The virtual list library now measures its scroll area with `clientWidth` and `clientHeight`, so the test stubs that fake a layout in jsdom set those too; the app itself behaves the same.
 
-### Security
-
-- Refreshed the pinned tree of the Claude Agent SDK that the app installs (`sidecar/sdk-pin`) for three security releases of packages inside it: `fast-uri` 3.1.9 (four URI parsing and normalisation advisories), `body-parser` 2.4.0 (CVE-2026-111181, a crash on a malformed compressed body) and `qs` 6.17.0, which body-parser needs. Only those three lock entries changed; the tree manifest (`tree.sha256`) was regenerated from a real `npm ci` tree, and a real `npm ci` also reproduced the manifest that was committed before. The SDK version itself is unchanged. `npm audit signatures` still has to be run once by hand on the new tree (`sidecar/sdk-pin/README.md`).
-
-## [1.13.1] - 2026-10-26
-
 ### Fixed
 
-- **Registration in 1.13.0 could not work: it asked the wrong host.** Version 1.13.0 had `api.intelyhome.com` built in, which is the IntelyOpti API, another service of the owner. It did not know the registration request and answered 404, so the first-start screen ended with "The registry answered with 404" and nothing was registered. If you typed your name and email address into that screen, they went to that host, which answered 404, and nowhere else; no registration was made. The app now asks the registry's own host, `registry.intelyhome.com` (`docs/privacy.md`, the release check `verify-no-telemetry` and `registry/wrangler.jsonc` name the same host). Update to 1.13.1 and register again if you wish.
+- **Registration in 1.13.0 could not work: it asked the wrong host.** Version 1.13.0 had `api.intelyhome.com` built in, which is the IntelyOpti API, another service of the owner. It did not know the registration request and answered 404, so the first-start screen ended with "The registry answered with 404" and nothing was registered. If you typed your name and email address into that screen, they went to that host, which answered 404, and nowhere else; no registration was made. The app now asks the registry's own host, `registry.intelyhome.com` (`docs/privacy.md`, the release check `verify-no-telemetry` and `registry/wrangler.jsonc` name the same host). Update to 1.14.0 and register again if you wish. (A 1.13.1 with this fix was prepared but never published; everything in it is part of 1.14.0.)
 - A registry answer the app does not expect (a server error, another service on the host) is now shown in your language ("The registry is not available right now. Try again a little later." / Hungarian) in the first-start screen and in Settings > Account & data, instead of the English text of the server.
 
 ### Security
 
+- Refreshed the pinned tree of the Claude Agent SDK that the app installs (`sidecar/sdk-pin`) for three security releases of packages inside it: `fast-uri` 3.1.9 (four URI parsing and normalisation advisories), `body-parser` 2.4.0 (CVE-2026-111181, a crash on a malformed compressed body) and `qs` 6.17.0, which body-parser needs. Only those three lock entries changed; the tree manifest (`tree.sha256`) was regenerated from a real `npm ci` tree, and a real `npm ci` also reproduced the manifest that was committed before. The SDK version itself is unchanged. `npm audit signatures` still has to be run once by hand on the new tree (`sidecar/sdk-pin/README.md`).
 - Updated `crypto-bigint` from 0.7.5 to 0.7.10 and `ctutils` to 0.4.6 (a lock file update only) for a new RustSec advisory: the relay's signature code (`p256`/`ecdsa`) uses them, and the old version branched on secret integers, which can leak through timing. Version 0.7.6, the first fixed one, was yanked, so the newest release is used.
 
 ## [1.13.0] - 2026-10-23
@@ -315,8 +312,8 @@ First public release. This is alpha software.
 - Providers other than Claude, Happy, MongoDB Studio and Remote are proven only against mocks or on a local machine.
 - Version 0.1.0 still stores its state in the folder `IntelySwitchIDE` and uses Keychain services named after the earlier bundle identifier; a switch to `com.intelyhome.intelyide` with a migration is planned.
 
-[Unreleased]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.13.1...HEAD
-[1.13.1]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.13.0...v1.13.1
+[Unreleased]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.14.0...HEAD
+[1.14.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.13.0...v1.14.0
 [1.13.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.12.0...v1.13.0
 [1.12.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.11.0...v1.12.0
 [1.11.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.10.0...v1.11.0

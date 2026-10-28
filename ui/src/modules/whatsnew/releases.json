@@ -1,12 +1,23 @@
 [
   {
-    "version": "1.13.1",
-    "date": "2026-10-26",
+    "version": "1.14.0",
+    "date": "2026-10-28",
     "headline": {
-      "en": "Registration now asks the right host. 1.13.0 asked another service and could not register anyone.",
-      "hu": "A regisztráció most a megfelelő szervert kérdezi. Az 1.13.0 egy másik szolgáltatást kérdezett, ezért senkit sem tudott regisztrálni."
+      "en": "A Versions panel for every repository in your workspace, and registration that works.",
+      "hu": "Verziók panel a munkaterület minden repójához, és regisztráció, amely működik."
     },
     "notes": [
+      {
+        "kind": "new",
+        "title": {
+          "en": "Versions: see and change the version of every repository",
+          "hu": "Verziók: minden repó verziója egy helyen, együtt módosítható"
+        },
+        "text": {
+          "en": "The new Versions panel (command palette: Open Versions, or Settings > Versions) lists the version files of every repository in the workspace: package.json and its lock file, Xcode MARKETING_VERSION and CURRENT_PROJECT_VERSION, Info.plist, Android versionName and versionCode, Cargo.toml, tauri.conf.json, Expo app.json, pyproject.toml and pubspec.yaml. Patch, Minor, Major and Build +1 work on one repository or on all of them, and you can type any value. The exact diff is shown before anything is written, and a file that changed in the meantime is refused. Only the version text changes: nothing is committed or tagged, and nothing leaves your computer.",
+          "hu": "Az új Verziók panel (parancspaletta: Open Versions, vagy Beállítások > Verziók) a munkaterület minden repójának verziófájlját listázza: a package.json és a lock fájlja, az Xcode MARKETING_VERSION és CURRENT_PROJECT_VERSION, az Info.plist, az Android versionName és versionCode, a Cargo.toml, a tauri.conf.json, az Expo app.json, a pyproject.toml és a pubspec.yaml. A Patch, Minor, Major és Build +1 egy repón vagy mindegyiken működik, és tetszőleges értéket is beírhatsz. A pontos különbséget megmutatja, mielőtt bármit kiírna, a közben megváltozott fájlt pedig elutasítja. Csak a verziószöveg változik: semmi sem kerül commitba vagy címkére, és semmi sem hagyja el a gépedet."
+        }
+      },
       {
         "kind": "fixed",
         "title": {
@@ -14,8 +25,19 @@
           "hu": "A regisztráció újra működik"
         },
         "text": {
-          "en": "Version 1.13.0 sent the registration to the wrong host, so the first-start screen ended with \"The registry answered with 404\" and nothing was registered. Version 1.13.1 asks the registry's own host, registry.intelyhome.com. If you typed your details into the screen in 1.13.0, they went to that other host, which refused them, and nowhere else. Register again in Settings > Account & data if you wish. An unexpected answer from the registry now shows a message in your language.",
-          "hu": "Az 1.13.0 rossz szervernek küldte a regisztrációt, ezért az első indítás képernyője \"A nyilvántartás 404-gyel válaszolt\" üzenettel ért véget, és senki sem regisztrált. Az 1.13.1 a nyilvántartás saját szerverét kérdezi, a registry.intelyhome.com címet. Ha az 1.13.0-ban beírtad az adataidat a képernyőre, azok ahhoz a másik szerverhez mentek, amely elutasította őket, máshová nem. Ha szeretnéd, regisztrálj újra a Beállítások > Fiók és adatok oldalon. A nyilvántartás váratlan válaszát mostantól a te nyelveden írjuk ki."
+          "en": "Version 1.13.0 sent the registration to the wrong host, so the first-start screen ended with \"The registry answered with 404\" and nothing was registered. Version 1.14.0 asks the registry's own host, registry.intelyhome.com. If you typed your details into the screen in 1.13.0, they went to that other host, which refused them, and nowhere else. Register again in Settings > Account & data if you wish. An answer the app does not expect from the registry is now shown in your language.",
+          "hu": "Az 1.13.0 rossz szervernek küldte a regisztrációt, ezért az első indítás képernyője \"A nyilvántartás 404-gyel válaszolt\" üzenettel ért véget, és senki sem regisztrált. Az 1.14.0 a nyilvántartás saját szerverét kérdezi, a registry.intelyhome.com címet. Ha az 1.13.0-ban beírtad az adataidat a képernyőre, azok ahhoz a másik szerverhez mentek, amely elutasította őket, máshová nem. Ha szeretnéd, regisztrálj újra a Beállítások > Fiók és adatok oldalon. A nyilvántartás váratlan válaszát az alkalmazás mostantól a te nyelveden mutatja."
+        }
+      },
+      {
+        "kind": "improved",
+        "title": {
+          "en": "Updated components and security fixes",
+          "hu": "Frissített összetevők és biztonsági javítások"
+        },
+        "text": {
+          "en": "The Tauri framework, the interface libraries and the other dependencies are updated to their newest minor releases. Three packages inside the pinned Claude Agent SDK tree (fast-uri, body-parser and qs) and the crypto-bigint library used by the relay's signature code were updated for published security advisories.",
+          "hu": "A Tauri keretrendszer, a felületi könyvtárak és a többi függőség a legújabb kisebb kiadásukra frissült. A rögzített Claude Agent SDK-fában három csomag (fast-uri, body-parser és qs), valamint a relay aláírási kódja által használt crypto-bigint könyvtár a közzétett biztonsági figyelmeztetések miatt frissült."
         }
       }
     ]
@@ -168,7 +190,10 @@
     "notes": [
       {
         "kind": "new",
-        "title": { "en": "DeepPattern works as an integration", "hu": "A DeepPattern működő integráció" },
+        "title": {
+          "en": "DeepPattern works as an integration",
+          "hu": "A DeepPattern működő integráció"
+        },
         "text": {
           "en": "Settings > Integrations > DeepPattern takes you through DeepPattern's Decision Engine, a service that sends code, plans and ideas to a panel of models for a second opinion: install it, activate it, check it, add it to your agents and audit your uncommitted changes. The activation key goes into DeepPattern's own installer window, never into IntelyIDE.",
           "hu": "A Beállítások > Integrációk > DeepPattern végigvezet a DeepPattern Decision Engine beállításán. Ez egy olyan szolgáltatás, amely a kódot, a terveket és az ötleteket egy modelltestület elé viszi második véleményért: telepítés, aktiválás, ellenőrzés, hozzáadás az ügynökökhöz és a nem commitolt változásaid átvilágítása. Az aktiváló kulcs a DeepPattern saját telepítő ablakába kerül, sosem az IntelyIDE-be."
@@ -176,7 +201,10 @@
       },
       {
         "kind": "improved",
-        "title": { "en": "Generate writes the whole commit message", "hu": "A Generate az egész commitüzenetet megírja" },
+        "title": {
+          "en": "Generate writes the whole commit message",
+          "hu": "A Generate az egész commitüzenetet megírja"
+        },
         "text": {
           "en": "The Generate button asks your own Claude Code and gets a title, an English explanation and a Hungarian explanation (the layout of .gitmessage). In Shared mode one message covers every repository with ticked files; in Per repo mode every repository gets its own. Secret and generated files are never sent, and without Claude the message is composed on your Mac in the same layout.",
           "hu": "A Generate gomb a saját Claude Code-odat kérdezi, és címet, angol és magyar magyarázatot kap (a .gitmessage szerkezetében). Közös módban egy üzenet fedi le az összes kijelölt fájlt tartalmazó repót, repónkénti módban mindegyik repó a sajátját kapja. Titkos és generált fájlt sosem küld el, Claude nélkül pedig ugyanebben a szerkezetben a Mac-en állítja össze az üzenetet."
@@ -194,7 +222,10 @@
     "notes": [
       {
         "kind": "fixed",
-        "title": { "en": "Runs start much faster", "hu": "A futások sokkal gyorsabban indulnak" },
+        "title": {
+          "en": "Runs start much faster",
+          "hu": "A futások sokkal gyorsabban indulnak"
+        },
         "text": {
           "en": "The safety snapshot taken before a run now reads only the files that changed, and the repositories of a run are snapshotted together. On a large repository this took seconds per repository and made starts look stuck; now it takes a fraction of a second. The snapshot itself is the same.",
           "hu": "A futás előtti biztonsági pillanatkép most csak a megváltozott fájlokat olvassa be, és a futás repóiról egyszerre készül. Nagy repónál ez repónként másodpercekig tartott, és az indítás megakadtnak látszott; most a másodperc törtrésze. Maga a pillanatkép ugyanaz."
@@ -202,7 +233,10 @@
       },
       {
         "kind": "fixed",
-        "title": { "en": "The New run window no longer gets stuck", "hu": "Az Új futás ablak nem ragad el" },
+        "title": {
+          "en": "The New run window no longer gets stuck",
+          "hu": "Az Új futás ablak nem ragad el"
+        },
         "text": {
           "en": "Start no longer waits more than three seconds for the Auto preview. If you close the window while a run is starting, the run shows as a starting card, so a refusal is never lost.",
           "hu": "A Start gomb legfeljebb három másodpercig vár az Auto előnézetre. Ha az ablakot bezárod, miközben a futás indul, a futás indítási kártyaként marad meg, így egy elutasítás sosem vész el."
@@ -210,7 +244,10 @@
       },
       {
         "kind": "improved",
-        "title": { "en": "The Agent screen is a conversation", "hu": "Az Agent képernyő beszélgetés lett" },
+        "title": {
+          "en": "The Agent screen is a conversation",
+          "hu": "Az Agent képernyő beszélgetés lett"
+        },
         "text": {
           "en": "Your messages are bubbles on the right; the agent answers on the left with an avatar, its name and the time. Tool calls and requests line up under it, messages can be copied, three dots show while it works, and the message box is one rounded box.",
           "hu": "Az üzeneteid jobbra, buborékban jelennek meg; az ügynök balra válaszol avatarral, névvel és idővel. Az eszközhívások és a kérések alatta sorakoznak, az üzenetek másolhatók, munka közben három pont látszik, az üzenetmező pedig egy lekerekített doboz."
@@ -218,7 +255,10 @@
       },
       {
         "kind": "new",
-        "title": { "en": "Close finished runs", "hu": "Lefutott futások lezárása" },
+        "title": {
+          "en": "Close finished runs",
+          "hu": "Lefutott futások lezárása"
+        },
         "text": {
           "en": "Ready for review and Done show the newest five runs as one line each. Close a run with the x (or the Delete key), or a whole group with Undo; Closed (n) brings them back. Nothing is deleted.",
           "hu": "Az Átnézésre kész és a Kész csoport a legfrissebb öt futást egy-egy sorban mutatja. Egy futást az x-szel (vagy a Delete billentyűvel) zárhatsz be, egy egész csoportot visszavonással együtt; a Lezárt (n) gomb visszahozza őket. Semmi nem törlődik."
@@ -226,7 +266,10 @@
       },
       {
         "kind": "new",
-        "title": { "en": "Integrations catalog", "hu": "Integrációk katalógusa" },
+        "title": {
+          "en": "Integrations catalog",
+          "hu": "Integrációk katalógusa"
+        },
         "text": {
           "en": "Settings > Integrations now lists Happy, MCP servers and Sentry as cards (Happy and Sentry show whether they are connected), so connecting a service starts in one place. Happy opens its own screen inside the tab. DeepPattern is shown as planned.",
           "hu": "A Beállítások > Integrációk most kártyákon mutatja a Happy-t, az MCP-szervereket és a Sentryt (a Happy és a Sentry a csatlakozás állapotát is), így egy szolgáltatás csatlakoztatása egy helyen indul. A Happy a lapon belül saját képernyőn nyílik meg. A DeepPattern tervezettként látszik."
@@ -234,7 +277,10 @@
       },
       {
         "kind": "new",
-        "title": { "en": "Notifications by category", "hu": "Értesítések kategóriánként" },
+        "title": {
+          "en": "Notifications by category",
+          "hu": "Értesítések kategóriánként"
+        },
         "text": {
           "en": "In Settings > Integrations > Happy you choose for each kind of notification (orders, delivery, invoices, chat and more) whether it alerts you, shows quietly in the inbox, or is hidden. The count and the toasts follow.",
           "hu": "A Beállítások > Integrációk > Happy alatt minden értesítésfajtára (rendelés, szállítás, számla, csevegés és más) megadhatod, hogy riasszon, csendben megjelenjen a postaládában, vagy rejtve maradjon. A számláló és a felugró értesítések követik."
@@ -242,7 +288,10 @@
       },
       {
         "kind": "improved",
-        "title": { "en": "A slow start opens the run at once", "hu": "A lassú indítás azonnal megnyitja a futást" },
+        "title": {
+          "en": "A slow start opens the run at once",
+          "hu": "A lassú indítás azonnal megnyitja a futást"
+        },
         "text": {
           "en": "If the host has not answered after half a second, the run opens as a card that counts the seconds and becomes the run when it is ready. A refusal keeps its reason, with Edit and retry.",
           "hu": "Ha a gazda fél másodperc után sem válaszol, a futás egy másodperceket számláló kártyaként nyílik meg, és kész állapotban maga a futás lesz belőle. Elutasításnál az ok megmarad, a Szerkesztés és újra gombbal."
@@ -250,7 +299,10 @@
       },
       {
         "kind": "new",
-        "title": { "en": "This What's new window", "hu": "Ez az Újdonságok ablak" },
+        "title": {
+          "en": "This What's new window",
+          "hu": "Ez az Újdonságok ablak"
+        },
         "text": {
           "en": "It opens once after an update and lists what came in and what was fixed. Open it again any time from the command palette: What's new.",
           "hu": "Frissítés után egyszer megnyílik, és felsorolja, mi került bele és mit javítottunk. Bármikor újra megnyithatod a parancspalettáról: Újdonságok."
@@ -268,7 +320,10 @@
     "notes": [
       {
         "kind": "new",
-        "title": { "en": "Team invite links open the app", "hu": "A csapatmeghívó linkek megnyitják az appot" },
+        "title": {
+          "en": "Team invite links open the app",
+          "hu": "A csapatmeghívó linkek megnyitják az appot"
+        },
         "text": {
           "en": "Click an intely-team://join link and IntelyIDE opens on Settings > Team with the code filled in. You still tick the trust box and press Join yourself.",
           "hu": "Egy intely-team://join linkre kattintva az IntelyIDE a Beállítások > Csapat oldalon nyílik meg, a kóddal kitöltve. A bizalmi jelölőnégyzetet és a Csatlakozás gombot továbbra is te nyomod meg."
@@ -276,7 +331,10 @@
       },
       {
         "kind": "improved",
-        "title": { "en": "Several runs can work at once", "hu": "Több futás dolgozhat egyszerre" },
+        "title": {
+          "en": "Several runs can work at once",
+          "hu": "Több futás dolgozhat egyszerre"
+        },
         "text": {
           "en": "The limits are settings now (Settings > Roles > Runs at the same time): 12 runs by default, several runs may change one repository, and the memory budget is automatic.",
           "hu": "A korlátok beállításokká váltak (Beállítások > Szerepek > Egyidejű futások): alapból 12 futás, több futás is módosíthatja ugyanazt a repót, a memóriakeret pedig automatikus."
@@ -294,7 +352,10 @@
     "notes": [
       {
         "kind": "fixed",
-        "title": { "en": "The app could close by itself during a run", "hu": "Az app futás közben magától bezárulhatott" },
+        "title": {
+          "en": "The app could close by itself during a run",
+          "hu": "Az app futás közben magától bezárulhatott"
+        },
         "text": {
           "en": "A letter such as a or o with an accent right in front of a name or a colon in shared output could end the whole application. The filters now cut text only between characters.",
           "hu": "Egy ékezetes betű a megosztott kimenetben egy név vagy kettőspont előtt az egész alkalmazást leállíthatta. A szűrők már csak karakterek között vágnak."
@@ -302,7 +363,10 @@
       },
       {
         "kind": "fixed",
-        "title": { "en": "Joining a team on another Mac", "hu": "Csatlakozás csapathoz másik Macen" },
+        "title": {
+          "en": "Joining a team on another Mac",
+          "hu": "Csatlakozás csapathoz másik Macen"
+        },
         "text": {
           "en": "The join form now shows the relay's host and asks once whether you trust it, and every refusal says in plain words what is wrong.",
           "hu": "A csatlakozási űrlap megmutatja a relay gazdáját, és egyszer rákérdez, megbízol-e benne; minden elutasítás érthetően megmondja, mi a baj."
@@ -310,7 +374,10 @@
       },
       {
         "kind": "fixed",
-        "title": { "en": "First-run installer on Node 25", "hu": "Az első indítási telepítő Node 25-ön" },
+        "title": {
+          "en": "First-run installer on Node 25",
+          "hu": "Az első indítási telepítő Node 25-ön"
+        },
         "text": {
           "en": "The installer of the Claude agent SDK no longer fails with ERR_ACCESS_DENIED on Node 25.",
           "hu": "A Claude agent SDK telepítője Node 25-ön már nem fut ERR_ACCESS_DENIED hibára."
@@ -328,7 +395,10 @@
     "notes": [
       {
         "kind": "new",
-        "title": { "en": "Team chat in a run", "hu": "Csapatchat egy futásban" },
+        "title": {
+          "en": "Team chat in a run",
+          "hu": "Csapatchat egy futásban"
+        },
         "text": {
           "en": "Every shared run has a thread for the people looking at it, with unread counts and a banner. Chat is human to human: nothing in it is ever given to an agent.",
           "hu": "Minden megosztott futásnak van egy beszélgetése az azt nézőknek, olvasatlan számlálóval és értesítéssel. A chat emberek között zajlik: semmi nem jut el belőle az ügynökhöz."
@@ -336,7 +406,10 @@
       },
       {
         "kind": "new",
-        "title": { "en": "Follow-ups into a stopped run", "hu": "Utólagos kérés leállt futásba" },
+        "title": {
+          "en": "Follow-ups into a stopped run",
+          "hu": "Utólagos kérés leállt futásba"
+        },
         "text": {
           "en": "A teammate can suggest a follow-up to a run that has stopped. It waits for the owner's click before anything is sent.",
           "hu": "Egy csapattárs utólagos kérést javasolhat egy leállt futáshoz. A küldés előtt a tulajdonos kattintására vár."
@@ -344,7 +417,10 @@
       },
       {
         "kind": "new",
-        "title": { "en": "Commit list in Team", "hu": "Commit-lista a Csapatban" },
+        "title": {
+          "en": "Commit list in Team",
+          "hu": "Commit-lista a Csapatban"
+        },
         "text": {
           "en": "The Workspace tab lists the newest commits of the checked-out branch, and a new Commits view shows one timeline for every online teammate.",
           "hu": "A Munkaterület fül az aktuális ág legfrissebb commitjait listázza, az új Commitok nézet pedig egy közös idővonalat mutat minden elérhető csapattársról."

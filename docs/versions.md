@@ -1,6 +1,6 @@
 # Versions panel
 
-The Versions panel shows the version of every repository in the workspace and changes several of them together, so a release does not mean opening `package.json`, an Xcode project and a Gradle file one by one. Applies to version 1.13.1.
+The Versions panel shows the version of every repository in the workspace and changes several of them together, so a release does not mean opening `package.json`, an Xcode project and a Gradle file one by one. Applies to version 1.14.0.
 
 It is a lazy extra that starts switched on. Open it with the command palette (Open Versions); Settings > Versions turns it off. The panel only reads until you press Apply, and it never commits, tags or pushes: the edited files show up in the Changes tab like any other edit.
 

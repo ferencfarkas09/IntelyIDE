@@ -1,6 +1,6 @@
 # Privacy
 
-This page states what IntelyIDE stores on your Mac, what can leave it and when, and which of these statements a script re-checks. Applies to version 1.13.1.
+This page states what IntelyIDE stores on your Mac, what can leave it and when, and which of these statements a script re-checks. Applies to version 1.14.0.
 
 IntelyIDE does not track what you do: it has no analytics and no crash reports, and nothing about your work leaves your computer. One thing is optional and asks first: the first start offers to register this computer with the IntelyIDE registry (see [Registration and usage details](#registration-and-usage-details)); nothing is sent before you agree. Apart from that it makes a few network requests, only when you use the matching feature: your own `claude` installation talks to its vendor, `git` talks to your remotes, and the optional modules you switch on (MongoDB Studio, Remote, Happy) talk to the servers you configure.
 
@@ -8,7 +8,7 @@ Every row of the tables below names the source file that implements it. Where a 
 
 ## Registration and usage details
 
-From version 1.13.0 the first start asks whether to register this computer with the IntelyIDE registry: a service run by the owner of the project on Cloudflare, reached at `registry.intelyhome.com` (its code is in `registry/` in this repository, and `crates/registry` is the app side). Registering is optional. "Not now" sends nothing, and the screen does not come back by itself; you can register later in Settings > Account & data. This is privacy notice 2026-10-23, and the app asks again whenever the version of the notice changes (nothing is sent until you answer). Version 1.13.0 had the wrong host built in, `api.intelyhome.com`, which is another service of the owner (the IntelyOpti API). It did not know the request and refused it, so no registration was made; if you typed your details into the registration screen of 1.13.0, they went to that host and nowhere else. Version 1.13.1 uses `registry.intelyhome.com`.
+From version 1.13.0 the first start asks whether to register this computer with the IntelyIDE registry: a service run by the owner of the project on Cloudflare, reached at `registry.intelyhome.com` (its code is in `registry/` in this repository, and `crates/registry` is the app side). Registering is optional. "Not now" sends nothing, and the screen does not come back by itself; you can register later in Settings > Account & data. This is privacy notice 2026-10-23, and the app asks again whenever the version of the notice changes (nothing is sent until you answer). Version 1.13.0 had the wrong host built in, `api.intelyhome.com`, which is another service of the owner (the IntelyOpti API). It did not know the request and refused it, so no registration was made; if you typed your details into the registration screen of 1.13.0, they went to that host and nowhere else. Version 1.14.0 and later use `registry.intelyhome.com`.
 
 What the registry stores when you agree, which is also what the first-start screen lists:
 
