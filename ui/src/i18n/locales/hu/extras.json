@@ -970,6 +970,7 @@
   "runs.where.failedMany": "{name} ({count} futás): {message}",
   "runs.where.chip": "Itt fut: {name}",
   "versions.name": "Verziók",
+  "versions.invalidTip": "A fájl nem tudja tárolni ezt az értéket: egy JSON-szám számjegyeket és legfeljebb egy pontot fogad el, egy Xcode-projekt és a pubspec.yaml nem fogad el pluszjelet, a build számban pedig nem lehet vezető nulla.",
   "versions.cmd.open": "Verziók megnyitása",
   "versions.section.name": "Verziók",
   "versions.section.title": "Verziók",

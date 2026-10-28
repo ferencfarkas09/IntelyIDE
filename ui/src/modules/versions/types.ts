@@ -15,7 +15,7 @@ export interface Field {
   occurrences: number;
   /** The occurrences in the file do not all hold the same value; a change sets all of them. */
   mixed: boolean;
-  /** Written bare, not in quotes: only digits fit there (a JSON number, an Xcode build number). */
+  /** Written bare, not in quotes: only digits fit there (a JSON number, a Gradle versionCode, a pubspec build number). */
   numeric: boolean;
   /** Files that change together with this one (the package-lock.json beside a package.json). */
   companions: string[];

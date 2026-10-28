@@ -59,7 +59,7 @@ export default function VersionsTab() {
   /** A pending value the files would not accept: marked in the row, and Apply stays off. */
   const invalid = (repoId: string, f: Field): boolean => {
     const v = editsOf(repoId)[f.id];
-    return v !== undefined && v.trim() !== "" && v !== f.value && !validValue(f, v.trim());
+    return v !== undefined && v.trim() !== "" && v.trim() !== f.value && !validValue(f, v.trim());
   };
   const hasInvalid = createMemo(() => data().some((r) => r.fields.some((f) => invalid(r.repoId, f))));
 
@@ -221,7 +221,7 @@ export default function VersionsTab() {
                             {(f) => {
                               const shown = () => editsOf(repo.repoId)[f.id] ?? f.value;
                               return (
-                                <div class="ver__row" data-changed={shown() !== f.value ? "" : undefined}>
+                                <div class="ver__row" data-changed={shown().trim() !== f.value ? "" : undefined}>
                                   <span class="ver__key">
                                     {f.key}
                                     <Show when={f.role === "build"}>
@@ -237,6 +237,7 @@ export default function VersionsTab() {
                                     aria-label={`${nameOf(repo.repoId)} ${f.path} ${f.key}`}
                                     value={shown()}
                                     invalid={invalid(repo.repoId, f)}
+                                    title={invalid(repo.repoId, f) ? t("versions.invalidTip") : undefined}
                                     spellcheck={false}
                                     onInput={(e) => editField(repo, f, e.currentTarget.value)}
                                   />

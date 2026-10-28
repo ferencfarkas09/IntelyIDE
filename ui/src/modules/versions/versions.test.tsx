@@ -217,6 +217,20 @@ describe("<VersionsTab>", () => {
     await waitFor(() => expect(document.body.textContent).toContain("package.json changed since it was read"));
   });
 
+  it("says why a row is refused, and does not call a whitespace-only change a change", async () => {
+    setVersionsApi(fixture());
+    render(() => <VersionsTab />);
+    await waitFor(() => expect(screen.getByTestId("versions-repo-web")).toBeTruthy());
+    const input = screen.getByLabelText("web package.json version") as HTMLInputElement;
+    const row = input.closest(".ver__row") as HTMLElement;
+    fireEvent.input(input, { target: { value: "2.4.1 " } });
+    expect(row.hasAttribute("data-changed")).toBe(false);
+    expect(input.getAttribute("aria-invalid")).toBeNull();
+    fireEvent.input(input, { target: { value: "../x" } });
+    expect(input.getAttribute("aria-invalid")).toBe("true");
+    expect(input.getAttribute("title")).toMatch(/cannot hold this value/);
+  });
+
   it("names the repositories that have no version files and shows a read failure as text", async () => {
     setVersionsApi({ ...fixture(), scan: async () => [{ repoId: "docs", fields: [], truncated: false, skipped: [] }, { repoId: "web", fields: [f("version", "version", "1.0.0")], truncated: false, skipped: ["big/package.json is too large to read"] }] });
     render(() => <VersionsTab />);

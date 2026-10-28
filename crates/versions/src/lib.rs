@@ -54,7 +54,7 @@ pub struct Field {
     pub occurrences: u32,
     /// The occurrences do not all hold the same value; a change sets all of them.
     pub mixed: bool,
-    /// Written bare, not in quotes (a number in JSON, a build number in Xcode, Groovy or a pubspec): only digits fit there.
+    /// Written bare, not in quotes (a number in JSON, a Gradle `versionCode`, a pubspec build number): only digits fit there.
     pub numeric: bool,
     /// Files that change together with this one (the `package-lock.json` beside a `package.json`).
     pub companions: Vec<String>,
