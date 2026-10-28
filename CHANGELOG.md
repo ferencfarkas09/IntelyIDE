@@ -14,7 +14,7 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 
 ### Changed
 
-- Updated the npm dependencies of the app and its tools to their newest minor and patch releases (the Solid and Vite toolchain, `lucide-solid`, CodeMirror, `marked`, `dompurify`, `jsdom`, Vitest, Wrangler, `@tauri-apps/cli`, `@tanstack/solid-virtual`). The virtual list library now measures its scroll area with `clientWidth` and `clientHeight`, so the test stubs that fake a layout in jsdom set those too; the app itself behaves the same.
+- Updated the npm dependencies of the app and its tools to their newest minor and patch releases (the Solid and Vite toolchain, `lucide-solid`, CodeMirror, `marked`, `dompurify`, `jsdom`, Vitest, Wrangler, `@tauri-apps/cli`, `@tanstack/solid-virtual`) and the Rust dependencies (Tauri 2.12.5 and its build and runtime crates, `serde_json`, `uuid`, `sha2`, `zeroize`, `plist`, `libc`, `keyring-core`; lock file only). The virtual list library now measures its scroll area with `clientWidth` and `clientHeight`, so the test stubs that fake a layout in jsdom set those too; the app itself behaves the same.
 
 ## [1.13.1] - 2026-10-26
 
