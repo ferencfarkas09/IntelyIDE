@@ -143,7 +143,7 @@ fn plist(text: &str) -> Vec<Occ> {
         let s = after + (rest.len() - trimmed.len()) + "<string>".len();
         let Some(len) = body.find("</string>") else { continue };
         let range = s..s + len;
-        if range.is_empty() || text[range.clone()].contains("$(") {
+        if range.is_empty() || text[range.clone()].contains("$(") || text[range.clone()].contains('<') {
             continue;
         }
         out.push(occ(key, role, text, range));

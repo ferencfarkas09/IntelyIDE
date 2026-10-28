@@ -24,6 +24,8 @@ use formats::{occurrences, Occ};
 /// More than this and the repository is a collection of packages, not an app: the list stops and says so.
 const MAX_FIELDS: usize = 80;
 const MAX_CHANGES: usize = 200;
+/// A lock file may be big (a monorepo's is tens of megabytes); more than this is neither read nor written.
+const MAX_LOCK_BYTES: u64 = 64 * 1024 * 1024;
 
 /// One version a repository writes down, in one file under one key. A key that appears several times in the file
 /// (an Xcode target has a build configuration for Debug and Release, and there can be several targets) is one field.
@@ -91,7 +93,37 @@ fn io_err(e: std::io::Error) -> VersionsError {
     VersionsError { code: "io", message: e.to_string() }
 }
 
+fn cap_of(rel: &str) -> u64 {
+    if rel.ends_with("package-lock.json") {
+        MAX_LOCK_BYTES
+    } else {
+        walk::MAX_FILE_BYTES
+    }
+}
+
+/// `root/rel` as a file this crate may touch: a regular file (not a link, not a device) within the size cap, whose folders
+/// lead to it without leaving `root`. A repository can hold links (Git keeps them), so nothing here follows one.
+fn plain_file(root: &Path, rel: &str) -> Result<std::fs::Metadata, VersionsError> {
+    let full = root.join(rel);
+    let meta = std::fs::symlink_metadata(&full).map_err(io_err)?;
+    if !meta.file_type().is_file() {
+        return fail("notRegular", format!("{rel} is not a regular file"));
+    }
+    if meta.len() > cap_of(rel) {
+        return fail("tooLarge", format!("{rel} is larger than {} bytes", cap_of(rel)));
+    }
+    let inside = match (full.parent().map(std::fs::canonicalize), std::fs::canonicalize(root)) {
+        (Some(Ok(parent)), Ok(base)) => parent.starts_with(base),
+        _ => false,
+    };
+    if !inside {
+        return fail("outside", format!("{rel} is not inside the repository"));
+    }
+    Ok(meta)
+}
+
 fn read(root: &Path, rel: &str) -> Result<String, VersionsError> {
+    plain_file(root, rel)?;
     std::fs::read_to_string(root.join(rel)).map_err(io_err)
 }
 
@@ -117,7 +149,7 @@ fn companions(root: &Path, rel: &str, kind: Kind, key: &str, value: &str) -> Vec
         return Vec::new();
     }
     let lock = lock_path(rel);
-    match std::fs::read_to_string(root.join(&lock)) {
+    match read(root, &lock) {
         Ok(text) if !lock_ranges(&text, value).is_empty() => vec![lock],
         _ => Vec::new(),
     }
@@ -128,7 +160,7 @@ pub fn scan(root: &Path) -> Scan {
     let (cands, skipped) = walk::candidates(root);
     let mut out = Scan { fields: Vec::new(), truncated: false, skipped };
     for c in cands {
-        let Ok(text) = std::fs::read_to_string(root.join(&c.rel)) else {
+        let Ok(text) = read(root, &c.rel) else {
             out.skipped.push(format!("{} could not be read", c.rel));
             continue;
         };
@@ -228,6 +260,10 @@ fn compute(root: &Path, changes: &[Change]) -> Result<Vec<FileEdit>, VersionsErr
             continue;
         }
         repl.sort_by_key(|r| std::cmp::Reverse(r.0.start));
+        // two places that overlap would shift each other's offsets (a damaged file): refuse instead of guessing
+        if repl.windows(2).any(|w| w[1].0.end > w[0].0.start) {
+            return fail("overlap", format!("{rel} has version values that overlap; it is not changed"));
+        }
         let mut after = before.clone();
         for (range, to) in &repl {
             after.replace_range(range.clone(), to);
@@ -256,17 +292,27 @@ pub fn plan(root: &Path, changes: &[Change]) -> Result<Vec<FilePlan>, VersionsEr
 }
 
 fn write_atomic(root: &Path, rel: &str, text: &str) -> Result<(), VersionsError> {
+    use std::io::Write;
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+    // never write through, or replace, anything but a regular file inside the repository
+    let existing = plain_file(root, rel)?;
     let full = root.join(rel);
     let name = full.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-    let tmp = full.with_file_name(format!("{name}.intely-tmp"));
-    std::fs::write(&tmp, text).map_err(io_err)?;
-    if let Ok(m) = std::fs::metadata(&full) {
-        let _ = std::fs::set_permissions(&tmp, m.permissions());
-    }
-    std::fs::rename(&tmp, &full).map_err(|e| {
+    let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_nanos());
+    let tmp = full.with_file_name(format!(".{name}.intely-{}-{nanos:x}-{}.tmp", std::process::id(), COUNTER.fetch_add(1, Ordering::Relaxed)));
+    let result = (|| -> std::io::Result<()> {
+        // create_new is O_CREAT|O_EXCL: it fails on anything already at that name (a planted link included) instead of following it
+        let mut f = std::fs::OpenOptions::new().write(true).create_new(true).open(&tmp)?;
+        f.write_all(text.as_bytes())?;
+        f.sync_all()?;
+        std::fs::set_permissions(&tmp, existing.permissions())?;
+        std::fs::rename(&tmp, &full)
+    })();
+    if result.is_err() {
         let _ = std::fs::remove_file(&tmp);
-        io_err(e)
-    })
+    }
+    result.map_err(io_err)
 }
 
 /// Writes the changes and returns the files that were written. All or nothing: a file that changed since it was
@@ -281,12 +327,34 @@ pub fn apply(root: &Path, changes: &[Change]) -> Result<Vec<String>, VersionsErr
             Err(err) => Err(err),
         };
         if let Err(err) = result {
+            let mut stuck: Vec<&str> = Vec::new();
             for d in done.iter().rev() {
-                let _ = write_atomic(root, &d.rel, &d.before);
+                if write_atomic(root, &d.rel, &d.before).is_err() {
+                    stuck.push(&d.rel);
+                }
+            }
+            if !stuck.is_empty() {
+                return fail("partial", format!("{}; these files could not be put back and still hold the new version: {}", err.message, stuck.join(", ")));
             }
             return Err(err);
         }
         done.push(e);
     }
     Ok(edits.into_iter().map(|e| e.rel).collect())
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_folder_that_is_a_link_out_of_the_repository_is_refused() {
+        let root = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        std::fs::write(outside.path().join("package.json"), "{}").unwrap();
+        std::os::unix::fs::symlink(outside.path(), root.path().join("app")).unwrap();
+        assert_eq!(plain_file(root.path(), "app/package.json").unwrap_err().code, "outside");
+        assert_eq!(write_atomic(root.path(), "app/package.json", "x").unwrap_err().code, "outside");
+        assert_eq!(std::fs::read_to_string(outside.path().join("package.json")).unwrap(), "{}");
+    }
 }

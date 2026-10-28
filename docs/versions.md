@@ -33,7 +33,7 @@ A changed row is marked, and under Will change the panel shows the exact diff of
 
 ## Writing
 
-Apply writes one repository after the other. Within a repository it is all or nothing: if the version of a file changed on disk since it was read ("changed since it was read"), the repository is left as it was and the panel says why; press the refresh button and decide again. Only the characters of the version change. Indentation, quotes, line endings and everything around the value stay as they are, so the diff is the version lines and nothing else.
+Apply writes one repository after the other. Within a repository it is all or nothing: if the version of a file changed on disk since it was read ("changed since it was read"), the repository is left as it was and the panel says why; press the refresh button and decide again. Each file is written through a new temporary file in its own folder and renamed over the old one, and a file or folder that is a symbolic link is never followed or replaced (a repository can contain links, and Git keeps them): such a file is refused, and a `package-lock.json` that is a link or larger than 64 MB is left alone. If putting the files already written back fails, the panel names the files that still hold the new version. Only the characters of the version change. Indentation, quotes, line endings and everything around the value stay as they are, so the diff is the version lines and nothing else.
 
 In the read-only safety mode the panel can read but not write.
 

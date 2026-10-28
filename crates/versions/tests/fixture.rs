@@ -148,3 +148,77 @@ fn several_apps_in_one_repository_keep_their_own_fields() {
     apply(d.path(), &[change("pubspec.yaml#version", "2.1.0", "2.2.0"), change("pubspec.yaml#build", "9", "10")]).unwrap();
     assert_eq!(text(d.path(), "pubspec.yaml"), "name: mobile\nversion: 2.2.0+10\n");
 }
+
+#[cfg(unix)]
+#[test]
+fn a_planted_tmp_symlink_is_not_followed() {
+    // A repository can hold a link named like the writer's temporary file; Git keeps links, so a clone brings it along.
+    let d = tempfile::tempdir().unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    let victim = outside.path().join("victim");
+    fs::write(&victim, "KEEP").unwrap();
+    write(d.path(), "package.json", PACKAGE);
+    std::os::unix::fs::symlink(&victim, d.path().join("package.json.intely-tmp")).unwrap();
+    let r = apply(d.path(), &[change("package.json#version", "3.88.7", "3.88.8")]);
+    assert_eq!(fs::read_to_string(&victim).unwrap(), "KEEP", "the writer followed a planted <name>.intely-tmp link out of the repository");
+    assert!(r.is_ok());
+    assert!(text(d.path(), "package.json").contains("\"version\": \"3.88.8\""));
+    // and no temporary file is left behind
+    assert!(fs::read_dir(d.path()).unwrap().all(|e| !e.unwrap().file_name().to_string_lossy().ends_with(".tmp")));
+}
+
+#[cfg(unix)]
+#[test]
+fn a_version_file_that_is_a_link_is_refused() {
+    let d = tempfile::tempdir().unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    let ext = outside.path().join("package.json");
+    fs::write(&ext, PACKAGE).unwrap();
+    write(d.path(), "package.json", PACKAGE);
+    let before = scan(d.path());
+    assert_eq!(before.fields.len(), 1);
+    // the file is swapped for a link between the scan and the write
+    fs::remove_file(d.path().join("package.json")).unwrap();
+    std::os::unix::fs::symlink(&ext, d.path().join("package.json")).unwrap();
+    let err = apply(d.path(), &[change("package.json#version", "3.88.7", "3.88.8")]).unwrap_err();
+    assert!(matches!(err.code, "stale" | "notRegular"), "{err}");
+    assert_eq!(fs::read_to_string(&ext).unwrap(), PACKAGE, "the file behind the link was written");
+}
+
+#[cfg(unix)]
+#[test]
+fn a_symlinked_lock_file_is_neither_read_nor_replaced() {
+    let d = tempfile::tempdir().unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    let ext = outside.path().join("ext.json");
+    fs::write(&ext, LOCK).unwrap();
+    write(d.path(), "package.json", PACKAGE);
+    std::os::unix::fs::symlink(&ext, d.path().join("package-lock.json")).unwrap();
+    assert!(scan(d.path()).fields[0].companions.is_empty());
+    assert_eq!(apply(d.path(), &[change("package.json#version", "3.88.7", "3.88.8")]).unwrap(), vec!["package.json"]);
+    assert!(fs::symlink_metadata(d.path().join("package-lock.json")).unwrap().file_type().is_symlink());
+    assert_eq!(fs::read_to_string(&ext).unwrap(), LOCK);
+}
+
+#[test]
+fn a_lock_file_over_the_cap_is_left_alone() {
+    let d = tempfile::tempdir().unwrap();
+    write(d.path(), "package.json", PACKAGE);
+    let f = fs::File::create(d.path().join("package-lock.json")).unwrap();
+    f.set_len(65 * 1024 * 1024).unwrap();
+    assert!(scan(d.path()).fields[0].companions.is_empty());
+    assert_eq!(apply(d.path(), &[change("package.json#version", "3.88.7", "3.88.8")]).unwrap(), vec!["package.json"]);
+}
+
+#[test]
+fn a_damaged_plist_is_not_changed_beyond_its_version() {
+    // the first value never closes: its text would swallow the next key, so it is not a place to write
+    let d = tempfile::tempdir().unwrap();
+    let broken = "<plist version=\"1.0\">\n<dict>\n\t<key>CFBundleShortVersionString</key>\n\t<string>2.0.1\n\t<key>CFBundleVersion</key>\n\t<string>17</string>\n</dict>\n</plist>\n";
+    write(d.path(), "ios/Widget/Info.plist", broken);
+    let s = scan(d.path());
+    assert_eq!(s.fields.len(), 1, "{:?}", s.fields);
+    assert_eq!(s.fields[0].key, "CFBundleVersion");
+    apply(d.path(), &[change("ios/Widget/Info.plist#CFBundleVersion", "17", "18")]).unwrap();
+    assert_eq!(text(d.path(), "ios/Widget/Info.plist"), broken.replace("<string>17</string>", "<string>18</string>"));
+}
