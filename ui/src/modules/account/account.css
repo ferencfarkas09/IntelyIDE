@@ -13,4 +13,6 @@
 .account-set__table { width: 100%; border-collapse: collapse; font-size: var(--text-xs, 12px); }
 .account-set__table th { text-align: left; font-weight: 600; color: var(--fg-muted, #78716c); padding: 4px 12px 4px 0; white-space: nowrap; width: 40%; }
 .account-set__table td { padding: 4px 0; word-break: break-word; }
+/* the button above the table, not beside it (FormRow's control is a row) */
+.account-set__stored { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2, 8px); width: 100%; min-width: 0; }
 .account-set__row-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
