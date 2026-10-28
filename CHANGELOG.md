@@ -12,6 +12,10 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 - Website: a bigger IntelyIDE hero with three headline figures (up to 7x faster startup, up to 6x faster agents, about 30% fewer tokens), a Speed section with an illustrative comparison graphic and an "Agents that start and finish sooner" section, in English and Hungarian. The figures carry the note that results vary with workspace, machine and task.
 - Website: every page hero (home, IntelyIDE, IntelyOpti; English and Hungarian) now uses one shared design: frosted feature cards with pointer parallax, hover tilt and glow, and thin turning arcs behind. Under reduced motion the hero keeps its hover, glow and breathing effects without movement, and a footer toggle ("Animations") lets visitors choose full animations.
 
+### Changed
+
+- Updated the npm dependencies of the app and its tools to their newest minor and patch releases (the Solid and Vite toolchain, `lucide-solid`, CodeMirror, `marked`, `dompurify`, `jsdom`, Vitest, Wrangler, `@tauri-apps/cli`, `@tanstack/solid-virtual`). The virtual list library now measures its scroll area with `clientWidth` and `clientHeight`, so the test stubs that fake a layout in jsdom set those too; the app itself behaves the same.
+
 ## [1.13.1] - 2026-10-26
 
 ### Fixed

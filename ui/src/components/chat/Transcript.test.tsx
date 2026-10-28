@@ -216,6 +216,9 @@ describe("<Transcript> step limit", () => {
   beforeEach(() => {
     vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(900);
     vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(600);
+    // virtual-core 3.19 measures the scroller with clientWidth/clientHeight.
+    vi.spyOn(Element.prototype, "clientHeight", "get").mockReturnValue(900);
+    vi.spyOn(Element.prototype, "clientWidth", "get").mockReturnValue(600);
   });
   afterEach(() => vi.restoreAllMocks());
   const tool = (i: number, extra: object = {}) => ({ kind: "tool.start", toolId: `t${i}`, name: "Read", toolKind: "read", input: { file_path: "/a" }, ...extra });
@@ -245,6 +248,9 @@ describe("<Transcript> permission cards", () => {
   beforeEach(() => {
     vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(900);
     vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(600);
+    // virtual-core 3.19 measures the scroller with clientWidth/clientHeight.
+    vi.spyOn(Element.prototype, "clientHeight", "get").mockReturnValue(900);
+    vi.spyOn(Element.prototype, "clientWidth", "get").mockReturnValue(600);
   });
   afterEach(() => vi.restoreAllMocks());
   const exitPlan = { kind: "permission.request", reqId: "p1", toolId: "t1", intent: { class: "other", tool: "ExitPlanMode", summary: "ExitPlanMode: leave plan mode" }, options: ["allow_once", "deny"], plan: "## Plan\n1. do it", modes: ["ask", "edit", "automatic"] };
@@ -270,6 +276,9 @@ describe("<Transcript> as a conversation", () => {
   beforeEach(() => {
     vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(900);
     vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(600);
+    // virtual-core 3.19 measures the scroller with clientWidth/clientHeight.
+    vi.spyOn(Element.prototype, "clientHeight", "get").mockReturnValue(900);
+    vi.spyOn(Element.prototype, "clientWidth", "get").mockReturnValue(600);
   });
   afterEach(() => vi.restoreAllMocks());
   const NOW = 1_760_000_000_000;

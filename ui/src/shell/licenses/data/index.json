@@ -4,9 +4,9 @@
     "tool": "scripts/licenses/gen.mjs",
     "cargoLockSha256": "dd30f235f58d77d7c72e4fc08b3fe0d88df322102d9e12c44907c344a0ac7398",
     "pnpmLockSha256": {
-      "root": "df9baa0a5a3fba972b303e06487d0ef0d94ce1c1964afb3d4f3bdb16339aec50",
-      "remote-web": "671ec4d0bc03ce2b693a132dd3c59e313000320d28deb78e89f6db4f46c54998",
-      "remote-relay": "9791d04527320fab06cb764dae89f4fd70df39ed99d1dd132e882708469c2093"
+      "root": "0fe6185e64dca1b106fb5e97756f5b4d956caa46b7719c544073809572def13c",
+      "remote-web": "628d20ebdaa78e7c2c5791a1bbb5f0f7b9e3fb3df95db00db2b97f814783eff5",
+      "remote-relay": "98815c82702da15faa08ff6343d1ca6f3d4b999909134573db4db2767086a105"
     },
     "platforms": [
       "x86_64-apple-darwin",
@@ -26,7 +26,7 @@
   "groups": [
     {
       "id": "MIT",
-      "count": 433
+      "count": 435
     },
     {
       "id": "Unicode-3.0",
@@ -97,10 +97,10 @@
       "verdict": "attention"
     },
     {
-      "id": "npm:@codemirror/autocomplete@6.20.3",
+      "id": "npm:@codemirror/autocomplete@6.20.4",
       "kind": "npm",
       "name": "@codemirror/autocomplete",
-      "version": "6.20.3",
+      "version": "6.20.4",
       "expression": "MIT",
       "chosen": [
         "MIT"
@@ -313,10 +313,10 @@
       "verdict": "ok"
     },
     {
-      "id": "npm:@codemirror/language@6.12.4",
+      "id": "npm:@codemirror/language@6.13.1",
       "kind": "npm",
       "name": "@codemirror/language",
-      "version": "6.12.4",
+      "version": "6.13.1",
       "expression": "MIT",
       "chosen": [
         "MIT"
@@ -334,10 +334,10 @@
       "verdict": "ok"
     },
     {
-      "id": "npm:@codemirror/legacy-modes@6.5.4",
+      "id": "npm:@codemirror/legacy-modes@6.5.5",
       "kind": "npm",
       "name": "@codemirror/legacy-modes",
-      "version": "6.5.4",
+      "version": "6.5.5",
       "expression": "MIT",
       "chosen": [
         "MIT"
@@ -376,10 +376,10 @@
       "verdict": "ok"
     },
     {
-      "id": "npm:@codemirror/merge@6.12.2",
+      "id": "npm:@codemirror/merge@6.12.3",
       "kind": "npm",
       "name": "@codemirror/merge",
-      "version": "6.12.2",
+      "version": "6.12.3",
       "expression": "MIT",
       "chosen": [
         "MIT"
@@ -439,10 +439,31 @@
       "verdict": "ok"
     },
     {
-      "id": "npm:@codemirror/view@6.43.13",
+      "id": "npm:@codemirror/streamparser@6.0.0",
+      "kind": "npm",
+      "name": "@codemirror/streamparser",
+      "version": "6.0.0",
+      "expression": "MIT",
+      "chosen": [
+        "MIT"
+      ],
+      "copyright": [
+        "Copyright (C) 2018-2021 by Marijn Haverbeke <marijn@haverbeke.berlin> and others"
+      ],
+      "textIds": [
+        "7a91b4754c06"
+      ],
+      "shippedIn": [
+        "app"
+      ],
+      "distributed": true,
+      "verdict": "ok"
+    },
+    {
+      "id": "npm:@codemirror/view@6.43.15",
       "kind": "npm",
       "name": "@codemirror/view",
-      "version": "6.43.13",
+      "version": "6.43.15",
       "expression": "MIT",
       "chosen": [
         "MIT"
@@ -655,6 +676,27 @@
       "verdict": "ok"
     },
     {
+      "id": "npm:@lezer/lr@1.4.11",
+      "kind": "npm",
+      "name": "@lezer/lr",
+      "version": "1.4.11",
+      "expression": "MIT",
+      "chosen": [
+        "MIT"
+      ],
+      "copyright": [
+        "Copyright (C) 2018 by Marijn Haverbeke <marijn@haverbeke.berlin> and others"
+      ],
+      "textIds": [
+        "7a91b4754c06"
+      ],
+      "shippedIn": [
+        "app"
+      ],
+      "distributed": true,
+      "verdict": "ok"
+    },
+    {
       "id": "npm:@lezer/markdown@1.7.2",
       "kind": "npm",
       "name": "@lezer/markdown",
@@ -808,10 +850,10 @@
       "verdict": "ok"
     },
     {
-      "id": "npm:@tanstack/solid-virtual@3.13.40",
+      "id": "npm:@tanstack/solid-virtual@3.13.48",
       "kind": "npm",
       "name": "@tanstack/solid-virtual",
-      "version": "3.13.40",
+      "version": "3.13.48",
       "expression": "MIT",
       "chosen": [
         "MIT"
@@ -830,10 +872,10 @@
       "verdict": "ok"
     },
     {
-      "id": "npm:@tanstack/virtual-core@3.17.11",
+      "id": "npm:@tanstack/virtual-core@3.19.6",
       "kind": "npm",
       "name": "@tanstack/virtual-core",
-      "version": "3.17.11",
+      "version": "3.19.6",
       "expression": "MIT",
       "chosen": [
         "MIT"
@@ -852,10 +894,10 @@
       "verdict": "ok"
     },
     {
-      "id": "npm:@tauri-apps/api@2.12.1",
+      "id": "npm:@tauri-apps/api@2.12.4",
       "kind": "npm",
       "name": "@tauri-apps/api",
-      "version": "2.12.1",
+      "version": "2.12.4",
       "expression": "Apache-2.0 OR MIT",
       "chosen": [
         "MIT"
@@ -3562,10 +3604,10 @@
       "verdict": "ok"
     },
     {
-      "id": "npm:dompurify@3.4.16",
+      "id": "npm:dompurify@3.4.17",
       "kind": "npm",
       "name": "dompurify",
-      "version": "3.4.16",
+      "version": "3.4.17",
       "expression": "MPL-2.0 OR Apache-2.0",
       "chosen": [
         "Apache-2.0"
@@ -5753,10 +5795,10 @@
       "verdict": "ok"
     },
     {
-      "id": "npm:lucide-solid@1.49.0",
+      "id": "npm:lucide-solid@1.61.0",
       "kind": "npm",
       "name": "lucide-solid",
-      "version": "1.49.0",
+      "version": "1.61.0",
       "expression": "ISC",
       "chosen": [
         "ISC"
@@ -5869,10 +5911,10 @@
       "verdict": "ok"
     },
     {
-      "id": "npm:marked@18.0.14",
+      "id": "npm:marked@18.1.1",
       "kind": "npm",
       "name": "marked",
-      "version": "18.0.14",
+      "version": "18.1.1",
       "expression": "MIT",
       "chosen": [
         "MIT"
@@ -8706,10 +8748,10 @@
       "verdict": "ok"
     },
     {
-      "id": "npm:seroval@1.5.6",
+      "id": "npm:seroval@1.6.11",
       "kind": "npm",
       "name": "seroval",
-      "version": "1.5.6",
+      "version": "1.6.11",
       "expression": "MIT",
       "chosen": [
         "MIT"
@@ -8727,10 +8769,10 @@
       "verdict": "ok"
     },
     {
-      "id": "npm:seroval-plugins@1.5.6",
+      "id": "npm:seroval-plugins@1.6.11",
       "kind": "npm",
       "name": "seroval-plugins",
-      "version": "1.5.6",
+      "version": "1.6.11",
       "expression": "MIT",
       "chosen": [
         "MIT"
@@ -9111,10 +9153,10 @@
       "verdict": "ok"
     },
     {
-      "id": "npm:solid-js@1.9.15",
+      "id": "npm:solid-js@1.9.17",
       "kind": "npm",
       "name": "solid-js",
-      "version": "1.9.15",
+      "version": "1.9.17",
       "expression": "MIT",
       "chosen": [
         "MIT"

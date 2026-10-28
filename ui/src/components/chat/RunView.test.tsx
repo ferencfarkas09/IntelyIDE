@@ -12,6 +12,9 @@ installDomStubs();
 beforeEach(() => {
   vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(900);
   vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(600);
+  // virtual-core 3.19 measures the scroller with clientWidth/clientHeight.
+  vi.spyOn(Element.prototype, "clientHeight", "get").mockReturnValue(900);
+  vi.spyOn(Element.prototype, "clientWidth", "get").mockReturnValue(600);
 });
 afterEach(() => {
   vi.restoreAllMocks();
