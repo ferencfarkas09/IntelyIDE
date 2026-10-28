@@ -62,9 +62,16 @@ installer (`docs/release-packaging-spec.md` 5.5) produces the same tree without 
 
 ## Provenance of the files committed today (read this)
 
-The committed `package-lock.json` and `tree.sha256` were **derived offline** from the already-installed pnpm tree of
-this checkout (`pnpm-lock.yaml` integrity values, the package files in the pnpm store), without contacting the npm
-registry. The package files are the tarball bytes, so the hashes should equal what `npm ci` produces, but this has
-**not** been proven with a real `npm ci` and `npm audit signatures` (release gate G2, which also covers the installer).
-Until a human has done step 2 to 4 above once and `hash-tree.mjs --check` matches, treat the packaged-install path as unproven: a wrong manifest fails closed
-(`sdk_unverified`), it cannot make the loader accept a different tree.
+The first `package-lock.json` and `tree.sha256` were **derived offline** from the installed pnpm tree of the checkout
+(`pnpm-lock.yaml` integrity values, the package files in the pnpm store). That derivation has since been checked
+against the real thing: `npm ci --ignore-scripts --omit=optional` (npm 10.9.4, Node 22) in an empty directory with
+that lock reproduced `tree.sha256` exactly, 6666 files, and `npm ci` accepts the integrity hash of every tarball.
+
+The pin was then refreshed once, by hand, for three security releases in the tree (body-parser 2.4.0, fast-uri 3.1.9, qs
+6.17.0): only those three entries of the lock changed, and the manifest was regenerated from the `npm ci` tree of the new
+lock (6669 files, changes only in those three packages and in `package-lock.json`).
+
+Still open: `npm audit signatures` (step 3 above, release gate G2) has **not** been run on the new tree, because the machine that
+made the change could not download the registry's signing keys. A human has to run it once (`npm ci --ignore-scripts
+--omit=optional` in a directory holding `package.json` and `package-lock.json`, then `npm audit signatures`) and look at the result.
+A wrong manifest fails closed (`sdk_unverified`); it cannot make the loader accept a different tree.
