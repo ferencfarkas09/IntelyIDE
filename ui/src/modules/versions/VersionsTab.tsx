@@ -108,6 +108,7 @@ export default function VersionsTab() {
       const next: Record<string, FilePlan[]> = {};
       const errs: Record<string, string> = {};
       for (const r of repoList) {
+        if (mine !== seq) return; // a newer edit has started its own round: this one's answers would be dropped anyway
         const ch = changesOf(r, e[r.repoId] ?? {});
         if (!ch.length || ch.some((c) => !validValue(r.fields.find((f) => f.id === c.id)!, c.to))) continue;
         try {
@@ -299,6 +300,14 @@ export default function VersionsTab() {
 
           <Show when={withoutFiles().length}>
             <p class="ver__hint ver__none">{t("versions.noFiles", { names: fmt.list(withoutFiles().map((r) => nameOf(r.repoId))) })}</p>
+            {/* a repository with nothing listed may still have had files left out: say which and why, not only "no version files" */}
+            <For each={withoutFiles().filter((r) => r.skipped.length > 0)}>
+              {(repo) => (
+                <For each={repo.skipped}>
+                  {(s) => <p class="ver__note"><Icon icon={TriangleAlert} size={12} /> {nameOf(repo.repoId)}: {s}</p>}
+                </For>
+              )}
+            </For>
           </Show>
 
           <Show when={Object.keys({ ...planErrors(), ...applyErrors() }).length}>

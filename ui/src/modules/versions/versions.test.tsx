@@ -12,7 +12,7 @@ afterEach(() => {
   setVersionsApi(undefined);
 });
 
-const f = (key: string, role: Field["role"], value: string, path = "package.json"): Field => ({ id: `${path}#${key}`, path, kind: "packageJson", key, role, value, occurrences: 1, mixed: false, companions: [] });
+const f = (key: string, role: Field["role"], value: string, path = "package.json"): Field => ({ id: `${path}#${key}`, path, kind: "packageJson", key, role, value, occurrences: 1, mixed: false, numeric: role === "build", companions: [] });
 const repo = (fields: Field[]): RepoVersions => ({ repoId: "r", fields, truncated: false, skipped: [] });
 
 describe("version arithmetic", () => {
@@ -50,6 +50,7 @@ describe("version arithmetic", () => {
     expect(bumpBuild("9")).toBe("10");
     expect(bumpBuild("1.4")).toBe("1.5");
     expect(bumpBuild("abc")).toBeUndefined();
+    expect(bumpBuild("9007199254740993")).toBe("9007199254740994");
   });
 
   it("applies a button only to the fields it is meant for", () => {
@@ -102,6 +103,20 @@ describe("pending edits", () => {
     expect(validValue(f("version", "version", "1.0.0"), "")).toBe(false);
     expect(validValue(f("b", "build", "1"), "12")).toBe(true);
     expect(validValue(f("b", "build", "1"), "1.x")).toBe(false);
+  });
+
+  it("refuses what a bare number, an Xcode project or a pubspec cannot hold", () => {
+    const bare = { ...f("version", "version", "1.5"), numeric: true };
+    expect(validValue(bare, "2.0")).toBe(true);
+    expect(validValue(bare, "2.0.1")).toBe(false); // JSON: a number has one dot
+    expect(validValue(bare, "2-beta")).toBe(false);
+    expect(validValue(bare, "01.5")).toBe(false);
+    expect(validValue(f("b", "build", "1"), "007")).toBe(false); // read as octal by Groovy
+    expect(validValue({ ...f("b", "build", "1"), numeric: false }, "1.4")).toBe(true); // a quoted build string may be dotted
+    expect(validValue(f("b", "build", "1"), "1.4")).toBe(false); // a bare build number may not
+    expect(validValue({ ...f("MARKETING_VERSION", "version", "1.0", "App.xcodeproj/project.pbxproj"), kind: "pbxproj" }, "1.0+7")).toBe(false);
+    expect(validValue({ ...f("version", "version", "1.0.0", "pubspec.yaml"), kind: "pubspec" }, "1.0.0+7")).toBe(false);
+    expect(validValue(f("version", "version", "1.0.0"), "1.0.0+7")).toBe(true);
   });
 });
 
@@ -198,6 +213,11 @@ describe("<VersionsTab>", () => {
     render(() => <VersionsTab />);
     await waitFor(() => expect(screen.getByText(/No version files found in docs/)).toBeTruthy());
     expect(screen.getByText(/too large to read/)).toBeTruthy();
+    cleanup();
+    // a repository whose only file was left out is not "without version files" in silence: the reason is shown with its name
+    setVersionsApi({ ...fixture(), scan: async () => [{ repoId: "docs", fields: [], truncated: false, skipped: ["package.json is too large to read"] }] });
+    render(() => <VersionsTab />);
+    await waitFor(() => expect(screen.getByText(/docs: package.json is too large to read/)).toBeTruthy());
     cleanup();
     setVersionsApi({ ...fixture(), scan: async () => Promise.reject({ code: "io", message: "disk gone" }) });
     render(() => <VersionsTab />);

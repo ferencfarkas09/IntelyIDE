@@ -222,3 +222,165 @@ fn a_damaged_plist_is_not_changed_beyond_its_version() {
     apply(d.path(), &[change("ios/Widget/Info.plist#CFBundleVersion", "17", "18")]).unwrap();
     assert_eq!(text(d.path(), "ios/Widget/Info.plist"), broken.replace("<string>17</string>", "<string>18</string>"));
 }
+
+fn package(root: &Path, json: &str) {
+    write(root, "package.json", json);
+}
+
+fn only(root: &Path) -> intely_versions::Field {
+    scan(root).fields.into_iter().find(|f| f.id == "package.json#version").expect("version field")
+}
+
+#[test]
+fn a_bare_number_takes_a_number_and_nothing_else() {
+    let d = tempfile::tempdir().unwrap();
+    package(d.path(), "{ \"version\": 1.5 }\n");
+    let f = only(d.path());
+    assert!(f.numeric);
+    for bad in ["1.5.1", "2-beta", "01.5", "1e3", "+1", "", " 2"] {
+        let e = plan(d.path(), &[change(&f.id, "1.5", bad)]).unwrap_err();
+        assert!(e.code == "badValue", "{bad}: {}", e.code);
+    }
+    apply(d.path(), &[change(&f.id, "1.5", "2.25")]).unwrap();
+    assert_eq!(text(d.path(), "package.json"), "{ \"version\": 2.25 }\n");
+}
+
+#[test]
+fn a_quoted_version_takes_the_usual_characters_and_a_plus_only_where_the_file_can_hold_it() {
+    let d = tempfile::tempdir().unwrap();
+    package(d.path(), "{ \"version\": \"1.0.0\" }\n");
+    let f = only(d.path());
+    assert!(!f.numeric);
+    apply(d.path(), &[change(&f.id, "1.0.0", "1.0.1-rc.1+build.7")]).unwrap();
+    // a bare Xcode value stops at `+`
+    write(d.path(), "ios/App.xcodeproj/project.pbxproj", PBXPROJ);
+    let id = "ios/App.xcodeproj/project.pbxproj#MARKETING_VERSION";
+    assert!(plan(d.path(), &[change(id, "1.2.3", "1.2.4+9")]).is_err());
+    assert!(plan(d.path(), &[change(id, "1.2.3", "1.2.4")]).is_ok());
+}
+
+#[test]
+fn a_build_number_has_no_leading_zero() {
+    let d = tempfile::tempdir().unwrap();
+    write(d.path(), "android/app/build.gradle", GRADLE);
+    let id = "android/app/build.gradle#versionCode";
+    for bad in ["007", "01", "1.4", "", "x"] {
+        assert!(plan(d.path(), &[change(id, "12", bad)]).is_err(), "{bad}");
+    }
+    apply(d.path(), &[change(id, "12", "0")]).unwrap();
+    assert!(text(d.path(), "android/app/build.gradle").contains("versionCode 0\n"));
+}
+
+#[test]
+fn a_value_that_is_a_variable_a_tag_or_huge_is_not_listed() {
+    let d = tempfile::tempdir().unwrap();
+    let huge = "9".repeat(5000);
+    write(d.path(), "android/app/build.gradle", &format!("android {{\n    defaultConfig {{\n        versionCode 12\n        versionName \"{huge}\"\n    }}\n}}\n"));
+    write(d.path(), "ios/Widget/Info.plist", "<plist><dict>\n<key>CFBundleShortVersionString</key>\n<string>$(X)</string>\n<key>CFBundleVersion</key>\n<string><b>2</b></string>\n</dict></plist>\n");
+    let s = scan(d.path());
+    let ids: Vec<&str> = s.fields.iter().map(|f| f.id.as_str()).collect();
+    assert_eq!(ids, vec!["android/app/build.gradle#versionCode"], "{ids:?}");
+}
+
+#[test]
+fn a_string_with_a_raw_line_break_is_a_damaged_file_and_is_left_alone() {
+    let d = tempfile::tempdir().unwrap();
+    package(d.path(), "{ \"version\": \"1.0\n.0\" }\n");
+    assert!(scan(d.path()).fields.iter().all(|f| f.path != "package.json"));
+}
+
+#[test]
+fn a_utf8_byte_order_mark_does_not_hide_the_first_line() {
+    let d = tempfile::tempdir().unwrap();
+    write(d.path(), "android/app/build.gradle", &["\u{feff}", GRADLE].concat());
+    // the first line of a gradle file is not what carries the versions, so put one there too
+    write(d.path(), "app/build.gradle", "\u{feff}versionCode 3\n");
+    let s = scan(d.path());
+    assert!(s.fields.iter().any(|f| f.id == "app/build.gradle#versionCode" && f.value == "3"), "{:?}", s.fields.iter().map(|f| &f.id).collect::<Vec<_>>());
+    apply(d.path(), &[change("app/build.gradle#versionCode", "3", "4")]).unwrap();
+    assert_eq!(text(d.path(), "app/build.gradle"), "\u{feff}versionCode 4\n");
+}
+
+#[cfg(unix)]
+#[test]
+fn a_read_only_file_is_refused_and_nothing_is_written() {
+    use std::os::unix::fs::PermissionsExt;
+    let d = repo();
+    let ro = d.path().join("android/app/build.gradle");
+    fs::set_permissions(&ro, fs::Permissions::from_mode(0o444)).unwrap();
+    // a root user can write anywhere; the refusal is about the mode bits, which are what the person set on purpose
+    let r = apply(d.path(), &[change("package.json#version", "3.88.7", "3.88.8"), change("android/app/build.gradle#versionName", "1.4.0", "1.4.1")]);
+    fs::set_permissions(&ro, fs::Permissions::from_mode(0o644)).unwrap();
+    assert_eq!(r.unwrap_err().code, "readOnly");
+    assert_eq!(text(d.path(), "package.json"), PACKAGE);
+    assert_eq!(text(d.path(), "package-lock.json"), LOCK);
+}
+
+#[test]
+fn several_places_in_a_big_file_are_written_in_one_pass_and_keep_every_other_byte() {
+    let d = tempfile::tempdir().unwrap();
+    let mut body = String::from("// !$*UTF8*$!\n{\n\tobjects = {\n");
+    for i in 0..3000 {
+        body.push_str(&format!("\t\tT{i} = {{\n\t\t\tbuildSettings = {{\n\t\t\t\tMARKETING_VERSION = 1.2.3;\n\t\t\t}};\n\t\t}};\n"));
+    }
+    body.push_str("\t};\n}\n");
+    write(d.path(), "ios/App.xcodeproj/project.pbxproj", &body);
+    let id = "ios/App.xcodeproj/project.pbxproj#MARKETING_VERSION";
+    let f = scan(d.path()).fields.into_iter().find(|f| f.id == id).unwrap();
+    assert_eq!(f.occurrences, 3000);
+    apply(d.path(), &[change(id, "1.2.3", "1.2.4")]).unwrap();
+    assert_eq!(text(d.path(), "ios/App.xcodeproj/project.pbxproj"), body.replace("1.2.3", "1.2.4"));
+}
+
+/// A process beside the app swaps a folder of the repository for a link to somewhere else while Apply runs. The write goes into the
+/// folder that was checked (it is held open), never through the link, so the other folder is never touched.
+#[cfg(unix)]
+#[test]
+fn a_folder_swapped_for_a_link_while_writing_never_lets_a_write_leave_the_repository() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
+    use std::time::{Duration, Instant};
+
+    let d = tempfile::tempdir().unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    const OUT: &str = "{ \"version\": \"9.9.9\" }\n";
+    write(outside.path(), "package.json", OUT);
+    write(d.path(), "app/package.json", "{ \"version\": \"1.0.0\" }\n");
+    let root = d.path().to_path_buf();
+    let out = outside.path().to_path_buf();
+    let stop = Arc::new(AtomicBool::new(false));
+    let swapper = {
+        let (root, stop) = (root.clone(), stop.clone());
+        std::thread::spawn(move || {
+            while !stop.load(Ordering::Relaxed) {
+                // app -> app.real, app becomes a link out; then back
+                if fs::rename(root.join("app"), root.join("app.real")).is_ok() {
+                    let _ = std::os::unix::fs::symlink(&out, root.join("app"));
+                    std::thread::yield_now();
+                    let _ = fs::remove_file(root.join("app"));
+                    let _ = fs::rename(root.join("app.real"), root.join("app"));
+                }
+            }
+        })
+    };
+    let start = Instant::now();
+    let mut wrote = 0u32;
+    let mut turn = 0u32;
+    while start.elapsed() < Duration::from_millis(1500) {
+        let from = format!("1.0.{turn}");
+        let to = format!("1.0.{}", turn + 1);
+        if apply(&root, &[change("app/package.json#version", &from, &to)]).is_ok() {
+            wrote += 1;
+            turn += 1;
+        } else if let Some(now) = scan(&root).fields.iter().find(|f| f.id == "app/package.json#version") {
+            // a refused or interrupted round: carry on from whatever the file holds now
+            turn = now.value.rsplit('.').next().and_then(|n| n.parse().ok()).unwrap_or(turn);
+        }
+    }
+    stop.store(true, Ordering::Relaxed);
+    swapper.join().unwrap();
+    assert!(wrote > 0, "no write got through at all");
+    assert_eq!(text(outside.path(), "package.json"), OUT);
+    let strays: Vec<String> = fs::read_dir(outside.path()).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).filter(|n| n != "package.json").collect();
+    assert!(strays.is_empty(), "files left outside the repository: {strays:?}");
+}

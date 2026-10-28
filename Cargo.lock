@@ -3215,6 +3215,7 @@ dependencies = [
 name = "intely-versions"
 version = "0.0.0"
 dependencies = [
+ "rustix",
  "serde",
  "tempfile",
 ]

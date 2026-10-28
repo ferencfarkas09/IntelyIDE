@@ -12,5 +12,9 @@ name = "intely_versions"
 [dependencies]
 serde = { version = "1.0.229", features = ["derive"] }
 
+# Unix: files are reached through directory handles that never follow a link (src/safefs.rs); `libc` is already part of the app
+[target.'cfg(unix)'.dependencies]
+rustix = { version = "1.1.5", default-features = false, features = ["fs", "std"] }
+
 [dev-dependencies]
 tempfile = "3.27.0"

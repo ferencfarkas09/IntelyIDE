@@ -9,6 +9,7 @@
 mod diff;
 mod formats;
 mod json;
+mod safefs;
 mod walk;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -20,6 +21,16 @@ use serde::{Deserialize, Serialize};
 
 pub use formats::{Kind, Role};
 use formats::{occurrences, Occ};
+
+/// What a place may hold to be listed and written: not empty, short (a repository controls every byte, so a value of megabytes
+/// would be copied into every answer), and a literal (no variable reference, no tag, no line break).
+fn usable(o: &Occ) -> bool {
+    !o.value.is_empty() && o.value.len() <= 128 && !o.value.contains(['$', '<', '\n', '\r'])
+}
+
+fn occs_of(kind: Kind, text: &str) -> Vec<Occ> {
+    occurrences(kind, text).into_iter().filter(usable).collect()
+}
 
 /// More than this and the repository is a collection of packages, not an app: the list stops and says so.
 const MAX_FIELDS: usize = 80;
@@ -43,6 +54,8 @@ pub struct Field {
     pub occurrences: u32,
     /// The occurrences do not all hold the same value; a change sets all of them.
     pub mixed: bool,
+    /// Written bare, not in quotes (a number in JSON, a build number in Xcode, Groovy or a pubspec): only digits fit there.
+    pub numeric: bool,
     /// Files that change together with this one (the `package-lock.json` beside a `package.json`).
     pub companions: Vec<String>,
 }
@@ -101,30 +114,8 @@ fn cap_of(rel: &str) -> u64 {
     }
 }
 
-/// `root/rel` as a file this crate may touch: a regular file (not a link, not a device) within the size cap, whose folders
-/// lead to it without leaving `root`. A repository can hold links (Git keeps them), so nothing here follows one.
-fn plain_file(root: &Path, rel: &str) -> Result<std::fs::Metadata, VersionsError> {
-    let full = root.join(rel);
-    let meta = std::fs::symlink_metadata(&full).map_err(io_err)?;
-    if !meta.file_type().is_file() {
-        return fail("notRegular", format!("{rel} is not a regular file"));
-    }
-    if meta.len() > cap_of(rel) {
-        return fail("tooLarge", format!("{rel} is larger than {} bytes", cap_of(rel)));
-    }
-    let inside = match (full.parent().map(std::fs::canonicalize), std::fs::canonicalize(root)) {
-        (Some(Ok(parent)), Ok(base)) => parent.starts_with(base),
-        _ => false,
-    };
-    if !inside {
-        return fail("outside", format!("{rel} is not inside the repository"));
-    }
-    Ok(meta)
-}
-
 fn read(root: &Path, rel: &str) -> Result<String, VersionsError> {
-    plain_file(root, rel)?;
-    std::fs::read_to_string(root.join(rel)).map_err(io_err)
+    safefs::read(root, rel, cap_of(rel))
 }
 
 fn lock_path(rel: &str) -> String {
@@ -164,7 +155,7 @@ pub fn scan(root: &Path) -> Scan {
             out.skipped.push(format!("{} could not be read", c.rel));
             continue;
         };
-        let occs = occurrences(c.kind, &text);
+        let occs = occs_of(c.kind, &text);
         let mut keys: Vec<&str> = Vec::new();
         for o in &occs {
             if !keys.contains(&o.key.as_str()) {
@@ -186,6 +177,7 @@ pub fn scan(root: &Path) -> Scan {
                 value: same[0].value.clone(),
                 occurrences: same.len() as u32,
                 mixed: same.iter().any(|o| o.value != same[0].value),
+                numeric: same[0].numeric,
                 companions: companions(root, &c.rel, c.kind, key, &same[0].value),
             });
         }
@@ -193,18 +185,46 @@ pub fn scan(root: &Path) -> Scan {
     out
 }
 
-fn valid(role: Role, to: &str, numeric: bool) -> Result<(), VersionsError> {
+/// `0` or digits without a leading zero (Groovy reads `007` as octal, JSON refuses it).
+fn plain_number(part: &str) -> bool {
+    part == "0" || (!part.is_empty() && !part.starts_with('0') && part.chars().all(|c| c.is_ascii_digit()))
+}
+
+fn valid(role: Role, to: &str, numeric: bool, kind: Kind) -> Result<(), VersionsError> {
     let ok = match role {
-        Role::Version => to.len() <= 64 && to.chars().next().is_some_and(|c| c.is_ascii_alphanumeric()) && to.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '+')),
-        Role::Build => {
-            !to.is_empty() && to.len() <= 16 && !to.starts_with('.') && !to.ends_with('.') && to.chars().all(|c| c.is_ascii_digit() || c == '.') && (!numeric || to.chars().all(|c| c.is_ascii_digit()))
+        // a bare JSON number (`"version": 1.5`) takes a number and nothing else; `+` cannot be written bare in an Xcode project or
+        // after the build number of a pubspec
+        Role::Version if numeric => to.len() <= 16 && to.split('.').count() <= 2 && to.split('.').all(plain_number),
+        Role::Version => {
+            to.len() <= 64
+                && to.chars().next().is_some_and(|c| c.is_ascii_alphanumeric())
+                && to.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-') || (c == '+' && !matches!(kind, Kind::Pbxproj | Kind::Pubspec)))
         }
+        Role::Build => !to.is_empty() && to.len() <= 16 && to.split('.').all(plain_number) && (!numeric || !to.contains('.')),
     };
     if ok {
         Ok(())
     } else {
         fail("badValue", format!("{to:?} is not a valid {}", if role == Role::Version { "version" } else { "build number" }))
     }
+}
+
+/// `text` with every range replaced, in one pass (not one copy of the whole file per range). Two places that overlap would shift
+/// each other (a damaged file): refuse instead of guessing.
+fn splice(rel: &str, text: &str, repl: &mut [(Range<usize>, &str)]) -> Result<String, VersionsError> {
+    repl.sort_by_key(|r| r.0.start);
+    if repl.windows(2).any(|w| w[0].0.end > w[1].0.start) {
+        return fail("overlap", format!("{rel} has version values that overlap; it is not changed"));
+    }
+    let mut out = String::with_capacity(text.len() + 64 * repl.len());
+    let mut at = 0usize;
+    for (range, to) in repl.iter() {
+        out.push_str(&text[at..range.start]);
+        out.push_str(to);
+        at = range.end;
+    }
+    out.push_str(&text[at..]);
+    Ok(out)
 }
 
 struct FileEdit {
@@ -241,7 +261,7 @@ fn compute(root: &Path, changes: &[Change]) -> Result<Vec<FileEdit>, VersionsErr
     for (rel, items) in by_file {
         let kind = items[0].1.kind;
         let before = read(root, &rel)?;
-        let occs = occurrences(kind, &before);
+        let occs = occs_of(kind, &before);
         let mut repl: Vec<(Range<usize>, &str)> = Vec::new();
         let mut lock_jobs: Vec<(String, &str, &str)> = Vec::new();
         for (c, f) in &items {
@@ -249,7 +269,7 @@ fn compute(root: &Path, changes: &[Change]) -> Result<Vec<FileEdit>, VersionsErr
                 continue;
             }
             for o in occs.iter().filter(|o| o.key == f.key) {
-                valid(f.role, &c.to, o.numeric)?;
+                valid(f.role, &c.to, o.numeric, kind)?;
                 repl.push((o.range.clone(), c.to.as_str()));
             }
             if !f.companions.is_empty() {
@@ -259,27 +279,16 @@ fn compute(root: &Path, changes: &[Change]) -> Result<Vec<FileEdit>, VersionsErr
         if repl.is_empty() {
             continue;
         }
-        repl.sort_by_key(|r| std::cmp::Reverse(r.0.start));
-        // two places that overlap would shift each other's offsets (a damaged file): refuse instead of guessing
-        if repl.windows(2).any(|w| w[1].0.end > w[0].0.start) {
-            return fail("overlap", format!("{rel} has version values that overlap; it is not changed"));
-        }
-        let mut after = before.clone();
-        for (range, to) in &repl {
-            after.replace_range(range.clone(), to);
-        }
+        let after = splice(&rel, &before, &mut repl)?;
         edits.push(FileEdit { rel: rel.clone(), before, after });
         for (lock_rel, from, to) in lock_jobs {
             let text = read(root, &lock_rel)?;
-            let mut ranges = lock_ranges(&text, from);
+            let ranges = lock_ranges(&text, from);
             if ranges.is_empty() {
                 continue;
             }
-            ranges.sort_by_key(|r| std::cmp::Reverse(r.start));
-            let mut after = text.clone();
-            for r in ranges {
-                after.replace_range(r, to);
-            }
+            let mut repl: Vec<(Range<usize>, &str)> = ranges.into_iter().map(|r| (r, to)).collect();
+            let after = splice(&lock_rel, &text, &mut repl)?;
             edits.push(FileEdit { rel: lock_rel, before: text, after });
         }
     }
@@ -291,28 +300,10 @@ pub fn plan(root: &Path, changes: &[Change]) -> Result<Vec<FilePlan>, VersionsEr
     Ok(compute(root, changes)?.into_iter().map(|e| FilePlan { diff: diff::render(&e.rel, &e.before, &e.after), path: e.rel }).collect())
 }
 
-fn write_atomic(root: &Path, rel: &str, text: &str) -> Result<(), VersionsError> {
-    use std::io::Write;
-    use std::sync::atomic::{AtomicU64, Ordering};
-    static COUNTER: AtomicU64 = AtomicU64::new(0);
-    // never write through, or replace, anything but a regular file inside the repository
-    let existing = plain_file(root, rel)?;
-    let full = root.join(rel);
-    let name = full.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-    let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_nanos());
-    let tmp = full.with_file_name(format!(".{name}.intely-{}-{nanos:x}-{}.tmp", std::process::id(), COUNTER.fetch_add(1, Ordering::Relaxed)));
-    let result = (|| -> std::io::Result<()> {
-        // create_new is O_CREAT|O_EXCL: it fails on anything already at that name (a planted link included) instead of following it
-        let mut f = std::fs::OpenOptions::new().write(true).create_new(true).open(&tmp)?;
-        f.write_all(text.as_bytes())?;
-        f.sync_all()?;
-        std::fs::set_permissions(&tmp, existing.permissions())?;
-        std::fs::rename(&tmp, &full)
-    })();
-    if result.is_err() {
-        let _ = std::fs::remove_file(&tmp);
-    }
-    result.map_err(io_err)
+/// `expect`: what the file must still hold right before it is replaced (the window between the last check and the swap is then
+/// the time of one read, not of a write and a flush).
+fn write_atomic(root: &Path, rel: &str, text: &str, expect: Option<&str>) -> Result<(), VersionsError> {
+    safefs::replace(root, rel, text, expect, cap_of(rel))
 }
 
 /// Writes the changes and returns the files that were written. All or nothing: a file that changed since it was
@@ -322,14 +313,14 @@ pub fn apply(root: &Path, changes: &[Change]) -> Result<Vec<String>, VersionsErr
     let mut done: Vec<&FileEdit> = Vec::new();
     for e in &edits {
         let result = match read(root, &e.rel) {
-            Ok(now) if now == e.before => write_atomic(root, &e.rel, &e.after),
+            Ok(now) if now == e.before => write_atomic(root, &e.rel, &e.after, Some(&e.before)),
             Ok(_) => fail("stale", format!("{} changed while the versions were being written", e.rel)),
             Err(err) => Err(err),
         };
         if let Err(err) = result {
             let mut stuck: Vec<&str> = Vec::new();
             for d in done.iter().rev() {
-                if write_atomic(root, &d.rel, &d.before).is_err() {
+                if write_atomic(root, &d.rel, &d.before, None).is_err() {
                     stuck.push(&d.rel);
                 }
             }
@@ -353,8 +344,8 @@ mod tests {
         let outside = tempfile::tempdir().unwrap();
         std::fs::write(outside.path().join("package.json"), "{}").unwrap();
         std::os::unix::fs::symlink(outside.path(), root.path().join("app")).unwrap();
-        assert_eq!(plain_file(root.path(), "app/package.json").unwrap_err().code, "outside");
-        assert_eq!(write_atomic(root.path(), "app/package.json", "x").unwrap_err().code, "outside");
+        assert_eq!(read(root.path(), "app/package.json").unwrap_err().code, "outside");
+        assert_eq!(write_atomic(root.path(), "app/package.json", "x", None).unwrap_err().code, "outside");
         assert_eq!(std::fs::read_to_string(outside.path().join("package.json")).unwrap(), "{}");
     }
 }

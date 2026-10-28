@@ -45,8 +45,10 @@ fn occ(key: &str, role: Role, text: &str, range: Range<usize>) -> Occ {
 
 /// (start, line without its line ending) for every line.
 fn lines(text: &str) -> impl Iterator<Item = (usize, &str)> {
-    let mut pos = 0usize;
-    text.split_inclusive('\n').map(move |l| {
+    // a byte order mark belongs to no line
+    let bom = if text.starts_with('\u{feff}') { '\u{feff}'.len_utf8() } else { 0 };
+    let mut pos = bom;
+    text[bom..].split_inclusive('\n').map(move |l| {
         let s = pos;
         pos += l.len();
         (s, l.trim_end_matches(['\n', '\r']))
