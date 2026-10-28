@@ -180,7 +180,7 @@ export default function VersionsTab() {
           </div>
         }
       >
-        <Show when={data().length} fallback={<EmptyState icon={Hash} size="sm" title={t("versions.noRepo")} description={t("versions.noRepoDesc")} />}>
+        <Show when={data().length} fallback={<Show when={!error()}><EmptyState icon={Hash} size="sm" title={t("versions.noRepo")} description={t("versions.noRepoDesc")} /></Show>}>
           <For each={withFiles()}>
             {(repo) => {
               const cfg = () => repoConfig(repo.repoId);

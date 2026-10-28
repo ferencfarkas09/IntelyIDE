@@ -19,6 +19,11 @@ pub(crate) fn replace(root: &Path, rel: &str, text: &str, expect: Option<&str>, 
     imp::replace(root, rel, text, expect, cap)
 }
 
+/// Whether `replace` would be allowed to start on this file: found before anything is written.
+pub(crate) fn preflight(root: &Path, rel: &str, cap: u64) -> Result<(), VersionsError> {
+    imp::preflight(root, rel, cap)
+}
+
 fn tmp_name(name: &str) -> String {
     use std::sync::atomic::{AtomicU64, Ordering};
     static COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -33,7 +38,7 @@ fn stale<T>(rel: &str) -> Result<T, VersionsError> {
 #[cfg(unix)]
 mod imp {
     use super::*;
-    use rustix::fs::{fchmod, fstat, openat, renameat, unlinkat, AtFlags, FileType, Mode, OFlags, Stat, CWD};
+    use rustix::fs::{accessat, fchmod, fstat, openat, renameat, unlinkat, Access, AtFlags, FileType, Mode, OFlags, Stat, CWD};
     use rustix::io::Errno;
     use std::fs::File;
     use std::io::{Read, Write};
@@ -99,13 +104,28 @@ mod imp {
         text_of(file, rel, cap)
     }
 
-    pub(super) fn replace(root: &Path, rel: &str, text: &str, expect: Option<&str>, cap: u64) -> Result<(), VersionsError> {
-        let (dir, name) = parent(root, rel)?;
-        let (_, st) = open(&dir, name, rel, cap)?;
+    /// The file as `replace` needs it: a regular file within the cap that is not read-only, in a folder this process may write to.
+    fn writable(dir: &OwnedFd, name: &str, rel: &str, cap: u64) -> Result<Mode, VersionsError> {
+        let (_, st) = open(dir, name, rel, cap)?;
         let mode = Mode::from_raw_mode(st.st_mode);
         if !mode.intersects(Mode::WUSR | Mode::WGRP | Mode::WOTH) {
             return fail("readOnly", format!("{rel} is read-only"));
         }
+        match accessat(dir, ".", Access::WRITE_OK, AtFlags::EACCESS) {
+            Ok(()) => Ok(mode),
+            Err(Errno::ACCESS | Errno::ROFS | Errno::PERM) => fail("readOnly", format!("the folder of {rel} cannot be written")),
+            Err(other) => Err(errno_err(other)),
+        }
+    }
+
+    pub(super) fn preflight(root: &Path, rel: &str, cap: u64) -> Result<(), VersionsError> {
+        let (dir, name) = parent(root, rel)?;
+        writable(&dir, name, rel, cap).map(|_| ())
+    }
+
+    pub(super) fn replace(root: &Path, rel: &str, text: &str, expect: Option<&str>, cap: u64) -> Result<(), VersionsError> {
+        let (dir, name) = parent(root, rel)?;
+        let mode = writable(&dir, name, rel, cap)?;
         let tmp = tmp_name(name);
         // O_CREAT|O_EXCL fails on anything already at that name (a planted link included) instead of following it
         let flags = OFlags::WRONLY | OFlags::CREATE | OFlags::EXCL | OFlags::NOFOLLOW | OFlags::CLOEXEC;
@@ -159,6 +179,13 @@ mod imp {
     pub(super) fn read(root: &Path, rel: &str, cap: u64) -> Result<String, VersionsError> {
         plain_file(root, rel, cap)?;
         std::fs::read_to_string(root.join(rel)).map_err(io_err)
+    }
+
+    pub(super) fn preflight(root: &Path, rel: &str, cap: u64) -> Result<(), VersionsError> {
+        if plain_file(root, rel, cap)?.permissions().readonly() {
+            return fail("readOnly", format!("{rel} is read-only"));
+        }
+        Ok(())
     }
 
     pub(super) fn replace(root: &Path, rel: &str, text: &str, expect: Option<&str>, cap: u64) -> Result<(), VersionsError> {

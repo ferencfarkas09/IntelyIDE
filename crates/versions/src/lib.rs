@@ -306,10 +306,19 @@ fn write_atomic(root: &Path, rel: &str, text: &str, expect: Option<&str>) -> Res
     safefs::replace(root, rel, text, expect, cap_of(rel))
 }
 
+/// One apply at a time in this process: two overlapping ones with the same changes could each undo the other's files when one fails.
+static APPLY_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 /// Writes the changes and returns the files that were written. All or nothing: a file that changed since it was
-/// read, or a write that fails, puts the files already written back.
+/// read, or a write that fails, puts the files already written back (a file that was changed again by someone else in the
+/// meantime is left as it is and named).
 pub fn apply(root: &Path, changes: &[Change]) -> Result<Vec<String>, VersionsError> {
+    let _one_at_a_time = APPLY_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let edits = compute(root, changes)?;
+    // a file that cannot be written anyway (read-only, in a folder that cannot be written) is found before the first write, not after it
+    for e in &edits {
+        safefs::preflight(root, &e.rel, cap_of(&e.rel))?;
+    }
     let mut done: Vec<&FileEdit> = Vec::new();
     for e in &edits {
         let result = match read(root, &e.rel) {
@@ -320,12 +329,13 @@ pub fn apply(root: &Path, changes: &[Change]) -> Result<Vec<String>, VersionsErr
         if let Err(err) = result {
             let mut stuck: Vec<&str> = Vec::new();
             for d in done.iter().rev() {
-                if write_atomic(root, &d.rel, &d.before, None).is_err() {
+                // only a file that still holds what this apply wrote is put back: a file someone else changed since is theirs now
+                if write_atomic(root, &d.rel, &d.before, Some(&d.after)).is_err() {
                     stuck.push(&d.rel);
                 }
             }
             if !stuck.is_empty() {
-                return fail("partial", format!("{}; these files could not be put back and still hold the new version: {}", err.message, stuck.join(", ")));
+                return fail("partial", format!("{}; these files could not be put back and were left as they are: {}", err.message, stuck.join(", ")));
             }
             return Err(err);
         }

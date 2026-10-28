@@ -62,6 +62,20 @@ describe("version arithmetic", () => {
     expect(nextValue(f("CURRENT_PROJECT_VERSION", "build", "007"), "build")).toBe("8"); // no leading zero is written back
   });
 
+  it("lets a skipped field go back to what is on disk instead of keeping an earlier pending change", () => {
+    const bare = { ...f("version", "version", "1.5"), numeric: true };
+    const plain = f("name", "version", "2.4.1", "app/package.json");
+    const r = repo([bare, plain]);
+    const major = bumpRepo(r, "major", {});
+    expect(major).toEqual({ "package.json#version": "2.0", "app/package.json#name": "3.0.0" });
+    // Patch afterwards: the plain row moves on from its own value, the bare number cannot take 1.5.1 and is not left at the Major edit
+    const after = bumpRepo(r, "patch", major);
+    expect(after["package.json#version"]).toBeUndefined();
+    expect(after["app/package.json#name"]).toBe("2.4.2");
+    // a typed value on a row the button does not apply to is left alone
+    expect(bumpRepo(r, "build", { "package.json#version": "9.9" })["package.json#version"]).toBe("9.9");
+  });
+
   it("applies a button only to the fields it is meant for", () => {
     expect(nextValue(f("version", "version", "1.0.0"), "patch")).toBe("1.0.1");
     expect(nextValue(f("version", "version", "1.0.0"), "build")).toBeUndefined();
@@ -245,5 +259,7 @@ describe("<VersionsTab>", () => {
     setVersionsApi({ ...fixture(), scan: async () => Promise.reject({ code: "io", message: "disk gone" }) });
     render(() => <VersionsTab />);
     await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("disk gone"));
+    // a failed read is not "no repository in this workspace"
+    expect(screen.queryByText("No repository in this workspace")).toBeNull();
   });
 });

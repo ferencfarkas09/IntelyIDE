@@ -384,3 +384,36 @@ fn a_folder_swapped_for_a_link_while_writing_never_lets_a_write_leave_the_reposi
     let strays: Vec<String> = fs::read_dir(outside.path()).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).filter(|n| n != "package.json").collect();
     assert!(strays.is_empty(), "files left outside the repository: {strays:?}");
 }
+
+#[cfg(unix)]
+#[test]
+fn a_read_only_file_found_late_is_found_before_anything_is_written() {
+    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+    let d = repo();
+    // package.json sorts after the Gradle and Xcode files; the read-only file is its lock file, which is the last one written
+    let lock = d.path().join("package-lock.json");
+    fs::set_permissions(&lock, fs::Permissions::from_mode(0o444)).unwrap();
+    let before = fs::metadata(d.path().join("package.json")).unwrap();
+    let r = apply(d.path(), &[change("package.json#version", "3.88.7", "3.88.8"), change("android/app/build.gradle#versionName", "1.4.0", "1.4.1")]);
+    fs::set_permissions(&lock, fs::Permissions::from_mode(0o644)).unwrap();
+    assert_eq!(r.unwrap_err().code, "readOnly");
+    // nothing was written and put back: the files are the very ones that were there (same inode, same time)
+    let after = fs::metadata(d.path().join("package.json")).unwrap();
+    assert_eq!((before.ino(), before.mtime(), before.mtime_nsec()), (after.ino(), after.mtime(), after.mtime_nsec()));
+    assert_eq!(text(d.path(), "android/app/build.gradle"), GRADLE);
+}
+
+#[test]
+fn two_applies_at_once_do_not_undo_each_other() {
+    let d = repo();
+    let root = d.path().to_path_buf();
+    let changes = [change("package.json#version", "3.88.7", "3.88.8"), change("android/app/build.gradle#versionName", "1.4.0", "1.4.1"), change("ios/Widget/Info.plist#CFBundleVersion", "17", "18")];
+    let a = { let (root, c) = (root.clone(), changes.to_vec()); std::thread::spawn(move || apply(&root, &c)) };
+    let b = { let (root, c) = (root.clone(), changes.to_vec()); std::thread::spawn(move || apply(&root, &c)) };
+    let (ra, rb) = (a.join().unwrap(), b.join().unwrap());
+    // one of them wins; the other one is refused because the files changed under it, and its refusal puts nothing back
+    assert!(ra.is_ok() ^ rb.is_ok(), "{ra:?} {rb:?}");
+    assert!(text(&root, "package.json").contains("3.88.8") && text(&root, "package-lock.json").contains("3.88.8"));
+    assert!(text(&root, "android/app/build.gradle").contains("versionName \"1.4.1\""));
+    assert!(text(&root, "ios/Widget/Info.plist").contains("<string>18</string>"));
+}

@@ -56,8 +56,14 @@ export const isPlaceholder = (field: Field): boolean => field.role === "version"
  * the file could not hold (Patch on a bare number `1.5` would give `1.5.1`): such a field is left as it is.
  */
 export function nextValue(field: Field, how: Bump | "build"): string | undefined {
-  const next = how === "build" ? (field.role === "build" ? bumpBuild(field.value) : undefined) : field.role === "version" && !isPlaceholder(field) ? bumpVersion(field.value, how) : undefined;
+  const next = rawNext(field, how);
   return next !== undefined && validValue(field, next) ? next : undefined;
+}
+
+/** What the button would make of the field before asking whether the file could hold it. */
+function rawNext(field: Field, how: Bump | "build"): string | undefined {
+  if (how === "build") return field.role === "build" ? bumpBuild(field.value) : undefined;
+  return field.role === "version" && !isPlaceholder(field) ? bumpVersion(field.value, how) : undefined;
 }
 
 /** Edits for every field of the repo a button applies to; fields it does not apply to are left as they are. */
@@ -66,6 +72,9 @@ export function bumpRepo(repo: RepoVersions, how: Bump | "build", edits: Edits):
   for (const f of repo.fields) {
     const v = nextValue(f, how);
     if (v !== undefined && v !== f.value) out[f.id] = v;
+    // the button is meant for this field but its result is not a value the file can hold (Patch on the bare number 1.5):
+    // the field stays as on disk, it does not keep an earlier pending change the person did not just ask for
+    else if (v === undefined && rawNext(f, how) !== undefined) delete out[f.id];
   }
   return out;
 }
