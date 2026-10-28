@@ -3136,6 +3136,7 @@ dependencies = [
  "intely-team",
  "intely-term",
  "intely-updater",
+ "intely-versions",
  "objc2",
  "objc2-app-kit",
  "objc2-foundation",
@@ -3208,6 +3209,14 @@ dependencies = [
  "thiserror 2.0.21",
  "tokio",
  "url",
+]
+
+[[package]]
+name = "intely-versions"
+version = "0.0.0"
+dependencies = [
+ "serde",
+ "tempfile",
 ]
 
 [[package]]
