@@ -1,6 +1,6 @@
 # Release checklist
 
-This is the maintainer's short checklist for publishing an IntelyIDE release as it is done today: a local universal (Intel and Apple Silicon) macOS build, signed with a Developer ID and notarized, a styled disk image, Windows and Linux installers built by GitHub Actions, and a GitHub release. Applies to version 1.13.1.
+This is the maintainer's short checklist for publishing an IntelyIDE release as it is done today: a local universal (Intel and Apple Silicon) macOS build, signed with a Developer ID and notarized, a styled disk image, Windows and Linux installers built by GitHub Actions, and a GitHub release. Applies to version 1.14.0.
 
 Contributors do not need this page. The long form of each step is in [releasing.md](releasing.md) (versioning, gates, repository settings) and [packaging.md](packaging.md) (the build and the disk image). Nothing here is done by a script that signs, tags, pushes or publishes for you: those steps are yours.
 

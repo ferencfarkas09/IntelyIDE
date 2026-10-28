@@ -138,7 +138,7 @@ mod tests {
             name: None,
             email: None,
             newsletter: None,
-            notice: "2026-10-23".into(),
+            notice: "2026-10-28".into(),
             consented_notice: None,
             needs_consent: true,
             url: "https://api.example.invalid".into(),

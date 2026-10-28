@@ -5,7 +5,7 @@ import { whatsNewView } from "../whatsnew/state";
 import "./account.css";
 import { closeDialog, decline, dialog, loadStatus, openPrivacy, openReconsent, openRegister, problemKey, problemOf, reconsent, register, settleMs, status } from "./store";
 
-const EMAIL = /^[^\s@<>"']{1,64}@[^\s@<>"']+\.[^\s@<>"']{2,}$/;
+const EMAIL = /^[^\s@<>"]{1,64}@[^\s@<>"']+\.[^\s@<>"']{2,}$/;
 
 /** What the registry stores, in the words of the notice (`docs/privacy.md`, "Registration and usage details"). */
 function Stored() {
@@ -62,8 +62,9 @@ function FirstStart() {
 
   /** "Not now", Escape and the close button are the same answer: nothing is sent, and the screen does not come back by itself. */
   const notNow = () => {
+    if (busy()) return; // a request is in flight: its answer decides, so nothing can answer "not now" over it
     closeDialog();
-    void decline();
+    void decline().catch(() => {});
   };
 
   return (
@@ -71,6 +72,8 @@ function FirstStart() {
       open
       onClose={notNow}
       closeOnBackdrop={false}
+      closeOnEscape={!busy()}
+      hideClose={busy()}
       size="md"
       title={t("account.first.title")}
       footer={
@@ -140,6 +143,8 @@ function Again() {
       open
       onClose={closeDialog}
       closeOnBackdrop={false}
+      closeOnEscape={!busy()}
+      hideClose={!!busy()}
       size="md"
       title={t("account.again.title")}
       footer={

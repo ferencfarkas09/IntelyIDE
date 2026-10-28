@@ -55,6 +55,7 @@ Agents are part of the same window, within limits:
 - **Phone gateway (Remote, experimental).** Pair a phone through a relay on your own Cloudflare account, then approve permissions or answer questions from the phone. End-to-end encrypted. See [docs/remote-cloudflare.md](docs/remote-cloudflare.md).
 - **Notifications.** A banner and a Dock count when a run needs a permission, asks a question, finishes or fails, with a switch for each kind and a limit on how often. See [docs/notifications.md](docs/notifications.md).
 - **MCP server catalog.** Settings > MCP servers > Add from the catalog lists fifteen well-known servers (GitHub, Chrome DevTools, Playwright, MongoDB, Notion and more). Choosing one fills in the editor; you add your own token, and nothing runs until you confirm what it runs. Package versions are pinned, and `node scripts/mcp/catalog-smoke.mjs` starts each program and checks that it answers. See [docs/getting-started.md](docs/getting-started.md).
+- **Versions panel.** The version files of every repository in the workspace in one place (`package.json` and its lock file, Xcode, Android, `Cargo.toml`, `tauri.conf.json`, Expo, `pyproject.toml`, `pubspec.yaml`), changed together with a diff before anything is written. See [docs/versions.md](docs/versions.md).
 - **Signed and notarized.** From 1.3.0 on the app is signed with a Developer ID and notarized by Apple, so it opens without a warning.
 - **Built-in tools.** A small editor, a project tree, a terminal, and a preview with an element inspector.
 - **53 languages.** English and Hungarian are written by hand. The other 51 are machine-translated and wait for native review; some newer screens (for example MongoDB Studio, workspaces and MCP settings) are not translated yet and show English there. See [docs/i18n.md](docs/i18n.md).
@@ -118,7 +119,7 @@ The full layer table, the enforcement suite and its results are in [docs/safety.
 
 ## Status and known limitations
 
-This is version 1.13.1. It has been used mostly by its author, on an Intel Mac.
+This is version 1.14.0. It has been used mostly by its author, on an Intel Mac.
 
 - Write mode is not judged suitable for unattended daily use on repositories you cannot restore.
 - The agent protections are best-effort. See the safety model above.
@@ -138,7 +139,7 @@ This is version 1.13.1. It has been used mostly by its author, on an Intel Mac.
 <!--dmg:available-->
 ### macOS installer (DMG)
 
-1. Download `IntelyIDE_1.13.1_universal.dmg` from the Releases page of this repository. It is one universal app that runs natively on Intel and Apple Silicon Macs. If you are unsure which Mac you have: Apple menu > About This Mac.
+1. Download `IntelyIDE_1.14.0_universal.dmg` from the Releases page of this repository. It is one universal app that runs natively on Intel and Apple Silicon Macs. If you are unsure which Mac you have: Apple menu > About This Mac.
 2. Check the download. `shasum -a 256 --ignore-missing -c SHA256SUMS` in the download folder detects a corrupted download only; the checksums come from the same page as the file, so they cannot prove where it came from.
 3. Open the DMG and drag IntelyIDE to Applications, then open it from there.
 4. First launch. <!--dmg:v:adhoc,developer-id--><!--This build is not notarized, so macOS refuses the first launch: on macOS 15 and later open System Settings > Privacy & Security, scroll to the message about IntelyIDE, choose Open Anyway and confirm; on macOS 13 and 14 right-click the app and choose Open. Do this only for a file you downloaded from this repository's Releases page.--><!--/dmg:v--><!--dmg:v:notarized-->The app is notarized and opens normally.<!--/dmg:v-->
@@ -194,7 +195,7 @@ You need the Xcode Command Line Tools, Rust 1.96 or newer, Node.js 24 and pnpm 1
 
 ## Privacy
 
-IntelyIDE does not track what you do: no analytics, no crash reports, and nothing about your work leaves your computer. One thing is optional and asks first: on the first start you can register this computer, and the IntelyIDE registry then stores your name, your email address and details of the computer (system and version, processor type and cores, memory, language, time zone, app version, a hashed fingerprint, and the country and city your connection suggests), plus your newsletter choice if you tick it. "Not now" sends nothing, and Settings > Account & data shows what is stored and deletes it. Apart from that it makes network requests only where you turned something on: `git` talks to your remotes, your own `claude` installation talks to its vendor, the servers you add under Settings > Servers are reached through your own `ssh`, and the optional modules you enable (Remote, MongoDB Studio, Happy) talk to the servers you configure. Once a day, after a one-time notice, it asks GitHub whether a newer release exists (one request that carries no data about you; switch it off in Settings > Updates). The run log and the refusals log are plain text on your disk and can contain file contents and command lines. What is stored where, and what is not verified: [docs/privacy.md](docs/privacy.md).
+IntelyIDE does not track what you do: no analytics, no crash reports, and nothing about your work leaves your computer. One thing is optional and asks first: on the first start you can register this computer, and the IntelyIDE registry then stores your name, your email address and details of the computer (system and version, processor type and cores, memory, language, time zone, app version, a hashed fingerprint, and the country, region and city your connection suggests), plus your newsletter choice if you tick it. "Not now" sends nothing, and Settings > Account & data shows what is stored and deletes it. Apart from that it makes network requests only where you turned something on: `git` talks to your remotes, your own `claude` installation talks to its vendor, the servers you add under Settings > Servers are reached through your own `ssh`, and the optional modules you enable (Remote, MongoDB Studio, Happy) talk to the servers you configure. Once a day, after a one-time notice, it asks GitHub whether a newer release exists (one request that carries no data about you; switch it off in Settings > Updates). The run log and the refusals log are plain text on your disk and can contain file contents and command lines. What is stored where, and what is not verified: [docs/privacy.md](docs/privacy.md).
 
 ## FAQ
 

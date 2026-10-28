@@ -970,6 +970,7 @@
   "runs.where.failedMany": "{name} ({count} runs): {message}",
   "runs.where.chip": "Runs on {name}",
   "versions.name": "Versions",
+  "versions.invalidTip": "The file cannot hold this value: a JSON number takes digits and at most one dot, an Xcode project and pubspec.yaml take no plus sign, and a build number has no leading zero.",
   "versions.cmd.open": "Open Versions",
   "versions.section.name": "Versions",
   "versions.section.title": "Versions",

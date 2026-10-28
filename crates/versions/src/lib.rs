@@ -9,6 +9,7 @@
 mod diff;
 mod formats;
 mod json;
+mod safefs;
 mod walk;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -21,9 +22,21 @@ use serde::{Deserialize, Serialize};
 pub use formats::{Kind, Role};
 use formats::{occurrences, Occ};
 
+/// What a place may hold to be listed and written: not empty, short (a repository controls every byte, so a value of megabytes
+/// would be copied into every answer), and a literal (no variable reference, no tag, no line break).
+fn usable(o: &Occ) -> bool {
+    !o.value.is_empty() && o.value.len() <= 128 && !o.value.contains(['$', '<', '\n', '\r'])
+}
+
+fn occs_of(kind: Kind, text: &str) -> Vec<Occ> {
+    occurrences(kind, text).into_iter().filter(usable).collect()
+}
+
 /// More than this and the repository is a collection of packages, not an app: the list stops and says so.
 const MAX_FIELDS: usize = 80;
 const MAX_CHANGES: usize = 200;
+/// A lock file may be big (a monorepo's is tens of megabytes); more than this is neither read nor written.
+const MAX_LOCK_BYTES: u64 = 64 * 1024 * 1024;
 
 /// One version a repository writes down, in one file under one key. A key that appears several times in the file
 /// (an Xcode target has a build configuration for Debug and Release, and there can be several targets) is one field.
@@ -41,6 +54,8 @@ pub struct Field {
     pub occurrences: u32,
     /// The occurrences do not all hold the same value; a change sets all of them.
     pub mixed: bool,
+    /// Written bare, not in quotes (a number in JSON, a Gradle `versionCode`, a pubspec build number): only digits fit there.
+    pub numeric: bool,
     /// Files that change together with this one (the `package-lock.json` beside a `package.json`).
     pub companions: Vec<String>,
 }
@@ -91,8 +106,16 @@ fn io_err(e: std::io::Error) -> VersionsError {
     VersionsError { code: "io", message: e.to_string() }
 }
 
+fn cap_of(rel: &str) -> u64 {
+    if rel.ends_with("package-lock.json") {
+        MAX_LOCK_BYTES
+    } else {
+        walk::MAX_FILE_BYTES
+    }
+}
+
 fn read(root: &Path, rel: &str) -> Result<String, VersionsError> {
-    std::fs::read_to_string(root.join(rel)).map_err(io_err)
+    safefs::read(root, rel, cap_of(rel))
 }
 
 fn lock_path(rel: &str) -> String {
@@ -117,7 +140,7 @@ fn companions(root: &Path, rel: &str, kind: Kind, key: &str, value: &str) -> Vec
         return Vec::new();
     }
     let lock = lock_path(rel);
-    match std::fs::read_to_string(root.join(&lock)) {
+    match read(root, &lock) {
         Ok(text) if !lock_ranges(&text, value).is_empty() => vec![lock],
         _ => Vec::new(),
     }
@@ -128,11 +151,11 @@ pub fn scan(root: &Path) -> Scan {
     let (cands, skipped) = walk::candidates(root);
     let mut out = Scan { fields: Vec::new(), truncated: false, skipped };
     for c in cands {
-        let Ok(text) = std::fs::read_to_string(root.join(&c.rel)) else {
+        let Ok(text) = read(root, &c.rel) else {
             out.skipped.push(format!("{} could not be read", c.rel));
             continue;
         };
-        let occs = occurrences(c.kind, &text);
+        let occs = occs_of(c.kind, &text);
         let mut keys: Vec<&str> = Vec::new();
         for o in &occs {
             if !keys.contains(&o.key.as_str()) {
@@ -154,6 +177,7 @@ pub fn scan(root: &Path) -> Scan {
                 value: same[0].value.clone(),
                 occurrences: same.len() as u32,
                 mixed: same.iter().any(|o| o.value != same[0].value),
+                numeric: same[0].numeric,
                 companions: companions(root, &c.rel, c.kind, key, &same[0].value),
             });
         }
@@ -161,18 +185,46 @@ pub fn scan(root: &Path) -> Scan {
     out
 }
 
-fn valid(role: Role, to: &str, numeric: bool) -> Result<(), VersionsError> {
+/// `0` or digits without a leading zero (Groovy reads `007` as octal, JSON refuses it).
+fn plain_number(part: &str) -> bool {
+    part == "0" || (!part.is_empty() && !part.starts_with('0') && part.chars().all(|c| c.is_ascii_digit()))
+}
+
+fn valid(role: Role, to: &str, numeric: bool, kind: Kind) -> Result<(), VersionsError> {
     let ok = match role {
-        Role::Version => to.len() <= 64 && to.chars().next().is_some_and(|c| c.is_ascii_alphanumeric()) && to.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '+')),
-        Role::Build => {
-            !to.is_empty() && to.len() <= 16 && !to.starts_with('.') && !to.ends_with('.') && to.chars().all(|c| c.is_ascii_digit() || c == '.') && (!numeric || to.chars().all(|c| c.is_ascii_digit()))
+        // a bare JSON number (`"version": 1.5`) takes a number and nothing else; `+` cannot be written bare in an Xcode project or
+        // after the build number of a pubspec
+        Role::Version if numeric => to.len() <= 16 && to.split('.').count() <= 2 && to.split('.').all(plain_number),
+        Role::Version => {
+            to.len() <= 64
+                && to.chars().next().is_some_and(|c| c.is_ascii_alphanumeric())
+                && to.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-') || (c == '+' && !matches!(kind, Kind::Pbxproj | Kind::Pubspec)))
         }
+        Role::Build => !to.is_empty() && to.len() <= 16 && to.split('.').all(plain_number) && (!numeric || !to.contains('.')),
     };
     if ok {
         Ok(())
     } else {
         fail("badValue", format!("{to:?} is not a valid {}", if role == Role::Version { "version" } else { "build number" }))
     }
+}
+
+/// `text` with every range replaced, in one pass (not one copy of the whole file per range). Two places that overlap would shift
+/// each other (a damaged file): refuse instead of guessing.
+fn splice(rel: &str, text: &str, repl: &mut [(Range<usize>, &str)]) -> Result<String, VersionsError> {
+    repl.sort_by_key(|r| r.0.start);
+    if repl.windows(2).any(|w| w[0].0.end > w[1].0.start) {
+        return fail("overlap", format!("{rel} has version values that overlap; it is not changed"));
+    }
+    let mut out = String::with_capacity(text.len() + 64 * repl.len());
+    let mut at = 0usize;
+    for (range, to) in repl.iter() {
+        out.push_str(&text[at..range.start]);
+        out.push_str(to);
+        at = range.end;
+    }
+    out.push_str(&text[at..]);
+    Ok(out)
 }
 
 struct FileEdit {
@@ -209,7 +261,7 @@ fn compute(root: &Path, changes: &[Change]) -> Result<Vec<FileEdit>, VersionsErr
     for (rel, items) in by_file {
         let kind = items[0].1.kind;
         let before = read(root, &rel)?;
-        let occs = occurrences(kind, &before);
+        let occs = occs_of(kind, &before);
         let mut repl: Vec<(Range<usize>, &str)> = Vec::new();
         let mut lock_jobs: Vec<(String, &str, &str)> = Vec::new();
         for (c, f) in &items {
@@ -217,7 +269,7 @@ fn compute(root: &Path, changes: &[Change]) -> Result<Vec<FileEdit>, VersionsErr
                 continue;
             }
             for o in occs.iter().filter(|o| o.key == f.key) {
-                valid(f.role, &c.to, o.numeric)?;
+                valid(f.role, &c.to, o.numeric, kind)?;
                 repl.push((o.range.clone(), c.to.as_str()));
             }
             if !f.companions.is_empty() {
@@ -227,23 +279,16 @@ fn compute(root: &Path, changes: &[Change]) -> Result<Vec<FileEdit>, VersionsErr
         if repl.is_empty() {
             continue;
         }
-        repl.sort_by_key(|r| std::cmp::Reverse(r.0.start));
-        let mut after = before.clone();
-        for (range, to) in &repl {
-            after.replace_range(range.clone(), to);
-        }
+        let after = splice(&rel, &before, &mut repl)?;
         edits.push(FileEdit { rel: rel.clone(), before, after });
         for (lock_rel, from, to) in lock_jobs {
             let text = read(root, &lock_rel)?;
-            let mut ranges = lock_ranges(&text, from);
+            let ranges = lock_ranges(&text, from);
             if ranges.is_empty() {
                 continue;
             }
-            ranges.sort_by_key(|r| std::cmp::Reverse(r.start));
-            let mut after = text.clone();
-            for r in ranges {
-                after.replace_range(r, to);
-            }
+            let mut repl: Vec<(Range<usize>, &str)> = ranges.into_iter().map(|r| (r, to)).collect();
+            let after = splice(&lock_rel, &text, &mut repl)?;
             edits.push(FileEdit { rel: lock_rel, before: text, after });
         }
     }
@@ -255,38 +300,62 @@ pub fn plan(root: &Path, changes: &[Change]) -> Result<Vec<FilePlan>, VersionsEr
     Ok(compute(root, changes)?.into_iter().map(|e| FilePlan { diff: diff::render(&e.rel, &e.before, &e.after), path: e.rel }).collect())
 }
 
-fn write_atomic(root: &Path, rel: &str, text: &str) -> Result<(), VersionsError> {
-    let full = root.join(rel);
-    let name = full.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-    let tmp = full.with_file_name(format!("{name}.intely-tmp"));
-    std::fs::write(&tmp, text).map_err(io_err)?;
-    if let Ok(m) = std::fs::metadata(&full) {
-        let _ = std::fs::set_permissions(&tmp, m.permissions());
-    }
-    std::fs::rename(&tmp, &full).map_err(|e| {
-        let _ = std::fs::remove_file(&tmp);
-        io_err(e)
-    })
+/// `expect`: what the file must still hold right before it is replaced (the window between the last check and the swap is then
+/// the time of one read, not of a write and a flush).
+fn write_atomic(root: &Path, rel: &str, text: &str, expect: Option<&str>) -> Result<(), VersionsError> {
+    safefs::replace(root, rel, text, expect, cap_of(rel))
 }
 
+/// One apply at a time in this process: two overlapping ones with the same changes could each undo the other's files when one fails.
+static APPLY_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 /// Writes the changes and returns the files that were written. All or nothing: a file that changed since it was
-/// read, or a write that fails, puts the files already written back.
+/// read, or a write that fails, puts the files already written back (a file that was changed again by someone else in the
+/// meantime is left as it is and named).
 pub fn apply(root: &Path, changes: &[Change]) -> Result<Vec<String>, VersionsError> {
+    let _one_at_a_time = APPLY_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let edits = compute(root, changes)?;
+    // a file that cannot be written anyway (read-only, in a folder that cannot be written) is found before the first write, not after it
+    for e in &edits {
+        safefs::preflight(root, &e.rel, cap_of(&e.rel))?;
+    }
     let mut done: Vec<&FileEdit> = Vec::new();
     for e in &edits {
         let result = match read(root, &e.rel) {
-            Ok(now) if now == e.before => write_atomic(root, &e.rel, &e.after),
+            Ok(now) if now == e.before => write_atomic(root, &e.rel, &e.after, Some(&e.before)),
             Ok(_) => fail("stale", format!("{} changed while the versions were being written", e.rel)),
             Err(err) => Err(err),
         };
         if let Err(err) = result {
+            let mut stuck: Vec<&str> = Vec::new();
             for d in done.iter().rev() {
-                let _ = write_atomic(root, &d.rel, &d.before);
+                // only a file that still holds what this apply wrote is put back: a file someone else changed since is theirs now
+                if write_atomic(root, &d.rel, &d.before, Some(&d.after)).is_err() {
+                    stuck.push(&d.rel);
+                }
+            }
+            if !stuck.is_empty() {
+                return fail("partial", format!("{}; these files could not be put back and were left as they are: {}", err.message, stuck.join(", ")));
             }
             return Err(err);
         }
         done.push(e);
     }
     Ok(edits.into_iter().map(|e| e.rel).collect())
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_folder_that_is_a_link_out_of_the_repository_is_refused() {
+        let root = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        std::fs::write(outside.path().join("package.json"), "{}").unwrap();
+        std::os::unix::fs::symlink(outside.path(), root.path().join("app")).unwrap();
+        assert_eq!(read(root.path(), "app/package.json").unwrap_err().code, "outside");
+        assert_eq!(write_atomic(root.path(), "app/package.json", "x", None).unwrap_err().code, "outside");
+        assert_eq!(std::fs::read_to_string(outside.path().join("package.json")).unwrap(), "{}");
+    }
 }

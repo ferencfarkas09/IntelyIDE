@@ -20,11 +20,11 @@
   // `wrangler deploy` creates the DNS record; the zone must be in your account and the name must have no record yet.
   "routes": [{ "pattern": "registry.intelyhome.com", "custom_domain": true }],
   "vars": {
-    // The version (a date) of the privacy notice the app shows; stored with each consent.
-    "NOTICE_VERSION": "2026-10-23",
+    // The version (a date) of the privacy notice the app shows. The app sends the version it showed with each consent and the Worker stores that; this value is only echoed in answers.
+    "NOTICE_VERSION": "2026-10-28",
     // Computers not seen for this many days are deleted.
     "RETENTION_DAYS": "730",
-    // "brevo" or "none". With "none" the newsletter choice is stored but nothing is sent anywhere.
+    // "brevo" or "none". With "none" a ticked newsletter box is not recorded and nothing is sent anywhere.
     "NEWSLETTER_PROVIDER": "none",
     // Brevo: the list of IntelyIDE users and the double opt-in template (run `pnpm brevo:setup` to create both), and where the confirmation link lands.
     "BREVO_LIST_ID": "",

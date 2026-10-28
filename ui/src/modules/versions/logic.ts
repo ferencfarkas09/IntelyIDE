@@ -36,12 +36,12 @@ export function bumpVersion(value: string, how: Bump): string | undefined {
   return p.pre && b === 0 && c === 0 ? take([a, 0, 0], 1) : take([a + 1, 0, 0], 1);
 }
 
-/** The next build number: an integer plus one, or the last part of a dotted one (`1.4` → `1.5`). */
+/** The next build number: an integer plus one, or the last part of a dotted one (`1.4` → `1.5`). Exact for any length. */
 export function bumpBuild(value: string): string | undefined {
   if (!/^\d+(\.\d+)*$/.test(value)) return undefined;
   const parts = value.split(".");
   const last = parts.length - 1;
-  parts[last] = String(Number(parts[last]) + 1);
+  parts[last] = String(BigInt(parts[last]) + 1n);
   return parts.join(".");
 }
 
@@ -51,8 +51,17 @@ export function bumpBuild(value: string): string | undefined {
  */
 export const isPlaceholder = (field: Field): boolean => field.role === "version" && field.value === "0.0.0";
 
-/** The value of a field after pressing a button, or undefined when the button does not apply to it. */
+/**
+ * The value of a field after pressing a button, or undefined when the button does not apply to it. A button never makes a value
+ * the file could not hold (Patch on a bare number `1.5` would give `1.5.1`): such a field is left as it is.
+ */
 export function nextValue(field: Field, how: Bump | "build"): string | undefined {
+  const next = rawNext(field, how);
+  return next !== undefined && validValue(field, next) ? next : undefined;
+}
+
+/** What the button would make of the field before asking whether the file could hold it. */
+function rawNext(field: Field, how: Bump | "build"): string | undefined {
   if (how === "build") return field.role === "build" ? bumpBuild(field.value) : undefined;
   return field.role === "version" && !isPlaceholder(field) ? bumpVersion(field.value, how) : undefined;
 }
@@ -63,6 +72,9 @@ export function bumpRepo(repo: RepoVersions, how: Bump | "build", edits: Edits):
   for (const f of repo.fields) {
     const v = nextValue(f, how);
     if (v !== undefined && v !== f.value) out[f.id] = v;
+    // the button is meant for this field but its result is not a value the file can hold (Patch on the bare number 1.5):
+    // the field stays as on disk, it does not keep an earlier pending change the person did not just ask for
+    else if (v === undefined && rawNext(f, how) !== undefined) delete out[f.id];
   }
   return out;
 }
@@ -93,8 +105,14 @@ export function versionValues(repo: RepoVersions): string[] {
   return [...seen.entries()].sort((a, b) => b[1] - a[1]).map(([v]) => v);
 }
 
-/** The same check the Rust side makes, so a bad value is marked before anything is sent. */
+const plainNumber = (part: string): boolean => part === "0" || /^[1-9]\d*$/.test(part);
+
+/** The same check the Rust side makes (`valid` in crates/versions), so a bad value is marked before anything is sent. */
 export function validValue(field: Field, value: string): boolean {
-  if (field.role === "version") return /^[0-9A-Za-z][0-9A-Za-z.+-]{0,63}$/.test(value);
-  return /^\d+(\.\d+)*$/.test(value) && value.length <= 16;
+  const plus = !(field.kind === "pbxproj" || field.kind === "pubspec");
+  if (field.role === "version") {
+    if (field.numeric) return value.length <= 16 && value.split(".").length <= 2 && value.split(".").every(plainNumber);
+    return /^[0-9A-Za-z][0-9A-Za-z.+-]{0,63}$/.test(value) && (plus || !value.includes("+"));
+  }
+  return value.length > 0 && value.length <= 16 && value.split(".").every(plainNumber) && (!field.numeric || !value.includes("."));
 }

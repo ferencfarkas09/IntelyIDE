@@ -14,7 +14,7 @@ const bad = (error: string, status = 400): Response => json(status, { ok: false,
 
 export const nowSeconds = (): number => Math.floor(Date.now() / 1000);
 
-export const noticeOf = (env: Env): string => env.NOTICE_VERSION || "2026-10-23";
+export const noticeOf = (env: Env): string => env.NOTICE_VERSION || "2026-10-28";
 
 /** The coarse place Cloudflare derives from the address of the request: country, region and city. The address itself is never read into a stored value. */
 export function placeOf(req: Request): Place {

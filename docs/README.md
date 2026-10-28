@@ -1,6 +1,6 @@
 # Documentation index
 
-This page lists every public document of IntelyIDE with a one-line description and the audience it is written for. Applies to version 1.13.1.
+This page lists every public document of IntelyIDE with a one-line description and the audience it is written for. Applies to version 1.14.0.
 
 Audiences: **users** run the app, **contributors** change the code, **maintainers** publish releases.
 

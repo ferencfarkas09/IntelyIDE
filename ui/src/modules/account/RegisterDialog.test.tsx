@@ -52,7 +52,7 @@ describe("the first-start screen", () => {
     const d = await screen.findByRole("dialog", { name: "Register this computer?" });
     expect(d.textContent).toContain("your name and email address");
     expect(d.textContent).toContain("a fingerprint of this computer (a hash, not the machine id)");
-    expect(d.textContent).toContain("the country and city your internet connection suggests (not the IP address itself)");
+    expect(d.textContent).toContain("the country, region and city your internet connection suggests (not the IP address itself)");
     expect(d.textContent).toContain("Never stored: your IP address, your files, repositories, prompts, answers");
     expect(d.textContent).toContain("https://api.example.invalid");
     const boxes = screen.getAllByRole("checkbox") as HTMLInputElement[];
@@ -112,6 +112,49 @@ describe("the first-start screen", () => {
     expect(screen.queryByText(/answered with 404/)).toBeNull();
     expect(api.register).toHaveBeenCalledOnce();
     expect(dialog()).toBe("register");
+  });
+
+  it.each([
+    ["unknownInstall", "The registry does not know this computer (any more)", "The registry does not know this computer any more. Register it again."],
+    ["badRequest", "The registry did not accept the request (email)", "The registry did not accept the request. Update IntelyIDE and try again."],
+  ])("shows the registry's %s answer in the person's language, not as the server's English", async (code, raw, words) => {
+    fake(base, { register: vi.fn(async () => Promise.reject({ code, message: raw })) });
+    render(() => <RegisterDialog />);
+    await screen.findByRole("dialog");
+    fill("Anna", "anna@example.com");
+    fireEvent.click(screen.getByRole("checkbox", { name: /I agree that this is stored/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Register" }));
+    expect(await screen.findByText(words)).toBeTruthy();
+    expect(screen.queryByText(raw, { exact: false })).toBeNull();
+  });
+
+  it("accepts an address with an apostrophe, which the registry and the app accept too", async () => {
+    const api = fake(base);
+    render(() => <RegisterDialog />);
+    await screen.findByRole("dialog");
+    fill("Anna O'Brien", "o'brien@example.com");
+    fireEvent.click(screen.getByRole("checkbox", { name: /I agree that this is stored/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Register" }));
+    await waitFor(() => expect(api.register).toHaveBeenCalledOnce());
+    expect((api.register.mock.calls[0][0] as { email: string }).email).toBe("o'brien@example.com");
+  });
+
+  it("does not take Escape for 'Not now' while the request is in flight: its answer decides", async () => {
+    let release: () => void = () => {};
+    const api = fake(base, { register: vi.fn(() => new Promise<RegistryStatus>((resolve) => (release = () => resolve(registered)))) });
+    render(() => <RegisterDialog />);
+    await screen.findByRole("dialog");
+    fill("Anna", "anna@example.com");
+    fireEvent.click(screen.getByRole("checkbox", { name: /I agree that this is stored/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Register" }));
+    await waitFor(() => expect(api.register).toHaveBeenCalledOnce());
+    fireEvent.keyDown(document, { key: "Escape" });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.queryByRole("dialog")).not.toBeNull();
+    expect(api.decline).not.toHaveBeenCalled();
+    release();
+    await waitFor(() => expect(dialog()).toBeUndefined());
+    expect(status()?.state).toBe("registered");
   });
 
   it("treats Not now and Escape as the same answer: nothing is sent and it is remembered", async () => {

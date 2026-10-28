@@ -1,6 +1,6 @@
 # Install on macOS
 
-This page explains how to install the IntelyIDE disk image on a Mac, what to expect on the first launch, where the app keeps its data, how to remove it and how to report problems. Applies to version 1.13.1.
+This page explains how to install the IntelyIDE disk image on a Mac, what to expect on the first launch, where the app keeps its data, how to remove it and how to report problems. Applies to version 1.14.0.
 
 The installed app starts in normal (writable) mode, so read the [safety model](safety.md) and use it on repositories you can restore.
 

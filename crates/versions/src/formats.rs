@@ -45,8 +45,10 @@ fn occ(key: &str, role: Role, text: &str, range: Range<usize>) -> Occ {
 
 /// (start, line without its line ending) for every line.
 fn lines(text: &str) -> impl Iterator<Item = (usize, &str)> {
-    let mut pos = 0usize;
-    text.split_inclusive('\n').map(move |l| {
+    // a byte order mark belongs to no line
+    let bom = if text.starts_with('\u{feff}') { '\u{feff}'.len_utf8() } else { 0 };
+    let mut pos = bom;
+    text[bom..].split_inclusive('\n').map(move |l| {
         let s = pos;
         pos += l.len();
         (s, l.trim_end_matches(['\n', '\r']))
@@ -143,7 +145,7 @@ fn plist(text: &str) -> Vec<Occ> {
         let s = after + (rest.len() - trimmed.len()) + "<string>".len();
         let Some(len) = body.find("</string>") else { continue };
         let range = s..s + len;
-        if range.is_empty() || text[range.clone()].contains("$(") {
+        if range.is_empty() || text[range.clone()].contains("$(") || text[range.clone()].contains('<') {
             continue;
         }
         out.push(occ(key, role, text, range));

@@ -79,7 +79,5 @@ Again only those lock entries changed (npm computed them, the entries were merge
 tarball, `npm audit` on that tree reports 0 vulnerabilities, and the manifest was regenerated from the `npm ci` tree (6669 files;
 changes only in those three packages and in `package.json` and `package-lock.json`).
 
-Still open: `npm audit signatures` (step 3 above, release gate G2) has **not** been run on the new tree, because the machine that
-made the change could not download the registry's signing keys. A human has to run it once (`npm ci --ignore-scripts
---omit=optional` in a directory holding `package.json` and `package-lock.json`, then `npm audit signatures`) and look at the result.
+`npm audit signatures` (step 3 above, release gate G2) was run on the owner's Mac on 2026-10-28 (npm 11.6.2, Node 24.13.0) on this tree as merged: 102 packages have verified registry signatures, 15 have verified attestations, nothing is invalid or missing, and `npm audit` reports 0 vulnerabilities. The tree of the first refresh gave the same counts. A caution for macOS: `hash-tree.mjs --check <dir>` prints nothing and exits 0 when the path it is given contains a symbolic link (`mktemp -d` returns `/var/folders/...`, a link to `/private/var/...`), so it checks nothing then; pass the output of `realpath`.
 A wrong manifest fails closed (`sdk_unverified`); it cannot make the loader accept a different tree.

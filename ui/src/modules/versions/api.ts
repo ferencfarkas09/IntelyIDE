@@ -30,7 +30,7 @@ export function versionsApi(): VersionsApi {
   return (mock ??= createMockVersions(() => repos().map((r) => r.id)));
 }
 
-const field = (path: string, kind: Kind, key: string, role: Role, value: string, extra: Partial<Field> = {}): Field => ({ id: `${path}#${key}`, path, kind, key, role, value, occurrences: 1, mixed: false, companions: [], ...extra });
+const field = (path: string, kind: Kind, key: string, role: Role, value: string, extra: Partial<Field> = {}): Field => ({ id: `${path}#${key}`, path, kind, key, role, value, occurrences: 1, mixed: false, numeric: role === "build", companions: [], ...extra });
 
 /** The first repository is shaped like a mobile app with a Node package; the others are smaller. */
 function seed(index: number): Field[] {
