@@ -303,6 +303,7 @@ export default {
       { id: 'integrations', h: 'Integrations', p: 'Happy, MCP servers, Sentry and DeepPattern in one catalog, with a connection status where there is one. More services later, as more cards.' },
       { id: 'intelyfix', h: 'IntelyFIX: Sentry issues fixed with one click', p: 'Press Fix on an issue: the assignment, the repository, the prompt and the agent run are set up for you. You read the change and commit it.' },
       { id: 'mcp', h: 'A catalog of MCP servers', p: 'More than a dozen ready-made servers, from GitHub and Chrome DevTools to MongoDB and XcodeBuildMCP, added with one click and your own token.' },
+      { id: 'versions', h: 'Versions of every repository in one panel', p: 'See the version files of all your repositories and change them together: Patch, Minor, Major or Build +1 for one repository or all of them, with the exact diff shown before anything is written.' },
       { id: 'partners', h: 'Works with DeepPattern.ai and Happy Solutions', p: 'Two services with their own card in Settings > Integrations: second opinions on your code, and your Happy account next to it.' },
       { id: 'providers', h: 'Bring your own agent', p: 'Claude is the main path. Codex, Gemini, Copilot and more plug in as experimental providers.' },
       { id: 'mongo', h: 'MongoDB Studio', p: 'Read-only by default, with AI-assisted queries in English or Hungarian.' },
@@ -455,6 +456,24 @@ export default {
           'Product names belong to their owners; being listed does not mean they endorse IntelyIDE',
         ],
         shots: [['mcp-catalog', 'Settings, MCP servers: the catalog of ready-made servers, each with the exact program it would run.']],
+      },
+      {
+        id: 'versions',
+        h: 'Versions: set the version of every repository in one place',
+        p: 'A release should not mean opening a package.json, an Xcode project and a Gradle file one by one. The Versions panel (command palette: Open Versions) lists the version files of every repository in the workspace and changes them together. It only reads until you press Apply, and the exact diff of every file is shown first.',
+        list: [
+          'What it reads: package.json and the package-lock.json beside it, Xcode MARKETING_VERSION and CURRENT_PROJECT_VERSION, Info.plist values written as text, Android versionName and versionCode, Cargo.toml, tauri.conf.json, Expo app.json, pyproject.toml and pubspec.yaml',
+          'Patch, Minor, Major and Build +1 work on one repository or on all of them, and each version is counted up from its own value. You can also type any value into a row, or one value for all the versions of a repository (build numbers stay as they are)',
+          'Under “Will change” you read the exact diff of every file before anything is written. A value the files would refuse is marked and keeps Apply off',
+          'Apply writes one repository after the other, and within a repository it is all or nothing: if a file changed since it was read, the repository is left as it was and the panel says why. Only the version text changes; indentation, quotes and line endings stay as they are',
+          'It never commits, tags or pushes, and nothing leaves your computer: the edited files show up in the Changes tab like any other edit. In the read-only mode the panel reads but does not write',
+          'It starts switched on, and Settings > Versions turns it off. Other places a version lives (composer.json, pom.xml, setup.py, podspecs, gradle.properties) are not read yet',
+          'Xcode, Android, Gradle, Expo, Tauri and the other names belong to their owners and only say which files the panel reads; IntelyIDE is independent of them',
+        ],
+        shots: [
+          ['versions', 'The Versions panel with three demo repositories: a Minor bump pending on all of them and Build +1 on the first, and nothing written until Apply.'],
+          ['versions-diff', 'The Versions panel under “Will change”: the exact diff of the four files that one repository would change, with Apply waiting.'],
+        ],
       },
       {
         id: 'mongo',

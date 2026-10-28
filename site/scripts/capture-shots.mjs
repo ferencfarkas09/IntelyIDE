@@ -205,6 +205,34 @@ SHOTS["mcp-catalog"] = async (c) => {
   await sleep(600);
   await dismissToasts(c);
 };
+/** Opens the Versions panel from the command palette and waits until the demo repositories and their version files are listed. */
+async function openVersions(c) {
+  await dismissToasts(c);
+  await palette(c, "Open Versions");
+  await waitText(c, "All repositories");
+  await waitText(c, "MARKETING_VERSION");
+}
+// Nothing is written in either shot: the changes are pending, as they are until Apply is pressed.
+SHOTS.versions = async (c) => {
+  await openVersions(c);
+  // a Minor bump of every repository (each counted from its own version), and a Build +1 for the first one
+  await c.clickEl("button", "All repositories: Minor");
+  await c.clickEl("button", "orders-api: Build +1");
+  await waitText(c, "Will change");
+  await sleep(600);
+  await dismissToasts(c);
+};
+SHOTS["versions-diff"] = async (c) => {
+  await openVersions(c);
+  await c.clickEl("button", "orders-api: Minor");
+  await c.clickEl("button", "orders-api: Build +1");
+  await waitText(c, "Will change");
+  await c.waitFor(`document.querySelectorAll(".ver__pre").length >= 4`, 15000, "the diff of four files");
+  // the exact diff of every file that would change, scrolled to the top of the panel
+  await c.eval(`document.querySelector(".ver__diff").scrollIntoView({ block: "start" })`);
+  await sleep(600);
+  await dismissToasts(c);
+};
 SHOTS.intelyfix = async (c) => {
   await dismissToasts(c);
   await palette(c, "IntelyFIX");
