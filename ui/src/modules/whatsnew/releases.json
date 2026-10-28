@@ -25,8 +25,8 @@
           "hu": "A regisztráció újra működik"
         },
         "text": {
-          "en": "Version 1.13.0 sent the registration to the wrong host, so the first-start screen ended with \"The registry answered with 404\" and nothing was registered. Version 1.14.0 asks the registry's own host, registry.intelyhome.com. If you typed your details into the screen in 1.13.0, they went to that other host, which refused them, and nowhere else. Register again in Settings > Account & data if you wish. An answer the app does not expect from the registry is now shown in your language.",
-          "hu": "Az 1.13.0 rossz szervernek küldte a regisztrációt, ezért az első indítás képernyője \"A nyilvántartás 404-gyel válaszolt\" üzenettel ért véget, és senki sem regisztrált. Az 1.14.0 a nyilvántartás saját szerverét kérdezi, a registry.intelyhome.com címet. Ha az 1.13.0-ban beírtad az adataidat a képernyőre, azok ahhoz a másik szerverhez mentek, amely elutasította őket, máshová nem. Ha szeretnéd, regisztrálj újra a Beállítások > Fiók és adatok oldalon. A nyilvántartás váratlan válaszát az alkalmazás mostantól a te nyelveden mutatja."
+          "en": "Version 1.13.0 sent the registration to the wrong host, so the first-start screen ended with \"The registry answered with 404\" and nothing was registered. Version 1.14.0 asks the registry's own host, registry.intelyhome.com. If you typed your details into the screen in 1.13.0, they went to that other host, which refused them, and nowhere else. Register again in Settings > Account & data if you wish. An answer the app does not expect from the registry is now shown in your language. The first-start screen now also names the region among the data about your place.",
+          "hu": "Az 1.13.0 rossz szervernek küldte a regisztrációt, ezért az első indítás képernyője \"A nyilvántartás 404-gyel válaszolt\" üzenettel ért véget, és senki sem regisztrált. Az 1.14.0 a nyilvántartás saját szerverét kérdezi, a registry.intelyhome.com címet. Ha az 1.13.0-ban beírtad az adataidat a képernyőre, azok ahhoz a másik szerverhez mentek, amely elutasította őket, máshová nem. Ha szeretnéd, regisztrálj újra a Beállítások > Fiók és adatok oldalon. A nyilvántartás váratlan válaszát az alkalmazás mostantól a te nyelveden mutatja. Az első indítás képernyője mostantól a helyadatok között a régiót is megnevezi."
         }
       },
       {
@@ -36,8 +36,8 @@
           "hu": "Frissített összetevők és biztonsági javítások"
         },
         "text": {
-          "en": "The Tauri framework, the interface libraries and the other dependencies are updated to their newest minor releases. Three packages inside the pinned Claude Agent SDK tree (fast-uri, body-parser and qs) and the crypto-bigint library used by the relay's signature code were updated for published security advisories.",
-          "hu": "A Tauri keretrendszer, a felületi könyvtárak és a többi függőség a legújabb kisebb kiadásukra frissült. A rögzített Claude Agent SDK-fában három csomag (fast-uri, body-parser és qs), valamint a relay aláírási kódja által használt crypto-bigint könyvtár a közzétett biztonsági figyelmeztetések miatt frissült."
+          "en": "The Tauri framework, the interface libraries and the other dependencies are updated to their newest minor releases. Six packages inside the pinned Claude Agent SDK tree (fast-uri, body-parser, qs, the MCP SDK, zod and ip-address) and the crypto-bigint library used by the relay's signature code were updated for published security advisories.",
+          "hu": "A Tauri keretrendszer, a felületi könyvtárak és a többi függőség a legújabb kisebb kiadásukra frissült. A rögzített Claude Agent SDK-fában hat csomag (fast-uri, body-parser, qs, az MCP SDK, a zod és az ip-address), valamint a relay aláírási kódja által használt crypto-bigint könyvtár a közzétett biztonsági figyelmeztetések miatt frissült."
         }
       }
     ]

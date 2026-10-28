@@ -45,7 +45,7 @@ export function registryApi(): RegistryApi {
 
 // ---- the fixture -----------------------------------------------------------------------------------------------------
 
-export const MOCK_NOTICE = "2026-10-23";
+export const MOCK_NOTICE = "2026-10-28";
 export const MOCK_URL = "https://registry.example.invalid"; // i18n-ignore
 
 /** In memory only: starts "not registered, not asking" so a browser preview or a screenshot run never shows the first-start screen by itself. */

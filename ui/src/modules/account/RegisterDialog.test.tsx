@@ -52,7 +52,7 @@ describe("the first-start screen", () => {
     const d = await screen.findByRole("dialog", { name: "Register this computer?" });
     expect(d.textContent).toContain("your name and email address");
     expect(d.textContent).toContain("a fingerprint of this computer (a hash, not the machine id)");
-    expect(d.textContent).toContain("the country and city your internet connection suggests (not the IP address itself)");
+    expect(d.textContent).toContain("the country, region and city your internet connection suggests (not the IP address itself)");
     expect(d.textContent).toContain("Never stored: your IP address, your files, repositories, prompts, answers");
     expect(d.textContent).toContain("https://api.example.invalid");
     const boxes = screen.getAllByRole("checkbox") as HTMLInputElement[];

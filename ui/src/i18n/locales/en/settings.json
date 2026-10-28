@@ -141,7 +141,7 @@
   "account.first.item.person": "your name and email address;",
   "account.first.item.computer": "a fingerprint of this computer (a hash, not the machine id), its system and version, processor type and number of cores, memory, language and time zone;",
   "account.first.item.use": "the version of the app, and when you start it;",
-  "account.first.item.place": "the country and city your internet connection suggests (not the IP address itself).",
+  "account.first.item.place": "the country, region and city your internet connection suggests (not the IP address itself).",
   "account.first.never": "Never stored: your IP address, your files, repositories, prompts, answers or anything else you do in the app.",
   "account.first.where": "Stored at {url}. You can look at it and delete it any time in Settings > Account & data.",
   "account.first.privacy": "Privacy details",
