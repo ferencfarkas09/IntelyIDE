@@ -4,19 +4,22 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 
 ## [Unreleased]
 
-## [1.14.0] - 2026-10-28
-
 ### Added
 
-- **Versions panel.** A new panel (command palette: Open Versions; Settings > Versions) lists the version files of every repository in the workspace and changes them together: `package.json` and its `package-lock.json`, Xcode `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`, literal `Info.plist` values, Android `versionName` and `versionCode`, `Cargo.toml`, `tauri.conf.json`, Expo `app.json`, `pyproject.toml` and `pubspec.yaml`. Patch, Minor, Major and Build +1 work on one repository or on all of them, any value can be typed, the exact diff is shown before anything is written, and a file that changed in the meantime is refused. Only the version text changes; nothing is committed or tagged and nothing leaves the computer (`docs/versions.md`). New: `crates/versions`, `src-tauri/src/modules/versions.rs` (`versions_scan`, `versions_plan`, `versions_apply`) and `ui/src/modules/versions`.
 - Website: an MCP section on the IntelyIDE page, in English and Hungarian, with a screenshot of the catalog in light and dark and a test that keeps it in step with the catalog.
 - Work in progress, not released: the code compiles for Linux (x86_64, webkit2gtk 4.1), Windows 10/11 (x86_64, WebView2) and Apple Silicon Macs, in addition to Intel Macs. Linux passes its tests; on Windows the permission checks and many tests are not yet verified. No Linux or Windows package is published; see `docs/install-linux.md` and `docs/install-windows.md` for what works and what is different. Secrets use Windows Credential Manager and the Linux Secret Service (one vault entry, split over several Credential Manager entries when it is large), banners use a Windows toast and `notify-send`, files and links open with `explorer.exe` and `xdg-open`, the terminal starts PowerShell on Windows, and connections to servers are not shared on Windows (OpenSSH for Windows has no `ControlMaster`). Process groups, the process table and the disk-space check are macOS and Linux features; the update swap of the app bundle stays macOS only.
 - Website: a bigger IntelyIDE hero with three headline figures (up to 7x faster startup, up to 6x faster agents, about 30% fewer tokens), a Speed section with an illustrative comparison graphic and an "Agents that start and finish sooner" section, in English and Hungarian. The figures carry the note that results vary with workspace, machine and task.
 - Website: every page hero (home, IntelyIDE, IntelyOpti; English and Hungarian) now uses one shared design: frosted feature cards with pointer parallax, hover tilt and glow, and thin turning arcs behind. Under reduced motion the hero keeps its hover, glow and breathing effects without movement, and a footer toggle ("Animations") lets visitors choose full animations.
 
+## [1.14.0] - 2026-10-28
+
+### Added
+
+- **Versions panel.** A new panel (command palette: Open Versions; Settings > Versions) lists the version files of every repository in the workspace and changes them together: `package.json` and its `package-lock.json`, Xcode `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`, literal `Info.plist` values, Android `versionName` and `versionCode`, `Cargo.toml`, `tauri.conf.json`, Expo `app.json`, `pyproject.toml` and `pubspec.yaml`. Patch, Minor, Major and Build +1 work on one repository or on all of them, any value can be typed, the exact diff is shown before anything is written, and a file that changed in the meantime is refused. Only the version text changes; nothing is committed or tagged and nothing leaves the computer (`docs/versions.md`). New: `crates/versions`, `src-tauri/src/modules/versions.rs` (`versions_scan`, `versions_plan`, `versions_apply`) and `ui/src/modules/versions`.
+
 ### Changed
 
-- Updated the npm dependencies of the app and its tools to their newest minor and patch releases (the Solid and Vite toolchain, `lucide-solid`, CodeMirror, `marked`, `dompurify`, `jsdom`, Vitest, Wrangler, `@tauri-apps/cli`, `@tanstack/solid-virtual`) and the Rust dependencies (Tauri 2.12.5 and its build and runtime crates, `serde_json`, `uuid`, `sha2`, `zeroize`, `plist`, `libc`, `keyring-core`; lock file only). The virtual list library now measures its scroll area with `clientWidth` and `clientHeight`, so the test stubs that fake a layout in jsdom set those too; the app itself behaves the same.
+- Updated the dependencies of the app and its tools to their newest minor and patch releases: the interface toolchain (Solid, Vite, `lucide-solid`, CodeMirror, `marked`, `dompurify`, `@tanstack/solid-virtual`), Tauri 2.12.5 with its build and runtime crates, and `serde_json`, `uuid`, `sha2`, `zeroize`, `plist`, `libc` and `keyring-core`. No change of behaviour is intended; the tests of the interface and of every package pass with the new versions.
 
 ### Fixed
 
