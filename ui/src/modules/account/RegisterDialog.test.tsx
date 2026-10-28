@@ -114,6 +114,20 @@ describe("the first-start screen", () => {
     expect(dialog()).toBe("register");
   });
 
+  it.each([
+    ["unknownInstall", "The registry does not know this computer (any more)", "The registry does not know this computer any more. Register it again."],
+    ["badRequest", "The registry did not accept the request (email)", "The registry did not accept the request. Update IntelyIDE and try again."],
+  ])("shows the registry's %s answer in the person's language, not as the server's English", async (code, raw, words) => {
+    fake(base, { register: vi.fn(async () => Promise.reject({ code, message: raw })) });
+    render(() => <RegisterDialog />);
+    await screen.findByRole("dialog");
+    fill("Anna", "anna@example.com");
+    fireEvent.click(screen.getByRole("checkbox", { name: /I agree that this is stored/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Register" }));
+    expect(await screen.findByText(words)).toBeTruthy();
+    expect(screen.queryByText(raw, { exact: false })).toBeNull();
+  });
+
   it("accepts an address with an apostrophe, which the registry and the app accept too", async () => {
     const api = fake(base);
     render(() => <RegisterDialog />);

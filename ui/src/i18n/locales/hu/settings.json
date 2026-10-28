@@ -157,6 +157,8 @@
   "account.err.offline": "A nyilvántartás nem érhető el. Ellenőrizd a kapcsolatot, és próbáld újra.",
   "account.err.unavailable": "A nyilvántartás most nem érhető el. Próbáld újra egy kicsit később.",
   "account.err.rateLimited": "Túl sok próbálkozás. Várj pár percet, és próbáld újra.",
+  "account.err.unknown": "A nyilvántartás már nem ismeri ezt a gépet. Regisztráld újra.",
+  "account.err.rejected": "A nyilvántartás nem fogadta el a kérést. Frissítsd az IntelyIDE-ot, és próbáld újra.",
   "account.err.generic": "Ez nem sikerült: {message}",
   "account.again.title": "Az adatvédelmi tájékoztató megváltozott",
   "account.again.lead": "Egy régebbi tájékoztató szerint regisztráltál, ezért addig nem megy ki semmi, amíg nem válaszolsz. Itt van, mit tárolunk most. Folytathatod, vagy leállíthatod és törölheted az adataidat.",

@@ -1,5 +1,5 @@
 /* Versions panel. Tokens only. */
-.ver { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3); padding-bottom: 0; min-width: 0; height: 100%; overflow: auto; background: var(--surface-1); color: var(--text-1); }
+.ver { container-type: inline-size; display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3); padding-bottom: 0; min-width: 0; height: 100%; overflow: auto; background: var(--surface-1); color: var(--text-1); }
 .ver__bar { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
 .ver__title { margin: 0; font-size: var(--text-md); font-weight: var(--weight-semibold); }
 .ver__all { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }
@@ -30,7 +30,13 @@
 .ver__dh { margin: var(--space-1) 0 0; font-size: var(--text-xs); color: var(--text-3); font-weight: var(--weight-medium); text-transform: uppercase; letter-spacing: 0.04em; }
 .ver__pre { margin: 0; padding: var(--space-2); overflow: auto; max-height: 200px; border-radius: var(--radius-3); background: var(--surface-0); box-shadow: inset 0 0 0 1px var(--border-subtle); font-family: var(--font-mono); font-size: var(--text-xs); line-height: 1.5; white-space: pre; }
 .ver__foot { display: flex; align-items: center; gap: var(--space-2); position: sticky; bottom: 0; padding: var(--space-1) 0; background: var(--surface-1); }
-@media (max-width: 720px) {
+/* The panel sits beside the sidebar, so its width is not the window's: the layout follows the panel (the app's smallest window leaves it about 500px). */
+@container (max-width: 640px) {
+  .ver__row { grid-template-columns: minmax(0, 1.2fr) auto auto minmax(96px, 1fr); }
+  .ver__row > .ver__notes { grid-column: 1 / -1; }
+}
+@container (max-width: 420px) {
   .ver__row { grid-template-columns: minmax(0, 1fr) auto; }
   .ver__row > span[aria-hidden] { display: none; }
+  .ver__row > .ver__field { grid-column: 1 / -1; }
 }
