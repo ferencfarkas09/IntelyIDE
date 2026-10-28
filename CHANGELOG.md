@@ -16,6 +16,10 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 
 - Updated the npm dependencies of the app and its tools to their newest minor and patch releases (the Solid and Vite toolchain, `lucide-solid`, CodeMirror, `marked`, `dompurify`, `jsdom`, Vitest, Wrangler, `@tauri-apps/cli`, `@tanstack/solid-virtual`) and the Rust dependencies (Tauri 2.12.5 and its build and runtime crates, `serde_json`, `uuid`, `sha2`, `zeroize`, `plist`, `libc`, `keyring-core`; lock file only). The virtual list library now measures its scroll area with `clientWidth` and `clientHeight`, so the test stubs that fake a layout in jsdom set those too; the app itself behaves the same.
 
+### Security
+
+- Refreshed the pinned tree of the Claude Agent SDK that the app installs (`sidecar/sdk-pin`) for three security releases of packages inside it: `fast-uri` 3.1.9 (four URI parsing and normalisation advisories), `body-parser` 2.4.0 (CVE-2026-111181, a crash on a malformed compressed body) and `qs` 6.17.0, which body-parser needs. Only those three lock entries changed; the tree manifest (`tree.sha256`) was regenerated from a real `npm ci` tree, and a real `npm ci` also reproduced the manifest that was committed before. The SDK version itself is unchanged. `npm audit signatures` still has to be run once by hand on the new tree (`sidecar/sdk-pin/README.md`).
+
 ## [1.13.1] - 2026-10-26
 
 ### Fixed
