@@ -22,7 +22,7 @@ import type { ChatMessage } from "../../ipc/happy";
 
 installDomStubs();
 
-// jsdom has no layout; the virtual list sizes itself from offsetWidth/offsetHeight and renders nothing for 0.
+// jsdom has no layout; the virtual list sizes its scroller from clientWidth/clientHeight (virtual-core 3.19; offsetWidth/offsetHeight before) and renders nothing for 0.
 const sizes = ["offsetWidth", "offsetHeight"] as const;
 const saved = sizes.map((k) => Object.getOwnPropertyDescriptor(HTMLElement.prototype, k));
 beforeAll(() => {
@@ -61,19 +61,27 @@ async function bring(scenario: ChatScenario = "ok", opts: { chat?: boolean; pres
   await flush();
 }
 
-/** jsdom has no layout: the tab measures itself with clientWidth, which a test sets to pick the layout (0 = the single column). */
+/** jsdom has no layout: the tab measures itself with clientWidth, which a test sets to pick the layout (0 = the single column); the virtual list's scroller gets the size it needs. */
 let tabWidth = 0;
 const savedWidth = Object.getOwnPropertyDescriptor(Element.prototype, "clientWidth");
+const savedHeight = Object.getOwnPropertyDescriptor(Element.prototype, "clientHeight");
 beforeAll(() => {
   Object.defineProperty(Element.prototype, "clientWidth", {
     configurable: true,
     get(this: Element) {
-      return this.classList.contains("hc") ? tabWidth : 0;
+      return this.classList.contains("hc") ? tabWidth : 360;
+    },
+  });
+  Object.defineProperty(Element.prototype, "clientHeight", {
+    configurable: true,
+    get(this: Element) {
+      return this.classList.contains("ui-scroll__viewport") ? 100_000 : 40;
     },
   });
 });
 afterAll(() => {
   if (savedWidth) Object.defineProperty(Element.prototype, "clientWidth", savedWidth);
+  if (savedHeight) Object.defineProperty(Element.prototype, "clientHeight", savedHeight);
 });
 
 beforeEach(() => {

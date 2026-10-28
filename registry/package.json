@@ -17,8 +17,8 @@
     "brevo:setup": "node scripts/brevo-setup.mjs"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "5.20261003.1",
+    "@cloudflare/workers-types": "5.20261021.1",
     "typescript": "7.0.2",
-    "wrangler": "4.147.0"
+    "wrangler": "4.151.3"
   }
 }

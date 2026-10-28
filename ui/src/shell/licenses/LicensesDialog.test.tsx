@@ -68,6 +68,14 @@ class RO {
 vi.stubGlobal("ResizeObserver", RO);
 Object.defineProperty(HTMLElement.prototype, "offsetHeight", { configurable: true, get: () => 480 });
 Object.defineProperty(HTMLElement.prototype, "offsetWidth", { configurable: true, get: () => 300 });
+// virtual-core 3.19 measures the scroller with clientWidth/clientHeight; the dialog root keeps 0 so the layout stays the two columns.
+Object.defineProperty(HTMLElement.prototype, "clientHeight", { configurable: true, get: () => 480 });
+Object.defineProperty(HTMLElement.prototype, "clientWidth", {
+  configurable: true,
+  get(this: HTMLElement) {
+    return this.classList.contains("lic") ? 0 : 300;
+  },
+});
 
 const mountOpts = { initialRect: { width: 300, height: 480 }, overscan: 4 };
 const open = (o?: Parameters<typeof openLicenses>[0]) => openLicenses(o);

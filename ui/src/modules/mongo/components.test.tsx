@@ -20,6 +20,8 @@ beforeEach(() => {
   vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({ width: 800, height: 480, top: 0, left: 0, right: 800, bottom: 480, x: 0, y: 0, toJSON() {} });
   Object.defineProperty(HTMLElement.prototype, "offsetHeight", { configurable: true, value: 480 });
   Object.defineProperty(HTMLElement.prototype, "offsetWidth", { configurable: true, value: 800 });
+  Object.defineProperty(HTMLElement.prototype, "clientHeight", { configurable: true, value: 480 });
+  Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, value: 800 });
   vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
 });
 afterEach(() => {
