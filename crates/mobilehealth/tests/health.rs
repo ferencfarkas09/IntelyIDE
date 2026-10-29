@@ -211,7 +211,7 @@ fn every_check_fires_on_its_case_and_nowhere_else() {
 
 #[test]
 fn the_list_of_checks_matches_the_cases_the_registry_and_the_prompts() {
-    let reg: serde_json::Value = serde_json::from_str(include_str!("../data/checks.json")).unwrap();
+    let reg: serde_json::Value = serde_json::from_str(include_str!("../tables/checks.json")).unwrap();
     let registered: BTreeSet<String> = reg["findings"].as_array().unwrap().iter().map(|f| f["id"].as_str().unwrap().to_string()).collect();
     let tested: BTreeSet<String> = cases().iter().map(|c| c.id.to_string()).collect();
     assert_eq!(registered, tested, "checks.json and the cases differ");
@@ -263,7 +263,7 @@ fn the_checklist_follows_the_files() {
         let item = p.checklist.iter().find(|c| c.id == id).unwrap();
         assert_eq!(item.prompt.is_some(), want == Status::Missing || id == "ios.launchScreen", "{id}: prompt");
     }
-    let reg: serde_json::Value = serde_json::from_str(include_str!("../data/checks.json")).unwrap();
+    let reg: serde_json::Value = serde_json::from_str(include_str!("../tables/checks.json")).unwrap();
     let listed: BTreeSet<&str> = reg["checklist"].as_array().unwrap().iter().map(|c| c["id"].as_str().unwrap()).collect();
     let seen: BTreeSet<&str> = p.checklist.iter().map(|c| c.id).collect();
     assert_eq!(listed, seen);

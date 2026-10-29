@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
 import { afterEach, describe, expect, it } from "vitest";
-import checks from "../../../../crates/mobilehealth/data/checks.json";
+import checks from "../../../../crates/mobilehealth/tables/checks.json";
 import en from "../../i18n/locales/en/mobilehealth.json";
 import hu from "../../i18n/locales/hu/mobilehealth.json";
 import { registerCommand } from "../../platform/commands";

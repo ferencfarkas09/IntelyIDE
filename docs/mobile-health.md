@@ -32,7 +32,7 @@ Every finding has a severity (error, warning or note), an explanation for a non-
 - **Warning**: likely to cause trouble (for example no development team, different bundle identifiers in Debug and Release, a missing permission text for a package that needs one).
 - **Note**: worth knowing (for example iOS and Android on different versions, a permission that nothing seems to use).
 
-A finding marked with a confidence label is a guess. Permissions are inferred from package names in `package.json` (such as `expo-camera` or `react-native-vision-camera`) and from calls in the project's own native code (such as `CLLocationManager`), and the table behind this is `crates/mobilehealth/data/permissions.json`. Confidence is high for native code, medium for a package that exists to use the permission, and low for a package that only might. JavaScript can ask for a permission in ways neither source shows, and many Android libraries add their permissions to the app themselves, so check before acting.
+A finding marked with a confidence label is a guess. Permissions are inferred from package names in `package.json` (such as `expo-camera` or `react-native-vision-camera`) and from calls in the project's own native code (such as `CLLocationManager`), and the table behind this is `crates/mobilehealth/tables/permissions.json`. Confidence is high for native code, medium for a package that exists to use the permission, and low for a package that only might. JavaScript can ask for a permission in ways neither source shows, and many Android libraries add their permissions to the app themselves, so check before acting.
 
 ### Cross-platform checks
 
@@ -46,7 +46,7 @@ A plain-text password in a Gradle file or in `gradle.properties` is reported by 
 
 The checklist lists what can be seen in the repository: the 1024 px App Store icon, the iOS privacy manifest (`PrivacyInfo.xcprivacy`), a launch screen, the Android launcher icon, store screenshots, and the Android `targetSdk`. Screenshots often live outside the repository, so their absence is shown as Check, not as a failure.
 
-Store requirements change. The panel does not assert a policy or a date: where a level is involved it shows the value noted in its own table together with the date that table was last reviewed, and tells you to check the current requirement on the store's own page. The tables are `crates/mobilehealth/data/store.json` (the Google Play target level) and `crates/mobilehealth/data/compat.json` (the oldest Gradle each Android Gradle plugin version needs). The reviewed dates are shown at the bottom of each repository. An Android Gradle plugin version that is not in the table is reported as unknown, never as wrong.
+Store requirements change. The panel does not assert a policy or a date: where a level is involved it shows the value noted in its own table together with the date that table was last reviewed, and tells you to check the current requirement on the store's own page. The tables are `crates/mobilehealth/tables/store.json` (the Google Play target level) and `crates/mobilehealth/tables/compat.json` (the oldest Gradle each Android Gradle plugin version needs). The reviewed dates are shown at the bottom of each repository. An Android Gradle plugin version that is not in the table is reported as unknown, never as wrong.
 
 ## Limits
 

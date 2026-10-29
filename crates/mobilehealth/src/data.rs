@@ -7,10 +7,10 @@ use std::sync::OnceLock;
 
 use serde::{Deserialize, Serialize};
 
-const COMPAT: &str = include_str!("../data/compat.json");
-const STORE: &str = include_str!("../data/store.json");
-const PERMS: &str = include_str!("../data/permissions.json");
-pub(crate) const CHECKS_JSON: &str = include_str!("../data/checks.json");
+const COMPAT: &str = include_str!("../tables/compat.json");
+const STORE: &str = include_str!("../tables/store.json");
+const PERMS: &str = include_str!("../tables/permissions.json");
+pub(crate) const CHECKS_JSON: &str = include_str!("../tables/checks.json");
 
 /// When each table was last looked over (shown in the app so nobody mistakes an old table for today's policy).
 #[derive(Debug, Clone, Default, Serialize)]
