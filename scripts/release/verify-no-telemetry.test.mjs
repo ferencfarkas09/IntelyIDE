@@ -175,7 +175,7 @@ describe("(8) capabilities and frame-src", () => {
   const caps = (o) => tree({ "src-tauri/capabilities/default.json": JSON.stringify(o) });
   it("passes the recorded set", () => assert.deepEqual(checkCapabilities(tree()), []));
   it("the recorded set is exactly the one in this test", () => {
-    assert.deepEqual(EXPECTED_PERMISSIONS, ["core:default", "core:window:allow-start-dragging", "core:window:allow-toggle-maximize"]);
+    assert.deepEqual(EXPECTED_PERMISSIONS, ["core:default", "core:window:allow-start-dragging", "core:window:allow-toggle-maximize", "core:window:allow-minimize", "core:window:allow-close"]);
   });
   it("fails a remote section", () => {
     assert.ok(checkCapabilities(caps({ permissions: EXPECTED_PERMISSIONS, remote: { urls: ["https://x.example"] } })).length);

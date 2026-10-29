@@ -4,6 +4,10 @@ import { render } from "solid-js/web";
 import { App } from "./app/App";
 import { trackStartup } from "./perf";
 import { localeReady } from "./i18n";
+import { applyPlatformAttribute } from "./platform/platform";
+
+// Before the first paint: CSS follows the platform (the traffic-light gap is macOS-only, Windows gets window buttons).
+applyPlatformAttribute();
 
 const root = document.getElementById("root")!;
 const mode = window.__INTELY_MODE__;

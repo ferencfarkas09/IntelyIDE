@@ -50,7 +50,8 @@ export const RUST_NET_ALLOW = [
 // (6) the one sidecar file allowed to use the network (confirm-first SDK installer); must be named in privacy.md
 export const SIDECAR_NET_FILE = "sidecar/src/sdk-install.ts";
 // (8) the capability set recorded for the main window (test asserts the same literal)
-export const EXPECTED_PERMISSIONS = ["core:default", "core:window:allow-start-dragging", "core:window:allow-toggle-maximize"];
+// minimize and close only on Windows (capabilities/windows.json): its window has no native frame, the title bar carries the buttons
+export const EXPECTED_PERMISSIONS = ["core:default", "core:window:allow-start-dragging", "core:window:allow-toggle-maximize", "core:window:allow-minimize", "core:window:allow-close"];
 // (11) the one host crates/registry talks to (the optional registration the person agrees to on the first-start screen)
 export const REGISTRY_HOSTS = ["registry.intelyhome.com"];
 // (10) hosts of crates/updater/src/endpoints.rs (updater-spec 4.6); a suffix entry starts with a dot
