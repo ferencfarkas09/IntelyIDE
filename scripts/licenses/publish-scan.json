@@ -654,6 +654,41 @@
       "path": "site/src/content/hu.mjs",
       "rule": "email-address",
       "reason": "placeholder address in the Hungarian example text of the website's contact form (an example, not a contact point)"
+    },
+    {
+      "path": "ui/src/ipc/mock/vibe.ts",
+      "rule": "stripe-key",
+      "reason": "token prefix list of the local secret masker (no key)"
+    },
+    {
+      "path": "ui/src/platform/sendToAgent.test.ts",
+      "rule": "url-credentials",
+      "reason": "fake canary secrets in the Send to agent masking tests"
+    },
+    {
+      "path": "ui/src/platform/sendToAgent.test.ts",
+      "rule": "github-token",
+      "reason": "fake canary secrets in the Send to agent masking tests"
+    },
+    {
+      "path": "ui/src/platform/sendToAgent.test.ts",
+      "rule": "credential-assignment",
+      "reason": "fake canary secrets in the Send to agent masking tests"
+    },
+    {
+      "path": "ui/src/platform/sendToAgent.test.ts",
+      "rule": "jwt",
+      "reason": "fake canary secrets in the Send to agent masking tests"
+    },
+    {
+      "path": "ui/src/platform/sendToAgent.test.ts",
+      "rule": "aws-access-key",
+      "reason": "fake canary secrets in the Send to agent masking tests"
+    },
+    {
+      "path": "ui/src/modules/projectnotes/projectnotes.test.tsx",
+      "rule": "token-assignment",
+      "reason": "fake canary token in the Project notes secret-warning test"
     }
   ]
 }
