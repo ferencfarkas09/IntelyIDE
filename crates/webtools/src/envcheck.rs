@@ -294,7 +294,7 @@ mod tests {
 
     #[test]
     fn compares_example_and_real_files_and_checks_gitignore() {
-        let secret = "sk-live-VERY-SECRET-VALUE-123";
+        let secret = "fixture-value-that-must-not-leak-123";
         let d = repo(&[
             (".env.example", "API_URL=\nDB_URL=\nNEW_KEY=\n"),
             (".env", &format!("API_URL=http://x\nDB_URL={secret}\nLOCAL_ONLY=1\n")),
