@@ -91,6 +91,25 @@ const TAG_OK = /^[a-z][a-z0-9-]{0,31}$/;
 const CLASS_OK = /^[A-Za-z0-9_-]{1,64}$/;
 const ID_OK = /^[A-Za-z0-9_:.-]{0,64}$/;
 export const MAX_STYLE_VALUE = 100;
+const LENGTHS = /^(?:(?:-?\d{1,6}(?:\.\d{1,4})?(?:px|%|em|rem|vh|vw|ch)?|auto|normal|none)(?: |$)){1,8}$/;
+const COLOR = /^(?:#[0-9a-f]{3,8}|(?:rgb|hsl)a?\([0-9., %/]{1,50}\)|transparent|currentcolor|[a-z]{3,20})$/i;
+/** What each shown property may look like: a length list, a colour, a keyword from a short list, a font list. Nothing else is shown. */
+const VALUE_OK: Record<(typeof STYLE_KEYS)[number], RegExp> = {
+  display: /^(?:block|inline|inline-block|flex|inline-flex|grid|inline-grid|contents|none|table|table-cell|table-row|flow-root|list-item)$/,
+  position: /^(?:static|relative|absolute|fixed|sticky)$/,
+  width: LENGTHS,
+  height: LENGTHS,
+  margin: LENGTHS,
+  padding: LENGTHS,
+  color: COLOR,
+  "background-color": COLOR,
+  "font-family": /^[A-Za-z0-9 _"',.-]{1,100}$/,
+  "font-size": LENGTHS,
+  "font-weight": /^(?:\d{3}|normal|bold|bolder|lighter)$/,
+  "line-height": LENGTHS,
+  "border-radius": LENGTHS,
+  gap: LENGTHS,
+};
 export const MAX_CLASSES = 12;
 
 function plainData(o: object, keys: readonly string[]): Record<string, unknown> | undefined {
@@ -129,8 +148,9 @@ export function parseStyleMessage(data: unknown): StyleHint | undefined {
   for (const key of STYLE_KEYS) {
     if (!(key in raw)) continue;
     const v = raw[key];
-    if (typeof v !== "string" || v.length > MAX_STYLE_VALUE || hasUnsafeChar(v)) return undefined;
-    if (v) out[key] = v;
+    if (typeof v !== "string" || v.length > MAX_STYLE_VALUE) return undefined;
+    // a value that does not fit its property's grammar is dropped (the page may send anything)
+    if (v && VALUE_OK[key].test(v)) out[key] = v;
   }
   if (Object.keys(raw).some((k) => !(STYLE_KEYS as readonly string[]).includes(k))) return undefined;
   return { tag, id, classes: cls, styles: out, width: Math.round(width), height: Math.round(height) };

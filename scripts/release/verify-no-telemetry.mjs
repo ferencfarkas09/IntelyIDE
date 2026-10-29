@@ -46,6 +46,7 @@ export const IGNORED_EDGES = [["tauri", "reqwest"]];
 // (7) loopback-only probes outside the allowed crates, by exact file (reason in the comment)
 export const RUST_NET_ALLOW = [
   "src-tauri/src/modules/preview/gate.rs", // TcpStream::connect_timeout to 127.0.0.1 / ::1 only: "is a dev server listening"
+  "crates/webtools/src/npmrun.rs", // `npm outdated` / `npm audit` on a private copy of package.json, after the person confirmed that it contacts the npm registry (docs/node-tools.md)
   "crates/webtools/src/tryit.rs", // Try it: one HTTP request to 127.0.0.1 / ::1, on the port of a dev server the Scripts panel started (target_addrs is loopback by construction)
 ];
 // (6) the one sidecar file allowed to use the network (confirm-first SDK installer); must be named in privacy.md
@@ -360,6 +361,8 @@ const RUST_NET = [
   [/Command::new\(\s*"curl"/, "curl"],
   [/\buse\s+curl\b|\bcurl::/, "curl"],
   [/\bureq\b/, "ureq"],
+  // npm talks to the registry: only the user-confirmed dependency check may start it by name (crates/webtools/src/npmrun.rs)
+  [/Command::new\([^)]*\bprogram\(\s*"npm"|Command::new\(\s*"npm"/, "npm"],
 ];
 
 export function checkRustSources(root) {

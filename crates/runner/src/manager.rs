@@ -441,6 +441,18 @@ impl RunManager {
     }
 
     /// The loopback URL of a running server's first port; the Tauri side opens it in the system browser.
+    /// The sockets this server's process tree listens on, asked of `lsof` right now (not taken from the log, which a script can fake).
+    /// `None` when `lsof` is unavailable or the server is not alive.
+    pub fn listeners(&self, id: &str) -> Option<Vec<port::Listener>> {
+        let server = lock(&self.inner.servers).get(id).cloned()?;
+        let pid = {
+            let live = lock(&server.live);
+            live.pid.filter(|_| Server::is_live(&live))?
+        };
+        let tree = rss::tree_pids(&[pid], &[pid]);
+        port::listeners(&tree)
+    }
+
     pub fn url(&self, id: &str) -> Option<String> {
         let server = self.find(id).ok()?;
         let live = lock(&server.live);

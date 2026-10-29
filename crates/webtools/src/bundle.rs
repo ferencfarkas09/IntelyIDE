@@ -68,11 +68,23 @@ fn kind_of(ext: &str) -> (&'static str, f64) {
     }
 }
 
-fn is_dir(p: &Path) -> bool {
-    std::fs::symlink_metadata(p).is_ok_and(|m| m.file_type().is_dir())
+/// `rel` under `root` is a real folder: every component of it is looked at without following a link, so `apps -> /outside` (a link
+/// where a folder should be) is not a folder here.
+fn is_dir(root: &Path, rel: &str) -> bool {
+    let mut p = root.to_path_buf();
+    for part in rel.split('/').filter(|c| !c.is_empty()) {
+        p.push(part);
+        if !std::fs::symlink_metadata(&p).is_ok_and(|m| m.file_type().is_dir()) {
+            return false;
+        }
+    }
+    true
 }
 
 fn subfolders(root: &Path, parent: &str) -> Vec<String> {
+    if !is_dir(root, parent) {
+        return Vec::new();
+    }
     let Ok(rd) = std::fs::read_dir(root.join(parent)) else { return Vec::new() };
     let mut v: Vec<String> = rd
         .flatten()
@@ -91,12 +103,12 @@ pub fn bundle_report(root: &Path) -> Result<BundleReport, WebError> {
     for group in ["apps", "packages"] {
         bases.extend(subfolders(root, group));
     }
-    bases.extend(SUBAPPS.iter().filter(|n| is_dir(&root.join(n))).map(|n| n.to_string()));
+    bases.extend(SUBAPPS.iter().filter(|n| is_dir(root, n)).map(|n| n.to_string()));
     let mut report = BundleReport::default();
     for base in &bases {
         for out in OUTPUTS {
             let rel = if base.is_empty() { out.to_string() } else { format!("{base}/{out}") };
-            if !is_dir(&root.join(&rel)) {
+            if !is_dir(root, &rel) {
                 continue;
             }
             let w = walk_in(root, &rel, &[], false);
@@ -157,6 +169,26 @@ mod tests {
         assert_eq!(dist.top[0].gzip_estimate, 1600);
         assert_eq!(dist.top[2].path, "dist/index.html");
         assert_eq!(dist.by_kind[0].kind, "js");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_link_where_a_parent_folder_should_be_is_not_followed() {
+        let outside = tempfile::tempdir().unwrap();
+        for rel in ["web/dist/assets/secret-name.js", "web/.next/static/chunk.js", "dist/index.html"] {
+            let p = outside.path().join(rel);
+            std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+            std::fs::write(p, vec![b'x'; 100]).unwrap();
+        }
+        let d = tempfile::tempdir().unwrap();
+        std::os::unix::fs::symlink(outside.path(), d.path().join("apps")).unwrap();
+        std::os::unix::fs::symlink(outside.path(), d.path().join("packages")).unwrap();
+        std::os::unix::fs::symlink(outside.path().join("web"), d.path().join("client")).unwrap();
+        std::fs::create_dir(d.path().join("real")).unwrap();
+        std::os::unix::fs::symlink(outside.path().join("web/.next"), d.path().join("real/.next")).unwrap();
+        let r = bundle_report(d.path()).unwrap();
+        assert!(r.dirs.is_empty(), "{:?}", r.dirs.iter().map(|x| &x.dir).collect::<Vec<_>>());
+        assert!(!serde_json::to_string(&r).unwrap().contains("secret-name"));
     }
 
     #[test]

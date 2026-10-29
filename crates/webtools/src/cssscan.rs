@@ -3,20 +3,22 @@
 //! Every loop moves forward byte by byte, so pathological input (unbalanced braces, megabytes of `{`, unterminated strings
 //! and comments) costs time proportional to its size, and the number of results is capped.
 
-pub(crate) const MAX_DECLS: usize = 30_000;
-pub(crate) const MAX_RULES: usize = 30_000;
+pub(crate) const MAX_DECLS: usize = 20_000;
+pub(crate) const MAX_RULES: usize = 20_000;
 const MAX_DEPTH: usize = 200;
-const MAX_PROP: usize = 100;
-const MAX_VALUE: usize = 400;
-const MAX_SELECTOR: usize = 600;
+const MAX_PROP: usize = 64;
+const MAX_VALUE: usize = 200;
+const MAX_SELECTOR: usize = 300;
 
 #[derive(Debug, Clone)]
 pub(crate) struct Decl {
     pub prop: String,
     pub value: String,
     pub line: u32,
-    /// The selector this declaration sits in ("" at the top level).
-    pub scope: String,
+    /// Not inside any rule (a top-level variable).
+    pub top_level: bool,
+    /// Inside a rule whose selector is `:root` or `html`.
+    pub in_root: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -27,12 +29,26 @@ pub(crate) struct Rule {
     pub parent: Option<usize>,
 }
 
+/// A declaration worth keeping: a variable (custom property, SCSS or Less), `composes`, or a value that holds a digit, a `#`, a function
+/// or a colour keyword, which are the only values the tools compare. The rest (`display: flex`) is dropped at once, so a hostile file
+/// of thousands of tiny declarations costs nothing to keep.
+fn worth_keeping(prop: &str, value: &str) -> bool {
+    prop.starts_with("--") || prop.starts_with('$') || prop.starts_with('@') || prop == "composes" || value.bytes().any(|b| b.is_ascii_digit() || b == b'#' || b == b'(') || value.eq_ignore_ascii_case("white") || value.eq_ignore_ascii_case("black")
+}
+
 #[derive(Debug, Default)]
 pub(crate) struct Facts {
     pub decls: Vec<Decl>,
     pub rules: Vec<Rule>,
     /// The file has an `@forward` (its variables are exported, so "unused" is less sure).
     pub forwards: bool,
+}
+
+impl Facts {
+    /// A cheap estimate of the memory these facts hold, for the global budget of a scan.
+    pub(crate) fn approx_bytes(&self) -> usize {
+        self.decls.iter().map(|d| 64 + d.prop.len() + d.value.len()).sum::<usize>() + self.rules.iter().map(|r| 48 + r.selector.len()).sum::<usize>()
+    }
 }
 
 enum Frame {
@@ -97,8 +113,12 @@ pub(crate) fn scan(text: &str, preproc: bool) -> Facts {
     let mut started = false;
     let mut paren = 0usize;
     let mut i = 0usize;
-    let scope_of = |stack: &[Frame], rules: &[Rule]| -> String {
-        stack.iter().rev().find_map(|f| if let Frame::Sel(r) = f { Some(rules[*r].selector.clone()) } else { None }).unwrap_or_default()
+    // (no rule around, the rule around is :root or html)
+    let scope_of = |stack: &[Frame], rules: &[Rule]| -> (bool, bool) {
+        match stack.iter().rev().find_map(|f| if let Frame::Sel(r) = f { Some(&rules[*r].selector) } else { None }) {
+            None => (true, false),
+            Some(sel) => (false, sel.contains(":root") || sel.trim() == "html"),
+        }
     };
     macro_rules! flush_decl {
         () => {{
@@ -116,14 +136,16 @@ pub(crate) fn scan(text: &str, preproc: bool) -> Facts {
                         if let Some(c) = colon_at(sb) {
                             let (p, v) = (stmt[..c].trim(), stmt[c + 1..].trim());
                             if prop_ok(p) && p.len() > 1 && !p.contains(char::is_whitespace) {
-                                facts.decls.push(Decl { prop: p.to_string(), value: lossy(v.as_bytes(), MAX_VALUE), line: stmt_line, scope: scope_of(&stack, &facts.rules) });
+                                let (top_level, in_root) = scope_of(&stack, &facts.rules);
+                                facts.decls.push(Decl { prop: p.to_string(), value: lossy(v.as_bytes(), MAX_VALUE), line: stmt_line, top_level, in_root });
                             }
                         }
                     }
                 } else if let Some(c) = colon_at(sb) {
                     let (p, v) = (stmt[..c].trim(), stmt[c + 1..].trim());
-                    if prop_ok(p) {
-                        facts.decls.push(Decl { prop: p.to_string(), value: lossy(v.as_bytes(), MAX_VALUE), line: stmt_line, scope: scope_of(&stack, &facts.rules) });
+                    if prop_ok(p) && worth_keeping(p, v) {
+                        let (top_level, in_root) = scope_of(&stack, &facts.rules);
+                        facts.decls.push(Decl { prop: p.to_string(), value: lossy(v.as_bytes(), MAX_VALUE), line: stmt_line, top_level, in_root });
                     }
                 }
             }
@@ -258,7 +280,7 @@ pub(crate) fn scan_indented(text: &str) -> Facts {
         if t.starts_with('$') || t.starts_with("--") {
             if let Some((p, v)) = t.split_once(':') {
                 if facts.decls.len() < MAX_DECLS && prop_ok(p.trim()) {
-                    facts.decls.push(Decl { prop: p.trim().to_string(), value: lossy(v.as_bytes(), MAX_VALUE), line: lineno, scope: String::new() });
+                    facts.decls.push(Decl { prop: p.trim().to_string(), value: lossy(v.as_bytes(), MAX_VALUE), line: lineno, top_level: true, in_root: false });
                 }
             }
         } else if (t.starts_with('.') || t.starts_with('&') || t.starts_with('#')) && facts.rules.len() < MAX_RULES {
@@ -266,9 +288,12 @@ pub(crate) fn scan_indented(text: &str) -> Facts {
             facts.rules.push(Rule { selector: lossy(t.as_bytes(), MAX_SELECTOR), line: lineno, parent });
             stack.push((indent, facts.rules.len() - 1));
         } else if let Some((p, v)) = t.split_once(':') {
-            let scope = stack.last().map(|(_, r)| facts.rules[*r].selector.clone()).unwrap_or_default();
-            if facts.decls.len() < MAX_DECLS && prop_ok(p.trim()) && !p.contains(' ') {
-                facts.decls.push(Decl { prop: p.trim().to_string(), value: lossy(v.as_bytes(), MAX_VALUE), line: lineno, scope });
+            let (top_level, in_root) = match stack.last() {
+                None => (true, false),
+                Some((_, r)) => (false, facts.rules[*r].selector.contains(":root")),
+            };
+            if facts.decls.len() < MAX_DECLS && prop_ok(p.trim()) && !p.contains(' ') && worth_keeping(p.trim(), v) {
+                facts.decls.push(Decl { prop: p.trim().to_string(), value: lossy(v.as_bytes(), MAX_VALUE), line: lineno, top_level, in_root });
             }
         }
     }
@@ -436,7 +461,8 @@ mod tests {
         let f = scan(":root { --brand: #ff0000; --gap: 8px }\n.card { color: var(--brand); &__title { margin: 0 } }\n", false);
         let props: Vec<(&str, &str, u32)> = f.decls.iter().map(|d| (d.prop.as_str(), d.value.as_str(), d.line)).collect();
         assert_eq!(props, vec![("--brand", "#ff0000", 1), ("--gap", "8px", 1), ("color", "var(--brand)", 2), ("margin", "0", 2)]);
-        assert_eq!(f.decls[0].scope, ":root");
+        assert!(f.decls[0].in_root && !f.decls[0].top_level);
+        assert!(!f.decls[2].in_root && !f.decls[2].top_level);
         assert_eq!(f.rules.iter().map(|r| r.selector.as_str()).collect::<Vec<_>>(), vec![":root", ".card", "&__title"]);
         assert_eq!(f.rules[2].parent, Some(1));
     }
@@ -473,7 +499,7 @@ mod tests {
     #[test]
     fn indented_sass() {
         let f = scan_indented("$brand: #fff\n.card\n  color: red\n  &__t\n    margin: 0\n");
-        assert_eq!(f.decls.iter().map(|d| d.prop.as_str()).collect::<Vec<_>>(), vec!["$brand", "color", "margin"]);
+        assert_eq!(f.decls.iter().map(|d| d.prop.as_str()).collect::<Vec<_>>(), vec!["$brand", "margin"]);
         assert_eq!(f.rules.len(), 2);
         assert_eq!(f.rules[1].parent, Some(0));
     }
@@ -487,9 +513,32 @@ mod tests {
         assert!(scan(&unterminated, false).decls.is_empty());
         let q = format!("a: \"{}", "x".repeat(3_000_000));
         assert!(scan(&q, false).decls.len() <= 1);
-        let decls = "a:b;".repeat(200_000);
+        let decls = "a:1;".repeat(200_000);
         assert_eq!(scan(&decls, false).decls.len(), MAX_DECLS);
         let pathological = format!(".{}", "a,".repeat(500_000));
         let _ = defined_classes(&scan(&format!("{pathological} {{}}"), true).rules);
+    }
+
+    #[test]
+    fn declarations_that_nothing_compares_are_not_kept() {
+        let f = scan(".a { display: flex; color: red; margin: 0 auto; padding: 4px; background: #fff; width: calc(1px + 2px); --x: y; composes: b }", false);
+        let props: Vec<&str> = f.decls.iter().map(|d| d.prop.as_str()).collect();
+        assert_eq!(props, vec!["margin", "padding", "background", "width", "--x", "composes"]);
+    }
+
+    /// The review's file: a 590-character selector and 30,000 tiny declarations, 117 KB. Before, every declaration cloned the whole selector
+    /// (about 22 MB in memory for this one file).
+    #[test]
+    fn the_memory_of_the_facts_stays_a_small_multiple_of_the_input() {
+        let selector = format!(".{}", "s".repeat(588));
+        for decl in ["a:b;", "a:1;"] {
+            let text = format!("{selector} {{ {} }}", decl.repeat(30_000));
+            let f = scan(&text, true);
+            assert!(f.approx_bytes() < 20 * text.len(), "{decl}: {} bytes of facts for {} bytes of input", f.approx_bytes(), text.len());
+            assert!(f.decls.len() <= MAX_DECLS);
+        }
+        // and the selector is not copied per declaration at all
+        let f = scan(&format!("{selector} {{ {} }}", "a:1;".repeat(1000)), true);
+        assert!(f.approx_bytes() < 120 * 1000 + 2000, "{}", f.approx_bytes());
     }
 }

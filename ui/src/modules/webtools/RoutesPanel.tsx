@@ -25,7 +25,7 @@ export function parseHeaders(text: string): [string, string][] {
 
 export default function RoutesPanel(props: { repoId: string }) {
   const load = createLoad(() => webtoolsApi().routes(props.repoId));
-  const servers = createLoad(() => webtoolsApi().servers());
+  const servers = createLoad(() => webtoolsApi().servers(props.repoId));
   onMount(() => (void load.run(), void servers.run()));
   const [filter, setFilter] = createSignal("");
   const [method, setMethod] = createSignal<string>("GET");
@@ -41,10 +41,10 @@ export default function RoutesPanel(props: { repoId: string }) {
     const q = filter().trim().toLowerCase();
     return (load.data()?.routes ?? []).filter((r) => !q || `${r.method} ${r.path} ${r.file}`.toLowerCase().includes(q));
   });
-  const ports = createMemo(() => livePorts(servers.data() ?? []));
+  const ports = createMemo(() => livePorts(servers.data()?.servers ?? []));
   const portOf = () => (ports().includes(Number(port())) ? Number(port()) : ports()[0]);
   const label = (s: LiveServer, p: number) => `${s.runner} · localhost:${p}`;
-  const options = createMemo(() => (servers.data() ?? []).flatMap((s) => s.ports.map((p) => ({ value: String(p), label: label(s, p) }))));
+  const options = createMemo(() => (servers.data()?.servers ?? []).flatMap((s) => s.ports.map((p) => ({ value: String(p), label: label(s, p) }))));
 
   const tryRoute = (r: Route) => {
     setMethod(METHODS.includes(r.method as (typeof METHODS)[number]) ? r.method : "GET");
@@ -61,7 +61,7 @@ export default function RoutesPanel(props: { repoId: string }) {
     setSendError(undefined);
     setResponse(undefined);
     try {
-      setResponse(await webtoolsApi().tryIt({ port: target, method: method(), path: p, headers: parseHeaders(headers()), body: body() || undefined }));
+      setResponse(await webtoolsApi().tryIt(props.repoId, { port: target, method: method(), path: p, headers: parseHeaders(headers()), body: body() || undefined }));
     } catch (e) {
       setSendError(errorText(e));
     } finally {
@@ -121,7 +121,17 @@ export default function RoutesPanel(props: { repoId: string }) {
       <section class="wt__sec" id="wt-try" aria-label={t("webtools.try.title")} data-testid="wt-try">
         <h4 class="wt__h2">{t("webtools.try.title")}</h4>
         <p class="wt__why">{t("webtools.try.intro")}</p>
-        <Show when={ports().length > 0} fallback={<EmptyState icon={Server} size="sm" title={t("webtools.try.noServer")} description={t("webtools.try.noServerDesc")} />}>
+        <Show
+          when={ports().length > 0}
+          fallback={
+            <EmptyState
+              icon={Server}
+              size="sm"
+              title={servers.data()?.available === false ? t("webtools.try.noLsof") : t("webtools.try.noServer")}
+              description={servers.data()?.available === false ? t("webtools.try.noLsofDesc") : t("webtools.try.noServerDesc")}
+            />
+          }
+        >
           <div class="wt__tryrow">
             <Select size="sm" aria-label={t("webtools.try.server")} options={options()} value={String(portOf())} onChange={setPort} />
             <Select size="sm" aria-label={t("webtools.try.method")} options={METHODS.map((m) => ({ value: m, label: m }))} value={method()} onChange={setMethod} />

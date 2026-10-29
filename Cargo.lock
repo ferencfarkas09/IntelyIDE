@@ -3225,6 +3225,7 @@ dependencies = [
 name = "intely-webtools"
 version = "0.0.0"
 dependencies = [
+ "intely-core",
  "rustix",
  "serde",
  "serde_json",

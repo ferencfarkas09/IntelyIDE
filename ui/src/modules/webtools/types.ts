@@ -29,6 +29,8 @@ export interface Token {
   uses: number;
   mentions: number;
   unused: boolean;
+  /** A Tailwind v4 theme variable that a utility class uses (`--color-brand` as `bg-brand`). */
+  utility: boolean;
   confidence: Confidence;
   swatch: string | null;
 }
@@ -161,9 +163,14 @@ export interface EnvReport {
 
 export interface LiveServer {
   id: string;
-  repoId: string;
   runner: string;
+  /** Ports that `lsof` shows listening for this server's own processes (never ports it printed). */
   ports: number[];
+}
+export interface LiveServers {
+  /** False when the platform cannot list listening sockets: nothing may be sent. */
+  available: boolean;
+  servers: LiveServer[];
 }
 export interface TryRequest {
   port: number;

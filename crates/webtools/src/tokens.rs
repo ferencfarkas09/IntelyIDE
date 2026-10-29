@@ -10,8 +10,9 @@ use serde::Serialize;
 
 use crate::color::{components, normalize_color, normalize_length, swatch};
 use crate::cssscan::{scan_file, Facts};
+use crate::styles::{scan_class_refs, ClassRefs};
 use crate::walk::walk;
-use crate::{clean, is_source, is_style, Confidence, Reader, SRC_CAP, STYLE_CAP, WebError};
+use crate::{clean, is_source, is_style, Confidence, Reader, FACT_BUDGET, SRC_CAP, STYLE_CAP, WebError};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -30,6 +31,8 @@ pub struct Token {
     /// The name written some other way (`getPropertyValue('--x')`).
     pub mentions: u32,
     pub unused: bool,
+    /// A Tailwind v4 theme variable (`--color-brand`) that a utility class (`bg-brand`) uses without writing `var(--color-brand)`.
+    pub utility: bool,
     pub confidence: Confidence,
     /// The value as a colour that is safe to paint, when it is one.
     pub swatch: Option<String>,
@@ -174,6 +177,7 @@ struct Acc {
     root: bool,
 }
 
+const TAILWIND_NAMESPACES: &[&str] = &["color", "font", "text", "spacing", "radius", "shadow", "inset-shadow", "drop-shadow", "breakpoint", "animate", "ease", "tracking", "leading", "blur", "perspective", "aspect", "container"];
 const SPACING_PROPS: &[&str] = &["gap", "row-gap", "column-gap", "top", "left", "right", "bottom", "width", "height", "min-width", "min-height", "max-width", "max-height", "font-size", "letter-spacing"];
 
 fn is_spacing_prop(p: &str) -> bool {
@@ -186,7 +190,10 @@ pub fn token_report(root: &Path) -> Result<TokensReport, WebError> {
     let w = walk(root);
     let mut reader = Reader::new(root);
     let mut refs = Refs::default();
+    let mut class_refs = ClassRefs::default();
+    let mut tailwind = false;
     let mut style_facts: Vec<(String, Facts)> = Vec::new();
+    let mut kept = 0usize;
     let mut files = 0u32;
     for e in &w.files {
         let style = is_style(&e.ext);
@@ -197,7 +204,19 @@ pub fn token_report(root: &Path) -> Result<TokensReport, WebError> {
         files += 1;
         scan_refs(&text, &e.ext, &mut refs);
         if style {
-            style_facts.push((e.rel.clone(), scan_file(&text, &e.ext)));
+            tailwind |= text.contains("@theme") || text.contains("@import \"tailwindcss") || text.contains("@import 'tailwindcss") || text.contains("@tailwind ");
+            let facts = scan_file(&text, &e.ext);
+            kept += facts.approx_bytes();
+            if kept > FACT_BUDGET {
+                if !reader.truncated {
+                    reader.skipped.push("stopped keeping details: the style sheets are very large together".into());
+                }
+                reader.truncated = true;
+            } else {
+                style_facts.push((e.rel.clone(), facts));
+            }
+        } else {
+            scan_class_refs(&text, &mut class_refs);
         }
     }
 
@@ -208,10 +227,10 @@ pub fn token_report(root: &Path) -> Result<TokensReport, WebError> {
         let ext = rel.rsplit('.').next().unwrap_or("");
         for d in &f.decls {
             let (kind, in_root) = if d.prop.starts_with("--") {
-                ("custom", d.scope.contains(":root") || d.scope.trim() == "html")
-            } else if d.prop.starts_with('$') && d.prop.len() > 1 && d.scope.is_empty() {
+                ("custom", d.in_root)
+            } else if d.prop.starts_with('$') && d.prop.len() > 1 && d.top_level {
                 (if d.value.starts_with('(') && d.value.contains(':') { "scssMap" } else { "scss" }, true)
-            } else if d.prop.starts_with('@') && d.prop.len() > 1 && ext == "less" && d.scope.is_empty() {
+            } else if d.prop.starts_with('@') && d.prop.len() > 1 && ext == "less" && d.top_level {
                 ("less", true)
             } else {
                 continue;
@@ -234,7 +253,7 @@ pub fn token_report(root: &Path) -> Result<TokensReport, WebError> {
                         key,
                         Acc {
                             root: in_root,
-                            token: Token { name: d.prop.clone(), kind, value, file: rel.clone(), line: d.line, definitions: 1, uses: 0, mentions: 0, unused: false, confidence: Confidence::High, swatch: None },
+                            token: Token { name: d.prop.clone(), kind, value, file: rel.clone(), line: d.line, definitions: 1, uses: 0, mentions: 0, unused: false, utility: false, confidence: Confidence::High, swatch: None },
                         },
                     );
                 }
@@ -267,6 +286,24 @@ pub fn token_report(root: &Path) -> Result<TokensReport, WebError> {
         }
         t.swatch = swatch(&t.value);
         tokens.push(t);
+    }
+    if tailwind {
+        // every `-suffix` of every word written in a string: `bg-brand-500` offers `brand-500` and `500`
+        let mut tails: std::collections::HashSet<&str> = std::collections::HashSet::new();
+        for w in &class_refs.words {
+            for (i, _) in w.match_indices('-') {
+                tails.insert(&w[i + 1..]);
+            }
+        }
+        for t in tokens.iter_mut().filter(|t| t.kind == "custom" && t.uses == 0 && t.mentions == 0) {
+            let Some(rest) = t.name.strip_prefix("--") else { continue };
+            if let Some(suffix) = TAILWIND_NAMESPACES.iter().find_map(|ns| rest.strip_prefix(ns).and_then(|r| r.strip_prefix('-'))) {
+                if tails.contains(suffix) {
+                    t.utility = true;
+                    t.unused = false;
+                }
+            }
+        }
     }
     tokens.sort_by(|a, b| a.kind.cmp(b.kind).then_with(|| a.name.cmp(&b.name)));
 
@@ -407,5 +444,35 @@ mod tests {
         std::fs::write(d.path().join("m.js"), line).unwrap();
         let r = token_report(d.path()).unwrap();
         assert!(r.skipped.iter().any(|s| s.contains("big.css")));
+    }
+
+    #[test]
+    fn a_pile_of_hostile_style_sheets_cannot_grow_the_scan_without_a_bound() {
+        let d = tempfile::tempdir().unwrap();
+        let selector = format!(".{}", "s".repeat(588));
+        for i in 0..60 {
+            std::fs::write(d.path().join(format!("h{i}.css")), format!("{selector} {{ {} }}", "a:1px;".repeat(19_000))).unwrap();
+        }
+        let t = std::time::Instant::now();
+        let r = token_report(d.path()).unwrap();
+        assert!(r.truncated && r.skipped.iter().any(|s| s.contains("very large together")), "{:?}", r.skipped);
+        assert!(t.elapsed().as_secs() < if cfg!(debug_assertions) { 20 } else { 4 }, "{:?}", t.elapsed());
+    }
+
+    #[test]
+    fn tailwind_v4_theme_variables_used_as_utility_classes_are_not_unused() {
+        let d = repo(&[
+            ("app.css", "@import \"tailwindcss\";\n@theme { --color-brand: #5b8def; --color-ghost: #eee; --font-display: serif; --other: 1px }"),
+            ("A.tsx", "export const A = () => <h1 className=\"bg-brand/50 font-display text-lg\" />;"),
+        ]);
+        let r = token_report(d.path()).unwrap();
+        let get = |n: &str| r.tokens.iter().find(|t| t.name == n).unwrap();
+        assert!(get("--color-brand").utility && !get("--color-brand").unused);
+        assert!(get("--font-display").utility && !get("--font-display").unused);
+        assert!(get("--color-ghost").unused && !get("--color-ghost").utility, "no class uses ghost");
+        assert!(get("--other").unused, "not a theme namespace");
+        // without Tailwind in the project the same names get no such credit
+        let d = repo(&[("app.css", ":root { --color-brand: #5b8def }"), ("A.tsx", "const c = 'bg-brand';")]);
+        assert!(token_report(d.path()).unwrap().tokens[0].unused);
     }
 }

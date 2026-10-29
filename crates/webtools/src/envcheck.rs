@@ -1,5 +1,6 @@
 //! Compares the KEY NAMES of `.env` files with those of `.env.example`, and checks that the real `.env*` files are git-ignored.
-//! Values are never kept: the parser returns names only, so there is no value to leak into a log, an error or a prompt.
+//! The file is read whole (at most 256 KB) into a string that is dropped when its names have been taken; the parser returns names only,
+//! so no value reaches a struct, an error message, a log or a prompt.
 //! The `.gitignore` check is an approximation of Git's rules (the caller adds which files Git actually tracks).
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -51,9 +52,15 @@ pub struct EnvDir {
 pub struct EnvReport {
     pub dirs: Vec<EnvDir>,
     pub skipped: Vec<String>,
+    /// Something was left out to stay within a limit (folders, env files or ignore rules).
+    pub capped: bool,
 }
 
 const ENV_CAP: u64 = 256 * 1024;
+/// Limits: env files per folder, env folders, and ignore rules in all (a hostile `.gitignore` of millions of lines must not make every file test slow).
+const MAX_ENV_FILES: usize = 40;
+const MAX_ENV_DIRS: usize = 40;
+const MAX_PATTERNS: usize = 10_000;
 const EXAMPLE_MARKS: &[&str] = &["example", "sample", "template", "dist", "defaults"];
 
 fn is_env_name(name: &str) -> bool {
@@ -93,7 +100,10 @@ struct Pattern {
 }
 
 fn parse_gitignore(base: &str, text: &str, out: &mut Vec<Pattern>) {
-    for line in text.lines().take(5000) {
+    for line in text.lines().take(MAX_PATTERNS) {
+        if out.len() >= MAX_PATTERNS {
+            return;
+        }
         let mut l = line.trim_end();
         if l.is_empty() || l.starts_with('#') {
             continue;
@@ -225,11 +235,13 @@ fn is_ignored(patterns: &[Pattern], rel: &str) -> bool {
 pub fn env_report(root: &Path, tracked: &[String]) -> Result<EnvReport, WebError> {
     let w = walk(root);
     let mut patterns = Vec::new();
+    let mut capped = false;
     for e in w.files.iter().filter(|e| e.rel == ".gitignore" || e.rel.ends_with("/.gitignore")).take(60) {
         if let Ok(text) = safefs::read(root, &e.rel, 128 * 1024) {
             parse_gitignore(e.rel.strip_suffix(".gitignore").unwrap_or("").trim_end_matches('/'), &text, &mut patterns);
         }
     }
+    capped |= patterns.len() >= MAX_PATTERNS;
     let tracked: BTreeSet<&str> = tracked.iter().map(String::as_str).collect();
     let mut by_dir: BTreeMap<String, Vec<(String, String)>> = BTreeMap::new(); // dir -> (rel, name)
     for e in &w.files {
@@ -239,8 +251,13 @@ pub fn env_report(root: &Path, tracked: &[String]) -> Result<EnvReport, WebError
             by_dir.entry(dir).or_default().push((e.rel.clone(), name.to_string()));
         }
     }
-    let mut report = EnvReport::default();
-    for (dir, files) in by_dir.into_iter().take(40) {
+    let mut report = EnvReport { capped, ..Default::default() };
+    report.capped |= by_dir.len() > MAX_ENV_DIRS;
+    for (dir, mut files) in by_dir.into_iter().take(MAX_ENV_DIRS) {
+        if files.len() > MAX_ENV_FILES {
+            files.truncate(MAX_ENV_FILES);
+            report.capped = true;
+        }
         let mut out_files = Vec::new();
         let mut example_keys: BTreeMap<String, String> = BTreeMap::new();
         let mut real_keys: BTreeSet<String> = BTreeSet::new();
@@ -355,5 +372,19 @@ mod tests {
         let r = env_report(d.path(), &[]).unwrap();
         assert_eq!(r.dirs[0].files.iter().find(|f| f.path == ".env").unwrap().keys, 2);
         assert!(!r.skipped.is_empty());
+    }
+
+    #[test]
+    fn hostile_numbers_of_env_files_and_ignore_rules_are_capped() {
+        let d = tempfile::tempdir().unwrap();
+        for i in 0..200 {
+            std::fs::write(d.path().join(format!(".env.mode{i}")), "A=1\n").unwrap();
+        }
+        std::fs::write(d.path().join(".gitignore"), "*.x\n".repeat(50_000)).unwrap();
+        let t = std::time::Instant::now();
+        let r = env_report(d.path(), &[]).unwrap();
+        assert!(r.capped);
+        assert_eq!(r.dirs[0].files.len(), MAX_ENV_FILES);
+        assert!(t.elapsed().as_secs() < if cfg!(debug_assertions) { 10 } else { 2 }, "{:?}", t.elapsed());
     }
 }

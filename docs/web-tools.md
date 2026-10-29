@@ -8,7 +8,7 @@ Every tool only reads. Nothing is changed, deleted or sent anywhere. Every findi
 
 ## How the files are read
 
-A repository is treated as hostile input. The tools skip `node_modules`, `dist`, `build`, `out`, `Pods`, `vendor`, `target`, hidden folders and every symbolic link, stop after 6,000 folders or 40,000 files, read a file only if it is at most 1.5 MB (4 MB for a stylesheet) and 160 MB in total, and replace invalid UTF-8 instead of failing. A file that is too large is named, not read. The scanning is done with linear loops (no regular-expression engine), so a crafted or minified file costs time in proportion to its size. A file is opened through directory handles that do not follow links, so a link that appears while a scan runs cannot lead it outside the repository.
+A repository is treated as hostile input. The tools skip `node_modules`, `dist`, `build`, `out`, `Pods`, `vendor`, `target`, hidden folders and every symbolic link, stop after 6,000 folders or 40,000 files, read a file only if it is at most 1.5 MB (4 MB for a stylesheet) and 160 MB in total, and replace invalid UTF-8 instead of failing. A file that is too large is named, not read. The scanning is done with linear loops (no regular-expression engine), so a crafted or minified file costs time in proportion to its size. A single folder is read only up to 20,000 entries, and what a scan keeps in memory from the stylesheets is capped (declarations that nothing compares, such as `display: flex`, are dropped at once). A file is opened through directory handles that do not follow links, so a link that appears while a scan runs cannot lead it outside the repository.
 
 ## Design tokens
 
@@ -20,16 +20,18 @@ Lists the CSS custom properties (`--brand`), SCSS variables and maps (`$brand`) 
 - **Duplicate colours**: two token names holding the same colour, and colours typed by hand three times or more where no token holds them.
 - **Colour swatches** of the tokens whose value is a colour. A swatch is painted only from a hex colour or a plain `rgb()` / `hsl()` value; anything else is shown as text and never put into a style.
 
+Tailwind v4 theme variables (`@theme { --color-brand: ... }`) are not reported as unused when a utility class uses them (`bg-brand`, `font-display`): they carry a "used as a class" mark instead.
+
 Token values are shown only when they are plain colours or lengths, and only those are quoted in prompts.
 
 ## Unused styles
 
 Lists class selectors that are defined in a stylesheet and that nothing seems to use, per file, with a confidence. It never deletes anything. Classes are looked for in the strings of scripts and markup (`className="a b"`, `class="..."`, `classList.add('x')`, `clsx('a', cond && 'b')`), and in CSS-module imports (`styles.title`, `styles['title']`, named imports). SCSS nesting is resolved, so `.card { &__title {} }` defines `card__title`. Results:
 
-- **unused** with sure (nothing in the repository mentions the class and no class name is built at run time), likely (class names are built at run time somewhere) or, for a CSS module that no file imports, likely;
+- **unused**, with a confidence. "Sure" is said only when the project composes no class names at run time at all. A class helper call (`clsx`, `cn`, `classnames`, `cx`, `twMerge`, `cva`), a template literal with `${}` in a string, `classList=` / `classList.toggle`, or a computed `styles[name]` anywhere makes every verdict "unsure", because such calls take class names as bare object keys (`clsx('tab', { active: on })`) and strings put together at run time. The words inside a helper call count as uses;
 - **dynamic, unsure**: a template literal or a string joined at run time starts like the class name (`` `btn-${kind}` `` makes every `btn-...` class dynamic).
 
-Classes used by third-party code, by a template this scan cannot read, or by a name assembled in an unusual way can be reported by mistake. Check before you remove one; the agent prompt says the same. Classes inside Vue and Svelte `<style>` blocks are not checked.
+Classes used by third-party code, by a template this scan cannot read, or by a name assembled in an unusual way can be reported by mistake. Check before you remove one; the agent prompt says the same. Classes inside Vue and Svelte `<style>` blocks are not checked. Class names written with escapes in the stylesheet (`.md\:flex`, `.w-1\/2`) are compared by their unescaped name with the whole string used in the markup.
 
 ## React checks
 

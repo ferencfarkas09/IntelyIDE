@@ -3,16 +3,16 @@
 //! only, see `intely_webtools::tryit`), and `webtools_deps_check` runs `npm outdated` / `npm audit` once, after the person confirmed
 //! that they use the network. The webview never sends a command line: only a repo id and a folder that a `package.json` was found in.
 
-use std::collections::HashMap;
 use std::io::Read;
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use std::time::{Duration, Instant};
 
 use intely_core::jail::Jail;
 use intely_core::EngineError;
 use intely_runner::types::ServerStatus;
-use intely_webtools::tryit::{TryRequest, TryResponse};
+use intely_webtools::npmrun::{self, Sandbox};
+use intely_webtools::tryit::{Allowed, TryRequest, TryResponse};
 use intely_webtools::{
     bundle_report, detect, env_report, find_rule, parse_audit, parse_outdated, react_checks, route_map, token_report, unused_styles, AuditReport, BundleReport, Detect, EnvReport, OutdatedPkg, ReactOptions, ReactReport, RouteMap,
     RuleMatch, RuleQuery, TokensReport, WebError,
@@ -118,31 +118,68 @@ pub async fn webtools_env(engine: State<'_, EngineSlot>, repo_id: String) -> Res
 #[serde(rename_all = "camelCase")]
 pub struct LiveServer {
     id: String,
-    repo_id: String,
     runner: String,
     ports: Vec<u16>,
 }
 
-/// The dev servers started from the Scripts panel that are alive and listen somewhere.
-fn live_servers(run: &RunState) -> Vec<LiveServer> {
-    run.0
-        .list()
-        .into_iter()
-        .filter(|s| matches!(s.status, ServerStatus::Starting | ServerStatus::Running) && !s.ports.is_empty())
-        .map(|s| LiveServer { id: s.id, repo_id: s.repo_id, runner: s.runner, ports: s.ports })
-        .collect()
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LiveServers {
+    /// False when the platform cannot list listening sockets (no `lsof`): Try it has nothing it may send to.
+    available: bool,
+    servers: Vec<LiveServer>,
+}
+
+/// The dev servers of ONE repository that the Scripts panel started and that are alive, with the sockets their process trees listen
+/// on right now. The ports come from `lsof` for the server's own process group, never from what the server printed (a script can
+/// print any port), so a hostile `dev` script cannot make another service on this computer a target.
+fn live_servers_for(mgr: &intely_runner::RunManager, repo_id: &str) -> (bool, Vec<(LiveServer, Vec<Allowed>)>) {
+    let mut available = true;
+    let mut out = Vec::new();
+    for s in mgr.list().into_iter().filter(|s| s.repo_id == repo_id && matches!(s.status, ServerStatus::Starting | ServerStatus::Running)) {
+        let Some(listeners) = mgr.listeners(&s.id) else {
+            available = false;
+            continue;
+        };
+        let mut allowed: Vec<Allowed> = Vec::new();
+        for l in listeners {
+            match allowed.iter_mut().find(|a| a.port == l.port) {
+                Some(a) => {
+                    a.v4 |= l.v4;
+                    a.v6 |= l.v6;
+                }
+                None => allowed.push(Allowed { port: l.port, v4: l.v4, v6: l.v6 }),
+            }
+        }
+        if !allowed.is_empty() {
+            out.push((LiveServer { id: s.id, runner: s.runner, ports: allowed.iter().map(|a| a.port).collect() }, allowed));
+        }
+    }
+    (available, out)
 }
 
 #[tauri::command]
-pub async fn webtools_servers(run: State<'_, RunState>) -> Res<Vec<LiveServer>> {
-    Ok(live_servers(&run))
+pub async fn webtools_servers(run: State<'_, RunState>, repo_id: String) -> Res<LiveServers> {
+    let mgr = run.0.clone();
+    blocking(move || {
+        let (available, servers) = live_servers_for(&mgr, &repo_id);
+        Ok(LiveServers { available, servers: servers.into_iter().map(|(s, _)| s).collect() })
+    })
+    .await
 }
 
-/// One request to `127.0.0.1` / `::1` on the port of a live dev server; any other port is refused.
+/// One request to `127.0.0.1` / `::1` on a port that `lsof` shows listening for a dev server of this repository, right now. Any
+/// other port is refused. (A port can change hands between this listing and the connect; the window is a few milliseconds and the
+/// request is a single GET/POST the person asked for.)
 #[tauri::command]
-pub async fn webtools_try(run: State<'_, RunState>, request: TryRequest) -> Res<TryResponse> {
-    let allowed: Vec<u16> = live_servers(&run).into_iter().flat_map(|s| s.ports).collect();
-    blocking(move || intely_webtools::tryit::send(&request, &allowed).map_err(web)).await
+pub async fn webtools_try(run: State<'_, RunState>, repo_id: String, request: TryRequest) -> Res<TryResponse> {
+    let mgr = run.0.clone();
+    blocking(move || {
+        let (_, servers) = live_servers_for(&mgr, &repo_id);
+        let allowed: Vec<Allowed> = servers.into_iter().flat_map(|(_, a)| a).collect();
+        intely_webtools::tryit::send(&request, &allowed).map_err(web)
+    })
+    .await
 }
 
 #[derive(Serialize)]
@@ -154,84 +191,20 @@ pub struct DepsReport {
     notes: Vec<String>,
 }
 
-const OUT_CAP: u64 = 4 * 1024 * 1024;
-const RUN_LIMIT: Duration = Duration::from_secs(90);
-
-/// Runs `npm <args>` in `dir` with the login environment, in a process group of its own, under a time limit and an output cap.
-/// Returns (stdout, exit code). Exit 1 is normal for `npm outdated` (it means "something is outdated").
-fn run_npm(dir: &Path, args: &[&str], env: &HashMap<String, String>, jail: &Jail) -> Result<(String, i32, String), EngineError> {
-    let mut cmd = Command::new(intely_core::sys::program("npm"));
-    cmd.args(args).current_dir(dir).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
-    intely_core::sys::NewGroup::new_group(&mut cmd);
-    for key in std::env::vars_os().filter_map(|(k, _)| k.into_string().ok()).filter(|k| k.starts_with("INTELY_") || k == "CI") {
-        cmd.env_remove(key);
-    }
-    for (k, v) in env {
-        cmd.env(k, v);
-    }
-    for (k, v) in [("NO_UPDATE_NOTIFIER", "1"), ("npm_config_update_notifier", "false"), ("npm_config_fund", "false"), ("npm_config_ignore_scripts", "true"), ("NO_COLOR", "1")] {
-        cmd.env(k, v);
-    }
-    for (k, v) in jail.env() {
-        cmd.env(k, v);
-    }
-    for k in jail.removed_env() {
-        cmd.env_remove(k);
-    }
-    let path = env.get("PATH").map(std::ffi::OsString::from).or_else(|| std::env::var_os("PATH"));
-    if let Some(p) = intely_runner::guard::read_only_git_path(jail, path.as_deref())? {
-        cmd.env("PATH", p);
-    }
-    let mut child = cmd.spawn().map_err(|e| EngineError::new("npmMissing", format!("could not start npm: {e}. Is Node.js installed?")))?;
-    let pid = child.id() as intely_core::sys::Pid;
-    let mut out = child.stdout.take();
-    let mut err = child.stderr.take();
-    let out_t = std::thread::spawn(move || {
-        let mut buf = Vec::new();
-        if let Some(o) = out.as_mut() {
-            let _ = o.take(OUT_CAP).read_to_end(&mut buf);
-            let _ = std::io::copy(o, &mut std::io::sink());
-        }
-        buf
-    });
-    let err_t = std::thread::spawn(move || {
-        let mut buf = Vec::new();
-        if let Some(e) = err.as_mut() {
-            let _ = e.take(8 * 1024).read_to_end(&mut buf);
-            let _ = std::io::copy(e, &mut std::io::sink());
-        }
-        buf
-    });
-    let started = Instant::now();
-    let code = loop {
-        match child.try_wait() {
-            Ok(Some(s)) => break s.code().unwrap_or(143),
-            Ok(None) if started.elapsed() < RUN_LIMIT => std::thread::sleep(Duration::from_millis(50)),
-            _ => {
-                intely_core::sys::kill_group(pid, true);
-                let _ = child.kill();
-                let _ = child.wait();
-                break 124;
-            }
-        }
-    };
-    let stdout = String::from_utf8_lossy(&out_t.join().unwrap_or_default()).into_owned();
-    let stderr = intely_runner::mask::mask(&String::from_utf8_lossy(&err_t.join().unwrap_or_default()));
-    Ok((stdout, code, stderr))
-}
-
 fn first_line(s: &str) -> String {
     s.lines().find(|l| !l.trim().is_empty()).map(|l| l.trim().chars().take(160).collect()).unwrap_or_default()
 }
 
 /// Opt-in: `npm outdated --json` and `npm audit --json`. Both ask the npm registry, so the person confirms first (`confirmed`).
+/// npm never runs in the repository (a project's own `.npmrc` could turn the app's environment into a token for a registry of its
+/// own): see `intely_webtools::npmrun`. What it sends is the dependency names and versions of this one project, to the npm registry.
 #[tauri::command]
 pub async fn webtools_deps_check(engine: State<'_, EngineSlot>, run: State<'_, RunState>, repo_id: String, dir: String, confirmed: bool) -> Res<DepsReport> {
     if !confirmed {
         return Err(EngineError::new("confirmRequired", "Check dependencies asks the npm registry over the network and needs a confirmation"));
     }
     let root = repo_path(&engine, &repo_id).await?;
-    let env: HashMap<String, String> = engine.get().map(intely_core::Engine::login_env).unwrap_or_default();
+    let login: Option<String> = engine.get().ok().and_then(|e| intely_core::Engine::login_env(e).get("PATH").cloned());
     let allowed = run.0.allow_processes();
     let (root2, dir2) = (root.clone(), dir.clone());
     // only a folder in which a package.json was found, with an npm lock file
@@ -240,27 +213,31 @@ pub async fn webtools_deps_check(engine: State<'_, EngineSlot>, run: State<'_, R
     if pkg.manager != "npm" {
         return Err(EngineError::new("unsupportedManager", format!("only npm projects are supported (this folder uses {})", pkg.manager)));
     }
-    let cwd = if dir.is_empty() { root } else { root.join(&dir) };
+    let cwd = if dir.is_empty() { root.clone() } else { root.join(&dir) };
     let jail = Jail::global();
     intely_runner::guard::check_process(&jail, allowed, &cwd)?;
     blocking(move || {
+        let sandbox = Sandbox::prepare(&root, &dir).map_err(web)?;
+        // the jail's own variables (git hardening) and the read-only git shim keep applying to whatever npm starts
+        let jail_env: Vec<(String, String)> = jail.env().iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
+        let path = intely_runner::guard::read_only_git_path(&jail, login.as_deref().map(std::ffi::OsStr::new))?;
         let mut report = DepsReport { outdated: None, audit: None, notes: Vec::new() };
-        let (out, code, err) = run_npm(&cwd, &["outdated", "--json"], &env, &jail)?;
-        if code == 124 {
+        let out = npmrun::run(&sandbox, "outdated", npmrun::DEFAULT_REGISTRY, login.as_deref(), &jail_env, path.clone(), npmrun::RUN_LIMIT).map_err(web)?;
+        if out.code == 124 {
             report.notes.push("timeout".into());
         } else {
-            match parse_outdated(&out) {
+            match parse_outdated(&out.stdout, &sandbox.locked) {
                 Ok(list) => report.outdated = Some(list),
-                Err(e) => report.notes.push(format!("outdated: {}", if e.code == "npm" { e.message } else { first_line(&err) })),
+                Err(e) => report.notes.push(format!("outdated: {}", if e.code == "npm" { e.message } else { first_line(&intely_runner::mask::mask(&out.stderr)) })),
             }
         }
-        let (out, code, err) = run_npm(&cwd, &["audit", "--json"], &env, &jail)?;
-        if code == 124 {
+        let out = npmrun::run(&sandbox, "audit", npmrun::DEFAULT_REGISTRY, login.as_deref(), &jail_env, path, npmrun::RUN_LIMIT).map_err(web)?;
+        if out.code == 124 {
             report.notes.push("timeout".into());
         } else {
-            match parse_audit(&out) {
+            match parse_audit(&out.stdout) {
                 Ok(a) => report.audit = Some(a),
-                Err(e) => report.notes.push(format!("audit: {}", if e.code == "npm" { e.message } else { first_line(&err) })),
+                Err(e) => report.notes.push(format!("audit: {}", if e.code == "npm" { e.message } else { first_line(&intely_runner::mask::mask(&out.stderr)) })),
             }
         }
         Ok(report)

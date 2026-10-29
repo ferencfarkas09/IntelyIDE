@@ -128,6 +128,9 @@ function TokenRow(props: { repoId: string; tok: Token }) {
       <Show when={tok().definitions > 1}>
         <span class="wt__hint">{t("webtools.tokens.defs", { count: tok().definitions })}</span>
       </Show>
+      <Show when={tok().utility}>
+        <Badge size="sm" tone="info" title={t("webtools.tokens.utilityTip")}>{t("webtools.tokens.utility")}</Badge>
+      </Show>
       <Show when={tok().unused}>
         <Badge size="sm" tone="warn">{t("webtools.tokens.unusedBadge")}</Badge>
         <ConfBadge value={tok().confidence} />

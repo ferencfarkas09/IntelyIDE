@@ -20,6 +20,7 @@ const style = { intely: STYLE_CHANNEL, tag: "div", id: "", classes: ["card"], st
 let frame: HTMLIFrameElement;
 let opened: unknown[];
 let asked: string[];
+let now = 0;
 
 function post(data: unknown, over: { origin?: string; source?: unknown } = {}) {
   window.dispatchEvent(new MessageEvent("message", { data, origin: over.origin ?? ORIGIN, source: ("source" in over ? over.source : frame.contentWindow) as MessageEventSource }));
@@ -29,6 +30,9 @@ beforeEach(() => {
   opened = [];
   asked = [];
   setWebtoolsApi(createMockWebtools());
+  now = 5_000_000;
+  vi.spyOn(Date, "now").mockImplementation(() => now);
+  setInspecting(true);
   registerCommand({ id: "editor.openFile", title: "Open file", group: "File", run: (a) => void opened.push(a) });
   registerCommand({ id: "runs.new", title: "New run", group: "Runs", run: () => void asked.push(newRunPrefill()?.prompt ?? "") });
   frame = document.createElement("iframe");
@@ -61,6 +65,26 @@ describe("the element style panel", () => {
     expect(screen.getByText("flex")).toBeTruthy();
     // the colour value is not a plain colour (it carries more CSS), so it is shown as text and never painted
     expect(document.querySelectorAll(".pi__sw")).toHaveLength(1);
+  });
+
+  it("opens only while the person is picking, and not again within half a second", async () => {
+    setInspecting(false);
+    post(style);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.queryByTestId("pi-style")).toBeNull();
+    // the frame has the focus after an Alt-click in it
+    frame.tabIndex = 0;
+    frame.focus();
+    post(style);
+    await waitFor(() => expect(screen.getByTestId("pi-style")).toBeTruthy());
+    setStyleInfo(undefined);
+    now += 10; // the next message comes 10 ms after the first
+    post({ ...style, classes: ["second"] });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(styleInfo()).toBeUndefined();
+    now += 2000;
+    post({ ...style, classes: ["third"] });
+    await waitFor(() => expect(styleInfo()?.hint.classes).toEqual(["third"]));
   });
 
   it("ignores the message from anything that is not a preview frame, or from the wrong origin", async () => {

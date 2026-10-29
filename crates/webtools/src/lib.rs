@@ -6,8 +6,8 @@
 //! A repository is hostile input. Folders are walked with caps and never through a link (`walk`), every file is read through
 //! directory handles that do not follow links, with a size cap, and invalid UTF-8 is replaced (`safefs`). All scanning is done
 //! with linear loops over bytes, never with backtracking patterns, so a minified megabyte or a crafted file costs time in
-//! proportion to its size. Nothing here writes a file or deletes anything, and `.env` values are never kept in memory beyond the
-//! line that is being read (only names leave the parser).
+//! proportion to its size. Nothing here writes a file of the repository or deletes anything. An env file is loaded as text (at most
+//! 256 KB) and dropped as soon as its variable names are taken: no value reaches a struct, an error message or a log.
 
 mod bundle;
 mod color;
@@ -17,6 +17,7 @@ mod detect;
 mod envcheck;
 mod findrule;
 mod jsmask;
+pub mod npmrun;
 mod react;
 mod routes;
 mod safefs;
@@ -65,6 +66,9 @@ pub(crate) fn io_err(e: std::io::Error) -> WebError {
 /// A file of source code is read up to this size; a bigger one (a bundle checked in by mistake) is named and skipped.
 pub(crate) const SRC_CAP: u64 = 1536 * 1024;
 pub(crate) const STYLE_CAP: u64 = 4 * 1024 * 1024;
+/// What a scan may keep of the style sheets it has read (the estimate of `cssscan::Facts::approx_bytes`, summed). Past it, further sheets
+/// are named and left out instead of growing the process without a bound.
+pub(crate) const FACT_BUDGET: usize = 32 * 1024 * 1024;
 /// All the files one scan reads together.
 pub(crate) const TOTAL_BUDGET: u64 = 160 * 1024 * 1024;
 

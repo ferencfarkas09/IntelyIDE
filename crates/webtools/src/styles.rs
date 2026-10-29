@@ -10,7 +10,7 @@ use serde::Serialize;
 
 use crate::cssscan::{defined_classes, scan_file};
 use crate::walk::walk;
-use crate::{is_source, is_style, Confidence, Reader, WebError, SRC_CAP, STYLE_CAP};
+use crate::{is_source, is_style, Confidence, Reader, WebError, FACT_BUDGET, SRC_CAP, STYLE_CAP};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -46,21 +46,29 @@ pub struct UnusedReport {
 }
 
 #[derive(Default)]
-struct ClassRefs {
-    words: HashSet<String>,
+pub(crate) struct ClassRefs {
+    pub(crate) words: HashSet<String>,
     prefixes: HashSet<String>,
-    dynamic: bool,
+    /// Class names are composed at run time somewhere (a template, a helper like clsx, `classList=`, a computed `styles[...]`).
+    pub(crate) dynamic: bool,
 }
 
 fn word_byte(b: u8) -> bool {
     b.is_ascii_alphanumeric() || b == b'_' || b == b'-' || b >= 0x80
 }
 
-const MAX_WORDS: usize = 400_000;
+const MAX_WORDS: usize = 200_000;
 
 fn add_words(seg: &str, refs: &mut ClassRefs) {
+    // a class written with characters a split would break (`md:flex`, `w-1/2`, `h-[3px]`) is looked for whole
+    for tok in seg.split_whitespace() {
+        let tok = tok.trim_matches(|c: char| matches!(c, '"' | '\'' | '`' | ',' | ';' | '(' | ')' | '{' | '}'));
+        if tok.len() <= 64 && tok.contains([':', '/', '[', ']', '%', '.']) && refs.words.len() < MAX_WORDS {
+            refs.words.insert(tok.to_string());
+        }
+    }
     for w in seg.split(|c: char| !(c.is_ascii_alphanumeric() || c == '_' || c == '-' || !c.is_ascii())) {
-        if !w.is_empty() && w.len() <= 200 && refs.words.len() < MAX_WORDS {
+        if !w.is_empty() && w.len() <= 64 && refs.words.len() < MAX_WORDS {
             refs.words.insert(w.to_string());
         }
     }
@@ -77,8 +85,65 @@ fn add_prefix(seg: &str, refs: &mut ClassRefs) {
     }
 }
 
+/// Calls of the class-composing helpers (`clsx({ active: on })`, `cn`, `classnames`, `cx`, `twMerge`, `cva`, ...) take class names as
+/// bare object keys, shorthand properties and identifiers, not only as strings: every word inside such a call counts as a use. A project
+/// that composes classes this way is not "sure" about any unused class.
+const HELPERS: &[&str] = &["clsx", "cn", "classnames", "classnamesbind", "cx", "twmerge", "cva", "cls", "classes", "classlist", "tw", "cc", "join", "classname", "mergeclasses", "cm"];
+
+fn scan_helpers(text: &str, refs: &mut ClassRefs) {
+    let b = text.as_bytes();
+    let mut calls = 0;
+    // the arguments of nested or repeated calls overlap, so the bytes looked at in them are budgeted: about twice the file
+    let mut budget = text.len() * 2 + 4096;
+    for (at, _) in text.match_indices('(') {
+        let mut k = at;
+        while k > 0 && at - k < 24 && (b[k - 1].is_ascii_alphanumeric() || b[k - 1] == b'_' || b[k - 1] == b'$') {
+            k -= 1;
+        }
+        if k == at || !HELPERS.contains(&text[k..at].to_ascii_lowercase().as_str()) {
+            continue;
+        }
+        // `join(` is only a helper when it is `.join(' ')`-free of meaning; it is far too common, so only count it next to a class word
+        if text[k..at].eq_ignore_ascii_case("join") {
+            continue;
+        }
+        calls += 1;
+        if calls > 20_000 {
+            break;
+        }
+        refs.dynamic = true;
+        let end = (at + 4000).min(b.len());
+        if budget < end - at {
+            continue;
+        }
+        budget -= end - at;
+        let mut depth = 0usize;
+        let mut close = end;
+        for (d, c) in b[at..end].iter().enumerate() {
+            match c {
+                b'(' => depth += 1,
+                b')' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        close = at + d;
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        if let Some(args) = text.get(at + 1..close) {
+            add_words(args, refs);
+        }
+    }
+}
+
 /// Collects the words of every string, template literal and quoted attribute value of a script or markup file.
-fn scan_class_refs(text: &str, refs: &mut ClassRefs) {
+pub(crate) fn scan_class_refs(text: &str, refs: &mut ClassRefs) {
+    scan_helpers(text, refs);
+    if text.contains("classList=") || text.contains("classList.toggle(") {
+        refs.dynamic = true;
+    }
     let b = text.as_bytes();
     let mut i = 0;
     while i < b.len() {
@@ -151,12 +216,14 @@ struct Import {
     named: Vec<String>,
 }
 
+/// The first quoted string of `s`, looked for in its first 300 bytes only (an unterminated quote must not make every call scan the rest
+/// of the file).
 fn quoted(s: &str) -> Option<&str> {
-    let start = s.find(['"', '\''])?;
-    let q = s.as_bytes()[start];
-    let rest = &s[start + 1..];
-    let end = rest.find(q as char)?;
-    Some(&rest[..end])
+    let b = s.as_bytes();
+    let window = &b[..b.len().min(300)];
+    let start = window.iter().position(|c| *c == b'"' || *c == b'\'')?;
+    let end = start + 1 + window[start + 1..].iter().position(|c| *c == window[start])?;
+    s.get(start + 1..end)
 }
 
 fn is_module_path(p: &str) -> bool {
@@ -262,6 +329,7 @@ pub fn unused_styles(root: &Path) -> Result<UnusedReport, WebError> {
     let mut imports: Vec<Import> = Vec::new();
     let mut importer_text: HashMap<String, String> = HashMap::new();
     let mut styles: Vec<(String, crate::cssscan::Facts)> = Vec::new();
+    let mut kept = 0usize;
     let mut files = 0u32;
     for e in &w.files {
         let style = is_style(&e.ext);
@@ -271,7 +339,16 @@ pub fn unused_styles(root: &Path) -> Result<UnusedReport, WebError> {
         let Some(text) = reader.read(e, if style { STYLE_CAP } else { SRC_CAP }) else { continue };
         files += 1;
         if style {
-            styles.push((e.rel.clone(), scan_file(&text, &e.ext)));
+            let facts = scan_file(&text, &e.ext);
+            kept += facts.approx_bytes();
+            if kept > FACT_BUDGET {
+                if !reader.truncated {
+                    reader.skipped.push("stopped keeping details: the style sheets are very large together".into());
+                }
+                reader.truncated = true;
+            } else {
+                styles.push((e.rel.clone(), facts));
+            }
         } else {
             scan_class_refs(&text, &mut refs);
             let before = imports.len();
@@ -308,7 +385,8 @@ pub fn unused_styles(root: &Path) -> Result<UnusedReport, WebError> {
         }
     }
 
-    let mut report = UnusedReport { files_scanned: files, dynamic_classes: refs.dynamic, ..Default::default() };
+    let dynamic_all = refs.dynamic || uses.values().any(|u| u.dynamic);
+    let mut report = UnusedReport { files_scanned: files, dynamic_classes: dynamic_all, ..Default::default() };
     let mut total = 0usize;
     for (rel, facts) in &styles {
         if total >= MAX_CLASSES || report.files.len() >= 500 {
@@ -335,15 +413,15 @@ pub fn unused_styles(root: &Path) -> Result<UnusedReport, WebError> {
                     match mu {
                         Some(u) if u.all || u.names.contains(name) => continue,
                         Some(u) if u.dynamic => ("dynamic", Confidence::Low),
-                        Some(_) => ("unused", Confidence::High),
-                        None => ("unused", Confidence::Medium),
+                        Some(_) => ("unused", if dynamic_all { Confidence::Low } else { Confidence::High }),
+                        None => ("unused", if dynamic_all { Confidence::Low } else { Confidence::Medium }),
                     }
                 } else if refs.words.contains(name) {
                     continue;
                 } else if refs.prefixes.iter().any(|p| name.starts_with(p.as_str())) {
                     ("dynamic", Confidence::Low)
                 } else {
-                    ("unused", if refs.dynamic { Confidence::Medium } else { Confidence::High })
+                    ("unused", if dynamic_all { Confidence::Low } else { Confidence::High })
                 };
                 if file.classes.len() < 400 {
                     file.classes.push(UnusedClass { name: name.clone(), line: rule.line, status, confidence });
@@ -387,8 +465,9 @@ mod tests {
             ("index.html", "<p class='html-class'>Don't</p>"),
         ]);
         let r = unused_styles(d.path()).unwrap();
-        assert_eq!(names(&r, "src/app.css"), vec![("gone".into(), "unused", Confidence::High)]);
-        assert!(!r.dynamic_classes);
+        // the clsx call in the fixture composes classes at run time, so even this verdict is "unsure"
+        assert_eq!(names(&r, "src/app.css"), vec![("gone".into(), "unused", Confidence::Low)]);
+        assert!(r.dynamic_classes);
     }
 
     #[test]
@@ -401,7 +480,7 @@ mod tests {
         let got = names(&r, "a.css");
         assert_eq!(got.iter().find(|c| c.0 == "btn-primary").unwrap().1, "dynamic");
         let other = got.iter().find(|c| c.0 == "other").unwrap();
-        assert_eq!((other.1, other.2), ("unused", Confidence::Medium));
+        assert_eq!((other.1, other.2), ("unused", Confidence::Low));
         assert!(r.dynamic_classes);
     }
 
@@ -415,8 +494,9 @@ mod tests {
             ("src/Dyn.tsx", "import s from './Dyn.module.css';\nconst k = s[name];"),
         ]);
         let r = unused_styles(d.path()).unwrap();
-        assert_eq!(names(&r, "src/Card.module.scss"), vec![("orphan".into(), "unused", Confidence::High), ("g".into(), "unused", Confidence::High)]);
-        assert_eq!(names(&r, "src/Other.module.css"), vec![("x".into(), "unused", Confidence::Medium)]);
+        assert_eq!(names(&r, "src/Card.module.scss"), vec![("orphan".into(), "unused", Confidence::Low), ("g".into(), "unused", Confidence::Low)]);
+        // a computed styles[name] anywhere makes the whole project unsure
+        assert_eq!(names(&r, "src/Other.module.css"), vec![("x".into(), "unused", Confidence::Low)]);
         assert!(r.files.iter().find(|f| f.path == "src/Other.module.css").unwrap().not_imported);
         assert_eq!(names(&r, "src/Dyn.module.css").iter().map(|c| c.1).collect::<Vec<_>>(), vec!["dynamic", "dynamic"]);
     }
@@ -437,5 +517,53 @@ mod tests {
         std::fs::write(d.path().join("d.js"), [0xffu8, 0xfe, b'`', 0xc3]).unwrap();
         let r = unused_styles(d.path()).unwrap();
         assert!(r.files_scanned >= 3);
+    }
+
+    #[test]
+    fn bare_object_keys_in_class_helper_calls_count_as_uses() {
+        let d = repo(&[
+            ("a.css", ".tab {} .active {} .disabled {} .selected {} .gone {} .on {}"),
+            ("A.tsx", "export const A = () => <div className={clsx('tab', { active: on, disabled, selected: isSel })} />;\nconst b = cn(base, cond && 'on');"),
+        ]);
+        let r = unused_styles(d.path()).unwrap();
+        // only .gone is reported, and a project that composes classes this way is not sure about it
+        assert_eq!(names(&r, "a.css"), vec![("gone".into(), "unused", Confidence::Low)]);
+        assert!(r.dynamic_classes);
+        for helper in ["classnames", "cx", "twMerge", "cva", "cn", "classNames"] {
+            let d = repo(&[("a.css", ".kv {}"), ("A.tsx", &format!("const c = {helper}('x', {{ kv: flag }});"))]);
+            assert!(names(&unused_styles(d.path()).unwrap(), "a.css").is_empty(), "{helper}");
+        }
+    }
+
+    #[test]
+    fn without_any_dynamic_composition_the_unused_verdict_is_sure() {
+        let d = repo(&[("a.css", ".gone {}"), ("A.tsx", "const x = <div className=\"y\" />;")]);
+        let r = unused_styles(d.path()).unwrap();
+        assert_eq!(names(&r, "a.css"), vec![("gone".into(), "unused", Confidence::High)]);
+        assert!(!r.dynamic_classes);
+        let d = repo(&[("a.css", ".gone {}"), ("A.tsx", "const x = <div classList={{ on: a }} />;")]);
+        assert_eq!(names(&unused_styles(d.path()).unwrap(), "a.css")[0].2, Confidence::Low);
+    }
+
+    #[test]
+    fn classes_with_escapes_are_matched_by_their_unescaped_name() {
+        let d = repo(&[("a.css", ".md\\:flex { display: flex } .w-1\\/2 { width: 50% } .h-\\[3px\\] {} .gone {}"), ("A.tsx", "const x = <div className=\"md:flex w-1/2 h-[3px]\" />;")]);
+        let r = unused_styles(d.path()).unwrap();
+        assert_eq!(names(&r, "a.css").iter().map(|c| c.0.as_str()).collect::<Vec<_>>(), vec!["gone"]);
+    }
+
+    #[test]
+    fn hostile_class_sources_are_scanned_in_linear_time() {
+        let d = tempfile::tempdir().unwrap();
+        let mb = 1_500_000;
+        std::fs::write(d.path().join("a.tsx"), "cn(".repeat(mb / 3)).unwrap();
+        std::fs::write(d.path().join("b.tsx"), "styles[\"".repeat(mb / 8)).unwrap();
+        std::fs::write(d.path().join("c.tsx"), "import s from './x.module.css';\n".to_string() + &"s['".repeat(mb / 3)).unwrap();
+        std::fs::write(d.path().join("x.module.css"), ".a{}").unwrap();
+        std::fs::write(d.path().join("d.tsx"), "`${".repeat(mb / 3)).unwrap();
+        std::fs::write(d.path().join("e.css"), ".a,".repeat(mb / 3)).unwrap();
+        let t = std::time::Instant::now();
+        let _ = unused_styles(d.path()).unwrap();
+        assert!(t.elapsed().as_secs() < if cfg!(debug_assertions) { 20 } else { 4 }, "{:?}", t.elapsed());
     }
 }

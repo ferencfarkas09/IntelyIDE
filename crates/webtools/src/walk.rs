@@ -13,6 +13,8 @@ pub(crate) const SKIP_DIRS: &[&str] = &[
 pub(crate) const MAX_DIRS: usize = 6000;
 pub(crate) const MAX_FILES: usize = 40_000;
 pub(crate) const MAX_DEPTH: usize = 14;
+/// A single folder is read only up to this many entries (a hostile folder can hold millions).
+pub(crate) const MAX_ENTRIES: usize = 20_000;
 
 pub(crate) struct Entry {
     /// Relative to the repository, `/`-separated.
@@ -45,7 +47,14 @@ pub(crate) fn walk_in(root: &Path, start: &str, skip: &[&str], skip_hidden: bool
             break;
         }
         let Ok(read) = std::fs::read_dir(&dir) else { continue };
-        let mut entries: Vec<_> = read.flatten().collect();
+        let mut entries: Vec<_> = read.flatten().take(MAX_ENTRIES + 1).collect();
+        if entries.len() > MAX_ENTRIES {
+            entries.truncate(MAX_ENTRIES);
+            let note = format!("{} has more than {MAX_ENTRIES} entries: only some are read", if rel.is_empty() { "the repository root" } else { rel.as_str() });
+            if out.notes.len() < 20 {
+                out.notes.push(note);
+            }
+        }
         // a fixed order: the caps below must cut the same files on every run
         entries.sort_by_key(|e| e.file_name());
         for entry in entries {
@@ -125,5 +134,16 @@ mod tests {
         touch(d.path(), &format!("{deep}/a.css"), "x");
         touch(d.path(), "ok.css", "x");
         assert_eq!(walk(d.path()).files.len(), 1);
+    }
+
+    #[test]
+    fn one_enormous_folder_is_read_only_up_to_a_cap() {
+        let d = tempfile::tempdir().unwrap();
+        for i in 0..MAX_ENTRIES + 500 {
+            std::fs::write(d.path().join(format!("f{i}.css")), "").unwrap();
+        }
+        let w = walk(d.path());
+        assert_eq!(w.files.len(), MAX_ENTRIES);
+        assert!(w.notes.iter().any(|n| n.contains("more than")), "{:?}", w.notes);
     }
 }

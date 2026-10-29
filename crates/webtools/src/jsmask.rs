@@ -5,12 +5,22 @@
 //! that line.
 
 pub(crate) fn mask(src: &[u8]) -> Vec<u8> {
+    mask_counting(src).0
+}
+
+/// [`mask`], and the number of byte steps it took (every inner loop counts), so that a test can assert linear work without a clock.
+pub(crate) fn mask_counting(src: &[u8]) -> (Vec<u8>, usize) {
     let mut out = src.to_vec();
     let n = src.len();
+    let mut ops = 0usize;
     let mut i = 0;
     let mut depth = 0usize;
     let mut tmpl: Vec<usize> = Vec::new(); // brace depth of each open `${`
     let mut prev = 0u8; // last significant code byte
+    // A `/` after one of `(,=:[!&|?{;` is tried as the start of a regular expression literal, which has to close on the same line.
+    // One failed try means no later `/` of this line can close one either, so the rest of the line is not tried again: without
+    // this, a line of `(/[(/[(/[...` rescans its own tail from every slash (quadratic).
+    let mut no_regex_before = 0usize;
     let blank = |out: &mut Vec<u8>, from: usize, to: usize| {
         for b in out[from..to.min(n)].iter_mut() {
             if *b != b'\n' {
@@ -19,9 +29,10 @@ pub(crate) fn mask(src: &[u8]) -> Vec<u8> {
         }
     };
     // continues a template literal from `i` (just after the opening backtick or after the closing `}` of a `${`)
-    fn template(src: &[u8], out: &mut [u8], mut i: usize, depth: &mut usize, tmpl: &mut Vec<usize>) -> usize {
+    fn template(src: &[u8], out: &mut [u8], mut i: usize, depth: &mut usize, tmpl: &mut Vec<usize>, ops: &mut usize) -> usize {
         let n = src.len();
         while i < n {
+            *ops += 1;
             match src[i] {
                 b'\\' => {
                     if out[i] != b'\n' {
@@ -48,16 +59,19 @@ pub(crate) fn mask(src: &[u8]) -> Vec<u8> {
         n
     }
     while i < n {
+        ops += 1;
         let c = src[i];
         match c {
             b'/' if src.get(i + 1) == Some(&b'/') => {
                 let end = src[i..].iter().position(|b| *b == b'\n').map_or(n, |p| i + p);
+                ops += end - i;
                 blank(&mut out, i, end);
                 i = end;
                 continue;
             }
             b'/' if src.get(i + 1) == Some(&b'*') => {
                 let end = src[i + 2..].windows(2).position(|w| w == b"*/").map_or(n, |p| i + 2 + p + 2);
+                ops += end - i;
                 blank(&mut out, i, end);
                 i = end;
                 continue;
@@ -65,6 +79,7 @@ pub(crate) fn mask(src: &[u8]) -> Vec<u8> {
             b'"' | b'\'' => {
                 let mut j = i + 1;
                 while j < n && src[j] != c && src[j] != b'\n' {
+                    ops += 1;
                     j += if src[j] == b'\\' { 2 } else { 1 };
                 }
                 let j = j.min(n);
@@ -75,16 +90,17 @@ pub(crate) fn mask(src: &[u8]) -> Vec<u8> {
             }
             b'`' => {
                 out[i] = b'`';
-                i = template(src, &mut out, i + 1, &mut depth, &mut tmpl);
+                i = template(src, &mut out, i + 1, &mut depth, &mut tmpl, &mut ops);
                 prev = b'`';
                 continue;
             }
-            b'/' if prev == 0 || b"(,=:[!&|?{;".contains(&prev) => {
+            b'/' if i >= no_regex_before && (prev == 0 || b"(,=:[!&|?{;".contains(&prev)) => {
                 // a regular expression literal, when it closes on this line
                 let mut j = i + 1;
                 let mut class = false;
                 let mut closed = false;
                 while j < n && src[j] != b'\n' {
+                    ops += 1;
                     match src[j] {
                         b'\\' => j += 1,
                         b'[' => class = true,
@@ -103,13 +119,14 @@ pub(crate) fn mask(src: &[u8]) -> Vec<u8> {
                     prev = b'/';
                     continue;
                 }
+                no_regex_before = j.min(n);
             }
             b'{' => depth += 1,
             b'}' => {
                 if tmpl.last() == Some(&depth) {
                     tmpl.pop();
                     depth -= 1;
-                    i = template(src, &mut out, i + 1, &mut depth, &mut tmpl);
+                    i = template(src, &mut out, i + 1, &mut depth, &mut tmpl, &mut ops);
                     continue;
                 }
                 depth = depth.saturating_sub(1);
@@ -121,7 +138,7 @@ pub(crate) fn mask(src: &[u8]) -> Vec<u8> {
         }
         i += 1;
     }
-    out
+    (out, ops)
 }
 
 /// The index of the closer that matches the opener at `open` (`{`, `(` or `[`), on a masked buffer; None when it never closes or
@@ -186,6 +203,54 @@ mod tests {
         assert_eq!(matching(b"((", 0, &mut budget), None);
         let mut small = 3;
         assert_eq!(matching(b"(((((())))))", 0, &mut small), None);
+    }
+
+    /// Inputs that make a careless masker quadratic; every one is 1.5 MB (the largest file the tools read) or more.
+    fn hostile_shapes() -> Vec<(&'static str, Vec<u8>)> {
+        let mb = 1_572_864;
+        let rep = |unit: &str| unit.repeat(mb / unit.len() + 1).into_bytes();
+        vec![
+            ("slash-bracket", rep("(/[")),
+            ("slash-paren", rep("(/(")),
+            ("regex-never-closing", rep("x = /[abc")),
+            ("many-slashes", rep("a=/")),
+            ("open-parens", rep("(")),
+            ("quotes-backslashes", rep("'\\")),
+            ("template-open", rep("`${")),
+            ("template-nested", rep("`${`${")),
+            ("block-comment-open", rep("/* ")),
+            ("line-comments", rep("// x\n")),
+            ("long-string-no-end", rep("\"abc")),
+            ("braces", rep("{")),
+            ("close-braces", rep("}")),
+            ("jsx-lts", rep("<a ")),
+        ]
+    }
+
+    #[test]
+    fn the_work_is_linear_in_the_input_for_every_hostile_shape() {
+        for (name, src) in hostile_shapes() {
+            let (out, ops) = mask_counting(&src);
+            assert_eq!(out.len(), src.len(), "{name}");
+            assert!(ops <= 6 * src.len() + 64, "{name}: {ops} steps for {} bytes", src.len());
+        }
+    }
+
+    #[test]
+    fn a_line_of_failed_regex_starts_is_masked_in_time() {
+        // the review's input: n = 80,000 repetitions took 17 seconds before the fix
+        let src = "(/[".repeat(500_000).into_bytes();
+        let t = std::time::Instant::now();
+        let _ = mask(&src);
+        let limit = if cfg!(debug_assertions) { 10 } else { 2 };
+        assert!(t.elapsed().as_secs() < limit, "{:?}", t.elapsed());
+    }
+
+    #[test]
+    fn a_regex_after_a_failed_try_on_an_earlier_line_is_still_found() {
+        let src = "a = (/[x\nb = /[}{]/.test(s);";
+        let out = String::from_utf8(mask(src.as_bytes())).unwrap();
+        assert!(!out.lines().nth(1).unwrap().contains('{'));
     }
 
     #[test]

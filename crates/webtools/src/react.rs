@@ -301,6 +301,11 @@ impl Ctx<'_> {
                 }
                 let from = t.lt.saturating_sub(3000);
                 let window = &self.m[from..t.lt];
+                // the look back is paid for from the same work budget as everything else: thousands of inputs must not each cost 3 KB
+                if self.work < window.len() * 2 {
+                    return;
+                }
+                self.work -= window.len() * 2;
                 let last_open = window.windows(6).rposition(|w| w == b"<label");
                 let last_close = window.windows(7).rposition(|w| w == b"</label");
                 let wrapped = match (last_open, last_close) {
@@ -586,6 +591,11 @@ fn count_entries(m: &[u8], from: usize, to: usize, type_body: bool) -> u32 {
 }
 
 fn type_body(m: &[u8], name: &str, work: &mut usize) -> Option<(usize, usize)> {
+    // each lookup reads the whole file: budgeted, so a file of thousands of components cannot ask for it thousands of times
+    if *work < m.len() {
+        return None;
+    }
+    *work -= m.len();
     for kw in ["interface ", "type "] {
         let pat = format!("{kw}{name}");
         let p = pat.as_bytes();
@@ -816,5 +826,34 @@ mod tests {
         let _ = react_file("h.tsx", &lts, ReactOptions::default(), false);
         let buttons = "<button>".repeat(100_000);
         let _ = react_file("h.tsx", &buttons, ReactOptions::default(), false);
+    }
+
+    /// Shapes that make a careless JSX scanner quadratic; each is as large as the biggest file the tool reads (1.5 MB).
+    fn hostile(mb: usize) -> Vec<(&'static str, String)> {
+        let rep = |unit: &str| unit.repeat(mb / unit.len() + 1);
+        vec![
+            ("inputs", rep("<input />\n")),
+            ("inputs-in-one-line", rep("<input ")),
+            ("typed-components", rep("const A: React.FC<P> = (p) => { return null; };\n")),
+            ("function-opens", rep("function A(")),
+            ("maps", rep(".map((x) => (")),
+            ("nested-buttons", rep("<button>")),
+            ("lts", rep("<")),
+            ("attr-exprs", rep("<a x={")),
+            ("regex-starts", rep("(/[")),
+            ("templates", rep("`${")),
+            ("braces", rep("{")),
+            ("props", rep("function A({a,b,c,d,e,f,g,h,i,j,k,l}) {}\n")),
+        ]
+    }
+
+    #[test]
+    fn every_hostile_shape_is_scanned_in_bounded_time() {
+        let limit = if cfg!(debug_assertions) { 15 } else { 3 };
+        for (name, src) in hostile(1_500_000) {
+            let t = std::time::Instant::now();
+            let _ = react_file("h.tsx", &src, ReactOptions::default(), false);
+            assert!(t.elapsed().as_secs() < limit, "{name}: {:?}", t.elapsed());
+        }
     }
 }

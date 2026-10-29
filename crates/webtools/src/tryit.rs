@@ -1,6 +1,6 @@
 //! "Try it": one HTTP/1.1 request to a dev server on THIS computer. The target is never a host name: the address is 127.0.0.1
-//! (then ::1) and the port must be one of the ports the caller passes in (the listening ports of dev servers started from the
-//! Scripts panel). The request line takes a path only, a response is never followed anywhere (a redirect is shown, not
+//! or ::1 (only a family the caller proved, see [`Allowed`]) and the port must be one the caller passes in. The caller takes them from
+//! `lsof`, for the process tree of a dev server that the Scripts panel started, never from what a process prints. The request line takes a path only, a response is never followed anywhere (a redirect is shown, not
 //! taken), and size and time are capped. Plain `TcpStream`, no TLS, no proxy, no extra dependency.
 
 use std::io::{Read, Write};
@@ -53,6 +53,14 @@ pub struct TryResponse {
 const METHODS: &[&str] = &["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
 const FORBIDDEN: &[&str] = &["host", "content-length", "connection", "transfer-encoding", "upgrade", "expect", "te", "trailer", "proxy-authorization", "proxy-connection"];
 
+/// A port that may be tried, and the loopback address families a listing proved for it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Allowed {
+    pub port: u16,
+    pub v4: bool,
+    pub v6: bool,
+}
+
 /// The only addresses a request can go to.
 pub fn target_addrs(port: u16) -> [SocketAddr; 2] {
     [SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port), SocketAddr::new(IpAddr::V6(Ipv6Addr::LOCALHOST), port)]
@@ -63,8 +71,8 @@ fn token(s: &str) -> bool {
 }
 
 /// Everything the request is checked against before a socket is opened.
-pub fn validate(req: &TryRequest, allowed_ports: &[u16]) -> Result<(), WebError> {
-    if req.port == 0 || !allowed_ports.contains(&req.port) {
+pub fn validate(req: &TryRequest, allowed: &[Allowed]) -> Result<(), WebError> {
+    if req.port == 0 || !allowed.iter().any(|a| a.port == req.port && (a.v4 || a.v6)) {
         return fail("notAllowed", "Try it only reaches a dev server that was started from the Scripts panel, on its own port");
     }
     if !METHODS.contains(&req.method.as_str()) {
@@ -92,9 +100,12 @@ pub fn validate(req: &TryRequest, allowed_ports: &[u16]) -> Result<(), WebError>
     Ok(())
 }
 
-fn connect(port: u16, deadline: Instant) -> Result<(TcpStream, &'static str), WebError> {
+fn connect(port: u16, families: (bool, bool), deadline: Instant) -> Result<(TcpStream, &'static str), WebError> {
     let mut last = None;
-    for (addr, host) in target_addrs(port).into_iter().zip(["127.0.0.1", "::1"]) {
+    for ((addr, host), wanted) in target_addrs(port).into_iter().zip(["127.0.0.1", "::1"]).zip([families.0, families.1]) {
+        if !wanted {
+            continue;
+        }
         let left = deadline.saturating_duration_since(Instant::now()).min(CONNECT);
         if left.is_zero() {
             break;
@@ -128,15 +139,16 @@ impl Limited<'_> {
     }
 }
 
-pub fn send(req: &TryRequest, allowed_ports: &[u16]) -> Result<TryResponse, WebError> {
-    send_within(req, allowed_ports, TOTAL)
+pub fn send(req: &TryRequest, allowed: &[Allowed]) -> Result<TryResponse, WebError> {
+    send_within(req, allowed, TOTAL)
 }
 
-pub(crate) fn send_within(req: &TryRequest, allowed_ports: &[u16], total: Duration) -> Result<TryResponse, WebError> {
-    validate(req, allowed_ports)?;
+pub(crate) fn send_within(req: &TryRequest, allowed: &[Allowed], total: Duration) -> Result<TryResponse, WebError> {
+    validate(req, allowed)?;
+    let families = allowed.iter().filter(|a| a.port == req.port).fold((false, false), |f, a| (f.0 || a.v4, f.1 || a.v6));
     let started = Instant::now();
     let deadline = started + total;
-    let (mut stream, host) = connect(req.port, deadline)?;
+    let (mut stream, host) = connect(req.port, families, deadline)?;
     stream.set_nodelay(true).ok();
     stream.set_write_timeout(Some(Duration::from_secs(3))).ok();
     let body = req.body.as_deref().unwrap_or("");
@@ -227,11 +239,7 @@ pub(crate) fn send_within(req: &TryRequest, allowed_ports: &[u16], total: Durati
         body_out.truncate(MAX_BODY_IN);
         truncated = true;
     }
-    let (body_text, binary) = match String::from_utf8(body_out) {
-        Ok(t) if !t.contains('\0') => (t, false),
-        _ => (String::new(), true),
-    };
-    let body_text: String = body_text.chars().filter(|c| !c.is_control() || matches!(c, '\n' | '\r' | '\t')).collect();
+    let (body_text, binary) = decode_body(body_out, truncated);
     let redirect = if (300..400).contains(&status) { header("location").map(|l| clean(l, 300)) } else { None };
     Ok(TryResponse {
         status,
@@ -245,6 +253,28 @@ pub(crate) fn send_within(req: &TryRequest, allowed_ports: &[u16], total: Durati
         host: host.to_string(),
         redirect,
     })
+}
+
+/// Characters a response must not be able to use to disguise text on screen: controls (except line breaks and tabs), line and
+/// paragraph separators, zero-width and bidirectional marks and overrides, and the byte order mark.
+fn display_unsafe(c: char) -> bool {
+    (c.is_control() && !matches!(c, '\n' | '\r' | '\t')) || matches!(c, '\u{200b}'..='\u{200f}' | '\u{2028}'..='\u{202e}' | '\u{2060}'..='\u{2064}' | '\u{2066}'..='\u{2069}' | '\u{feff}')
+}
+
+/// The body as text for the screen. A body cut by the size cap in the middle of a character still counts as text; a body with a NUL
+/// byte or invalid UTF-8 before its end is binary.
+pub(crate) fn decode_body(mut bytes: Vec<u8>, truncated: bool) -> (String, bool) {
+    if truncated {
+        if let Err(e) = std::str::from_utf8(&bytes) {
+            if e.error_len().is_none() {
+                bytes.truncate(e.valid_up_to());
+            }
+        }
+    }
+    match String::from_utf8(bytes) {
+        Ok(t) if !t.contains('\0') => (t.chars().filter(|c| !display_unsafe(*c)).collect(), false),
+        _ => (String::new(), true),
+    }
 }
 
 #[derive(Default)]
@@ -295,6 +325,10 @@ mod tests {
     use super::*;
     use std::net::TcpListener;
 
+    fn ok(port: u16) -> [Allowed; 1] {
+        [Allowed { port, v4: true, v6: false }]
+    }
+
     fn req(port: u16, path: &str) -> TryRequest {
         TryRequest { port, method: "GET".into(), path: path.into(), headers: vec![], body: None }
     }
@@ -331,8 +365,8 @@ mod tests {
     fn a_port_that_is_not_a_known_dev_server_is_refused_before_any_socket_opens() {
         let (port, h) = serve(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n".to_vec());
         assert_eq!(send(&req(port, "/"), &[]).unwrap_err().code, "notAllowed");
-        assert_eq!(send(&req(port, "/"), &[port + 1]).unwrap_err().code, "notAllowed");
-        assert_eq!(send(&req(0, "/"), &[0]).unwrap_err().code, "notAllowed");
+        assert_eq!(send(&req(port, "/"), &ok(port + 1)).unwrap_err().code, "notAllowed");
+        assert_eq!(send(&req(0, "/"), &ok(0)).unwrap_err().code, "notAllowed");
         // unblock the listener thread
         let _ = TcpStream::connect(("127.0.0.1", port));
         let _ = h.join();
@@ -340,7 +374,7 @@ mod tests {
 
     #[test]
     fn paths_methods_and_headers_cannot_aim_the_request_elsewhere() {
-        let ok = |r: &TryRequest| validate(r, &[3000]).is_ok();
+        let ok = |r: &TryRequest| validate(r, &ok(3000)).is_ok();
         assert!(ok(&req(3000, "/api/users?x=1")));
         for bad in ["http://evil.test/", "//evil.test/x", "api", "/a b", "/a\r\nHost: evil", "/a\\b", "", "/é"] {
             assert!(!ok(&req(3000, bad)), "{bad:?}");
@@ -365,7 +399,7 @@ mod tests {
         r.method = "POST".into();
         r.body = Some("{\"a\":1}".into());
         r.headers = vec![("Content-Type".into(), "application/json".into())];
-        let got = send(&r, &[port]).unwrap();
+        let got = send(&r, &ok(port)).unwrap();
         assert_eq!((got.status, got.reason.as_str(), got.body.as_str(), got.host.as_str()), (201, "Created", "{\"ok\":true}", "127.0.0.1"));
         let sent = h.join().unwrap();
         assert!(sent.starts_with("POST /items HTTP/1.1\r\nHost: localhost:"));
@@ -375,14 +409,14 @@ mod tests {
     #[test]
     fn chunked_bodies_are_decoded() {
         let (port, h) = serve(b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n5\r\nhello\r\n6;ext=1\r\n world\r\n0\r\n\r\n".to_vec());
-        assert_eq!(send(&req(port, "/"), &[port]).unwrap().body, "hello world");
+        assert_eq!(send(&req(port, "/"), &ok(port)).unwrap().body, "hello world");
         h.join().unwrap();
     }
 
     #[test]
     fn a_redirect_is_shown_and_never_followed() {
         let (port, h) = serve(b"HTTP/1.1 302 Found\r\nLocation: http://evil.test/steal\r\nContent-Length: 0\r\n\r\n".to_vec());
-        let got = send(&req(port, "/"), &[port]).unwrap();
+        let got = send(&req(port, "/"), &ok(port)).unwrap();
         assert_eq!((got.status, got.redirect.as_deref()), (302, Some("http://evil.test/steal")));
         h.join().unwrap();
     }
@@ -392,11 +426,11 @@ mod tests {
         let mut big = b"HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n".to_vec();
         big.extend(vec![b'a'; MAX_BODY_IN * 3]);
         let (port, h) = serve(big);
-        let got = send(&req(port, "/"), &[port]).unwrap();
+        let got = send(&req(port, "/"), &ok(port)).unwrap();
         assert!(got.body_truncated && got.body.len() <= MAX_BODY_IN);
         let _ = h.join();
         let (port, h) = serve(b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\n\xff\xfe\x00".to_vec());
-        let got = send(&req(port, "/"), &[port]).unwrap();
+        let got = send(&req(port, "/"), &ok(port)).unwrap();
         assert!(got.binary && got.body.is_empty());
         h.join().unwrap();
     }
@@ -409,11 +443,11 @@ mod tests {
             let (_s, _) = l.accept().unwrap();
             std::thread::sleep(Duration::from_millis(600));
         });
-        let err = send_within(&req(port, "/"), &[port], Duration::from_millis(250)).unwrap_err();
+        let err = send_within(&req(port, "/"), &ok(port), Duration::from_millis(250)).unwrap_err();
         assert_eq!(err.code, "timeout");
         t.join().unwrap();
         let (port, h) = serve(b"SSH-2.0-OpenSSH\r\n\r\n".to_vec());
-        assert_eq!(send(&req(port, "/"), &[port]).unwrap_err().code, "badResponse");
+        assert_eq!(send(&req(port, "/"), &ok(port)).unwrap_err().code, "badResponse");
         h.join().unwrap();
     }
 
@@ -422,6 +456,53 @@ mod tests {
         let l = TcpListener::bind("127.0.0.1:0").unwrap();
         let port = l.local_addr().unwrap().port();
         drop(l);
-        assert_eq!(send(&req(port, "/"), &[port]).unwrap_err().code, "connect");
+        assert_eq!(send(&req(port, "/"), &ok(port)).unwrap_err().code, "connect");
+    }
+
+    #[test]
+    fn only_the_address_family_that_was_proved_is_connected() {
+        // a listener on 127.0.0.1 that was only proved on ::1 must not be reached, and must not even see a connection
+        let l = TcpListener::bind("127.0.0.1:0").unwrap();
+        l.set_nonblocking(true).unwrap();
+        let port = l.local_addr().unwrap().port();
+        let only_v6 = [Allowed { port, v4: false, v6: true }];
+        let err = send_within(&req(port, "/"), &only_v6, Duration::from_millis(500)).unwrap_err();
+        assert_eq!(err.code, "connect");
+        assert!(l.accept().is_err(), "the IPv4 listener must not have been connected to");
+        // a port with no proved family is refused outright
+        assert_eq!(send(&req(port, "/"), &[Allowed { port, v4: false, v6: false }]).unwrap_err().code, "notAllowed");
+    }
+
+    #[test]
+    fn a_body_cut_inside_a_character_is_still_text() {
+        let euros = "€".repeat(MAX_BODY_IN);
+        let mut bytes = euros.into_bytes();
+        bytes.truncate(MAX_BODY_IN); // 262144 is not a multiple of 3: the last character is cut
+        let (text, binary) = decode_body(bytes, true);
+        assert!(!binary && text.chars().all(|c| c == '€') && !text.is_empty());
+        // the same bytes that end in the middle of a character without a cut are binary
+        let (text, binary) = decode_body(vec![b'a', 0xe2, 0x82], false);
+        assert!(binary && text.is_empty());
+        assert!(decode_body(vec![b'a', 0, b'b'], false).1);
+    }
+
+    #[test]
+    fn a_response_cannot_disguise_text_with_bidi_or_zero_width_characters() {
+        let (text, binary) = decode_body("ok\u{202e}gnp.exe\u{2066}x\u{200b}y\u{feff}\u{0007}\nline".as_bytes().to_vec(), false);
+        assert!(!binary);
+        assert_eq!(text, "okgnp.exexy\nline");
+    }
+
+    #[test]
+    fn the_source_has_one_loopback_connect_and_no_name_lookup() {
+        let src = include_str!("tryit.rs");
+        let code = &src[..src.find("#[cfg(test)]").unwrap()];
+        assert_eq!(code.matches("connect_timeout(").count(), 1);
+        for banned in ["TcpStream::connect(", "to_socket_addrs", "lookup_host", "ToSocketAddrs", "UdpSocket"] {
+            assert!(!code.contains(banned), "{banned}");
+        }
+        for a in target_addrs(1234) {
+            assert!(a.ip().is_loopback());
+        }
     }
 }

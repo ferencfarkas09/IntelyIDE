@@ -73,7 +73,8 @@ fn npm_error(v: &Value) -> Option<String> {
     Some(clean(&format!("{} {}", text(e.get("code")), text(e.get("summary"))), 200))
 }
 
-pub fn parse_outdated(json: &str) -> Result<Vec<OutdatedPkg>, WebError> {
+/// `locked`: the versions the lock file pins. npm runs without `node_modules`, so it cannot say what is installed; the lock file does.
+pub fn parse_outdated(json: &str, locked: &std::collections::HashMap<String, String>) -> Result<Vec<OutdatedPkg>, WebError> {
     if json.trim().is_empty() {
         return Ok(Vec::new());
     }
@@ -85,7 +86,10 @@ pub fn parse_outdated(json: &str) -> Result<Vec<OutdatedPkg>, WebError> {
     let mut out = Vec::new();
     for (name, info) in map.iter().take(1000) {
         let info = if info.is_array() { info.get(0).unwrap_or(info) } else { info };
-        let (current, wanted, latest) = (text(info.get("current")), text(info.get("wanted")), text(info.get("latest")));
+        let (mut current, wanted, latest) = (text(info.get("current")), text(info.get("wanted")), text(info.get("latest")));
+        if current.is_empty() || current == "MISSING" {
+            current = locked.get(name).cloned().unwrap_or_default();
+        }
         if !name_ok(name) || ![&current, &wanted, &latest].iter().all(|x| version_ok(x)) || latest.is_empty() {
             continue;
         }
@@ -153,10 +157,14 @@ mod tests {
             "vite":[{"current":"5.0.0","wanted":"5.4.1","latest":"5.4.1","type":"devDependencies"}],
             "../evil":{"current":"1.0.0","wanted":"1.0.0","latest":"2.0.0"},
             "x":{"current":"1.0.0\n<script>","wanted":"1","latest":"2"}}"#;
-        let got = parse_outdated(json).unwrap();
+        let got = parse_outdated(json, &Default::default()).unwrap();
         let names: Vec<(&str, &str, bool)> = got.iter().map(|p| (p.name.as_str(), p.jump, p.dev)).collect();
         assert_eq!(names, vec![("react", "major", false), ("vite", "minor", true), ("lodash", "patch", false)]);
-        assert!(parse_outdated("").unwrap().is_empty());
+        assert!(parse_outdated("", &Default::default()).unwrap().is_empty());
+        // without node_modules npm has no "current"; the lock file's version is used
+        let locked = [("left-pad".to_string(), "1.0.0".to_string())].into_iter().collect();
+        let got = parse_outdated(r#"{"left-pad":{"wanted":"1.3.0","latest":"1.3.0"}}"#, &locked).unwrap();
+        assert_eq!((got[0].current.as_str(), got[0].jump), ("1.0.0", "minor"));
     }
 
     #[test]
@@ -174,8 +182,8 @@ mod tests {
     #[test]
     fn npm_errors_and_garbage_are_errors_not_panics() {
         assert_eq!(parse_audit(r#"{"error":{"code":"ENOLOCK","summary":"This command requires an existing lockfile."}}"#).unwrap_err().code, "npm");
-        assert_eq!(parse_outdated("not json").unwrap_err().code, "parse");
+        assert_eq!(parse_outdated("not json", &Default::default()).unwrap_err().code, "parse");
         assert_eq!(parse_audit("[1,2").unwrap_err().code, "parse");
-        assert!(parse_outdated("[]").is_err());
+        assert!(parse_outdated("[]", &Default::default()).is_err());
     }
 }

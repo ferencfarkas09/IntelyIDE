@@ -2,7 +2,7 @@
 // app with SCSS and an Express backend) so the panels can be shown and tested.
 import { call } from "../../ipc/rpc";
 import { inTauri } from "../l10n/api";
-import type { AuditReport, BundleReport, Detect, DepsReport, EnvReport, LiveServer, OutdatedPkg, ReactOptions, ReactReport, RouteMap, RuleMatch, RuleQuery, TokensReport, TryRequest, TryResponse, UnusedReport } from "./types";
+import type { AuditReport, BundleReport, Detect, DepsReport, EnvReport, LiveServers, OutdatedPkg, ReactOptions, ReactReport, RouteMap, RuleMatch, RuleQuery, TokensReport, TryRequest, TryResponse, UnusedReport } from "./types";
 
 export interface WebtoolsApi {
   detect(repoId: string): Promise<Detect>;
@@ -13,10 +13,10 @@ export interface WebtoolsApi {
   routes(repoId: string): Promise<RouteMap>;
   env(repoId: string): Promise<EnvReport>;
   findRule(repoId: string, query: RuleQuery): Promise<RuleMatch[]>;
-  /** The live dev servers started from the Scripts panel, with the ports they listen on. */
-  servers(): Promise<LiveServer[]>;
-  /** One request to 127.0.0.1 / ::1 on the port of a live dev server. */
-  tryIt(req: TryRequest): Promise<TryResponse>;
+  /** The live dev servers of this repository started from the Scripts panel, with the ports their processes listen on (from lsof). */
+  servers(repoId: string): Promise<LiveServers>;
+  /** One request to 127.0.0.1 / ::1 on the port of a live dev server of this repository. */
+  tryIt(repoId: string, req: TryRequest): Promise<TryResponse>;
   /** `npm outdated` + `npm audit`: uses the network, so `confirmed` must be true. */
   depsCheck(repoId: string, dir: string, confirmed: boolean): Promise<DepsReport>;
 }
@@ -30,8 +30,8 @@ const tauriApi: WebtoolsApi = {
   routes: (repoId) => call("webtools_routes", { repoId }),
   env: (repoId) => call("webtools_env", { repoId }),
   findRule: (repoId, query) => call("webtools_find_rule", { repoId, query }),
-  servers: () => call("webtools_servers"),
-  tryIt: (request) => call("webtools_try", { request }),
+  servers: (repoId) => call("webtools_servers", { repoId }),
+  tryIt: (repoId, request) => call("webtools_try", { repoId, request }),
   depsCheck: (repoId, dir, confirmed) => call("webtools_deps_check", { repoId, dir, confirmed }),
 };
 
@@ -58,10 +58,10 @@ export function createMockWebtools(): WebtoolsApi {
     detect: async () => ({ css: true, scss: true, react: true, reactNative: false, backends: ["express"], env: true, bundle: true, packages: [{ dir: "", manager: "npm" }] }),
     tokens: async () => ({
       tokens: [
-        { name: "--brand", kind: "custom", value: "#5b8def", file: "src/theme.css", line: 2, definitions: 1, uses: 12, mentions: 0, unused: false, confidence: "high", swatch: "#5b8def" },
-        { name: "--brand-old", kind: "custom", value: "#5b8def", file: "src/theme.css", line: 3, definitions: 1, uses: 0, mentions: 0, unused: true, confidence: "high", swatch: "#5b8def" },
-        { name: "$gap", kind: "scss", value: "8px", file: "src/_vars.scss", line: 1, definitions: 1, uses: 4, mentions: 0, unused: false, confidence: "high", swatch: null },
-        { name: "$spacers", kind: "scssMap", value: "(sm: 4px, md: 8px)", file: "src/_vars.scss", line: 2, definitions: 1, uses: 0, mentions: 0, unused: true, confidence: "medium", swatch: null },
+        { name: "--brand", kind: "custom", value: "#5b8def", file: "src/theme.css", line: 2, definitions: 1, uses: 12, mentions: 0, unused: false, utility: false, confidence: "high", swatch: "#5b8def" },
+        { name: "--brand-old", kind: "custom", value: "#5b8def", file: "src/theme.css", line: 3, definitions: 1, uses: 0, mentions: 0, unused: true, utility: false, confidence: "high", swatch: "#5b8def" },
+        { name: "$gap", kind: "scss", value: "8px", file: "src/_vars.scss", line: 1, definitions: 1, uses: 4, mentions: 0, unused: false, utility: false, confidence: "high", swatch: null },
+        { name: "$spacers", kind: "scssMap", value: "(sm: 4px, md: 8px)", file: "src/_vars.scss", line: 2, definitions: 1, uses: 0, mentions: 0, unused: true, utility: false, confidence: "medium", swatch: null },
       ],
       hardcoded: [{ file: "src/Card.scss", line: 7, prop: "color", value: "#5b8def", token: "--brand", suggestion: "var(--brand)" }],
       duplicates: [{ value: "#5b8def", swatch: "#5b8def", tokens: ["--brand", "--brand-old"], hardcoded: 0, examples: [] }],
@@ -137,9 +137,9 @@ export function createMockWebtools(): WebtoolsApi {
       skipped: [],
     }),
     findRule: async (_repoId, q) => (q.classes.includes("card") ? [{ file: "src/Card.scss", line: 3, selector: ".card", score: 10, why: ["class"] }] : []),
-    servers: async () => [{ id: "mock:npm:dev", repoId: "mock", runner: "npm run dev", ports: [5173] }],
-    tryIt: async (req) => {
-      if (!(await Promise.resolve([5173])).includes(req.port)) return Promise.reject({ code: "notAllowed", message: "Try it only reaches a dev server that was started from the Scripts panel, on its own port" });
+    servers: async () => ({ available: true, servers: [{ id: "mock:npm:dev", runner: "npm run dev", ports: [5173] }] }),
+    tryIt: async (_repoId, req) => {
+      if (req.port !== 5173) return Promise.reject({ code: "notAllowed", message: "Try it only reaches a dev server that was started from the Scripts panel, on its own port" });
       return { status: 200, reason: "OK", headers: [["content-type", "application/json"]], body: '{"ok":true}', bodyTruncated: false, binary: false, bytes: 11, millis: 4, host: "127.0.0.1", redirect: null };
     },
     depsCheck: async (_repoId, _dir, confirmed) => {

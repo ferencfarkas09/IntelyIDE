@@ -34,10 +34,14 @@ pub struct RouteMap {
 
 const METHODS: &[&str] = &["get", "post", "put", "patch", "delete", "head", "options", "all"];
 const NEST: &[&str] = &["Get", "Post", "Put", "Patch", "Delete", "Head", "Options", "All"];
+/// Receivers that are HTTP clients or plain data, matched as WHOLE names (`pageRouter` is a router; `page` is not). A variable that the
+/// file creates with `express()`, `Router()`, `fastify()`, `new Hono()` and so on is a server whatever its name.
 const CLIENT_NAMES: &[&str] = &[
-    "axios", "http", "client", "request", "supertest", "got", "fetch", "ky", "headers", "params", "query", "searchparams", "map", "cache", "store", "cookies", "formdata", "storage", "session", "env", "config",
-    "cy", "page", "browser", "res", "req", "agent", "superagent",
+    "axios", "http", "https", "request", "got", "ky", "fetch", "superagent", "supertest", "agent", "client", "api", "headers", "params", "query", "searchparams", "map", "cache", "store", "cookies", "formdata",
+    "storage", "session", "env", "config", "cy", "page", "browser", "res", "req", "ctx", "localstorage", "sessionstorage",
 ];
+const CLIENT_SUFFIXES: &[&str] = &["client", "http", "service", "axios", "fetcher"];
+const SERVER_MAKERS: &[&str] = &["express(", "express.Router(", "Router(", "fastify(", "Fastify(", "new Hono(", "new Koa(", "new Elysia("];
 const MAX_ROUTES: usize = 600;
 
 fn imports(s: &str, name: &str) -> bool {
@@ -67,6 +71,13 @@ fn printable(p: &str) -> bool {
     !p.is_empty() && p.len() <= 200 && p.bytes().all(|b| (0x21..0x7f).contains(&b))
 }
 
+fn skip_ws_at(m: &[u8], mut i: usize) -> usize {
+    while m.get(i).is_some_and(u8::is_ascii_whitespace) {
+        i += 1;
+    }
+    i
+}
+
 /// The string literal that starts at `i` (after spaces) in the masked text: its content from the original, or None for a
 /// template literal with `${`, anything that is not a string, or an unterminated one.
 fn string_at<'a>(m: &[u8], s: &'a str, i: usize) -> Option<(&'a str, usize)> {
@@ -83,6 +94,43 @@ fn string_at<'a>(m: &[u8], s: &'a str, i: usize) -> Option<(&'a str, usize)> {
     (!(q == b'`' && text.contains("${"))).then_some((text, end + 1))
 }
 
+/// Names of the variables this file sets to an app or router: `const api = express.Router()`, `const app = new Hono()`.
+fn server_vars(m: &[u8]) -> std::collections::HashSet<String> {
+    let mut out = std::collections::HashSet::new();
+    for maker in SERVER_MAKERS {
+        let hits = m.windows(maker.len()).enumerate().filter(|(_, w)| *w == maker.as_bytes()).map(|(at, _)| at).take(500);
+        for at in hits {
+            // `<name> = <maker>`: the `=` before the maker, then the name before the `=`
+            let mut j = at;
+            while j > 0 && m[j - 1].is_ascii_whitespace() {
+                j -= 1;
+            }
+            if j == 0 || m[j - 1] != b'=' {
+                continue;
+            }
+            let mut e = j - 1;
+            while e > 0 && m[e - 1].is_ascii_whitespace() {
+                e -= 1;
+            }
+            let mut st = e;
+            while st > 0 && (m[st - 1].is_ascii_alphanumeric() || matches!(m[st - 1], b'_' | b'$')) {
+                st -= 1;
+            }
+            if st < e {
+                out.insert(String::from_utf8_lossy(&m[st..e]).into_owned());
+            }
+        }
+    }
+    out
+}
+
+fn is_client(recv_lower: &str, servers: &std::collections::HashSet<String>, recv: &str) -> bool {
+    if servers.contains(recv) {
+        return false;
+    }
+    CLIENT_NAMES.contains(&recv_lower) || CLIENT_SUFFIXES.iter().any(|s| recv_lower.ends_with(s))
+}
+
 fn scan_text(file: &str, s: &str, out: &mut Vec<Route>) {
     let m = mask(s.as_bytes());
     let starts = line_starts(s.as_bytes());
@@ -92,6 +140,8 @@ fn scan_text(file: &str, s: &str, out: &mut Vec<Route>) {
         return;
     }
     if let Some(fw) = fw {
+        let servers = server_vars(&m);
+        let no_servers = std::collections::HashSet::new();
         let mut i = 0;
         while i < m.len() && out.len() < MAX_ROUTES {
             if m[i] != b'.' {
@@ -99,31 +149,58 @@ fn scan_text(file: &str, s: &str, out: &mut Vec<Route>) {
                 continue;
             }
             let rest = &m[i + 1..];
+            // the receiver: the identifier before the dot
+            let mut k = i;
+            while k > 0 && (m[k - 1].is_ascii_alphanumeric() || matches!(m[k - 1], b'_' | b'$')) {
+                k -= 1;
+            }
+            let recv = String::from_utf8_lossy(&m[k..i]).into_owned();
+            let chained = k == i;
+            // `this.http` is a member, not the local variable called `http`
+            let member = k > 0 && m[k - 1] == b'.';
+            let server_ok = !chained && !is_client(&recv.to_ascii_lowercase(), if member { &no_servers } else { &servers }, &recv);
             if let Some(name) = METHODS.iter().find(|n| rest.starts_with(n.as_bytes()) && rest.get(n.len()) == Some(&b'(')) {
-                // the receiver: the identifier before the dot
-                let mut k = i;
-                while k > 0 && (m[k - 1].is_ascii_alphanumeric() || matches!(m[k - 1], b'_' | b'$')) {
-                    k -= 1;
-                }
-                let recv = String::from_utf8_lossy(&m[k..i]).to_ascii_lowercase();
-                let chained = k == i;
-                if !chained && !CLIENT_NAMES.iter().any(|c| recv.contains(c)) {
+                if server_ok {
                     if let Some((path, _)) = string_at(&m, s, i + 1 + name.len() + 1) {
                         if (path.starts_with('/') || path == "*") && printable(path) {
                             out.push(Route { framework: fw, method: name.to_ascii_uppercase(), path: path.to_string(), file: file.to_string(), line: line_of(&starts, i) });
                         }
                     }
                 }
-            } else if rest.starts_with(b"route(") && fw == "fastify" {
-                let window = &m[i..(i + 500).min(m.len())];
-                let find_key = |key: &str| -> Option<&str> {
-                    let at = window.windows(key.len()).position(|w| w == key.as_bytes())?;
-                    let colon = window[at + key.len()..].iter().position(|b| *b == b':')?;
-                    string_at(&m, s, i + at + key.len() + colon + 1).map(|x| x.0)
-                };
-                if let (Some(method), Some(url)) = (find_key("method"), find_key("url").or_else(|| find_key("path"))) {
-                    if url.starts_with('/') && printable(url) && method.bytes().all(|b| b.is_ascii_alphabetic()) {
-                        out.push(Route { framework: "fastify", method: method.to_ascii_uppercase(), path: url.to_string(), file: file.to_string(), line: line_of(&starts, i) });
+            } else if rest.starts_with(b"route(") && server_ok {
+                let arg = skip_ws_at(&m, i + 1 + "route(".len());
+                if m.get(arg) == Some(&b'{') && fw == "fastify" {
+                    let window = &m[i..(i + 500).min(m.len())];
+                    let find_key = |key: &str| -> Option<&str> {
+                        let at = window.windows(key.len()).position(|w| w == key.as_bytes())?;
+                        let colon = window[at + key.len()..].iter().position(|b| *b == b':')?;
+                        string_at(&m, s, i + at + key.len() + colon + 1).map(|x| x.0)
+                    };
+                    if let (Some(method), Some(url)) = (find_key("method"), find_key("url").or_else(|| find_key("path"))) {
+                        if url.starts_with('/') && printable(url) && method.bytes().all(|b| b.is_ascii_alphabetic()) {
+                            out.push(Route { framework: "fastify", method: method.to_ascii_uppercase(), path: url.to_string(), file: file.to_string(), line: line_of(&starts, i) });
+                        }
+                    }
+                } else if let Some((path, after)) = string_at(&m, s, arg) {
+                    // `app.route('/book').get(h).post(h)`: every method of the chain is a route of that path
+                    let mut p = skip_ws_at(&m, after);
+                    if m.get(p) == Some(&b')') && (path.starts_with('/') || path == "*") && printable(path) {
+                        p += 1;
+                        for _ in 0..12 {
+                            let q = skip_ws_at(&m, p);
+                            if m.get(q) != Some(&b'.') {
+                                break;
+                            }
+                            let rest = &m[q + 1..];
+                            let Some(name) = METHODS.iter().find(|n| rest.starts_with(n.as_bytes()) && rest.get(n.len()) == Some(&b'(')) else { break };
+                            out.push(Route { framework: fw, method: name.to_ascii_uppercase(), path: path.to_string(), file: file.to_string(), line: line_of(&starts, q) });
+                            let open = q + 1 + name.len();
+                            let mut budget = 20_000usize;
+                            match crate::jsmask::matching(&m, open, &mut budget) {
+                                Some(close) => p = close + 1,
+                                None => break,
+                            }
+                        }
                     }
                 }
             }
@@ -353,5 +430,50 @@ mod tests {
         std::fs::write(d.path().join("c.ts"), [b'@', 0xff, b'C', b'o']).unwrap();
         let m = route_map(d.path()).unwrap();
         assert!(m.routes.len() <= MAX_ROUTES);
+    }
+
+    #[test]
+    fn routers_whose_names_contain_a_client_word_are_still_routers() {
+        let names = ["pageRouter", "storeRouter", "sessionRouter", "resourceRouter", "mapRouter", "configRouter", "agentRouter", "currencyRouter", "requestsRouter", "addressRouter", "restaurantRouter", "policyRouter"];
+        let src = format!("const express = require('express');\n{}", names.iter().map(|n| format!("{n}.get('/{n}', h);\n")).collect::<String>());
+        let d = repo(&[("r.js", &src)]);
+        let m = route_map(d.path()).unwrap();
+        assert_eq!(m.routes.len(), names.len(), "{:?}", list(&m));
+    }
+
+    #[test]
+    fn clients_and_data_are_not_routes_but_a_created_server_is_whatever_its_name() {
+        let d = repo(&[(
+            "r.js",
+            "const express = require('express');\nconst api = express.Router();\nconst http = express();\nconst cacheStore = new Map();\naxios.get('/a');\nthis.httpService.get('/b');\nthis.http.get('/c');\ncache.get('/d');\nsupertest(app).get('/e');\napi.get('/real');\nhttp.post('/also-real');\nclient.get('/f');\n",
+        )]);
+        let m = route_map(d.path()).unwrap();
+        assert_eq!(list(&m), vec!["express POST /also-real r.js:11", "express GET /real r.js:10"]);
+        // `api` as an axios instance is a client
+        let d = repo(&[("r.js", "const express = require('express');\nconst api = axios.create();\napi.get('/x');\n")]);
+        assert!(route_map(d.path()).unwrap().routes.is_empty());
+    }
+
+    #[test]
+    fn chained_route_calls_give_every_method() {
+        let d = repo(&[("r.js", "const express = require('express');\nconst app = express();\napp.route('/book')\n  .get(getBook)\n  .post((req, res) => { res.send('x'); })\n  .delete(removeBook);\nrouter.route('/a/:id').put(h);\napp.route('/prefix', sub);\n")]);
+        let m = route_map(d.path()).unwrap();
+        assert_eq!(list(&m), vec!["express PUT /a/:id r.js:7", "express DELETE /book r.js:6", "express GET /book r.js:4", "express POST /book r.js:5"]);
+    }
+
+    #[test]
+    fn hostile_route_sources_are_scanned_in_linear_time() {
+        let d = tempfile::tempdir().unwrap();
+        let mb = 1_500_000;
+        let head = "require('express');\n";
+        std::fs::write(d.path().join("a.js"), format!("{head}{}", ".route('/x')".repeat(mb / 12))).unwrap();
+        std::fs::write(d.path().join("b.js"), format!("{head}{}", "app.get(`".repeat(mb / 9))).unwrap();
+        std::fs::write(d.path().join("c.js"), format!("{head}{}", "x = express(".repeat(mb / 12))).unwrap();
+        std::fs::write(d.path().join("d.ts"), format!("@Controller('a')\n{}", "@Get(".repeat(mb / 5))).unwrap();
+        std::fs::write(d.path().join("e.js"), format!("{head}{}", "fastify.route({".repeat(mb / 15))).unwrap();
+        std::fs::write(d.path().join("f.js"), format!("{head}{}", "(/[".repeat(mb / 3))).unwrap();
+        let t = std::time::Instant::now();
+        let _ = route_map(d.path()).unwrap();
+        assert!(t.elapsed().as_secs() < if cfg!(debug_assertions) { 20 } else { 4 }, "{:?}", t.elapsed());
     }
 }

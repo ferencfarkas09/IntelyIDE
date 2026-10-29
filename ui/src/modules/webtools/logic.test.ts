@@ -3,7 +3,7 @@ import { bundlePrompt, depsPrompt, duplicateColorPrompt, envPrompt, fmtBytes, gr
 import { parseHeaders } from "./RoutesPanel";
 import type { EnvDir, ReactFinding, Token } from "./types";
 
-const tok = (name: string, over: Partial<Token> = {}): Token => ({ name, kind: "custom", value: "#fff", file: "a.css", line: 3, definitions: 1, uses: 0, mentions: 0, unused: true, confidence: "high", swatch: "#fff", ...over });
+const tok = (name: string, over: Partial<Token> = {}): Token => ({ name, kind: "custom", value: "#fff", file: "a.css", line: 3, definitions: 1, uses: 0, mentions: 0, unused: true, utility: false, confidence: "high", swatch: "#fff", ...over });
 
 describe("text from a repository is flattened before it reaches a prompt", () => {
   it("removes line breaks, control characters, backticks and bidi overrides", () => {

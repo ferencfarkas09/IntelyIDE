@@ -29,7 +29,7 @@ beforeEach(() => {
   const base = createMockWebtools();
   api = {
     ...base,
-    tryIt: async (r) => (calls.tryIt.push(r), base.tryIt(r)),
+    tryIt: async (id, r) => (calls.tryIt.push(r), base.tryIt(id, r)),
     depsCheck: async (repo, dir, confirmed) => (calls.deps.push(confirmed), base.depsCheck(repo, dir, confirmed)),
   };
   setWebtoolsApi(api);
@@ -168,16 +168,30 @@ describe("routes and Try it", () => {
   });
 
   it("without a running dev server there is nothing to send to", async () => {
-    setWebtoolsApi({ ...api, servers: async () => [] });
+    setWebtoolsApi({ ...api, servers: async () => ({ available: true, servers: [] }) });
     render(() => <WebtoolsTab tab={tab("routes")} />);
     await waitFor(() => expect(screen.getByText("No dev server is running")).toBeTruthy());
     expect(screen.queryByText("Send")).toBeNull();
   });
 
+  it("says why when this computer cannot list listening ports (no lsof)", async () => {
+    setWebtoolsApi({ ...api, servers: async () => ({ available: false, servers: [] }) });
+    render(() => <WebtoolsTab tab={tab("routes")} />);
+    await waitFor(() => expect(screen.getByText("Try it cannot check which ports are yours")).toBeTruthy());
+    expect(screen.queryByText("Send")).toBeNull();
+  });
+
+  it("asks for the servers of the repository it is shown for", async () => {
+    const asked: string[] = [];
+    setWebtoolsApi({ ...api, servers: async (id) => (asked.push(id), api.servers(id)) });
+    render(() => <WebtoolsTab tab={tab("routes")} />);
+    await waitFor(() => expect(asked).toEqual(["app"]));
+  });
+
   it("sends headers and body only when given and shows a redirect without following it", async () => {
     setWebtoolsApi({
       ...api,
-      tryIt: async (r) => (calls.tryIt.push(r), { status: 302, reason: "Found", headers: [["location", "http://evil.test/"]], body: "", bodyTruncated: false, binary: false, bytes: 0, millis: 3, host: "127.0.0.1", redirect: "http://evil.test/" }),
+      tryIt: async (_id, r) => (calls.tryIt.push(r), { status: 302, reason: "Found", headers: [["location", "http://evil.test/"]], body: "", bodyTruncated: false, binary: false, bytes: 0, millis: 3, host: "127.0.0.1", redirect: "http://evil.test/" }),
     });
     render(() => <WebtoolsTab tab={tab("routes")} />);
     await waitFor(() => expect(screen.getByLabelText("Path")).toBeTruthy());
