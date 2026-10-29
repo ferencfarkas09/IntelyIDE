@@ -24,7 +24,7 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import zlib from 'node:zlib';
 import { redact } from './redact.js';
-import { allowedName } from './env.js';
+import { allowedName, foldEnv } from './env.js';
 import { parseManifest, SDK_NAME, SDK_PIN, stateDirOf as platformStateDir, treeLines } from './sdk.js';
 
 /** The only registry the CLI talks to. */
@@ -784,14 +784,10 @@ export function sandboxFlags(p: RestrictedPaths, allowNet: boolean = nodeSupport
 const CHILD_ENV = new Set(['PATH', 'TMPDIR', 'LANG', 'TERM', 'NO_PROXY', 'no_proxy', 'SSL_CERT_FILE', 'SSL_CERT_DIR', 'NODE_EXTRA_CA_CERTS', ...PROXY_VARS]);
 /** The sandboxed child gets an allow-list, not the caller's whole environment (no DYLD_*, LD_*, NODE_DEBUG, tokens, ...). */
 export function childEnv(env: NodeJS.ProcessEnv, home: string, windows = process.platform === 'win32'): NodeJS.ProcessEnv {
-  const out: NodeJS.ProcessEnv = { HOME: home };
-  for (const [k, v] of Object.entries(env)) {
-    if (v === undefined) continue;
-    // on Windows also SystemRoot & co. (Node's DNS and TLS need them), under their canonical names (`Path` is PATH)
-    const name = allowedName(k, (x) => CHILD_ENV.has(x) || x.startsWith('LC_'), windows);
-    if (name) out[name] = v;
-  }
-  return out;
+  // on Windows also SystemRoot & co. (Node's DNS and TLS need them), under their canonical names (`Path` is PATH)
+  const strings = Object.entries(env).filter((e): e is [string, string] => typeof e[1] === 'string');
+  const { env: kept } = foldEnv(strings, (k) => allowedName(k, (x) => CHILD_ENV.has(x) || x.startsWith('LC_'), windows));
+  return { HOME: home, ...kept };
 }
 
 /** Real process wiring: the sandboxed re-execution. */

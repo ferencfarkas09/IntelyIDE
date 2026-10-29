@@ -219,12 +219,13 @@ pub fn free_bytes(_path: &Path) -> Option<u64> {
     None
 }
 
-/// What tells two volumes apart: the device number, or on Windows (where std has no device id) the drive or share prefix.
-fn volume_key(probe: &Path, m: &fs::Metadata) -> String {
+/// What tells two volumes apart: the device number (in numeric order, as before), or on Windows, where std has no device id,
+/// the drive or share prefix.
+fn volume_key(probe: &Path, m: &fs::Metadata) -> (u64, String) {
     if cfg!(windows) {
-        probe.components().next().map(|c| c.as_os_str().to_string_lossy().to_uppercase()).unwrap_or_default()
+        (0, probe.components().next().map(|c| c.as_os_str().to_string_lossy().to_uppercase()).unwrap_or_default())
     } else {
-        intely_core::sys::file_ids(m).0.to_string()
+        (intely_core::sys::file_ids(m).0, String::new())
     }
 }
 
@@ -244,7 +245,7 @@ pub fn free_bytes(path: &Path) -> Option<u64> {
 
 fn disk(opts: &DoctorOpts, out: &mut Vec<DoctorCheck>) {
     // One line per volume: the repos and the IDE state directory that live on it.
-    let mut volumes: BTreeMap<String, (PathBuf, Vec<String>)> = BTreeMap::new();
+    let mut volumes: BTreeMap<(u64, String), (PathBuf, Vec<String>)> = BTreeMap::new();
     let mut add = |label: String, path: &Path| {
         let probe = path.ancestors().find(|a| a.exists()).unwrap_or(path);
         if let Ok(m) = fs::metadata(probe) {
@@ -577,6 +578,12 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         assert!(free_bytes(dir.path()).is_some_and(|b| b > 0));
         assert_eq!(free_bytes(&dir.path().join("missing/deeper")), None);
+    }
+
+    #[test]
+    fn device_numbers_keep_their_numeric_order() {
+        let keys: std::collections::BTreeSet<(u64, String)> = [(16_777_234, String::new()), (9, String::new())].into_iter().collect();
+        assert_eq!(keys.into_iter().map(|k| k.0).collect::<Vec<_>>(), [9, 16_777_234], "9 before 16777234, not as text");
     }
 
     #[test]

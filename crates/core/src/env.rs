@@ -72,6 +72,42 @@ pub fn windows_env_name(key: &str) -> Option<&'static str> {
     WINDOWS_ENV.iter().copied().find(|n| n.eq_ignore_ascii_case(key))
 }
 
+/// Whether a kept Windows variable has a value that may pass: `CLAUDE_CODE_GIT_BASH_PATH` (Claude Code runs that program as its
+/// shell) only as an absolute local path to a `bash.exe`; every other name as it is.
+pub fn windows_env_value_ok(name: &str, value: &str) -> bool {
+    if name != "CLAUDE_CODE_GIT_BASH_PATH" {
+        return true;
+    }
+    let b = value.as_bytes();
+    let drive = b.len() >= 3 && b[0].is_ascii_alphabetic() && b[1] == b':' && (b[2] == b'\\' || b[2] == b'/');
+    let file = value.rsplit(['\\', '/']).next().unwrap_or("");
+    drive && file.eq_ignore_ascii_case("bash.exe") && !value.contains("..") && !value[2..].contains(':')
+}
+
+/// Folds `vars` into the names `name_of` keeps, the same way on every run: an entry spelled exactly like its kept name wins
+/// over another spelling (`PATH` over `Path`), otherwise the first in sorted key order. Values [`windows_env_value_ok`] refuses
+/// are dropped. Mirrors `foldEnv` in sidecar/src/env.ts.
+pub fn fold_env<'a>(vars: impl IntoIterator<Item = (&'a str, &'a str)>, name_of: impl Fn(&str) -> Option<String>) -> BTreeMap<String, String> {
+    let mut sorted: Vec<(&str, &str)> = vars.into_iter().collect();
+    sorted.sort();
+    let mut out: BTreeMap<String, (String, bool)> = BTreeMap::new();
+    for (k, v) in sorted {
+        let Some(name) = name_of(k) else { continue };
+        if !windows_env_value_ok(&name, v) {
+            continue;
+        }
+        let exact = k == name;
+        match out.get(&name) {
+            Some((_, true)) => {}
+            Some((_, false)) if !exact => {}
+            _ => {
+                out.insert(name, (v.to_owned(), exact));
+            }
+        }
+    }
+    out.into_iter().map(|(k, (v, _))| (k, v)).collect()
+}
+
 /// The name under which `key` survives the hook allow-list, or `None`. `windows` adds [`WINDOWS_ENV`] and the
 /// case-insensitive match of Windows; it is a parameter so that both platforms' rules are tested everywhere.
 fn hook_key(key: &str, windows: bool) -> Option<String> {
@@ -315,7 +351,8 @@ fn fingerprint(shell: &Path) -> String {
 /// Windows has no login shell to ask: a GUI app gets the user's full environment from Explorer.
 #[cfg(not(unix))]
 async fn probe_shell(_shell: &Path, _timeout: Duration) -> Result<BTreeMap<String, String>, String> {
-    let vars: BTreeMap<String, String> = std::env::vars().filter_map(|(k, v)| hook_key(&k, true).map(|k| (k, v))).collect();
+    let all: Vec<(String, String)> = std::env::vars().collect();
+    let vars = fold_env(all.iter().map(|(k, v)| (k.as_str(), v.as_str())), |k| hook_key(k, true));
     if vars.contains_key("PATH") { Ok(vars) } else { Err("the process has no PATH".to_owned()) }
 }
 
@@ -414,6 +451,28 @@ mod tests {
         }
         assert_eq!(hook_key("Path", false), None, "macOS names are case-sensitive");
         assert_eq!(windows_env_name("programfiles(x86)"), Some("ProgramFiles(x86)"));
+    }
+
+    #[test]
+    fn folding_is_ascii_only_deterministic_and_checks_the_git_bash_path() {
+        let keep = |k: &str| hook_key(k, true);
+        // the exact spelling wins, whatever the order the variables come in
+        for order in [[("Path", "B"), ("PATH", "A")], [("PATH", "A"), ("Path", "B")]] {
+            assert_eq!(fold_env(order, keep)["PATH"], "A");
+        }
+        // otherwise the first in sorted key order
+        assert_eq!(fold_env([("path", "lower"), ("Path", "mixed")], keep)["PATH"], "mixed");
+        // non-ASCII look-alikes never fold into a kept name
+        let odd = fold_env([("\u{17f}ystemRoot", "x"), ("ProgramF\u{131}les", "y")], keep);
+        assert!(odd.is_empty(), "{odd:?}");
+        // the Git Bash path must be an absolute local path to bash.exe
+        for ok in [r"C:\Program Files\Git\bin\bash.exe", "D:/Git/usr/bin/BASH.EXE"] {
+            assert!(windows_env_value_ok("CLAUDE_CODE_GIT_BASH_PATH", ok), "{ok}");
+        }
+        for bad in ["bash.exe", r"\\host\share\bash.exe", r"C:\Windows\System32\cmd.exe", r"C:\x\..\evil\bash.exe", r"C:\x\bash.exe:ads", "", "powershell -c x"] {
+            assert!(!windows_env_value_ok("CLAUDE_CODE_GIT_BASH_PATH", bad), "{bad}");
+        }
+        assert!(!fold_env([("CLAUDE_CODE_GIT_BASH_PATH", "cmd.exe")], keep).contains_key("CLAUDE_CODE_GIT_BASH_PATH"));
     }
 
     #[cfg(windows)]

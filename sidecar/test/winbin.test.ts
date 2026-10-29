@@ -23,8 +23,12 @@ describe('claude on Windows', () => {
     expect(claudeExecutable('/usr/local/bin/claude.cmd', { platform: 'darwin' })).toBe('/usr/local/bin/claude.cmd');
   });
 
-  it('starts a .js CLI on this Node and anything else directly', () => {
-    expect(commandOf('C:\\x\\cli.js')).toEqual({ cmd: process.execPath, args: ['C:\\x\\cli.js'] });
-    expect(commandOf('/usr/local/bin/claude')).toEqual({ cmd: '/usr/local/bin/claude', args: [] });
+  it('on Windows starts a .js CLI on this Node; macOS and Linux run every path as it is, as before', () => {
+    expect(commandOf('C:\\x\\cli.js', 'win32')).toEqual({ cmd: process.execPath, args: ['C:\\x\\cli.js'] });
+    expect(commandOf('C:\\x\\claude.exe', 'win32')).toEqual({ cmd: 'C:\\x\\claude.exe', args: [] });
+    for (const platform of ['darwin', 'linux'] as const) {
+      expect(commandOf('/usr/local/lib/node_modules/@anthropic-ai/claude-code/cli.js', platform)).toEqual({ cmd: '/usr/local/lib/node_modules/@anthropic-ai/claude-code/cli.js', args: [] });
+      expect(commandOf('/usr/local/bin/claude', platform)).toEqual({ cmd: '/usr/local/bin/claude', args: [] });
+    }
   });
 });

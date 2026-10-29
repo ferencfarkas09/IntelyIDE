@@ -25,7 +25,8 @@ export function claudeExecutable(bin: string, io: WinBinIo = {}): string {
   return (io.isFile ?? isFileDefault)(target) ? target : bin;
 }
 
-/** Command and leading arguments that run `bin` without a shell: a `.js` CLI runs on this Node. */
-export function commandOf(bin: string): { cmd: string; args: string[] } {
-  return /\.(c|m)?js$/i.test(bin) ? { cmd: process.execPath, args: [bin] } : { cmd: bin, args: [] };
+/** Command and leading arguments that run `bin` without a shell. Windows: a `.js` CLI (what an npm `claude.cmd` resolves to) runs
+ * on this Node, since Windows does not read a shebang. Elsewhere `bin` runs as it is, through its shebang, as before. */
+export function commandOf(bin: string, platform: NodeJS.Platform = process.platform): { cmd: string; args: string[] } {
+  return platform === 'win32' && /\.(c|m)?js$/i.test(bin) ? { cmd: process.execPath, args: [bin] } : { cmd: bin, args: [] };
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { allowedName, buildChildEnv } from '../src/env.js';
+import { allowedName, buildChildEnv, foldEnv, windowsEnvValueOk } from '../src/env.js';
 import { redact, redactDeep } from '../src/redact.js';
 
 const host = {
@@ -23,6 +23,20 @@ describe('env scrub (providers-plan 4.2)', () => {
     const mac = buildChildEnv({ vars: win }, { mode: 'subscription', key: null }, { addDirs: false, windows: false });
     expect(mac.env.SYSTEMROOT).toBeUndefined();
     expect(mac.env.SystemRoot).toBeUndefined();
+  });
+
+  it('folds like the Rust side: ASCII only, the exact spelling first, the Git Bash path checked', () => {
+    const keep = (k: string) => allowedName(k, (x) => x === 'PATH', true);
+    for (const order of [[['Path', 'B'], ['PATH', 'A']], [['PATH', 'A'], ['Path', 'B']]] as [string, string][][]) {
+      expect(foldEnv(order, keep).env.PATH).toBe('A');
+    }
+    expect(foldEnv([['path', 'lower'], ['Path', 'mixed']], keep).env.PATH).toBe('mixed');
+    expect(foldEnv([['\u017fystemRoot', 'x'], ['ProgramF\u0131les', 'y']], keep).env).toEqual({});
+    expect(windowsEnvValueOk('CLAUDE_CODE_GIT_BASH_PATH', 'C:\\Program Files\\Git\\bin\\bash.exe')).toBe(true);
+    for (const bad of ['bash.exe', '\\\\host\\share\\bash.exe', 'C:\\Windows\\System32\\cmd.exe', 'C:\\x\\..\\evil\\bash.exe', 'C:\\x\\bash.exe:ads']) {
+      expect(windowsEnvValueOk('CLAUDE_CODE_GIT_BASH_PATH', bad), bad).toBe(false);
+    }
+    expect(foldEnv([['CLAUDE_CODE_GIT_BASH_PATH', 'cmd.exe']], keep).env).toEqual({});
   });
 
   it('matches Windows names without case only on Windows', () => {

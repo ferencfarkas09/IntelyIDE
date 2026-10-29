@@ -291,11 +291,11 @@ pub fn scrub_env(vars: &HashMap<String, String>) -> BTreeMap<String, String> {
 /// On Windows the system variables of [`intely_core::env::WINDOWS_ENV`] that `vars` lacks are taken from `fallback` (the IDE
 /// process): Node exits at once without `SystemRoot`, and none of them is a secret. Never `PATH` or anything else.
 fn scrub_env_for(vars: &HashMap<String, String>, windows: bool, fallback: impl Fn(&str) -> Option<String>) -> BTreeMap<String, String> {
-    let mut out: BTreeMap<String, String> = vars.iter().filter_map(|(k, v)| allowed_as(k, windows).map(|k| (k, v.clone()))).collect();
+    let mut out = intely_core::env::fold_env(vars.iter().map(|(k, v)| (k.as_str(), v.as_str())), |k| allowed_as(k, windows));
     if windows {
         for name in intely_core::env::WINDOWS_ENV {
             if !out.contains_key(*name) {
-                if let Some(v) = fallback(name) {
+                if let Some(v) = fallback(name).filter(|v| intely_core::env::windows_env_value_ok(name, v)) {
                     out.insert((*name).to_owned(), v);
                 }
             }
@@ -426,6 +426,8 @@ mod tests {
         assert_eq!(kept["ComSpec"], "process:ComSpec");
         assert_eq!(kept["PATH"], "C:\\bin", "PATH is never taken from the process");
         assert!(!kept.contains_key("GITHUB_TOKEN") && !kept.contains_key("HOME"));
-        assert_eq!(kept.len(), 2 + intely_core::env::WINDOWS_ENV.len() - 1);
+        // every Windows name but SystemRoot (from the login env) comes from the process, except a git bash path that is no bash.exe
+        assert!(!kept.contains_key("CLAUDE_CODE_GIT_BASH_PATH"), "process:CLAUDE_CODE_GIT_BASH_PATH is not an absolute bash.exe");
+        assert_eq!(kept.len(), 2 + intely_core::env::WINDOWS_ENV.len() - 2);
     }
 }
