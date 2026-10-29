@@ -128,6 +128,18 @@ describe("pending edits", () => {
     expect(validValue(f("b", "build", "1"), "1.x")).toBe(false);
   });
 
+  it("asks a Cargo, Tauri or pubspec version for a full x.y.z, like the Rust side", () => {
+    for (const kind of ["cargo", "tauri", "pubspec"] as const) {
+      const field = { ...f("version", "version", "0.3.1"), kind };
+      for (const bad of ["1.0", "1", "1.5", "true", "01.0.0", "1.0.0.0", "1.0.0-01", "1.0.0-", "1.0.0-a..b"]) expect(validValue(field, bad), `${kind} ${bad}`).toBe(false);
+      for (const good of ["1.0.0", "2.3.4-rc.1", "2.3.4-0"]) expect(validValue(field, good), `${kind} ${good}`).toBe(true);
+    }
+    expect(validValue({ ...f("version", "version", "0.3.1"), kind: "cargo" }, "1.0.0+build.5")).toBe(true);
+    expect(validValue(f("version", "version", "1.0.0"), "1.0")).toBe(true); // package.json keeps its wider rule
+    // a Patch on a two-part Cargo version is skipped instead of offering 1.5.1... which would be fine, but 1.5 itself is not storable
+    expect(nextValue({ ...f("version", "version", "0.3.1"), kind: "cargo" }, "patch")).toBe("0.3.2");
+  });
+
   it("refuses what a bare number, an Xcode project or a pubspec cannot hold", () => {
     const bare = { ...f("version", "version", "1.5"), numeric: true };
     expect(validValue(bare, "2.0")).toBe(true);

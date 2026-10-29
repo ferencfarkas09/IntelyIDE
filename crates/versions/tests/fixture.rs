@@ -417,3 +417,71 @@ fn two_applies_at_once_do_not_undo_each_other() {
     assert!(text(&root, "android/app/build.gradle").contains("versionName \"1.4.1\""));
     assert!(text(&root, "ios/Widget/Info.plist").contains("<string>18</string>"));
 }
+
+#[test]
+fn cargo_tauri_and_pubspec_take_only_a_full_x_y_z_version() {
+    let cases: [(&str, &str, &str, &str); 3] = [
+        ("Cargo.toml", "Cargo.toml#package.version", "0.3.1", "[package]\nname = \"x\"\nversion = \"0.3.1\"\n"),
+        ("tauri.conf.json", "tauri.conf.json#version", "0.3.1", "{ \"productName\": \"app\", \"version\": \"0.3.1\", \"identifier\": \"x\" }\n"),
+        ("pubspec.yaml", "pubspec.yaml#version", "0.3.1", "name: x\nversion: 0.3.1\n"),
+    ];
+    for (rel, id, from, content) in cases {
+        let d = tempfile::tempdir().unwrap();
+        write(d.path(), rel, content);
+        assert!(scan(d.path()).fields.iter().any(|f| f.id == id), "{rel} is listed");
+        // `1.0` would break `cargo metadata`, Tauri's schema and `pub`; a bare YAML `true`, `1` or `1.5` is not even a string
+        for bad in ["1.0", "1", "1.5", "true", "01.0.0", "1.0.0.0", "1.0.0-01", "1.0.0-", "1.0.0-a..b", "1.0.0-é"] {
+            assert_eq!(plan(d.path(), &[change(id, from, bad)]).unwrap_err().code, "badValue", "{rel}: {bad}");
+        }
+        for good in ["1.0.0", "2.3.4-rc.1", "2.3.4-0"] {
+            plan(d.path(), &[change(id, from, good)]).unwrap_or_else(|e| panic!("{rel}: {good}: {e}"));
+        }
+    }
+    // the plus of build metadata is fine in Cargo and Tauri, and is not written into a pubspec
+    let d = tempfile::tempdir().unwrap();
+    write(d.path(), "Cargo.toml", "[package]\nname = \"x\"\nversion = \"0.3.1\"\n");
+    plan(d.path(), &[change("Cargo.toml#package.version", "0.3.1", "1.0.0+build.5")]).unwrap();
+    // other kinds keep their wider rule: a two-part package.json version is accepted as before
+    let d = tempfile::tempdir().unwrap();
+    write(d.path(), "package.json", "{ \"version\": \"1.0.0\" }\n");
+    plan(d.path(), &[change("package.json#version", "1.0.0", "1.0")]).unwrap();
+}
+
+#[test]
+fn an_escape_a_path_a_tag_or_a_comment_in_a_value_is_not_a_place_to_write() {
+    let cases: [(&str, &str); 6] = [
+        ("Cargo.toml", "[package]\nname = \"x\"\nversion = \"\\\"1.0\"\n"),
+        ("tauri.conf.json", "{ \"productName\": \"app\", \"version\": \"../package.json\", \"identifier\": \"x\" }\n"),
+        ("pubspec.yaml", "name: x\nversion: !!str 1.2.3\n"),
+        ("pubspec.yaml", "name: x\nversion: &v 1.2.3\n"),
+        ("ios/App.xcodeproj/project.pbxproj", "{\n\tMARKETING_VERSION = 1.0/* c */;\n}\n"),
+        ("android/app/build.gradle", "android {\n    defaultConfig {\n        versionName \"1.0\\\"x\"\n    }\n}\n"),
+    ];
+    for (rel, content) in cases {
+        let d = tempfile::tempdir().unwrap();
+        write(d.path(), rel, content);
+        let s = scan(d.path());
+        assert!(s.fields.iter().all(|f| f.role != Role::Version), "{rel} {content:?}: {:?}", s.fields.iter().map(|f| (&f.id, &f.value)).collect::<Vec<_>>());
+    }
+    // a non-breaking space is not a character of a version
+    let d = tempfile::tempdir().unwrap();
+    write(d.path(), "pubspec.yaml", "name: x\nversion: 1.2.3\u{a0}\n");
+    assert!(scan(d.path()).fields.iter().all(|f| f.role != Role::Version));
+}
+
+#[test]
+fn an_edit_that_would_grow_a_file_past_the_size_it_is_read_with_is_refused() {
+    let d = tempfile::tempdir().unwrap();
+    const CAP: usize = 4 * 1024 * 1024;
+    let head = "{\"name\":\"x\",\"version\":\"1.0.0\",\"pad\":\"";
+    let tail = "\"}";
+    let json = format!("{head}{}{tail}", "a".repeat(CAP - head.len() - tail.len()));
+    assert_eq!(json.len(), CAP);
+    write(d.path(), "package.json", &json);
+    assert!(scan(d.path()).fields.iter().any(|f| f.id == "package.json#version"));
+    // one byte longer than the cap: the file could not be listed or put back any more
+    assert_eq!(apply(d.path(), &[change("package.json#version", "1.0.0", "1.0.10")]).unwrap_err().code, "tooLarge");
+    assert_eq!(text(d.path(), "package.json"), json);
+    // the same length is fine
+    apply(d.path(), &[change("package.json#version", "1.0.0", "1.0.1")]).unwrap();
+}
