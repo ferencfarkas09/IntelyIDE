@@ -48,6 +48,12 @@ log="${RUNNER_TEMP:-${TMPDIR:-/tmp}}/windows-tests.log"
 # stays open until they die, so tee would wait for the job's timeout. The log is printed once cargo is done.
 cargo test "${args[@]}" --no-fail-fast --locked > "$log" 2>&1
 rc=$?
+if [ "${1:-}" != "--all" ]; then
+  # The unit tests of crates whose integration tests still fail on Windows (docs/install-windows.md), for their Windows-only
+  # tests: the allow-lists and the probe (core env), scrub_env and the tier cap (agent-host), the picker rules (pathpick).
+  cargo test -p intely-agent-host -p intely-pathpick --lib --no-fail-fast --locked >> "$log" 2>&1 || rc=1
+  cargo test -p intely-core --lib --no-fail-fast --locked env:: >> "$log" 2>&1 || rc=1
+fi
 cat "$log"
 
 echo "::group::digest of the failures"

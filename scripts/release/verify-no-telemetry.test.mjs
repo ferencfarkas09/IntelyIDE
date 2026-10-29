@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 import {
   ALLOWED_CRATES,
   EXPECTED_PERMISSIONS,
+  WINDOWS_ONLY_PERMISSIONS,
   checkCapabilities,
   checkCsp,
   checkEndpoints,
@@ -90,7 +91,8 @@ const BASE = {
   "crates/core/src/lib.rs": "pub fn add() {}\n",
   "src-tauri/Cargo.toml": '[package]\nname = "intely-switch-ide"\n\n[dependencies]\ntauri = "2"\n',
   "src-tauri/tauri.conf.json": JSON.stringify({ app: { security: { csp: CSP } } }),
-  "src-tauri/capabilities/default.json": JSON.stringify({ identifier: "default", windows: ["main"], permissions: EXPECTED_PERMISSIONS }),
+  "src-tauri/capabilities/default.json": JSON.stringify({ identifier: "default", windows: ["main"], permissions: EXPECTED_PERMISSIONS.filter((p) => !WINDOWS_ONLY_PERMISSIONS.includes(p)) }),
+  "src-tauri/capabilities/windows.json": JSON.stringify({ identifier: "windows-frame", windows: ["main"], platforms: ["windows"], permissions: WINDOWS_ONLY_PERMISSIONS }),
   "ui/src/app.tsx": "export const x = 1;\n",
   "sidecar/src/index.ts": "export const y = 2;\n",
   "docs/privacy.md": `${ALLOWED_CRATES.join(" ")} sdk-install\n`,
@@ -176,6 +178,22 @@ describe("(8) capabilities and frame-src", () => {
   it("passes the recorded set", () => assert.deepEqual(checkCapabilities(tree()), []));
   it("the recorded set is exactly the one in this test", () => {
     assert.deepEqual(EXPECTED_PERMISSIONS, ["core:default", "core:window:allow-start-dragging", "core:window:allow-toggle-maximize", "core:window:allow-minimize", "core:window:allow-close"]);
+  });
+  it("fails Windows-only window permissions that lost their platform guard", () => {
+    const base = EXPECTED_PERMISSIONS.filter((p) => !WINDOWS_ONLY_PERMISSIONS.includes(p));
+    // windows.json without its platforms list
+    const dropped = tree({ "src-tauri/capabilities/windows.json": JSON.stringify({ identifier: "windows-frame", windows: ["main"], permissions: WINDOWS_ONLY_PERMISSIONS }) });
+    assert.ok(checkCapabilities(dropped).some((x) => /platforms/.test(x.detail)));
+    // minimize and close moved into default.json (which applies to macOS too)
+    const moved = tree({
+      "src-tauri/capabilities/default.json": JSON.stringify({ identifier: "default", windows: ["main"], permissions: EXPECTED_PERMISSIONS }),
+      "src-tauri/capabilities/windows.json": JSON.stringify({ identifier: "windows-frame", windows: ["main"], platforms: ["windows"], permissions: [] }),
+    });
+    assert.ok(checkCapabilities(moved).some((x) => /Windows-only/.test(x.detail)));
+    // windows.json widened to macOS
+    const widened = tree({ "src-tauri/capabilities/windows.json": JSON.stringify({ identifier: "windows-frame", windows: ["main"], platforms: ["windows", "macOS"], permissions: WINDOWS_ONLY_PERMISSIONS }) });
+    assert.ok(checkCapabilities(widened).length);
+    assert.deepEqual(checkCapabilities(tree({ "src-tauri/capabilities/default.json": JSON.stringify({ identifier: "default", windows: ["main"], permissions: base }) })), []);
   });
   it("fails a remote section", () => {
     assert.ok(checkCapabilities(caps({ permissions: EXPECTED_PERMISSIONS, remote: { urls: ["https://x.example"] } })).length);
