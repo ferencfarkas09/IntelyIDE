@@ -23,6 +23,8 @@ Nothing runs by itself: a prompt only fills the New Run dialog, and the run star
 
 Upper and lower case and spaces inside the braces do not matter. A value that is not known (no file open, nothing selected) becomes a short note such as `<selection>`, so you see in the prompt box what to fill in before you start. Anything else in double braces is left as written, and the editor says so.
 
+The file, branch and repository names are put on one line without invisible characters and cut to 200 characters. The selection (at most 12,000 characters) is masked for secrets like an error sent with Fix with agent, invisible format characters are removed, and it goes into a code block it cannot close, under a line that marks it as data, not instructions.
+
 ## Your prompts and the starters
 
 - **Starter prompts** ship with the app and cannot be changed: React (add tests, split a big component, loading and error states, accessibility), React Native (keyboard covering inputs, safe-area insets, a new screen with navigation, fewer re-renders), iOS and Android (signing errors, the build number, a permission string), Node (input validation, an endpoint with tests, structured logging), CSS and SCSS (responsive layout, design tokens, dark mode, dead styles) and general ones (explain code, review my changes, write a commit message, find the bug). Copy one to make it your own.
@@ -33,7 +35,7 @@ Your prompts are stored in the app's settings file (namespace `prompts`), keyed 
 
 ## Import and export
 
-Export copies all your own prompts to the clipboard as JSON: the title, the text and the tags of each, no ids, no repository ids and no paths. Import reads such a file (at most 2 MB and 500 prompts) and adds its prompts to the place chosen in the form, each with a new id, so an import never overwrites a prompt you have. Entries without a title or a text are skipped and counted.
+Export copies all your own prompts to the clipboard as JSON: the title, the text and the tags of each, no ids, no repository ids and no paths. Import reads such a file (at most 2 MB and 500 prompts) and adds its prompts to the place chosen in the form, each with a new id, so an import never overwrites a prompt you have. Entries without a title or a text are skipped and counted. One place (your prompts, or one repository's) holds at most 500 prompts and 2 MB: what does not fit is left out of the import and counted, and your own prompts are always kept. Prompts of at most 200 repositories are read.
 
 ## Privacy
 

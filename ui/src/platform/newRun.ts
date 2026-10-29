@@ -1,4 +1,5 @@
 import { createSignal } from "solid-js";
+import type { PermissionMode } from "../store/agent-types";
 import { execute } from "./commands";
 
 /** What a module hands the New Run dialog: text for the prompt box and the repositories to start with. */
@@ -10,6 +11,8 @@ export interface NewRunPrefill {
   error?: string;
   /** The refusal was `noSafetyNet`: the dialog offers "run without a safety net" right away. */
   noSafetyNet?: boolean;
+  /** The permission mode the dialog starts with (the person can still pick another); never Bypass. */
+  permission?: Exclude<PermissionMode, "bypass">;
 }
 
 const [pending, setPending] = createSignal<NewRunPrefill>();

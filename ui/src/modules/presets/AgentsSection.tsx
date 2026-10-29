@@ -3,26 +3,26 @@ import { t, type MessageKey } from "../../i18n";
 import { ipc } from "../../ipc";
 import type { PermissionMode } from "../../store/agent-types";
 import { FormGroup, FormRow, SegmentedControl, Switch, toast } from "../../ui-kit";
-import { modeOf, presetOf, PRESETS, type PresetId } from "./logic";
+import { effectiveStartMode, modeOf, presetOf, PRESETS, type PresetId } from "./logic";
 import { SecretGuardOffer, secretGuardOn } from "./SecretGuardOffer";
 import { presetsEnabled, setPresetsEnabled, syncPresetsEnabled } from "./toggle";
 import "./presets.css";
 
 /**
- * Settings > Agents: how much a new run may do on its own. The preset picked here is the mode the New Run dialog starts with
- * (`runs.lastMode`, which the dialog also updates with every run started); Plan and Bypass stay on the dialog's cards.
+ * Settings > Agents: how much a new run may do on its own. The preset picked here is the mode every New Run dialog starts
+ * with (`runs.defaultMode`); without one the dialog starts with the mode of the last run. Plan and Bypass stay on the cards.
  */
 export default function AgentsSection() {
   const [mode, setMode] = createSignal<PermissionMode | undefined>();
   onMount(() => {
     void syncPresetsEnabled();
-    void ipc.settings.get("runs").then((v) => setMode(typeof v.lastMode === "string" ? (v.lastMode as PermissionMode) : undefined), () => {});
+    void ipc.settings.get("runs").then((v) => setMode(effectiveStartMode(v)), () => {});
   });
   const pick = (id: PresetId | "custom") => {
     if (id === "custom") return;
     const next = modeOf(id);
     setMode(next);
-    void ipc.settings.set("runs", { lastMode: next }).catch((e) => toast.error(t("presets.saveFailed"), String((e as { message?: string }).message ?? e)));
+    void ipc.settings.set("runs", { defaultMode: next }).catch((e) => toast.error(t("presets.saveFailed"), String((e as { message?: string }).message ?? e)));
   };
   return (
     <>

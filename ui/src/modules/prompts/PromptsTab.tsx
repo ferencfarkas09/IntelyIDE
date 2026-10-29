@@ -4,7 +4,7 @@ import { requestNewRun } from "../../platform/newRun";
 import { errorText } from "../../store/snapshots";
 import { repos } from "../../store/workspace";
 import { Button, Copy, Download, EmptyState, FilePlus, Input, ListChecks, Play, Save, Select, TextArea, toast, Trash2, Upload, type SelectOption } from "../../ui-kit";
-import { exportJson, fillPrompt, libraryFor, MAX_BODY, MAX_TITLE, newId, parseImport, parseTags, placeholdersIn, PLACEHOLDERS, upsert } from "./logic";
+import { exportJson, fillPrompt, libraryFor, MAX_BODY, MAX_TITLE, mergeImport, newId, parseImport, parseTags, placeholdersIn, PLACEHOLDERS, upsert } from "./logic";
 import { PromptList } from "./PromptList";
 import { starterPrompts } from "./starters";
 import { currentRepo, loadPrompts, promptContext, promptSettings, promptsOf, savePrompts } from "./store";
@@ -104,9 +104,12 @@ export default function PromptsTab() {
     const parsed = parseImport(await file.text());
     if ("error" in parsed) return void toast.error(t(`prompts.import.${parsed.error}`));
     const target = scopeOf(draft().scope);
+    // your own prompts always stay: what does not fit is left out of the import
+    const merged = mergeImport(promptsOf(target), parsed.prompts);
     try {
-      await savePrompts(target, [...parsed.prompts, ...promptsOf(target)]);
-      toast.success(t("prompts.imported", { n: parsed.prompts.length, skipped: parsed.skipped }));
+      if (merged.added) await savePrompts(target, merged.next);
+      toast.success(t("prompts.imported", { n: merged.added, skipped: parsed.skipped }));
+      if (merged.dropped) toast.warn(t("prompts.import.full", { n: merged.dropped }));
     } catch (e) {
       toast.error(t("prompts.saveFailed"), errorText(e));
     }

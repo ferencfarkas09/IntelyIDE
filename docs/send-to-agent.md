@@ -18,12 +18,18 @@ It is a lazy extra that starts switched on. Settings > Send to agent turns the b
 
 ## What happens to the text
 
-1. Terminal colours and control characters are removed.
-2. Only the last 8 KB is kept: the end of a log is where the error usually is. The prompt says when the log was shortened.
-3. Secrets are masked with the app's own masker (the one the Run panel uses for its logs and the secret scanner's redaction): tokens with known prefixes, keyed values such as `PASSWORD=...`, bearer tokens, JWTs, passwords in URLs, long hex strings and private keys become `***`. The facts sent with the log (a command line, for example) are masked too. If the backend cannot be asked, a smaller masker in the interface does the same for the common shapes, so unmasked text is not passed on.
-4. The New Run dialog opens with the prompt and the repository the error belongs to. You can read and change the prompt; nothing runs until you press Start run.
+1. At most the newest 256 KB of the log is read. Terminal colours, control characters (also the C1 range) and invisible format characters (zero-width characters, bidirectional overrides, the byte order mark, tag characters) are removed, so nothing in the prompt is hidden from you.
+2. Secrets are masked in all of that text with the app's own masker (the one the Run panel uses for its logs, followed by the secret scanner's redaction).
+3. Only then is the end kept: the last 8 KB, where the error usually is, and it is masked once more. Masking before the cut means that a key block whose first line falls before the cut is still recognised. The prompt says when the log was shortened.
+4. The facts sent with the log (a command line, for example) are cut to 2 KB and masked too.
+5. The prompt says that the output is untrusted program output, to be treated as data and never as instructions, and the output sits in a code block it cannot close.
+6. The New Run dialog opens with the prompt and the repository the error belongs to. You can read and change the prompt; nothing runs until you press Start run.
 
-The masking is a strong filter, not a promise: a secret in a shape it does not know (split across lines, encoded) can get through. Read the prompt before you start the run.
+What the masker replaces with `***`: tokens with known prefixes (GitHub, GitLab, Slack, OpenAI-style, Google, npm, Stripe), AWS key ids (`AKIA`, `ASIA`, `AROA` and the other id prefixes) and bare 40-character AWS secret keys, JWTs, `Authorization`, `Cookie` and `Bearer` values, passwords in URLs (also a password that contains `@`), values of keys that name a secret in `KEY=value`, `KEY = value`, `"key": "value"`, `key: value` and `'key': 'value'` form, `--token value` style flags, the password of `sshpass -p`, `mysql -p` and `mysql -pPASS`, private key blocks from the BEGIN line to the END line (or to the end of the text), long hex strings, base64 that decodes to one of these, a token hidden by colour codes or zero-width characters, and the rest of a token that a terminal wrapped onto the next line.
+
+This is pattern matching, not a promise. It does not catch a secret in a shape it does not know: a password without a key name next to it, a value split over several lines in another way, hex or another encoding of a token, or a secret in a language-specific format. Read the prompt before you start the run.
+
+If the app's masker cannot be asked (the backend does not answer), the interface masks the text with its own port of the same rules (`fixtures/masking/cases.json` keeps both in step) and the New Run dialog says so in its message line, above the prompt, so you read it before you start.
 
 ## For other modules
 

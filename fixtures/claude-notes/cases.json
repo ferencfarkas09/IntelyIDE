@@ -1,0 +1,55 @@
+{
+  "_doc": "What a Claude run is told from CLAUDE.md files, checked against the sidecar (sidecar/test/project-notes-fixture.test.ts, instructionFiles) and against its mirror in the Project notes panel (crates/files/tests/claude_notes_fixture.rs, claude_notes::plan). A file is {\"text\": ...} or {\"repeat\": ch, \"count\": n, \"then\": tail}; `runDirs` lists indexes into `dirs` in run order (a repeated one is visited once); `length` is in UTF-16 units.",
+  "cases": [
+    {
+      "name": "the user's file first, then each directory once, in the sidecar's file order; empty files are skipped",
+      "user": { "text": "Be brief." },
+      "dirs": [
+        { "CLAUDE.local.md": { "text": "local" }, "CLAUDE.md": { "text": "root" }, ".claude/CLAUDE.md": { "text": "dot" } },
+        { "CLAUDE.md": { "text": "second" }, "CLAUDE.local.md": { "text": "" } }
+      ],
+      "runDirs": [0, 1, 0],
+      "expect": [
+        { "scope": "user", "dir": null, "rel": "CLAUDE.md", "length": 9, "shortened": false },
+        { "scope": "project", "dir": 0, "rel": "CLAUDE.md", "length": 4, "shortened": false },
+        { "scope": "project", "dir": 0, "rel": ".claude/CLAUDE.md", "length": 3, "shortened": false },
+        { "scope": "project", "dir": 0, "rel": "CLAUDE.local.md", "length": 5, "shortened": false },
+        { "scope": "project", "dir": 1, "rel": "CLAUDE.md", "length": 6, "shortened": false }
+      ]
+    },
+    {
+      "name": "the per-file caps (the user's file too) and a file that gets no room after the total",
+      "user": { "repeat": "u", "count": 40000 },
+      "dirs": [
+        { "CLAUDE.md": { "repeat": "a", "count": 40000 } },
+        { "CLAUDE.md": { "repeat": "b", "count": 32768 } },
+        { "CLAUDE.md": { "repeat": "c", "count": 100 } }
+      ],
+      "runDirs": [0, 1, 2],
+      "expect": [
+        { "scope": "user", "dir": null, "rel": "CLAUDE.md", "length": 32768, "shortened": true },
+        { "scope": "project", "dir": 0, "rel": "CLAUDE.md", "length": 32768, "shortened": true },
+        { "scope": "project", "dir": 1, "rel": "CLAUDE.md", "length": 32768, "shortened": false }
+      ]
+    },
+    {
+      "name": "the total cut never splits a surrogate pair, and the next file gets the one unit left",
+      "user": null,
+      "dirs": [
+        { "CLAUDE.md": { "repeat": "a", "count": 32768 } },
+        { "CLAUDE.md": { "repeat": "b", "count": 32768 } },
+        { "CLAUDE.md": { "repeat": "c", "count": 16384 } },
+        { "CLAUDE.md": { "repeat": "d", "count": 16383, "then": "😀" } },
+        { "CLAUDE.md": { "text": "ZZZ" } }
+      ],
+      "runDirs": [0, 1, 2, 3, 4],
+      "expect": [
+        { "scope": "project", "dir": 0, "rel": "CLAUDE.md", "length": 32768, "shortened": false },
+        { "scope": "project", "dir": 1, "rel": "CLAUDE.md", "length": 32768, "shortened": false },
+        { "scope": "project", "dir": 2, "rel": "CLAUDE.md", "length": 16384, "shortened": false },
+        { "scope": "project", "dir": 3, "rel": "CLAUDE.md", "length": 16383, "shortened": true },
+        { "scope": "project", "dir": 4, "rel": "CLAUDE.md", "length": 1, "shortened": true }
+      ]
+    }
+  ]
+}

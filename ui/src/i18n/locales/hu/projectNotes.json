@@ -42,5 +42,10 @@
   "pnotes.section.title": "Projektjegyzetek",
   "pnotes.section.desc": "A repók CLAUDE.md fájljainak megtekintése és szerkesztése, és pontosan látod, melyik CLAUDE.md fájlokat kapja meg egy futás.",
   "pnotes.section.enable": "A Projektjegyzetek panel megjelenítése",
-  "pnotes.section.enableDesc": "Hozzáadja a panelt és a parancsait. A futások a CLAUDE.md fájlokat akkor is megkapják, ha ki van kapcsolva."
+  "pnotes.section.enableDesc": "Hozzáadja a panelt és a parancsait. A futások a CLAUDE.md fájlokat akkor is megkapják, ha ki van kapcsolva.",
+  "pnotes.unsaved": "A CLAUDE.md nem mentett módosításokat tartalmaz.",
+  "pnotes.discard": "Módosítások elvetése",
+  "pnotes.keepEditing": "Szerkesztés folytatása",
+  "pnotes.readOnly.mixed": "Ebben a fájlban vegyesen vannak Windows- és Unix-sorvégek, ezeket egy szövegmező nem tudja megtartani. Szerkeszd a szerkesztőben.",
+  "pnotes.readOnly.encoding": "Ez a fájl nem UTF-8 kódolású, a futások viszont UTF-8-ként olvassák a CLAUDE.md-t, így a szövege torzulva jut el hozzájuk. Nyisd meg a szerkesztőben, és mentsd UTF-8-ként."
 }

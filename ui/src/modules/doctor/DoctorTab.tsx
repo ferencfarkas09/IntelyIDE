@@ -19,11 +19,14 @@ export function statusText(r: DoctorRow): string {
   return t(`setup.state.${r.status}` as MessageKey);
 }
 
-/** Types the command into a new terminal tab without pressing Return: the person reads it and runs it. */
-async function putInTerminal(command: string): Promise<void> {
+/**
+ * Types the command into a new terminal tab without pressing Return: the person reads it and runs it. The tab opens in the
+ * home folder, never in a repository, so a repository's own settings or hooks cannot ride along (`claude` reads them).
+ */
+export async function putInTerminal(command: string): Promise<void> {
   try {
     const term = await import("../terminal/store");
-    const id = await term.openTerminal({ repoId: term.defaultRepoId() });
+    const id = await term.openTerminal({});
     if (!id) return;
     await ipc.term.write(id, command);
     toast.info(t("setup.typed"), t("setup.typedBody"));

@@ -1,15 +1,20 @@
 import { cleanup, render, screen, waitFor } from "@solidjs/testing-library";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { ipc } from "../../ipc";
 import { setVibeIpc, type SetupCheck } from "../../ipc/vibe";
 import { installDomStubs } from "../../store/testing-u2";
 import { agentBlocker } from "./AgentSetupCard";
-import DoctorTab from "./DoctorTab";
-import { agentReady, agentRows, doctorRows, fixOf, summary } from "./logic";
+import DoctorTab, { putInTerminal } from "./DoctorTab";
+import { agentReady, agentRows, doctorRows, fixOf, summary, type Platform } from "./logic";
+
+const openTerminal = vi.fn(async (_opts: { repoId?: string; cwd?: string }) => "t1");
+vi.mock("../terminal/store", () => ({ openTerminal: (o: { repoId?: string; cwd?: string }) => openTerminal(o), defaultRepoId: () => "shop-backend" }));
 
 installDomStubs();
 afterEach(() => {
   cleanup();
   setVibeIpc(undefined);
+  vi.restoreAllMocks();
 });
 
 const claude = (state: string, message: string | null = null) => ({ id: "claude", state, message }) as never;
@@ -61,5 +66,26 @@ describe("the panel", () => {
     expect(screen.getByText(/Version 20.1.0 is too old/)).toBeTruthy();
     expect(screen.getByText("Watchman")).toBeTruthy();
     expect(screen.getByText(/The agent runs on Node.js 24/)).toBeTruthy();
+  });
+});
+
+describe("typing a fix into a terminal", () => {
+  it("opens the terminal in the home folder, never in a repository, and does not press Return", async () => {
+    const write = vi.spyOn(ipc.term, "write").mockResolvedValue();
+    await putInTerminal("claude");
+    expect(openTerminal).toHaveBeenCalledWith({});
+    expect(write).toHaveBeenCalledWith("t1", "claude");
+  });
+
+  it("only ever types a fixed one-line command without control characters", () => {
+    const ids = ["node", "sdk", "login", "git", "gh", "xcode", "cocoapods", "android", "watchman"];
+    const reasons = [null, "tooOld", "notConfigured", "noAdb", "sdk_missing"];
+    for (const on of ["mac", "win", "linux"] as Platform[])
+      for (const id of ids)
+        for (const status of ["missing", "warn"] as const)
+          for (const reason of reasons) {
+            const fix = fixOf({ id, status, reason }, on, ["node 'x' --plan", "node 'x' --yes"]);
+            if (fix?.runnable) expect(fix.command, `${id} ${on}`).toMatch(/^[\x20-\x7e]+$/);
+          }
   });
 });

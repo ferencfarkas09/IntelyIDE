@@ -18,7 +18,7 @@ It is a lazy extra that starts switched on. Open it with the command palette (Op
 | Android SDK (optional) | `ANDROID_HOME`, else `ANDROID_SDK_ROOT`, else `~/Library/Android/sdk`, and `adb version` | Android builds, phones and emulators |
 | Watchman (optional) | `watchman --version` | Faster file watching for Metro and Jest |
 
-Each program is started once, on the login-shell PATH the IDE uses for its tools, in a temporary folder (never in a repository), with a 10-second limit. Only its version is read. Nothing is installed, changed or sent over the network. An optional tool that is missing never makes the summary red.
+Each program is started once, on the login-shell PATH the IDE uses for its tools, in the file system root on macOS and Linux (never in a repository, never in a shared temporary folder), with a 10-second limit; once it has exited, its output is waited for at most 2 more seconds. Only its version is read. Nothing is installed, changed or sent over the network. An optional tool that is missing never makes the summary red.
 
 On Windows (beta), Node.js, Git and gh are checked; the Xcode, CocoaPods, Android and watchman rows say "Not checked". The fix commands are for macOS with Homebrew; Windows gets `winget` commands for Node.js, Git and gh.
 
@@ -27,7 +27,7 @@ On Windows (beta), Node.js, Git and gh are checked; the Xcode, CocoaPods, Androi
 Every row that needs attention has a fix:
 
 - A command you can **Copy** (for example `brew install node`, `xcode-select --install`, `brew install cocoapods`, or the two Agent SDK installer commands from Settings > Providers).
-- For some commands, **Type it in a terminal**: a terminal tab opens with the command typed in, and it runs only when you press Return there. Commands that change a startup file (pointing `ANDROID_HOME` at the SDK) are only shown to copy.
+- For some commands, **Type it in a terminal**: a terminal tab opens in your home folder (never in a repository, whose own settings a tool such as `claude` would read) with the command typed in, and it runs only when you press Return there. Only fixed one-line commands are typed. Commands that change a startup file (pointing `ANDROID_HOME` at the SDK) are only shown to copy.
 - Where there is no command, one sentence says what to do (install Android Studio and its Platform-Tools, for example).
 
 Press **Check again** after a fix.

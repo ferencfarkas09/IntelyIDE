@@ -17,8 +17,9 @@ type Res<T> = Result<T, EngineError>;
 /// Text with every secret shape masked: the Run panel's masker, then the secret scanner's redaction (the same pair the
 /// run index uses). The webview calls it before an error log becomes part of a prompt.
 #[tauri::command]
-pub fn vibe_mask_text(text: String) -> String {
-    intely_runindex::doc::scrub(&text)
+pub async fn vibe_mask_text(text: String) -> Res<String> {
+    // a large text takes a moment: never on the main thread
+    blocking(move || Ok(intely_runindex::doc::scrub(&text))).await
 }
 
 fn login_env(engine: &EngineSlot) -> std::collections::HashMap<String, String> {

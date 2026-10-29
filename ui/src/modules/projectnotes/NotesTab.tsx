@@ -1,6 +1,7 @@
-import { createEffect, createMemo, createSignal, For, on, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, For, on, onCleanup, Show } from "solid-js";
 import { t, type MessageKey } from "../../i18n";
 import { ipc } from "../../ipc";
+import type { Encoding, Eol } from "../../ipc/files";
 import { vibeIpc, type NotesPlan } from "../../ipc/vibe";
 import { execute } from "../../platform/commands";
 import { requestNewRun } from "../../platform/newRun";
@@ -8,12 +9,17 @@ import type { TabInstance } from "../../platform/tabs";
 import { errorText } from "../../store/snapshots";
 import { repoConfig, repos } from "../../store/workspace";
 import { Badge, Button, EmptyState, ExternalLink, FilePlus, FileText, ProgressBar, RefreshCw, RepoBadge, Save, Skeleton, Sparkles, TextArea, toast, TriangleAlert } from "../../ui-kit";
-import { byteLength, FILE_MAX, planWarnings, sizeLevel, SKELETON, starterPrompt, type Warning } from "./logic";
+import { byteLength, editableReason, FILE_MAX, fromDisk, planWarnings, SECRET_CHECK_MAX, sizeLevel, SKELETON, starterPrompt, toDiskText, type Warning } from "./logic";
 import "./projectnotes.css";
 
 const FILE = "CLAUDE.md";
 
-type Loaded = { state: "missing" } | { state: "link" } | { state: "unreadable"; message: string } | { state: "file"; text: string; mtimeMs: number };
+type Loaded =
+  | { state: "missing" }
+  | { state: "link" }
+  | { state: "unreadable"; message: string }
+  /** `text` is the editor form (LF line endings); `eol` and `encoding` are put back on save. `readOnly` says why it is not editable here. */
+  | { state: "file"; text: string; mtimeMs: number; eol: Eol; encoding: Encoding; readOnly?: "mixed" | "encoding" };
 
 const fmtKb = (n: number): string => `${(n / 1024).toFixed(n < 10 * 1024 ? 1 : 0)} KB`;
 
@@ -35,56 +41,105 @@ export default function NotesTab(props: { tab?: TabInstance }) {
   const [planError, setPlanError] = createSignal<string | undefined>();
   const [looksSecret, setLooksSecret] = createSignal(false);
   const [open, setOpen] = createSignal<string | undefined>();
+  /** A repository switch or a refresh that waits for "discard the unsaved changes?". */
+  const [pending, setPending] = createSignal<{ to: string | undefined } | undefined>();
   createEffect(() => !repoId() && repos()[0] && setRepoId(repos()[0].id));
+  // every load is numbered: an answer for a repository that is no longer shown is dropped
+  let seq = 0;
 
-  const load = async (id: string) => {
+  const load = async (id: string, n: number) => {
     setLoaded(undefined);
+    let next: Loaded;
+    let text = "";
     try {
       const entry = (await ipc.files.listDir(id, "")).find((e) => e.name === FILE);
-      if (!entry) return void (setLoaded({ state: "missing" }), setDraft(""));
-      if (entry.kind !== "file") return void setLoaded({ state: "link" });
-      const r = await ipc.files.readFile(id, FILE);
-      if (r.text === undefined || r.binary || r.tooLarge) return void setLoaded({ state: "unreadable", message: t("pnotes.unreadable") });
-      setLoaded({ state: "file", text: r.text, mtimeMs: r.mtimeMs });
-      setDraft(r.text);
+      if (!entry) next = { state: "missing" };
+      else if (entry.kind !== "file") next = { state: "link" };
+      else {
+        const r = await ipc.files.readFile(id, FILE);
+        if (r.text === undefined || r.binary || r.tooLarge) next = { state: "unreadable", message: t("pnotes.unreadable") };
+        else {
+          const encoding = r.encoding ?? "utf8";
+          text = fromDisk(r.text, r.eol);
+          next = { state: "file", text, mtimeMs: r.mtimeMs, eol: r.eol, encoding, readOnly: editableReason(r.eol, encoding) };
+        }
+      }
     } catch (e) {
-      setLoaded({ state: "unreadable", message: errorText(e) });
+      next = { state: "unreadable", message: errorText(e) };
     }
+    if (n !== seq) return;
+    setLoaded(next);
+    setDraft(text);
   };
-  const loadPlan = async (id: string) => {
+  const loadPlan = async (id: string, n: number) => {
     setPlanError(undefined);
     try {
-      setPlan(await vibeIpc().projectNotes([id]));
+      const p = await vibeIpc().projectNotes([id]);
+      if (n === seq) setPlan(p);
     } catch (e) {
+      if (n !== seq) return;
       setPlan(undefined);
       setPlanError(errorText(e));
     }
   };
-  const refresh = () => {
+  const reload = () => {
     const id = repoId();
-    if (id) void Promise.all([load(id), loadPlan(id)]);
+    const n = ++seq;
+    if (id) void Promise.all([load(id, n), loadPlan(id, n)]);
   };
-  createEffect(on(repoId, refresh));
-  // a secret-looking value in the file would go into every run: the app's masker says whether it would change anything
-  createEffect(on(draft, (text) => void vibeIpc().maskText(text).then((m) => setLooksSecret(m !== text), () => setLooksSecret(false))));
+  createEffect(on(repoId, reload));
 
   const dirty = () => {
     const l = loaded();
     return l?.state === "file" ? draft() !== l.text : l?.state === "missing" && draft() !== "";
   };
+  /** Switching the repository or refreshing drops unsaved changes only after the person says so. */
+  const goTo = (to: string | undefined) => {
+    if (dirty()) return void setPending({ to });
+    if (to === undefined || to === repoId()) reload();
+    else setRepoId(to);
+  };
+  const discardAndGo = () => {
+    const p = pending();
+    setPending(undefined);
+    setDraft(loaded()?.state === "file" ? (loaded() as { text: string }).text : "");
+    if (p) goTo(p.to);
+  };
+
+  // A secret-looking value in the file would go into every run: the app's masker says whether it would change anything.
+  // Asked 300 ms after the last keystroke, for the first 256 KB only, so typing never waits for it.
+  let maskTimer: ReturnType<typeof setTimeout> | undefined;
+  createEffect(
+    on(draft, (text) => {
+      clearTimeout(maskTimer);
+      maskTimer = setTimeout(() => {
+        const head = text.slice(0, SECRET_CHECK_MAX);
+        void vibeIpc().maskText(head).then((m) => text === draft() && setLooksSecret(m !== head), () => setLooksSecret(false));
+      }, 300);
+    }),
+  );
+  onCleanup(() => clearTimeout(maskTimer));
   const bytes = createMemo(() => byteLength(draft()));
   const warnings = createMemo(() => [...(plan() ? planWarnings(plan()!) : []), ...(looksSecret() ? [{ code: "secret" } as Warning] : [])]);
 
   const save = async () => {
     const id = repoId();
     const l = loaded();
-    if (!id || !l || (l.state !== "file" && l.state !== "missing")) return;
+    if (!id || !l || (l.state !== "file" && l.state !== "missing") || (l.state === "file" && l.readOnly)) return;
     setSaving(true);
     try {
-      const r = await ipc.files.writeFile(id, FILE, draft(), l.state === "file" ? l.mtimeMs : 0);
-      setLoaded({ state: "file", text: draft(), mtimeMs: r.mtimeMs });
+      const text = draft();
+      if (l.state === "file") {
+        // the backend refuses a file whose modification time moved; reading it once more also catches a change within the same millisecond
+        const now = await ipc.files.readFile(id, FILE);
+        if (now.mtimeMs !== l.mtimeMs || fromDisk(now.text ?? "", now.eol) !== l.text) throw Object.assign(new Error("changed on disk"), { code: "staleFile" });
+      }
+      const eol: Eol = l.state === "file" ? l.eol : "lf";
+      const encoding: Encoding = l.state === "file" ? l.encoding : "utf8";
+      const r = await ipc.files.writeFile(id, FILE, toDiskText(text, eol), l.state === "file" ? l.mtimeMs : 0, { encoding });
+      setLoaded({ state: "file", text, mtimeMs: r.mtimeMs, eol, encoding });
       toast.success(t("pnotes.saved"));
-      void loadPlan(id);
+      void loadPlan(id, seq);
     } catch (e) {
       const code = (e as { code?: string }).code;
       toast.error(code === "staleFile" ? t("pnotes.stale") : t("pnotes.saveFailed"), code === "staleFile" ? undefined : errorText(e));
@@ -96,7 +151,8 @@ export default function NotesTab(props: { tab?: TabInstance }) {
   const generate = async () => {
     const id = repoId();
     if (!id) return;
-    const ok = await requestNewRun({ prompt: starterPrompt(repoConfig(id)?.name ?? id, loaded()?.state === "file"), repoIds: [id] });
+    // Ask: the agent reads untrusted repository text, so every edit and command waits for a yes (the person can pick another mode)
+    const ok = await requestNewRun({ prompt: starterPrompt(repoConfig(id)?.name ?? id, loaded()?.state === "file"), repoIds: [id], permission: "ask" });
     if (!ok) toast.warn(t("pnotes.noDialog"));
   };
 
@@ -107,16 +163,24 @@ export default function NotesTab(props: { tab?: TabInstance }) {
           <div class="pnotes__repos" role="tablist" aria-label={t("pnotes.repo")}>
             <For each={repos()}>
               {(r) => (
-                <button type="button" role="tab" class="pnotes__repo" aria-selected={repoId() === r.id} onClick={() => setRepoId(r.id)}>
+                <button type="button" role="tab" class="pnotes__repo" aria-selected={repoId() === r.id} onClick={() => goTo(r.id)}>
                   <RepoBadge color={r.color} badge={r.badge} size={16} />
                   <span class="ui-truncate">{r.name}</span>
                 </button>
               )}
             </For>
           </div>
-          <Button size="sm" variant="ghost" icon={RefreshCw} onClick={refresh}>{t("pnotes.refresh")}</Button>
+          <Button size="sm" variant="ghost" icon={RefreshCw} onClick={() => goTo(undefined)}>{t("pnotes.refresh")}</Button>
           <Button size="sm" variant="secondary" icon={Sparkles} onClick={() => void generate()}>{loaded()?.state === "file" ? t("pnotes.improve") : t("pnotes.generate")}</Button>
         </div>
+        <Show when={pending()}>
+          <div class="pnotes__pending" role="alertdialog" aria-label={t("pnotes.unsaved")}>
+            <TriangleAlert size={14} />
+            <span>{t("pnotes.unsaved")}</span>
+            <Button size="sm" variant="danger" onClick={discardAndGo}>{t("pnotes.discard")}</Button>
+            <Button size="sm" variant="ghost" onClick={() => setPending(undefined)}>{t("pnotes.keepEditing")}</Button>
+          </div>
+        </Show>
         <p class="pnotes__lead">{t("pnotes.lead")}</p>
 
         <section class="pnotes__card" aria-labelledby="pnotes-file">
@@ -138,8 +202,11 @@ export default function NotesTab(props: { tab?: TabInstance }) {
                 <Show when={l().state === "unreadable"}>
                   <p class="pnotes__warn" role="alert">{(l() as { message: string }).message}</p>
                 </Show>
+                <Show when={l().state === "file" && (l() as { readOnly?: string }).readOnly}>
+                  {(why) => <p class="pnotes__warn" role="status"><TriangleAlert size={14} /> {t(`pnotes.readOnly.${why()}` as MessageKey)}</p>}
+                </Show>
                 <Show when={l().state === "file" || (l().state === "missing" && draft() !== "")}>
-                  <TextArea class="ui-mono pnotes__text" aria-label={t("pnotes.fileTitle")} minRows={10} maxRows={28} value={draft()} onInput={(e) => setDraft(e.currentTarget.value)} />
+                  <TextArea class="ui-mono pnotes__text" aria-label={t("pnotes.fileTitle")} minRows={10} maxRows={28} value={draft()} readOnly={l().state === "file" && !!(l() as { readOnly?: string }).readOnly} onInput={(e) => setDraft(e.currentTarget.value)} />
                   <div class="pnotes__meter" data-level={sizeLevel(bytes())}>
                     <ProgressBar size="sm" value={(100 * bytes()) / FILE_MAX} tone={sizeLevel(bytes()) === "over" ? "danger" : sizeLevel(bytes()) === "large" ? "warn" : "accent"} aria-label={t("pnotes.meterAria")} />
                     <span class="ui-tnum">{t("pnotes.meter", { size: fmtKb(bytes()), max: fmtKb(FILE_MAX) })}</span>

@@ -1,0 +1,258 @@
+{
+  "_doc": "Shared masking cases: crates/runindex/tests/masking_fixture.rs (the app's masker, intely_runindex::doc::scrub) and ui/src/ipc/mock/vibe.test.ts (the interface's fallback masker) both read this file. Each input is the concatenation of `parts`; the masked output must not contain the concatenation of `secret`. Secret-shaped strings are split into parts so no line of the repository holds one.",
+  "masked": [
+    {
+      "name": "pem key block",
+      "parts": [
+        "log\n-----BEGIN RSA ",
+        "PRIVATE KEY-----\nMIIEow",
+        "IBAAKCAQEA1234567890abcdefXYZ\nQ2FuYXJ5S2V5Qm9keQ==\n-----END RSA ",
+        "PRIVATE KEY-----\ndone"
+      ],
+      "secret": [
+        "IBAAKCAQEA1234567890abcdefXYZ"
+      ]
+    },
+    {
+      "name": "pem key block cut before its end",
+      "parts": [
+        "-----BEGIN ",
+        "PRIVATE KEY-----\n",
+        "MIIEvQIBADANBgkqhkiG9w0BAQEFAASC\nAAAAB3NzaC1yc2EAAAADAQABAAABAQ"
+      ],
+      "secret": [
+        "AAAAB3NzaC1yc2EAAAADAQABAAABAQ"
+      ]
+    },
+    {
+      "name": "openssh key block",
+      "parts": [
+        "-----BEGIN OPENSSH ",
+        "PRIVATE KEY-----\n",
+        "b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAA\n-----END OPENSSH ",
+        "PRIVATE KEY-----"
+      ],
+      "secret": [
+        "b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAA"
+      ]
+    },
+    {
+      "name": "yaml password",
+      "parts": [
+        "db:\n  pass",
+        "word: hunter2supersecret\n  host: db"
+      ],
+      "secret": [
+        "hunter2supersecret"
+      ]
+    },
+    {
+      "name": "single-quoted json",
+      "parts": [
+        "{'pass",
+        "word': 'x9secretvalue', 'user': 'bob'}"
+      ],
+      "secret": [
+        "x9secretvalue"
+      ]
+    },
+    {
+      "name": "quoted value with a blank",
+      "parts": [
+        "DB_PASS",
+        "WORD='hunter2 hunter3' node app.js"
+      ],
+      "secret": [
+        "hunter3"
+      ]
+    },
+    {
+      "name": "url credentials with @ in the password",
+      "parts": [
+        "postgres://u:p@",
+        "ss@host:5432/db"
+      ],
+      "secret": [
+        "p@ss"
+      ]
+    },
+    {
+      "name": "url credentials",
+      "parts": [
+        "git clone https://bob:",
+        "hunter2pw@example.com/r.git"
+      ],
+      "secret": [
+        "hunter2pw"
+      ]
+    },
+    {
+      "name": "temporary aws key id",
+      "parts": [
+        "id ASIA",
+        "ABCDEFGHIJKLMNOP end"
+      ],
+      "secret": [
+        "ASIA",
+        "ABCDEFGHIJKLMNOP"
+      ]
+    },
+    {
+      "name": "aws role id",
+      "parts": [
+        "role AROA",
+        "QRSTUVWXYZ234567 x"
+      ],
+      "secret": [
+        "AROA",
+        "QRSTUVWXYZ234567"
+      ]
+    },
+    {
+      "name": "bare aws secret access key",
+      "parts": [
+        "wJalrXUtnFEMI/K7MDENG/",
+        "bPxRfiCYEXAMPLEKEY is set"
+      ],
+      "secret": [
+        "wJalrXUtnFEMI/K7MDENG/",
+        "bPxRfiCYEXAMPLEKEY"
+      ]
+    },
+    {
+      "name": "sshpass -p",
+      "parts": [
+        "sshpass -p ",
+        "hunter2pw ssh deploy@host"
+      ],
+      "secret": [
+        "hunter2pw"
+      ]
+    },
+    {
+      "name": "mysql -pPASS",
+      "parts": [
+        "mysql -u root -p",
+        "hunter2pw shop"
+      ],
+      "secret": [
+        "hunter2pw"
+      ]
+    },
+    {
+      "name": "mysql -p PASS",
+      "parts": [
+        "mysql -u root -p ",
+        "hunter2pw shop"
+      ],
+      "secret": [
+        "hunter2pw"
+      ]
+    },
+    {
+      "name": "github token with a zero-width space inside",
+      "parts": [
+        "token ghp",
+        "_A1b2C3d4E5​f6G7h8I9j0K1l2M3n4O5p6Q7r8 end"
+      ],
+      "secret": [
+        "f6G7h8I9j0K1l2M3n4O5p6Q7r8"
+      ]
+    },
+    {
+      "name": "base64-wrapped env file",
+      "parts": [
+        "env QVBJX0tFWT1hYmNkZWYx",
+        "MjM0NTY3ODkwc2VjcmV0dmFsdWUK end"
+      ],
+      "secret": [
+        "QVBJX0tFWT1hYmNkZWYx",
+        "MjM0NTY3ODkwc2VjcmV0dmFsdWUK"
+      ]
+    },
+    {
+      "name": "token wrapped onto the next line",
+      "parts": [
+        "tok",
+        "en=abcdefghij0123456789\nKLMNOPQRSTUVWXYZ012345\nnext"
+      ],
+      "secret": [
+        "KLMNOPQRSTUVWXYZ012345"
+      ]
+    },
+    {
+      "name": "bearer header",
+      "parts": [
+        "Authorization: Bearer abc",
+        "def1234567890XYZ"
+      ],
+      "secret": [
+        "def1234567890XYZ"
+      ]
+    },
+    {
+      "name": "bearer in text",
+      "parts": [
+        "sent Bearer abc",
+        "def1234567890XYZ to api"
+      ],
+      "secret": [
+        "def1234567890XYZ"
+      ]
+    },
+    {
+      "name": "jwt",
+      "parts": [
+        "t eyJhbGciOiJIUzI1NiJ9",
+        ".",
+        "eyJzdWIiOiIxMjM0NTY3ODkwIn0",
+        ".",
+        "abcdefghijklmn"
+      ],
+      "secret": [
+        "eyJzdWIiOiIxMjM0NTY3ODkwIn0"
+      ]
+    },
+    {
+      "name": "keyed env value",
+      "parts": [
+        "API_",
+        "KEY=abc123def456 npm run dev"
+      ],
+      "secret": [
+        "abc123def456"
+      ]
+    },
+    {
+      "name": "secret flag",
+      "parts": [
+        "tool --tok",
+        "en abc123def456 --verbose"
+      ],
+      "secret": [
+        "abc123def456"
+      ]
+    },
+    {
+      "name": "long hex",
+      "parts": [
+        "sha 0123456789abcdef",
+        "0123456789abcdef01234567."
+      ],
+      "secret": [
+        "0123456789abcdef0123456789abcdef"
+      ]
+    }
+  ],
+  "plain": [
+    "Compiled successfully in 4.2s. Local: http://localhost:8082/",
+    "Author: Jane Doe",
+    "ssh -p 2222 deploy@host",
+    "error TS2304: Cannot find name 'x'.",
+    "at render (App.tsx:12:5)",
+    "export TOKEN=$GITHUB_TOKEN",
+    "Error: password must be at least 8 characters",
+    "url: https://example.com:8080/path",
+    "árvíztűrő tükörfúrógép"
+  ]
+}

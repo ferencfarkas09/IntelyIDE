@@ -5,7 +5,8 @@ import { ipc } from "../../ipc";
 import { activeTab } from "../../platform/tabs";
 import { snapshots } from "../../store/snapshots";
 import { repoConfig, repos } from "../../store/workspace";
-import { readSettings } from "./logic";
+import { maskForPrompt } from "../../ipc/vibe";
+import { MAX_PROMPTS, MAX_SCOPE_BYTES, readSettings, scopeBytes } from "./logic";
 import type { PromptContext, PromptScope, PromptsSettings, SavedPrompt } from "./types";
 
 const NS = "prompts";
@@ -35,6 +36,8 @@ export function promptsOf(scope: PromptScope, s = settings()): SavedPrompt[] {
 /** Writes one scope's list; the other scopes stay as they are. */
 export async function savePrompts(scope: PromptScope, next: SavedPrompt[]): Promise<void> {
   if (scope.kind === "starter") return;
+  // a list that would not be read back whole is refused, so nothing is lost on the next start
+  if (next.length > MAX_PROMPTS || scopeBytes(next) > MAX_SCOPE_BYTES) throw Object.assign(new Error("too many prompts in one place"), { code: "promptsFull" });
   const cur = settings();
   if (scope.kind === "user") {
     setSettings({ ...cur, user: next });
@@ -73,7 +76,8 @@ export async function promptContext(repoId = currentRepo()): Promise<PromptConte
       const { viewOf } = await import("../editor/buffers");
       const view = viewOf(tab.id);
       const sel = view?.state.selection.main;
-      if (view && sel && !sel.empty) ctx.selection = view.state.sliceDoc(sel.from, sel.to).slice(0, 12_000);
+      // masked like an error log: a selection can hold a token as easily as a log can
+      if (view && sel && !sel.empty) ctx.selection = (await maskForPrompt(view.state.sliceDoc(sel.from, sel.to).slice(0, 12_000))).text;
     } catch {
       /* no editor loaded */
     }

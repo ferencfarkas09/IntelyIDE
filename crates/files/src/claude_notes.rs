@@ -161,7 +161,9 @@ mod tests {
         assert!(src.contains("export const USER_MEMORY_MAX_BYTES = 32 * 1024;"), "the user cap changed in the sidecar");
         assert!(src.contains("const FILES = ['CLAUDE.md', '.claude/CLAUDE.md', 'CLAUDE.local.md'];"), "the file list or order changed in the sidecar");
         // the user's file goes first and counts against the total; a symlinked user file is refused
-        assert!(src.contains("let total = user.bytes;"));
+        assert!(src.contains("let total = user ? user.text.length : 0;"));
+        // the total cut never splits a surrogate pair (cutUnits), like utf16_prefix here
+        assert!(src.contains("return last >= 0xd800 && last <= 0xdbff ? cut.slice(0, -1) : cut;"));
         assert!(src.contains("readOne(dir, 'CLAUDE.md', USER_MEMORY_MAX_BYTES, true)"));
         // the run directories are the working directory and then the added ones (the repositories in run order)
         let session = fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../sidecar/src/adapters/claude-sdk/session.ts")).unwrap();

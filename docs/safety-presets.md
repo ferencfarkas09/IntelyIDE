@@ -18,11 +18,11 @@ Presets do not lower anything. The hard stops are the same in every preset and e
 
 ## The default for new runs
 
-The New Run dialog starts with the mode of your last run (never Bypass). Settings > Agents > New runs start as sets that remembered mode, so the next run starts with the preset you pick there; picking another mode in the dialog changes it again.
+Settings > Agents > New runs start as sets the mode every New Run dialog starts with (stored as `runs.defaultMode`); picking another mode in the dialog changes only that run. Without a choice there, the dialog starts with the mode of your last run, and on a fresh install with Automatic, which Settings shows as Autonomous. Plan and Bypass are never a default.
 
 ## Secrets in commits
 
-The presets also show whether the check for secrets before a commit is on. That check is part of the Checks extra: before a commit, the changed lines are scanned for values that look like passwords, tokens or keys, and you are asked before such a commit goes ahead. When it is off, the New Run dialog and Settings > Agents offer to turn it on (it switches on the Checks extra and its secret check).
+The presets also show whether the check for secrets before a commit is on. That check is part of the Checks extra: before a commit, the changed lines are scanned for values that look like passwords, tokens or keys, and you are asked before such a commit goes ahead. When it is off, the New Run dialog and Settings > Agents offer "Turn on Checks with the secret scan": the button switches on the whole Checks extra (pre-commit checks in the Commit panel, the Environment tab) together with its secret scan, because the scan is part of that extra.
 
 ## Privacy
 

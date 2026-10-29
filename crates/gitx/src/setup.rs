@@ -48,8 +48,9 @@ fn check(id: &str, status: &str, optional: bool) -> SetupCheck {
 fn probe(bin: &Path, args: &[&str], opts: &SetupOpts) -> Option<proc::Out> {
     let mut cmd = if bin.file_name().is_some_and(|n| n == "git") { intely_core::exec::hardened_git(bin) } else { Command::new(bin) };
     cmd.args(args).env("PATH", &opts.login_path).env("LC_ALL", "C").env("GH_NO_UPDATE_NOTIFIER", "1").env("COCOAPODS_DISABLE_STATS", "1");
-    // never in a repository: a tool must not pick up a repository's configuration
-    cmd.current_dir(std::env::temp_dir());
+    // never in a repository (a tool must not pick up a repository's configuration) and not in a folder other users can
+    // write to, such as a shared /tmp: the file system root on macOS and Linux
+    cmd.current_dir(if cfg!(unix) { std::path::PathBuf::from("/") } else { std::env::temp_dir() });
     proc::run(cmd, TIMEOUT).ok()
 }
 

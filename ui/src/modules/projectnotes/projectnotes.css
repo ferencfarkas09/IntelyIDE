@@ -22,3 +22,5 @@
 .pnotes__path { flex: 1 1 auto; min-width: 0; font-size: var(--text-xs); overflow-wrap: anywhere; }
 .pnotes__len { color: var(--text-3); font-size: var(--text-xs); }
 .pnotes__pre { margin: 4px 0 0; padding: var(--space-2); max-height: 320px; overflow: auto; border-radius: var(--radius-2); background: var(--surface-1); box-shadow: inset 0 0 0 1px var(--border-subtle); font-family: var(--font-mono); font-size: var(--text-xs); line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
+.pnotes__pending { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; padding: var(--space-1) var(--space-2); border-radius: var(--radius-2); background: var(--warn-subtle); box-shadow: inset 0 0 0 1px var(--warn-border); font-size: var(--text-sm); }
+.pnotes__pending > span { flex: 1 1 200px; }

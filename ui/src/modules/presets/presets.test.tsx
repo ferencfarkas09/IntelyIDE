@@ -1,12 +1,15 @@
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { waitFor } from "@solidjs/testing-library";
 import type { NewRunSlotContext } from "../../platform/newRunSlots";
 import type { PermissionMode } from "../../store/agent-types";
 import { MODE_ORDER } from "../../store/permissionModes";
 import { installDomStubs } from "../../store/testing-u2";
 import { checksEnabled, secretGuardEnabled, setChecksEnabled, setSecretGuardEnabled } from "../checks/toggle";
-import { modeOf, presetBlocker, presetOf, PRESETS } from "./logic";
+import { ipc } from "../../ipc";
+import AgentsSection from "./AgentsSection";
+import { effectiveStartMode, modeOf, presetBlocker, presetOf, PRESETS, startMode } from "./logic";
 import PresetBar from "./PresetBar";
 
 installDomStubs();
@@ -60,10 +63,30 @@ describe("the preset bar", () => {
     setChecksEnabled(false);
     const { ctx } = ctxWith("edit");
     render(() => <PresetBar ctx={ctx} />);
-    fireEvent.click(screen.getByRole("button", { name: "Turn it on" }));
+    fireEvent.click(screen.getByRole("button", { name: "Turn on Checks with the secret scan" }));
     expect(checksEnabled() && secretGuardEnabled()).toBe(true);
-    expect(screen.queryByRole("button", { name: "Turn it on" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Turn on Checks with the secret scan" })).toBeNull();
     setChecksEnabled(false);
     setSecretGuardEnabled(true);
+  });
+});
+
+describe("the default of new runs", () => {
+  it("is the Settings choice when there is one, else the last run's mode, never Bypass, else what the dialog falls back to", () => {
+    expect(startMode({ defaultMode: "ask", lastMode: "automatic" })).toBe("ask");
+    expect(startMode({ lastMode: "edit" })).toBe("edit");
+    expect(startMode({ defaultMode: "bypass", lastMode: "bypass" })).toBeUndefined();
+    expect(startMode({ defaultMode: "nonsense" })).toBeUndefined();
+    expect(effectiveStartMode({})).toBe("automatic");
+  });
+
+  it("Settings shows the real default on a fresh install and stores its own choice apart from the last run", async () => {
+    vi.spyOn(ipc.settings, "get").mockResolvedValue({});
+    const set = vi.spyOn(ipc.settings, "set").mockResolvedValue({});
+    render(() => <AgentsSection />);
+    await waitFor(() => expect(screen.getAllByRole("radio", { name: "Autonomous" })[0].getAttribute("aria-checked")).toBe("true"));
+    fireEvent.click(screen.getAllByRole("radio", { name: "Careful" })[0]);
+    expect(set).toHaveBeenCalledWith("runs", { defaultMode: "ask" });
+    vi.restoreAllMocks();
   });
 });

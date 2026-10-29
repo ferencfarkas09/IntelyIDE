@@ -1,16 +1,18 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { maskLocally } from "../ipc/mock/vibe";
+import { setVibeIpc } from "../ipc/vibe";
+import { maskLocally } from "../ipc/vibeMask";
 import { registerCommand } from "./commands";
 import { takeNewRunPrefill } from "./newRun";
-import { buildErrorPrompt, cleanLog, lastErrorBlock, MAX_LOG_BYTES, sendErrorToAgent, tailBytes } from "./sendToAgent";
+import { buildErrorPrompt, cleanLog, lastErrorBlock, MAX_LOG_BYTES, sendErrorToAgent, tailBytes, UNTRUSTED_NOTE } from "./sendToAgent";
 
-const mask = async (s: string) => maskLocally(s);
+const mask = async (s: string) => ({ text: maskLocally(s), reduced: false });
 /** Canary secrets are put together at run time, so the repository's publish scan never sees a secret-shaped literal. */
 const fake = (...parts: string[]): string => parts.join("");
 const GH = fake("ghp", "_abcdefghijklmnopqrstuvwxyz0123");
 const SK = fake("sk", "-live-123456789012345678901234");
 let off: (() => void) | undefined;
 afterEach(() => {
+  setVibeIpc(undefined);
   off?.();
   off = undefined;
   takeNewRunPrefill();
@@ -44,7 +46,7 @@ describe("cleaning a log", () => {
 
 describe("the prompt", () => {
   it("masks secrets in the log and in the facts, and fences the log so it cannot break out", async () => {
-    const p = await buildErrorPrompt({ kind: "devServer", text: fake("Error: auth failed for postgres://admin", ":hunter2", "@db:5432\nGITHUB_TOKEN", "=", GH, "\n```\nend"), extra: fake("Command: API_KEY", "=", SK, " npm run dev") }, mask);
+    const { prompt: p } = await buildErrorPrompt({ kind: "devServer", text: fake("Error: auth failed for postgres://admin", ":hunter2", "@db:5432\nGITHUB_TOKEN", "=", GH, "\n```\nend"), extra: fake("Command: API_KEY", "=", SK, " npm run dev") }, mask);
     expect(p).not.toContain("hunter2");
     expect(p).not.toContain(GH);
     expect(p).not.toContain(SK);
@@ -54,12 +56,40 @@ describe("the prompt", () => {
   });
 
   it("asks only for an explanation when explaining, and cuts a long log to its end", async () => {
-    const p = await buildErrorPrompt({ kind: "terminal", text: `${"x".repeat(MAX_LOG_BYTES * 2)}\nTypeError: y is undefined`, intent: "explain" }, mask);
+    const { prompt: p } = await buildErrorPrompt({ kind: "terminal", text: `${"x".repeat(MAX_LOG_BYTES * 2)}\nTypeError: y is undefined`, intent: "explain" }, mask);
     expect(p).toContain("Do not change any file.");
     expect(p).not.toContain("How to work:");
     expect(p).toContain("(shortened)");
     expect(p).toContain("TypeError: y is undefined");
     expect(p.length).toBeLessThan(MAX_LOG_BYTES + 1000);
+  });
+
+  it("masks before it cuts: a key block that starts before the 8 KB cut does not leak its body", async () => {
+    const body = Array.from({ length: 400 }, (_, i) => `QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVo${i.toString().padStart(4, "0")}`).join("\n");
+    const log = fake("start\n-----BEGIN RSA ", "PRIVATE KEY-----\n", body, "\n-----END RSA ", "PRIVATE KEY-----\nError: deploy failed");
+    expect(new TextEncoder().encode(log).length).toBeGreaterThan(MAX_LOG_BYTES);
+    const { prompt } = await buildErrorPrompt({ kind: "terminal", text: log }, mask);
+    expect(prompt).not.toMatch(/QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVo\d{4}/);
+    expect(prompt).toContain("Error: deploy failed");
+  });
+
+  it("says the output is untrusted and removes hidden characters of every class", async () => {
+    const hidden = ["\u200b", "\u202e", "\u2066", "\ufeff", "\u00ad", "\u{e0041}\u{e0042}", "\u009b31m", "\u0085"];
+    const { prompt } = await buildErrorPrompt({ kind: "terminal", text: `Error: a${hidden.join("b")}c\tok` }, mask);
+    expect(prompt).toContain(UNTRUSTED_NOTE);
+    expect(prompt).toContain("Error: ab");
+    expect(prompt).toContain("\tok");
+    for (const h of hidden) expect(prompt.includes(h), JSON.stringify(h)).toBe(false);
+    expect(cleanLog("a\u0009b\nc")).toBe("a\tb\nc");
+  });
+
+  it("falls back to the interface's masker when the app's cannot run, and the dialog says so", async () => {
+    off = registerCommand({ id: "runs.new", title: "New run", group: "Runs", run: () => {} });
+    setVibeIpc({ maskText: async () => Promise.reject(new Error("ipc down")), setupChecks: async () => [], projectNotes: async () => ({ files: [], total: 0, fileMax: 1, totalMax: 1, userMax: 1, leftOut: [] }) });
+    expect(await sendErrorToAgent({ kind: "script", text: fake("DB_PASS", "WORD='hunter2 hunter3' failed") })).toBe(true);
+    const prefill = takeNewRunPrefill();
+    expect(prefill?.prompt).not.toContain("hunter3");
+    expect(prefill?.error).toMatch(/simpler one masked/);
   });
 
   it("opens the New Run dialog prefilled with the repository, and starts nothing", async () => {

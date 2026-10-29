@@ -2,7 +2,8 @@
 // Setup doctor's tool probes and the CLAUDE.md plan of the Project notes panel. All three only read. In a plain browser
 // (and in tests) the mock in `mock/vibe.ts` answers; tests can swap the whole thing with `setVibeIpc`.
 import { call } from "./rpc";
-import { createMockVibe, maskLocally } from "./mock/vibe";
+import { createMockVibe } from "./mock/vibe";
+import { maskLocally } from "./vibeMask";
 
 export type SetupStatus = "ok" | "warn" | "missing" | "notChecked";
 
@@ -49,8 +50,7 @@ export interface VibeIpc {
 const inTauri = (): boolean => typeof window !== "undefined" && !!(window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
 
 const tauriVibe: VibeIpc = {
-  // never let unmasked text through: if the backend cannot answer, the local masker still runs
-  maskText: (text) => call<string>("vibe_mask_text", { text }).catch(() => maskLocally(text)),
+  maskText: (text) => call<string>("vibe_mask_text", { text }),
   setupChecks: () => call("vibe_setup_checks"),
   projectNotes: (repoIds) => call("vibe_project_notes", { repoIds }),
 };
@@ -58,6 +58,18 @@ const tauriVibe: VibeIpc = {
 let override: VibeIpc | undefined;
 let mock: VibeIpc | undefined;
 export const setVibeIpc = (api: VibeIpc | undefined): void => void (override = api);
+
+/**
+ * Text masked for a prompt. When the app's masker cannot be asked, the interface's port runs instead and `reduced` says so,
+ * so the caller can tell the person; the text is never passed on unmasked.
+ */
+export async function maskForPrompt(text: string): Promise<{ text: string; reduced: boolean }> {
+  try {
+    return { text: await vibeIpc().maskText(text), reduced: false };
+  } catch {
+    return { text: maskLocally(text), reduced: true };
+  }
+}
 
 export function vibeIpc(): VibeIpc {
   if (override) return override;

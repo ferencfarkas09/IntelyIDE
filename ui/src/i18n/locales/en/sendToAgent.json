@@ -16,5 +16,6 @@
   "toAgent.section.title": "Fix with agent",
   "toAgent.section.desc": "A button next to terminal output, dev server logs, failed scripts and checks and preview errors that opens a new run with the error. Secrets are masked and only the last 8 KB is sent; nothing runs until you press Start run.",
   "toAgent.section.enable": "Show the Fix with agent buttons",
-  "toAgent.section.enableDesc": "Also adds the terminal commands to the palette."
+  "toAgent.section.enableDesc": "Also adds the terminal commands to the palette.",
+  "toAgent.reducedMask": "The app's secret masker could not run, so a simpler one masked this text. Read it for passwords, tokens and keys before you start the run."
 }

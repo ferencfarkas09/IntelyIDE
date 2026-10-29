@@ -2,6 +2,7 @@
 
 use std::io::Read;
 use std::process::{Child, Command, Stdio};
+use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -14,12 +15,18 @@ pub struct Out {
     pub stderr: String,
 }
 
-fn drain(mut r: impl Read + Send + 'static) -> thread::JoinHandle<String> {
+/// Once the child has exited, its output is waited for at most this long: a program that left a background process holding
+/// the pipe (a daemonising shim) must not hang the caller.
+const AFTER_EXIT: Duration = Duration::from_secs(2);
+
+fn drain(mut r: impl Read + Send + 'static) -> mpsc::Receiver<String> {
+    let (tx, rx) = mpsc::channel();
     thread::spawn(move || {
         let mut buf = Vec::new();
         let _ = r.by_ref().take(4 * 1024 * 1024).read_to_end(&mut buf);
-        String::from_utf8_lossy(&buf).into_owned()
-    })
+        let _ = tx.send(String::from_utf8_lossy(&buf).into_owned());
+    });
+    rx
 }
 
 /// Runs `cmd` (stdin closed) and waits at most `timeout`; a timeout kills the child and fails with `io`.
@@ -40,5 +47,22 @@ pub fn run(mut cmd: Command, timeout: Duration) -> Result<Out, EngineError> {
             Err(e) => return Err(EngineError::new(code::IO, e.to_string())),
         }
     };
-    Ok(Out { ok: status.success(), code: status.code(), stdout: out.join().unwrap_or_default(), stderr: err.join().unwrap_or_default() })
+    let collect = |rx: mpsc::Receiver<String>| rx.recv_timeout(AFTER_EXIT).unwrap_or_default();
+    Ok(Out { ok: status.success(), code: status.code(), stdout: collect(out), stderr: collect(err) })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn a_background_process_that_keeps_the_pipe_open_does_not_hang_the_caller() {
+        let mut cmd = Command::new("sh");
+        cmd.args(["-c", "echo started; sleep 30 &"]);
+        let start = Instant::now();
+        let out = run(cmd, Duration::from_secs(10)).unwrap();
+        assert!(out.ok);
+        assert!(start.elapsed() < Duration::from_secs(8), "waited {:?}", start.elapsed());
+    }
 }

@@ -26,6 +26,7 @@ import { AutoCard, type UntrustedRole } from "./AutoCard";
 import { PERMISSION_TITLES } from "../roles/rolesLogic";
 import { loadServers, servers } from "../servers/store";
 import { McpRunPicker, mcpStartIds } from "./mcpSeam";
+import { startMode } from "../presets/logic";
 import { autoReasonText, chosenProvider, claudeUnavailableReason, clampCounts, clampMode, defaultRepos, failureLines, MAC_MAX, initialMode, neutralRole, numberedPrompt, placementRows, placementSummary, planRuns, providerBlocker, providerChoices, startBlocker, startErrorText, startRequest, teamOf, teamPrompt, THIS_MAC, toggleRepo, totalRuns, type RunJob, type RunMode } from "./newRunLogic";
 import { roleColor } from "./roleColors";
 import { newRunOpen, setCentreView, setNewRunOpen } from "./state";
@@ -144,6 +145,7 @@ export function NewRunDialog() {
     if (prefill.repoIds?.length) setRepoIds(prefill.repoIds);
     if (prefill.error) setError(prefill.error);
     if (prefill.noSafetyNet) setNoNet(true);
+    if (prefill.permission && prefill.permission !== ("bypass" as string)) pickMode(prefill.permission);
   };
 
   const pick = (name: string | undefined) => {
@@ -244,7 +246,7 @@ export function NewRunDialog() {
       void ipc.settings.get("agents").then((v) => setMacMax(typeof v.maxRuns === "number" && Number.isInteger(v.maxRuns) ? Math.max(1, Math.min(MAC_MAX, v.maxRuns)) : MAC_MAX), () => setMacMax(MAC_MAX));
       void ipc.settings.get("roles").then((v) => setNoticeDone(v.derivationNoticeDone === true), () => {});
       // The mode used last is this dialog's default (Bypass never is); a read failure leaves the initial default.
-      void ipc.settings.get("runs").then((v) => setLastMode(typeof v.lastMode === "string" ? (v.lastMode as PermissionMode) : undefined), () => {});
+      void ipc.settings.get("runs").then((v) => setLastMode(startMode(v)), () => {});
       // From the backend's cache; nothing is started. A failure leaves the picker with the role's own provider.
       void Promise.all([ipc.providers.list(), ipc.roles.capabilities(), ipc.providers.enforcement()]).then(
         ([list, caps, enf]) => {

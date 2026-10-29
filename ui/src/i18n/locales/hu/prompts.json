@@ -69,5 +69,6 @@
   "prompts.starter.explain": "Magyarázd el ezt a kódot közérthetően",
   "prompts.starter.review": "Nézd át a változtatásaimat",
   "prompts.starter.commit-message": "Írj commitüzenetet",
-  "prompts.starter.find-bug": "Keresd meg a hibát"
+  "prompts.starter.find-bug": "Keresd meg a hibát",
+  "prompts.import.full": "{n, plural, one {# prompt kimaradt} other {# prompt kimaradt}}: ezen a helyen már 500 prompt vagy 2 MB van. A saját promptjaid megmaradtak."
 }

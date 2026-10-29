@@ -1,30 +1,8 @@
-// The browser stand-in of `ipc/vibe.ts`, and the local secret masker that also guards the real app when the backend
-// cannot be asked. The masker covers the common shapes (keyed values, known token prefixes, bearer tokens, JWTs,
-// credentials in URLs, long hex strings); the app's own masker (`crates/runner/src/mask.rs`) covers more.
+// The browser stand-in of `ipc/vibe.ts`. Masking uses the interface's port of the app's masker (`../vibeMask.ts`).
 import type { NotesPlan, SetupCheck, VibeIpc } from "../vibe";
+import { maskLocally } from "../vibeMask";
 
-const MASK = "***";
-const KEYS = "token|secret|password|passwd|pwd|api[_-]?key|auth|credential|private[_-]?key|access[_-]?key";
-// two prefixes are joined at run time so the repository's publish scan does not read the list as a key
-const PREFIXES = ["github_pat_", "ghp_", "gho_", "ghu_", "ghs_", "ghr_", "glpat-", "xox[abposr]-", "sk-", ["sk", "live", ""].join("_"), ["rk", "live", ""].join("_"), "AIza", "npm_", "AKIA"];
-
-const RULES: [RegExp, string][] = [
-  // KEY=value, KEY: value, "key": "value", --token value (the value up to the next space or quote)
-  [new RegExp(`((?:[A-Za-z0-9_.-]*(?:${KEYS})[A-Za-z0-9_.-]*)["']?\\s*[:=]\\s*["']?)([^\\s"'$][^\\s"',;]*)`, "gi"), `$1${MASK}`],
-  [new RegExp(`(--?(?:[A-Za-z0-9-]*(?:${KEYS})[A-Za-z0-9-]*)\\s+)([^\\s-][^\\s]*)`, "gi"), `$1${MASK}`],
-  [/\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{8,}/g, `$1 ${MASK}`],
-  [/\b(Authorization|Cookie|Set-Cookie)(\s*:\s*)[^\n]+/gi, `$1$2${MASK}`],
-  [/\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g, MASK],
-  [/(\b[a-z][a-z0-9+.-]*:\/\/)[^\s/:@]+:[^\s/@]+@/gi, `$1${MASK}@`],
-  [new RegExp(`\\b(?:${PREFIXES.join("|")})[A-Za-z0-9_-]{12,}`, "g"), MASK],
-  [/\b[a-f0-9]{40,}\b/gi, MASK],
-  [/-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(-----END [A-Z ]*PRIVATE KEY-----|$)/g, MASK],
-];
-
-/** Masks the secret shapes listed above. Idempotent; text without a secret comes back unchanged. */
-export function maskLocally(text: string): string {
-  return RULES.reduce((s, [re, to]) => s.replace(re, to), text);
-}
+export { maskLocally };
 
 const CHECKS: SetupCheck[] = [
   { id: "node", status: "ok", version: "24.4.0", path: "/opt/homebrew/bin/node", reason: null, optional: false },

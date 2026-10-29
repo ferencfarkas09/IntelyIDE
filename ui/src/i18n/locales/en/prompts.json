@@ -69,5 +69,6 @@
   "prompts.starter.explain": "Explain this code in plain language",
   "prompts.starter.review": "Review my changes",
   "prompts.starter.commit-message": "Write a commit message",
-  "prompts.starter.find-bug": "Find the bug"
+  "prompts.starter.find-bug": "Find the bug",
+  "prompts.import.full": "{n, plural, one {# prompt was left out} other {# prompts were left out}}: this place already holds 500 prompts or 2 MB. Your own prompts were kept."
 }
