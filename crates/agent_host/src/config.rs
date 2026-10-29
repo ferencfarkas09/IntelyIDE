@@ -285,11 +285,23 @@ fn allowed_as(name: &str, windows: bool) -> Option<String> {
 /// The environment of the sidecar process and the base of the agents' environment: nothing from the IDE process,
 /// only the allow-listed login-shell variables.
 pub fn scrub_env(vars: &HashMap<String, String>) -> BTreeMap<String, String> {
-    scrub_env_for(vars, cfg!(windows))
+    scrub_env_for(vars, cfg!(windows), |k| std::env::var(k).ok())
 }
 
-fn scrub_env_for(vars: &HashMap<String, String>, windows: bool) -> BTreeMap<String, String> {
-    vars.iter().filter_map(|(k, v)| allowed_as(k, windows).map(|k| (k, v.clone()))).collect()
+/// On Windows the system variables of [`intely_core::env::WINDOWS_ENV`] that `vars` lacks are taken from `fallback` (the IDE
+/// process): Node exits at once without `SystemRoot`, and none of them is a secret. Never `PATH` or anything else.
+fn scrub_env_for(vars: &HashMap<String, String>, windows: bool, fallback: impl Fn(&str) -> Option<String>) -> BTreeMap<String, String> {
+    let mut out: BTreeMap<String, String> = vars.iter().filter_map(|(k, v)| allowed_as(k, windows).map(|k| (k, v.clone()))).collect();
+    if windows {
+        for name in intely_core::env::WINDOWS_ENV {
+            if !out.contains_key(*name) {
+                if let Some(v) = fallback(name) {
+                    out.insert((*name).to_owned(), v);
+                }
+            }
+        }
+    }
+    out
 }
 
 /// First executable called `name` on the `PATH` of `vars` (falls back to the process `PATH`).
@@ -399,10 +411,21 @@ mod tests {
         .into_iter()
         .map(|(k, v)| (k.to_string(), v.to_string()))
         .collect();
-        let kept = scrub_env_for(&vars, true);
+        let kept = scrub_env_for(&vars, true, |_| None);
         assert_eq!(kept.keys().map(String::as_str).collect::<Vec<_>>(), ["APPDATA", "ComSpec", "LOCALAPPDATA", "PATH", "PATHEXT", "SystemRoot", "TEMP", "USERPROFILE"]);
         assert!(kept.values().all(|v| v != "CANARY"));
-        let mac = scrub_env_for(&vars, false);
-        assert!(mac.is_empty(), "the macOS list keeps none of them: {mac:?}");
+        let mac = scrub_env_for(&vars, false, |_| Some("PROCESS".into()));
+        assert!(mac.is_empty(), "the macOS list keeps none of them and takes nothing from the process: {mac:?}");
+    }
+
+    #[test]
+    fn on_windows_missing_system_variables_come_from_the_ide_process_and_nothing_else_does() {
+        let vars: HashMap<String, String> = [("PATH", "C:\\bin"), ("SystemRoot", "C:\\FromLogin")].into_iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
+        let kept = scrub_env_for(&vars, true, |k| Some(format!("process:{k}")));
+        assert_eq!(kept["SystemRoot"], "C:\\FromLogin", "the login value wins");
+        assert_eq!(kept["ComSpec"], "process:ComSpec");
+        assert_eq!(kept["PATH"], "C:\\bin", "PATH is never taken from the process");
+        assert!(!kept.contains_key("GITHUB_TOKEN") && !kept.contains_key("HOME"));
+        assert_eq!(kept.len(), 2 + intely_core::env::WINDOWS_ENV.len() - 1);
     }
 }

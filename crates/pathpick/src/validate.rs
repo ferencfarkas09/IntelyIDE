@@ -399,6 +399,18 @@ pub fn io_error(e: &std::io::Error, path: &Path, home: &Path) -> EngineError {
 
 /// Step 1: UTF-8 text to an absolute path, with the conveniences of a pasted path.
 pub fn hygiene(raw: &str, home: &Path) -> Result<PathBuf, EngineError> {
+    hygiene_for(raw, home, cfg!(windows))
+}
+
+/// An absolute Windows path: a drive (`C:\`, `C:/`) or a UNC share (`\\server\share`).
+fn windows_absolute(s: &str) -> bool {
+    let b = s.as_bytes();
+    (b.len() >= 3 && b[0].is_ascii_alphabetic() && b[1] == b':' && (b[2] == b'\\' || b[2] == b'/')) || s.starts_with("\\\\")
+}
+
+/// [`hygiene`] with the rules of one platform, so both are tested everywhere. Windows: a drive or UNC path is absolute,
+/// `~\` works like `~/`, `file:///C:/x` is `C:/x`, and a backslash is a separator, never the escape of a space.
+fn hygiene_for(raw: &str, home: &Path, windows: bool) -> Result<PathBuf, EngineError> {
     let bad = || err(codes::PATH_INVALID, "not a valid path");
     if raw.is_empty() || raw.len() > 4096 {
         return Err(bad());
@@ -416,18 +428,24 @@ pub fn hygiene(raw: &str, home: &Path) -> Result<PathBuf, EngineError> {
     if let Some(rest) = s.strip_prefix("file://") {
         let rest = rest.strip_prefix("localhost").unwrap_or(rest);
         s = percent_decode(rest).ok_or_else(bad)?;
+        if windows && s.starts_with('/') && windows_absolute(&s[1..]) {
+            s.remove(0);
+        }
     }
-    s = s.replace("\\ ", " ");
+    if !windows {
+        s = s.replace("\\ ", " ");
+    }
     if s == "~" {
         return Ok(home.to_path_buf());
     }
-    if let Some(rest) = s.strip_prefix("~/") {
+    if let Some(rest) = s.strip_prefix("~/").or_else(|| if windows { s.strip_prefix("~\\") } else { None }) {
         return Ok(home.join(rest));
     }
     if s.starts_with('~') {
         return Err(bad());
     }
-    if s.is_empty() || s.chars().any(|c| c == '\0') || !s.starts_with('/') {
+    let absolute = if windows { windows_absolute(&s) } else { s.starts_with('/') };
+    if s.is_empty() || s.chars().any(|c| c == '\0') || !absolute {
         return Err(bad());
     }
     Ok(PathBuf::from(s))
@@ -490,6 +508,23 @@ mod tests {
             assert_eq!(hygiene(bad, home).unwrap_err().code, codes::PATH_INVALID, "{bad:?}");
         }
         assert_eq!(hygiene(&"/a".repeat(3000), home).unwrap_err().code, codes::PATH_INVALID);
+    }
+
+    #[test]
+    fn hygiene_takes_windows_drive_and_share_paths_on_windows_only() {
+        let home = Path::new(r"C:\Users\u");
+        let ok = |raw: &str| hygiene_for(raw, home, true).unwrap();
+        assert_eq!(ok(r"C:\Users\u\Projects\app"), PathBuf::from(r"C:\Users\u\Projects\app"));
+        assert_eq!(ok("D:/work/app"), PathBuf::from("D:/work/app"));
+        assert_eq!(ok(r"\\server\share\repo"), PathBuf::from(r"\\server\share\repo"));
+        assert_eq!(ok(r#""C:\Program Files\x""#), PathBuf::from(r"C:\Program Files\x"));
+        assert_eq!(ok("file:///C:/a%20b"), PathBuf::from("C:/a b"));
+        assert_eq!(ok(r"C:\a\ b"), PathBuf::from(r"C:\a\ b"), "a backslash is a separator on Windows");
+        assert_eq!(ok(r"~\Projects"), home.join("Projects"));
+        for bad in ["relative\\x", "C:", "C:relative", "/a/b", "\\single"] {
+            assert_eq!(hygiene_for(bad, home, true).unwrap_err().code, codes::PATH_INVALID, "{bad:?}");
+        }
+        assert_eq!(hygiene_for(r"C:\Users\u", Path::new("/Users/alice"), false).unwrap_err().code, codes::PATH_INVALID, "not on macOS");
     }
 
     #[test]

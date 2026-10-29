@@ -717,9 +717,9 @@ fn whoami_from_json(v: &Value) -> Option<WhoAmI> {
 }
 
 fn random_hex(bytes: usize) -> Res<String> {
-    use std::io::Read;
     let mut buf = vec![0u8; bytes];
-    std::fs::File::open("/dev/urandom").and_then(|mut f| f.read_exact(&mut buf)).map_err(|e| unavailable(&format!("no random source: {e}")))?;
+    // the OS source on every platform (`/dev/urandom` does not exist on Windows)
+    getrandom::fill(&mut buf).map_err(|e| unavailable(&format!("no random source: {e}")))?;
     Ok(buf.iter().map(|b| format!("{b:02x}")).collect())
 }
 

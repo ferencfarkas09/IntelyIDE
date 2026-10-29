@@ -48,6 +48,8 @@ intely-relay-bundle = { version = "0.0.0", path = "../crates/relay_bundle" }
 intely-relay-deploy = { version = "0.0.0", path = "../crates/relay_deploy" }
 # Native folder dialog (NSOpenPanel, Windows common dialog; GTK3 on Linux, see below); no other backends. (design notes: workspaces-spec) 5.2.
 rfd = { version = "0.17", default-features = false }
+# OS random bytes for the relay deploy plans (already in the tree through crates/remote and crates/mongo).
+getrandom = "0.4.3"
 intely-updater = { version = "0.0.0", path = "../crates/updater" }
 # Timers and wake-ups of the update scheduler (modules/updates.rs); the request itself lives in intely-updater (notice).
 tokio = { version = "1.53.1", features = ["time", "sync"] }

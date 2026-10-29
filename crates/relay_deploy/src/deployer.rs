@@ -7,7 +7,6 @@
 
 use std::collections::HashMap;
 use std::fs;
-use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::Instant;
@@ -565,6 +564,7 @@ pub(crate) fn tail4(id: Option<&str>) -> String {
 /// 128 random bits as hex, from the OS source.
 pub(crate) fn random_hex(bytes: usize) -> Result<String> {
     let mut buf = vec![0u8; bytes];
-    fs::File::open("/dev/urandom").and_then(|mut f| f.read_exact(&mut buf)).map_err(|e| DeployError::Io(format!("no random source: {e}")))?;
+    // the OS source on every platform (`/dev/urandom` does not exist on Windows)
+    getrandom::fill(&mut buf).map_err(|e| DeployError::Io(format!("no random source: {e}")))?;
     Ok(hex::encode(buf))
 }
