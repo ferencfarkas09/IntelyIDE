@@ -1,6 +1,6 @@
 import type { EnforcementChip, PermissionMode, Suite, SuiteResult, Tier } from "@intely/protocol";
 import type { ProviderEnforcement } from "../../ipc/providers";
-import { TIER_LABEL, TIER_TONE } from "../../components/chat/format";
+import { TIER_LABEL, TIER_TONE, WINDOWS_MAX_TIER } from "../../components/chat/format";
 import { t, type MessageKey } from "../../i18n";
 import { currentPlatform, type Platform } from "../../platform/platform";
 
@@ -31,12 +31,10 @@ export interface ShownTier {
   capped: boolean;
 }
 
-/**
- * The highest tier the chip shows on Windows. The git shim there is a Git Bash script (cmd and PowerShell reach it through
- * git.cmd), git.exe by its full path bypasses it, there is no sandbox and no process-tree or memory watch backs a run up
- * (docs/install-windows.md). Policy hook and deny rules still stop commit and push, so it is best-effort at most.
- */
-export const WINDOWS_MAX_TIER: Tier = "bestEffort";
+// The highest tier the chip shows on Windows (defined in components/chat/format.ts, mirrored by the host): the git shim there is a
+// Git Bash script (cmd and PowerShell reach it through git.cmd), git.exe by its full path bypasses it, there is no sandbox and no
+// process-tree or memory watch backs a run up (docs/install-windows.md). Policy hook and deny rules still stop commit and push.
+export { WINDOWS_MAX_TIER };
 
 /** The chip as the UI shows it: a tier counts only when a recorded run with at least one passing suite stands behind it. */
 export function shownTier(chip: EnforcementChip | null | undefined, platform: Platform = currentPlatform()): ShownTier {

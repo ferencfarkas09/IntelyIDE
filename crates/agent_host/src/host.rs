@@ -1721,7 +1721,7 @@ impl Inner {
                 weakest = Some(chip);
             }
         }
-        weakest.unwrap_or(EnforcementChip { tier: Tier::Weak, run: None })
+        capped_for_platform(weakest.unwrap_or(EnforcementChip { tier: Tier::Weak, run: None }), cfg!(windows))
     }
 
     /// The tier a role of this mode earns on its provider, computed from recorded suites only (unknown = weak).
@@ -3138,4 +3138,34 @@ pub fn repo_files(git: &Path, repo: &Path, query: &str, limit: usize) -> Vec<Str
         .collect();
     hits.sort();
     hits.into_iter().take(limit).map(|(_, _, p)| p).collect()
+}
+
+/// The highest tier a chip may show on Windows (mirrors `WINDOWS_MAX_TIER` in ui/src/modules/providers/enforcement.ts). The git
+/// guard there is a Git Bash script that git.exe by its full path or a direct CreateProcess bypasses, and no sandbox or
+/// process-tree watch backs a run up (docs/install-windows.md). Applied where every chip is computed, so the run header,
+/// Settings and the provider gate (`check_provider_gate`) all see the capped tier, not only the New run dialog.
+pub(crate) const WINDOWS_MAX_TIER: Tier = Tier::BestEffort;
+
+/// `chip` with its tier lowered to [`WINDOWS_MAX_TIER`] when `windows`; the recorded run stays attached as evidence.
+pub(crate) fn capped_for_platform(mut chip: EnforcementChip, windows: bool) -> EnforcementChip {
+    if windows && chip.tier > WINDOWS_MAX_TIER {
+        chip.tier = WINDOWS_MAX_TIER;
+    }
+    chip
+}
+
+#[cfg(test)]
+mod platform_cap_tests {
+    use super::*;
+
+    #[test]
+    fn on_windows_no_chip_reads_above_best_effort_and_elsewhere_nothing_changes() {
+        for tier in [Tier::Weak, Tier::BestEffort, Tier::Strong, Tier::Structural] {
+            let chip = || EnforcementChip { tier, run: None };
+            assert_eq!(capped_for_platform(chip(), false).tier, tier, "macOS and Linux keep {tier:?}");
+            assert_eq!(capped_for_platform(chip(), true).tier, tier.min(Tier::BestEffort), "Windows caps {tier:?}");
+        }
+        // the gate's rule: a non-Claude write role needs Strong, which a capped Windows chip never reaches
+        assert!(capped_for_platform(EnforcementChip { tier: Tier::Structural, run: None }, true).tier < Tier::Strong);
+    }
 }
