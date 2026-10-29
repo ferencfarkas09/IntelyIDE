@@ -3,6 +3,7 @@
 // (`:workspace`); `sandbox: "workspace-write"` / `sandboxPolicy` leave `.git`, hooks and config writable. So the sandbox is
 // always selected by profile, never by the legacy sandbox fields.
 import path from 'node:path';
+import { allowedName } from '../../env.js';
 import type { AuthMode, PermissionMode, SessionEnv } from '../../types.js';
 
 export type Profile = ':read-only' | ':workspace';
@@ -84,8 +85,9 @@ export function buildCodexEnv(spec: SessionEnv, auth: { mode: AuthMode; key: str
   const scrubbed: string[] = [];
   for (const [k, v] of Object.entries(src)) {
     if (typeof v !== 'string') continue;
-    if (!allowed(k)) { scrubbed.push(k); continue; }
-    env[k] = v;
+    const name = allowedName(k, allowed);
+    if (!name) { scrubbed.push(k); continue; }
+    env[name] = v;
   }
   const added: string[] = [];
   if (auth.mode === 'apiKey' && auth.key) { env.CODEX_API_KEY = auth.key; added.push('CODEX_API_KEY'); }

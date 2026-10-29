@@ -271,14 +271,25 @@ impl HostConfig {
 const ALLOWED_ENV: &[&str] =
     &["PATH", "HOME", "USER", "LOGNAME", "SHELL", "TERM", "TMPDIR", "LANG", "NVM_DIR", "GNUPGHOME", "CLAUDE_CONFIG_DIR", "NODE_EXTRA_CA_CERTS", "SSL_CERT_FILE", "SSL_CERT_DIR"];
 
-fn allowed(name: &str) -> bool {
-    ALLOWED_ENV.contains(&name) || name.starts_with("LC_")
+/// The name under which `name` survives, or `None`. On Windows the platform list ([`intely_core::env::WINDOWS_ENV`])
+/// is added and names match without case (`Path` arrives as `PATH`); a parameter so both rules are tested everywhere.
+fn allowed_as(name: &str, windows: bool) -> Option<String> {
+    if windows {
+        if let Some(n) = intely_core::env::windows_env_name(name) {
+            return Some(n.to_owned());
+        }
+    }
+    (ALLOWED_ENV.contains(&name) || name.starts_with("LC_")).then(|| name.to_owned())
 }
 
 /// The environment of the sidecar process and the base of the agents' environment: nothing from the IDE process,
 /// only the allow-listed login-shell variables.
 pub fn scrub_env(vars: &HashMap<String, String>) -> BTreeMap<String, String> {
-    vars.iter().filter(|(k, _)| allowed(k)).map(|(k, v)| (k.clone(), v.clone())).collect()
+    scrub_env_for(vars, cfg!(windows))
+}
+
+fn scrub_env_for(vars: &HashMap<String, String>, windows: bool) -> BTreeMap<String, String> {
+    vars.iter().filter_map(|(k, v)| allowed_as(k, windows).map(|k| (k, v.clone()))).collect()
 }
 
 /// First executable called `name` on the `PATH` of `vars` (falls back to the process `PATH`).
@@ -369,5 +380,29 @@ mod tests {
         let kept = scrub_env(&vars);
         assert!(kept.values().all(|v| v != "CANARY"), "{kept:?}");
         assert_eq!(kept.len(), 3);
+    }
+
+    #[test]
+    fn on_windows_the_variables_node_needs_survive_under_their_canonical_names() {
+        let vars: HashMap<String, String> = [
+            ("Path", "C:\\Windows\\system32"),
+            ("SYSTEMROOT", "C:\\Windows"),
+            ("ComSpec", "C:\\Windows\\system32\\cmd.exe"),
+            ("PATHEXT", ".COM;.EXE;.BAT;.CMD"),
+            ("USERPROFILE", "C:\\Users\\u"),
+            ("APPDATA", "C:\\Users\\u\\AppData\\Roaming"),
+            ("LOCALAPPDATA", "C:\\Users\\u\\AppData\\Local"),
+            ("TEMP", "C:\\t"),
+            ("GITHUB_TOKEN", "CANARY"),
+            ("COMPUTERNAME", "CANARY"),
+        ]
+        .into_iter()
+        .map(|(k, v)| (k.to_string(), v.to_string()))
+        .collect();
+        let kept = scrub_env_for(&vars, true);
+        assert_eq!(kept.keys().map(String::as_str).collect::<Vec<_>>(), ["APPDATA", "ComSpec", "LOCALAPPDATA", "PATH", "PATHEXT", "SystemRoot", "TEMP", "USERPROFILE"]);
+        assert!(kept.values().all(|v| v != "CANARY"));
+        let mac = scrub_env_for(&vars, false);
+        assert!(mac.is_empty(), "the macOS list keeps none of them: {mac:?}");
     }
 }

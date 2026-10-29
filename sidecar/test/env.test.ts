@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildChildEnv } from '../src/env.js';
+import { allowedName, buildChildEnv } from '../src/env.js';
 import { redact, redactDeep } from '../src/redact.js';
 
 const host = {
@@ -12,6 +12,28 @@ const host = {
 };
 
 describe('env scrub (providers-plan 4.2)', () => {
+  it('on Windows keeps what Node needs to start, under canonical names, and still drops credentials', () => {
+    const win = { Path: 'C:\\Windows', SYSTEMROOT: 'C:\\Windows', ComSpec: 'cmd.exe', PATHEXT: '.EXE;.CMD', USERPROFILE: 'C:\\Users\\u', APPDATA: 'a', LOCALAPPDATA: 'l', TEMP: 't', GITHUB_TOKEN: 'gh', COMPUTERNAME: 'pc' };
+    const b = buildChildEnv({ vars: win, shimDir: 'C:\\shim' }, { mode: 'subscription', key: null }, { addDirs: false, windows: true });
+    expect(b.env).toMatchObject({ SystemRoot: 'C:\\Windows', ComSpec: 'cmd.exe', PATHEXT: '.EXE;.CMD', USERPROFILE: 'C:\\Users\\u', APPDATA: 'a', LOCALAPPDATA: 'l', TEMP: 't' });
+    expect(b.env.PATH?.endsWith('C:\\Windows')).toBe(true);
+    expect(b.env.Path).toBeUndefined();
+    expect(b.env.GITHUB_TOKEN).toBeUndefined();
+    expect(b.env.COMPUTERNAME).toBeUndefined();
+    const mac = buildChildEnv({ vars: win }, { mode: 'subscription', key: null }, { addDirs: false, windows: false });
+    expect(mac.env.SYSTEMROOT).toBeUndefined();
+    expect(mac.env.SystemRoot).toBeUndefined();
+  });
+
+  it('matches Windows names without case only on Windows', () => {
+    const portable = (k: string) => k === 'PATH';
+    expect(allowedName('windir', portable, true)).toBe('windir');
+    expect(allowedName('WINDIR', portable, true)).toBe('windir');
+    expect(allowedName('path', portable, true)).toBe('PATH');
+    expect(allowedName('path', portable, false)).toBeNull();
+    expect(allowedName('SystemRoot', portable, false)).toBeNull();
+  });
+
   it('drops host-session, foreign-provider and credential variables in subscription mode', () => {
     const b = buildChildEnv({ vars: host }, { mode: 'subscription', key: null }, { addDirs: false });
     for (const k of ['CLAUDECODE', 'CLAUDE_EFFORT', 'CLAUDE_CODE_ENTRYPOINT', 'INTELY_HUMAN_TOKEN', 'INTELY_REAL_GIT', 'ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL', 'ANTHROPIC_AUTH_TOKEN', 'OPENAI_API_KEY', 'GEMINI_API_KEY', 'GH_TOKEN', 'GITHUB_TOKEN', 'SSH_AUTH_SOCK', 'COPILOT_GITHUB_TOKEN', 'MY_SERVICE_TOKEN', 'DB_PASSWORD']) {

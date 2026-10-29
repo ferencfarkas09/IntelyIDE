@@ -8,6 +8,26 @@ import type { AuthMode, SessionEnv } from './types.js';
 const ALLOWED = new Set(['PATH', 'HOME', 'USER', 'LOGNAME', 'SHELL', 'TERM', 'TMPDIR', 'LANG', 'NVM_DIR', 'GNUPGHOME', 'CLAUDE_CONFIG_DIR', 'NODE_EXTRA_CA_CERTS', 'SSL_CERT_FILE', 'SSL_CERT_DIR']);
 const allowed = (k: string) => ALLOWED.has(k) || k.startsWith('LC_');
 
+/** Kept on Windows only, in addition to the portable list (mirrors `WINDOWS_ENV` in crates/core/src/env.rs): Node and its
+ * crypto read SystemRoot, `.cmd` shims need ComSpec and PATHEXT, the CLIs keep their data under USERPROFILE and APPDATA.
+ * None of them carries a credential. */
+export const WINDOWS_ENV = [
+  'SystemRoot', 'SystemDrive', 'windir', 'ComSpec', 'PATHEXT', 'USERPROFILE', 'USERNAME', 'HOMEDRIVE', 'HOMEPATH', 'APPDATA', 'LOCALAPPDATA',
+  'TEMP', 'TMP', 'ProgramFiles', 'ProgramFiles(x86)', 'ProgramW6432', 'ProgramData', 'CommonProgramFiles', 'OS', 'PROCESSOR_ARCHITECTURE',
+  'NUMBER_OF_PROCESSORS', 'CLAUDE_CODE_GIT_BASH_PATH',
+] as const;
+const WINDOWS_BY_UPPER = new Map<string, string>([['PATH', 'PATH'], ...WINDOWS_ENV.map((n) => [n.toUpperCase(), n] as [string, string])]);
+
+/** The name under which `k` survives an allow-list, or null. On Windows names match without case (`Path` arrives as `PATH`)
+ * and the platform list is added. `isAllowed` is the portable list of the caller. */
+export function allowedName(k: string, isAllowed: (k: string) => boolean, windows = process.platform === 'win32'): string | null {
+  if (windows) {
+    const n = WINDOWS_BY_UPPER.get(k.toUpperCase());
+    if (n) return n;
+  }
+  return isAllowed(k) ? k : null;
+}
+
 export interface BuiltEnv {
   env: Record<string, string>;
   /** Names that were removed (never values). */
@@ -19,15 +39,16 @@ export interface BuiltEnv {
 export function buildChildEnv(
   spec: SessionEnv,
   auth: { mode: AuthMode; key: string | null },
-  opts: { addDirs: boolean; base?: NodeJS.ProcessEnv } = { addDirs: false },
+  opts: { addDirs: boolean; base?: NodeJS.ProcessEnv; windows?: boolean } = { addDirs: false },
 ): BuiltEnv {
   const base = spec.vars ?? opts.base ?? process.env;
   const env: Record<string, string> = {};
   const scrubbed: string[] = [];
   for (const [k, v] of Object.entries(base)) {
     if (typeof v !== 'string') continue;
-    if (!allowed(k)) { scrubbed.push(k); continue; }
-    env[k] = v;
+    const name = allowedName(k, allowed, opts.windows);
+    if (!name) { scrubbed.push(k); continue; }
+    env[name] = v;
   }
   const added: string[] = [];
   const add = (k: string, v: string) => { env[k] = v; added.push(k); };

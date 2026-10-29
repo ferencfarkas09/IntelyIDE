@@ -30,8 +30,58 @@ const CACHE_VERSION: u32 = 1;
 const BEGIN_MARKER: &str = "__INTELY_ENV_BEGIN__";
 
 /// Keys that survive from the login shell into hook environments.
+#[cfg_attr(not(unix), allow(dead_code))]
 fn whitelisted(key: &str) -> bool {
     matches!(key, "PATH" | "HOME" | "USER" | "LANG" | "SSH_AUTH_SOCK" | "NVM_DIR" | "GNUPGHOME") || key.starts_with("LC_")
+}
+
+/// Variables a Windows program needs to start at all, kept in addition to the portable allow-lists on Windows only: Node
+/// and its crypto read `SystemRoot`, `.cmd` shims need `ComSpec` and `PATHEXT`, the CLIs keep their data under `USERPROFILE`,
+/// `APPDATA` and `LOCALAPPDATA`, temporary files go to `TEMP`/`TMP`. None of them carries a credential.
+/// `CLAUDE_CODE_GIT_BASH_PATH` tells Claude Code where Git Bash is when it is not on the default path.
+pub const WINDOWS_ENV: &[&str] = &[
+    "SystemRoot",
+    "SystemDrive",
+    "windir",
+    "ComSpec",
+    "PATHEXT",
+    "USERPROFILE",
+    "USERNAME",
+    "HOMEDRIVE",
+    "HOMEPATH",
+    "APPDATA",
+    "LOCALAPPDATA",
+    "TEMP",
+    "TMP",
+    "ProgramFiles",
+    "ProgramFiles(x86)",
+    "ProgramW6432",
+    "ProgramData",
+    "CommonProgramFiles",
+    "OS",
+    "PROCESSOR_ARCHITECTURE",
+    "NUMBER_OF_PROCESSORS",
+    "CLAUDE_CODE_GIT_BASH_PATH",
+];
+
+/// The canonical spelling of `key` when it is `PATH` or one of [`WINDOWS_ENV`]. Windows names are case-insensitive and
+/// arrive as `Path` or `WINDIR` as often as not; a map lookup of `PATH` must still find them.
+pub fn windows_env_name(key: &str) -> Option<&'static str> {
+    if key.eq_ignore_ascii_case("PATH") {
+        return Some("PATH");
+    }
+    WINDOWS_ENV.iter().copied().find(|n| n.eq_ignore_ascii_case(key))
+}
+
+/// The name under which `key` survives the hook allow-list, or `None`. `windows` adds [`WINDOWS_ENV`] and the
+/// case-insensitive match of Windows; it is a parameter so that both platforms' rules are tested everywhere.
+fn hook_key(key: &str, windows: bool) -> Option<String> {
+    if windows {
+        if let Some(n) = windows_env_name(key) {
+            return Some(n.to_owned());
+        }
+    }
+    whitelisted(key).then(|| key.to_owned())
 }
 
 pub struct EnvOptions {
@@ -266,7 +316,7 @@ fn fingerprint(shell: &Path) -> String {
 /// Windows has no login shell to ask: a GUI app gets the user's full environment from Explorer.
 #[cfg(not(unix))]
 async fn probe_shell(_shell: &Path, _timeout: Duration) -> Result<BTreeMap<String, String>, String> {
-    let vars: BTreeMap<String, String> = std::env::vars().filter(|(k, _)| whitelisted(k) || k.eq_ignore_ascii_case("PATH")).map(|(k, v)| (if k.eq_ignore_ascii_case("PATH") { "PATH".to_owned() } else { k }, v)).collect();
+    let vars: BTreeMap<String, String> = std::env::vars().filter_map(|(k, v)| hook_key(&k, true).map(|k| (k, v))).collect();
     if vars.contains_key("PATH") { Ok(vars) } else { Err("the process has no PATH".to_owned()) }
 }
 
@@ -348,6 +398,32 @@ mod tests {
         assert_eq!(v["PATH"], "/a/bin:/b/bin");
         assert!(parse_env_dump(b"no marker PATH=/x\0").is_none());
         assert!(parse_env_dump(b"__INTELY_ENV_BEGIN__HOME=/x\0").is_none(), "PATH is required");
+    }
+
+    #[test]
+    fn the_windows_rules_keep_what_programs_need_to_start_and_fold_the_case() {
+        assert_eq!(hook_key("Path", true).as_deref(), Some("PATH"));
+        assert_eq!(hook_key("SYSTEMROOT", true).as_deref(), Some("SystemRoot"));
+        assert_eq!(hook_key("WINDIR", true).as_deref(), Some("windir"));
+        for k in ["ComSpec", "PATHEXT", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "TEMP", "TMP", "ProgramFiles", "ProgramData"] {
+            assert_eq!(hook_key(k, true).as_deref(), Some(k), "{k} must reach a Windows child");
+            assert_eq!(hook_key(k, false), None, "{k} is not kept on macOS");
+        }
+        assert_eq!(hook_key("LANG", true).as_deref(), Some("LANG"), "the portable list still applies");
+        for k in ["GITHUB_TOKEN", "AWS_SECRET_ACCESS_KEY", "COMPUTERNAME", "USERDOMAIN", "Path2"] {
+            assert_eq!(hook_key(k, true), None, "{k} must be dropped");
+        }
+        assert_eq!(hook_key("Path", false), None, "macOS names are case-sensitive");
+        assert_eq!(windows_env_name("programfiles(x86)"), Some("ProgramFiles(x86)"));
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn the_windows_probe_keeps_systemroot_and_a_canonical_path() {
+        let vars = probe_shell(Path::new("unused"), SHELL_BUDGET).await.unwrap();
+        assert!(vars.contains_key("PATH"));
+        assert!(vars.contains_key("SystemRoot"), "Node cannot start without SystemRoot: {:?}", vars.keys().collect::<Vec<_>>());
+        assert!(!vars.keys().any(|k| k != "PATH" && k.eq_ignore_ascii_case("PATH")));
     }
 
     #[test]
