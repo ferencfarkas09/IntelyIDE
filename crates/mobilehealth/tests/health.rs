@@ -49,12 +49,14 @@ fn rm(root: &Path, rel: &str) {
     fs::remove_file(root.join(rel)).unwrap();
 }
 
-/// The healthy React Native project plus what Git would never hold: the debug keystore and local.properties.
+/// The healthy React Native project plus what Git would never hold: the debug keystore, local.properties and .xcode.env.
 fn healthy() -> tempfile::TempDir {
     let d = tempfile::tempdir().unwrap();
     copy(&fixture_dir("rn_ok"), d.path());
     put(d.path(), "android/app/debug.keystore", "synthetic");
     put(d.path(), "android/local.properties", "sdk.dir=/opt/android-sdk\n");
+    // not kept in the fixture folder: the tree-hygiene gate refuses any tracked file that looks like an env file
+    put(d.path(), "ios/.xcode.env", "# synthetic\nexport NODE_BINARY=$(command -v node)\n");
     d
 }
 
