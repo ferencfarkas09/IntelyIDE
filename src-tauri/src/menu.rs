@@ -8,6 +8,7 @@ pub const CHECK_UPDATES: &str = "check_updates";
 /// Event the UI listens to (modules/updates): the menu item runs a manual check and shows the result.
 pub const CHECK_UPDATES_EVENT: &str = "menu:check-updates";
 
+#[cfg_attr(windows, allow(dead_code))] // not set on Windows (lib.rs)
 pub fn build(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     let app_menu = Submenu::with_items(
         app,
