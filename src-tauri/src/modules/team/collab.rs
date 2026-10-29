@@ -674,6 +674,7 @@ fn chat_load(app: &AppHandle, run_id: &str) -> Vec<ChatEntry> {
 
 /// Options for a file only this user may read (mode 0600 where the system has modes).
 fn private_file() -> std::fs::OpenOptions {
+    #[cfg_attr(not(unix), allow(unused_mut))]
     let mut o = std::fs::OpenOptions::new();
     #[cfg(unix)]
     std::os::unix::fs::OpenOptionsExt::mode(&mut o, 0o600);

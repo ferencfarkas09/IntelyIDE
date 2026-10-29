@@ -30,7 +30,6 @@ const CACHE_VERSION: u32 = 1;
 const BEGIN_MARKER: &str = "__INTELY_ENV_BEGIN__";
 
 /// Keys that survive from the login shell into hook environments.
-#[cfg_attr(not(unix), allow(dead_code))]
 fn whitelisted(key: &str) -> bool {
     matches!(key, "PATH" | "HOME" | "USER" | "LANG" | "SSH_AUTH_SOCK" | "NVM_DIR" | "GNUPGHOME") || key.starts_with("LC_")
 }
@@ -360,7 +359,7 @@ fn parse_env_dump(stdout: &[u8]) -> Option<BTreeMap<String, String>> {
         .filter_map(|rec| {
             let rec = String::from_utf8_lossy(rec);
             let (k, v) = rec.split_once('=')?;
-            whitelisted(k).then(|| (k.to_owned(), v.to_owned()))
+            hook_key(k, false).map(|k| (k, v.to_owned()))
         })
         .collect();
     vars.contains_key("PATH").then_some(vars)
