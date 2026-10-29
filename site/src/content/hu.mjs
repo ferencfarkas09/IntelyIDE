@@ -302,6 +302,7 @@ export default {
       { id: 'integrations', h: 'Integrációk', p: 'A Happy, az MCP-szerverek, a Sentry és a DeepPattern egy katalógusban, és ahol van, a csatlakozás állapota is látszik. Később további szolgáltatások, újabb kártyaként.' },
       { id: 'intelyfix', h: 'IntelyFIX: Sentry hibák javítása egy kattintással', p: 'Nyomd meg a Javítás gombot egy hibán: a hozzárendelést, a repót, a promptot és az ügynökfutást beállítjuk helyetted. A változást te olvasod el és te commitolod.' },
       { id: 'mcp', h: 'MCP-szerverek katalógusa', p: 'Több mint egy tucat kész szerver, a GitHubtól és a Chrome DevToolstól a MongoDB-ig és az XcodeBuildMCP-ig, egy kattintással és a saját tokenjeddel.' },
+      { id: 'versions', h: 'Minden repó verziója egy panelen', p: 'Egy panelen látod az összes repód verziófájlját, és együtt módosíthatod őket: Patch, Minor, Major vagy Build +1 egy repóra vagy mindegyikre, a pontos diffet pedig még azelőtt látod, hogy bármi kiíródna.' },
       { id: 'partners', h: 'DeepPattern.ai és Happy Solutions', p: 'Két szolgáltatás saját kártyával a Beállítások > Integrációk lapon: második vélemény a kódodra, és a Happy-fiókod mellette.' },
       { id: 'providers', h: 'Hozd a saját ügynöködet', p: 'A Claude a fő út. A Codex, Gemini, Copilot és mások kísérleti providerként csatlakoznak.' },
       { id: 'mongo', h: 'MongoDB Studio', p: 'Alapból csak olvasható, MI-támogatott lekérdezésekkel angolul vagy magyarul.' },
@@ -454,6 +455,24 @@ export default {
           'A terméknevek a tulajdonosaiké; a felsorolás nem jelenti, hogy támogatnák az IntelyIDE-t',
         ],
         shots: [['mcp-catalog', 'Beállítások, MCP-szerverek: a kész szerverek katalógusa, mindegyik a pontos programsorával.']],
+      },
+      {
+        id: 'versions',
+        h: 'Verziók: minden repó verziója egy helyen',
+        p: 'Egy kiadás ne azt jelentse, hogy egyenként megnyitod a package.json fájlt, egy Xcode-projektet és egy Gradle-fájlt. A Verziók panel (parancspaletta: Verziók megnyitása) kilistázza a munkaterület minden repójának verziófájljait, és együtt módosítja őket. Amíg meg nem nyomod az Alkalmaz gombot, csak olvas, és előtte minden fájl pontos diffjét megmutatja.',
+        list: [
+          'Amit olvas: a package.json és a mellette lévő package-lock.json, az Xcode MARKETING_VERSION és CURRENT_PROJECT_VERSION értéke, az Info.plist szövegként leírt értékei, az Android versionName és versionCode, a Cargo.toml, a tauri.conf.json, az Expo app.json, a pyproject.toml és a pubspec.yaml',
+          'A Patch, a Minor, a Major és a Build +1 egy repón vagy mindegyiken működik, és minden verziót a saját értékéből számol tovább. Bármilyen értéket beírhatsz egy sorba, vagy egyet egy repó összes verziójához (a buildszámok maradnak, ahogy vannak)',
+          'Az „Ez fog változni” alatt minden fájl pontos diffjét elolvashatod, mielőtt bármi kiíródna. Az az érték, amelyet a fájlok elutasítanának, meg van jelölve, és kikapcsolva tartja az Alkalmaz gombot',
+          'Az Alkalmaz megnyomásakor a panel egyenként írja ki a repókat, egy repón belül pedig mindent vagy semmit: ha egy fájl megváltozott, mióta beolvasta, a repó érintetlen marad, és a panel megmondja, miért. Csak a verzió szövege változik; a behúzás, az idézőjelek és a sorvégek maradnak, ahogy voltak',
+          'Soha nem commitol, nem címkéz és nem pushol, és semmi sem hagyja el a gépedet: a módosított fájlok a Változások között jelennek meg, mint bármely más szerkesztés. A csak olvasható módban a panel olvas, de nem ír',
+          'Alapból be van kapcsolva, a Beállítások > Verziók pedig kikapcsolja. Más helyeket, ahol verzió élhet (composer.json, pom.xml, setup.py, podspec-ek, gradle.properties), még nem olvas',
+          'Az Xcode, az Android, a Gradle, az Expo, a Tauri és a többi név a tulajdonosaiké, és csak azt mondják meg, mely fájlokat olvassa a panel; az IntelyIDE független tőlük',
+        ],
+        shots: [
+          ['versions', 'A Verziók panel három demó repóval: mindegyiken függőben egy Minor emelés, az elsőn emellett Build +1 is, és az Alkalmaz megnyomásáig semmi sem íródik ki.'],
+          ['versions-diff', 'A Verziók panel az „Ez fog változni” alatt: annak a négy fájlnak a pontos diffje, amelyet egy repó módosítana, az Alkalmaz gombbal készenlétben.'],
+        ],
       },
       {
         id: 'mongo',
