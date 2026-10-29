@@ -44,8 +44,11 @@ else
   for c in "${WINDOWS_TEST_CRATES[@]}"; do args+=(-p "$c"); done
 fi
 log="${RUNNER_TEMP:-${TMPDIR:-/tmp}}/windows-tests.log"
-cargo test "${args[@]}" --no-fail-fast --locked 2>&1 | tee "$log"
-rc=${PIPESTATUS[0]}
+# A file, not `| tee`: on Windows some tests leave child processes (node, cmd) behind that inherit the output, and a pipe
+# stays open until they die, so tee would wait for the job's timeout. The log is printed once cargo is done.
+cargo test "${args[@]}" --no-fail-fast --locked > "$log" 2>&1
+rc=$?
+cat "$log"
 
 echo "::group::digest of the failures"
 echo "=== windows test digest (exit $rc) ==="
