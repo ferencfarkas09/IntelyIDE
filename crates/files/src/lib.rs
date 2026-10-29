@@ -5,6 +5,7 @@
 //! Every path is repo-relative and resolved inside a registered [`RepoRoot`]; every git call goes through the engine's
 //! exec layer (`intely_core::exec`), and every mutation passes `Jail::check_op` first (docs/safety.md).
 
+pub mod claude_notes;
 mod branches;
 mod encoding;
 mod fsops;

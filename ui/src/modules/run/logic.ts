@@ -1,5 +1,6 @@
 import { t } from "../../i18n";
 import type { ScriptGroup, ScriptInfo, ServerInfo, ServerStatus } from "../../ipc/run";
+import { lastErrorBlock } from "../../platform/sendToAgent";
 import type { Tone } from "../../ui-kit";
 import { stripAnsi } from "./ansi";
 
@@ -116,4 +117,16 @@ export function appendLog(buffer: readonly LogLine[], chunk: { startSeq: number;
 export function searchLines(lines: readonly LogLine[], query: string): LogLine[] {
   const q = query.trim().toLowerCase();
   return q ? lines.filter((l) => stripAnsi(l.text).toLowerCase().includes(q)) : [...lines];
+}
+
+/**
+ * What "Fix with agent" sends from a server's log: a script that ended with an error sends the end of its output, a running or
+ * stopped dev server the last block that looks like an error. The command line goes along as a fact (it is masked with the log).
+ */
+export function serverErrorInput(server: Pick<ServerInfo, "repoId" | "script" | "runner" | "status" | "exitCode">, lines: readonly LogLine[]): { kind: "devServer" | "script"; text: string; repoId: string; extra: string } {
+  const failed = server.status === "failed" || (server.exitCode != null && server.exitCode !== 0);
+  const text = lines.slice(-400).map((l) => l.text);
+  const facts = [`Script: ${server.script}`, `Command: ${server.runner}`];
+  if (server.exitCode != null) facts.push(`Exit code: ${server.exitCode}`);
+  return { kind: failed ? "script" : "devServer", text: failed ? text.slice(-150).join("\n") : lastErrorBlock(text), repoId: server.repoId, extra: facts.join("\n") };
 }

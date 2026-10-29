@@ -1,0 +1,20 @@
+{
+  "toAgent.name": "Küldés az ügynöknek",
+  "toAgent.menu": "Kérdezd az ügynököt erről a hibáról",
+  "toAgent.button": "Kérdezd az ügynököt",
+  "toAgent.fix": "Javítás ügynökkel",
+  "toAgent.fixDesc": "Új futást nyit a hibával, indításra készen",
+  "toAgent.explain": "Hiba elmagyarázása",
+  "toAgent.explainDesc": "Az ügynök közérthetően elmagyarázza, és semmit sem módosít",
+  "toAgent.nothing": "Nincs elküldhető hiba",
+  "toAgent.nothingBody": "Jelöld ki az elküldendő sorokat, vagy várd meg, amíg valami hibára fut.",
+  "toAgent.noDialog": "Az Új futás ablakot nem sikerült megnyitni.",
+  "toAgent.failed": "A hibát nem sikerült előkészíteni",
+  "toAgent.cmd.terminalFix": "A terminálban látott hiba javítása ügynökkel",
+  "toAgent.cmd.terminalExplain": "A terminálban látott hiba elmagyarázása",
+  "toAgent.section.name": "Küldés az ügynöknek",
+  "toAgent.section.title": "Javítás ügynökkel",
+  "toAgent.section.desc": "Egy gomb a terminál kimenete, a fejlesztői szerver naplója, a hibára futott scriptek és ellenőrzések, valamint az előnézet hibái mellett, amely új futást nyit a hibával. A titkok ki vannak takarva, és csak az utolsó 8 KB megy át; semmi sem indul el, amíg meg nem nyomod a Futás indítása gombot.",
+  "toAgent.section.enable": "A Javítás ügynökkel gombok megjelenítése",
+  "toAgent.section.enableDesc": "A terminálhoz tartozó parancsokat is hozzáadja a palettához."
+}

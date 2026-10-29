@@ -6,6 +6,7 @@ import type { ProviderEnforcement, ProviderInfo } from "../../ipc/providers";
 import { BypassConfirmDialog } from "../../components/chat/BypassConfirmDialog";
 import { modelLabel } from "../../components/chat/format";
 import { ModeCards } from "../../components/chat/ModeCards";
+import { NewRunSlots } from "../../components/NewRunSlots";
 import { openDockTab } from "../../platform/dock";
 import { openSettings } from "../../platform/settings";
 import type { RoleGroup } from "../../ipc/roles";
@@ -214,6 +215,9 @@ export function NewRunDialog() {
     setBypassOk(false);
     setPermission(m);
   };
+
+  // What the prompt picker and the safety presets may touch (ui/src/platform/newRunSlots.ts).
+  const slotCtx = { prompt, setPrompt, repoIds, permission, pickMode, supported, unavailable, disabled: busy };
 
   // Opening proposes the first role and its repos; the user can change both.
   createEffect(
@@ -532,6 +536,7 @@ export function NewRunDialog() {
             <legend class="newrun__label" id={modesLegend}>
               {t("modes.picker.label")}
             </legend>
+            <NewRunSlots place="modes" ctx={slotCtx} />
             <div class="newrun__modes">
               <ModeCards modes={supported()} value={permission()} onChange={pickMode} labelledBy={modesLegend} unavailable={unavailable()} confirm={["bypass"]} disabled={busy()} />
             </div>
@@ -598,6 +603,7 @@ export function NewRunDialog() {
               onKeyDown={(e) => (e.metaKey || e.ctrlKey) && e.key === "Enter" && (e.preventDefault(), void start())}
             />
           </label>
+          <NewRunSlots place="prompt" ctx={slotCtx} />
           <AttachmentChips items={att.store.items()} provider={att.provider()} onRemove={(id) => void att.store.remove(id)} onConfirm={(id) => void att.store.confirm(id)} />
           <div class="newrun__attach"><AttachButton onFiles={att.pick} /></div>
           <NewRunShare checked={shareRun()} onChange={setShareRun} />

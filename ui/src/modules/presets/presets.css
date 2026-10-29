@@ -1,0 +1,5 @@
+/* Safety presets. Tokens only. */
+.presets { display: flex; flex-direction: column; gap: 6px; margin-bottom: var(--space-2); }
+.presets__desc { margin: 0; color: var(--text-2); font-size: var(--text-sm); }
+.presets__offer { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 0; color: var(--warn); font-size: var(--text-sm); }
+.presets__offer > span { flex: 1 1 200px; }

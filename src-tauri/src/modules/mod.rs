@@ -36,6 +36,7 @@ pub mod term;
 pub mod tray;
 pub mod updates;
 pub mod versions;
+pub mod vibe;
 pub mod viewers;
 pub mod workspaces;
 pub mod workspaces_switch;

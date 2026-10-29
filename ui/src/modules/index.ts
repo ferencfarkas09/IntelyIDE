@@ -8,6 +8,7 @@ import { register as brief } from "./brief";
 import { register as checks } from "./checks";
 import { register as contract } from "./contract";
 import { register as deepPattern } from "./deeppattern";
+import { register as doctor } from "./doctor";
 import { register as editor } from "./editor";
 import { register as graph } from "./graph";
 import { register as happyChat } from "./happy-chat";
@@ -29,8 +30,11 @@ import { register as mongo } from "./mongo";
 import { register as l10n } from "./l10n";
 import { register as licenses } from "./licenses";
 import { register as pr } from "./pr";
+import { register as presets } from "./presets";
 import { register as preview } from "./preview";
 import { register as previewInspect } from "./preview-inspect";
+import { register as projectNotes } from "./projectnotes";
+import { register as prompts } from "./prompts";
 import { register as providers } from "./providers";
 import { register as release } from "./release";
 import { register as versions } from "./versions";
@@ -39,6 +43,7 @@ import { register as roles } from "./roles";
 import { register as run } from "./run";
 import { register as runs } from "./runs";
 import { register as search } from "./search";
+import { register as sendToAgent } from "./sendtoagent";
 import { register as sentry } from "./sentry";
 import { register as settingsCore } from "./settings-core";
 import { register as terminal } from "./terminal";
@@ -98,6 +103,11 @@ export const MODULES: readonly FeatureModule[] = [
   { id: "intelyfix", register: intelyfix },
   { id: "account", register: account },
   { id: "deeppattern", register: deepPattern },
+  { id: "prompts", register: prompts },
+  { id: "sendtoagent", register: sendToAgent },
+  { id: "projectnotes", register: projectNotes },
+  { id: "doctor", register: doctor },
+  { id: "presets", register: presets },
 ];
 
 /** Runs every module's `register()`. A module that throws is logged and skipped: the app and the other modules start anyway. */
