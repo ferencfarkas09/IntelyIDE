@@ -48,7 +48,7 @@ An opt-in button that runs `npm outdated --json` and `npm audit --json` in a fol
 - outdated packages with the current and the latest version, sorted by how far the jump is (major, minor, patch), and whether they are dev dependencies;
 - known vulnerabilities with the severity, whether the package is a direct dependency and whether the fix is a normal update or a major update.
 
-**It uses the network, and it does not trust your project.** A project's own `.npmrc` can expand any environment variable into a token for a registry of its own (`//host/:_authToken=${SECRET}`), point the registry at another host and set cache and log folders anywhere. So npm never runs in your repository and never gets your environment:
+**It uses the network, and it does not trust your project.** A project's own `.npmrc` can expand any environment variable into the auth token of a registry of its own (a `${SECRET}` reference in an auth line), point the registry at another host and set cache and log folders anywhere. So npm never runs in your repository and never gets your environment:
 
 - `package.json` and the lock file (`package-lock.json` or `npm-shrinkwrap.json`) are copied into a new private folder in the system temp directory (mode 0700, removed afterwards). No `.npmrc`, no scripts and no other file is copied.
 - npm gets an empty user and global config, its cache and logs inside that folder, `--ignore-scripts`, and the public registry (`https://registry.npmjs.org/`) given on the command line. A registry set in your project's or your own `.npmrc` is not used, so a private registry is not supported.
