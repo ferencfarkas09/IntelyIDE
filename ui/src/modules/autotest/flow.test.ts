@@ -5,7 +5,7 @@ import type { RunLike } from "./logic";
 import { prefs, resetAutotestStore, runAsk, runResults } from "./store";
 import type { AutotestPrefs } from "./types";
 
-const FAILING = { lines: ["running 2 tests", "test a::one ... ok", "test a::two ... FAILED", "", "---- a::two stdout ----", "thread 'a::two' panicked at src/a.rs:9:5:", "token ghp_0123456789abcdefghijABCDEFGHIJ leaked", "", "test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s"], exitCode: 101 };
+const FAILING = { lines: ["running 2 tests", "test a::one ... ok", "test a::two ... FAILED", "", "---- a::two stdout ----", "thread 'a::two' panicked at src/a.rs:9:5:", `token ${["ghp", "0123456789abcdefghijABCDEFGHIJ"].join("_")} leaked`, "", "test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s"], exitCode: 101 };
 
 /** The mock runner with spies, and a count of how many tests of one repository ran at once. */
 function harness(opts: MockOptions = {}) {

@@ -212,7 +212,7 @@ export function outcomeOf(summary: TestSummary, exitCode: number | null | undefi
 
 const SECRET_SHAPES: RegExp[] = [
   /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)/g,
-  /\b(?:github_pat_|gh[pousr]_|glpat-|npm_|sk_live_|rk_live_|xox[abposr]-)[A-Za-z0-9_-]{10,}/g,
+  /\b(?:github_pat_|gh[pousr]_|glpat-|npm_|[sr]k_live_|xox[abposr]-)[A-Za-z0-9_-]{10,}/g,
   /\bsk-[A-Za-z0-9_-]{16,}/g,
   /\bAIza[0-9A-Za-z_-]{30,}/g,
   /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/g,

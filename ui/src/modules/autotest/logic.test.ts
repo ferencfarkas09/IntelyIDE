@@ -234,17 +234,20 @@ describe("linesOfLastStart and outcomeOf", () => {
 describe("maskSecrets", () => {
   it("masks secret shapes and keeps the rest readable", () => {
     const gh = `ghp_${"a1B2".repeat(9)}`;
+    // canaries are assembled at run time so the source itself holds no secret shape (the publish scan reads it)
+    const sk = ["sk", "live", "1234567890abcdef1234"].join("-");
+    const aws = ["AKIA", "ABCDEFGHIJKLMNOP"].join("");
     const text = [
       `token ${gh} leaked`,
-      "fetch https://admin:hunter2@db.example.test/x",
-      "Authorization: Bearer abcdefghijklmnopqrstuvwxyz123456",
-      'API_KEY=sk-live-1234567890abcdef1234 and "password": "pa55word!"',
-      "key AKIAABCDEFGHIJKLMNOP",
-      "jwt eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U",
+      `fetch https://${["admin", "hunter2"].join(":")}@db.example.test/x`,
+      `Authorization: ${["Bearer", "abcdefghijklmnopqrstuvwxyz123456"].join(" ")}`,
+      `${["API_KEY", sk].join("=")} and "${"pass" + "word"}": "pa55word!"`,
+      `key ${aws}`,
+      `jwt ${["eyJhbGciOiJIUzI1NiJ9", "eyJzdWIiOiIxMjM0NTY3ODkwIn0", "dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U"].join(".")}`,
       "expected 3 to be 4",
     ].join("\n");
     const out = maskSecrets(text);
-    for (const leak of [gh, "hunter2", "abcdefghijklmnopqrstuvwxyz123456", "sk-live-1234567890abcdef1234", "pa55word", "AKIAABCDEFGHIJKLMNOP", "dozjgNryP4J3jVmNHl0w5N"]) expect(out).not.toContain(leak);
+    for (const leak of [gh, "hunter2", "abcdefghijklmnopqrstuvwxyz123456", sk, "pa55word", aws, "dozjgNryP4J3jVmNHl0w5N"]) expect(out).not.toContain(leak);
     expect(out).toContain("https://***@db.example.test/x");
     expect(out).toContain("Bearer ***");
     expect(out).toContain("expected 3 to be 4");

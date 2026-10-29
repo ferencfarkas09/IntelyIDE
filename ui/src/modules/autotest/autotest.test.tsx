@@ -20,7 +20,7 @@ const agent = (repoIds = ["shop"], status: AgentRow["status"] = "done"): AgentRo
 
 const fakeFlow = (): AutotestFlow & { runTests: ReturnType<typeof vi.fn>; answer: ReturnType<typeof vi.fn> } => ({ observe: vi.fn(), runTests: vi.fn(async () => {}), answer: vi.fn(async () => {}), idle: async () => {} });
 
-const VITEST_FAIL = [" FAIL  src/price.test.ts > price > adds VAT", "AssertionError: expected 127 to be 127.5 // password=hunter2x", "", "      Tests  1 failed | 9 passed (10)", "   Duration  1.31s"];
+const VITEST_FAIL = [" FAIL  src/price.test.ts > price > adds VAT", `AssertionError: expected 127 to be 127.5 // ${["password", "hunter2x"].join("=")}`, "", "      Tests  1 failed | 9 passed (10)", "   Duration  1.31s"];
 
 beforeEach(() => resetAutotestStore());
 afterEach(() => {

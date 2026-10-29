@@ -654,56 +654,6 @@
       "path": "site/src/content/hu.mjs",
       "rule": "email-address",
       "reason": "placeholder address in the Hungarian example text of the website's contact form (an example, not a contact point)"
-    },
-    {
-      "path": "crates/runindex/src/digest.rs",
-      "rule": "url-credentials",
-      "reason": "unit test of the host extraction: placeholder user:pw in a URL that must be dropped"
-    },
-    {
-      "path": "crates/runindex/tests/**",
-      "rule": "url-credentials",
-      "reason": "canary values: the run summary must mask credentials in URLs"
-    },
-    {
-      "path": "ui/src/modules/autotest/*.test.ts",
-      "rule": "url-credentials",
-      "reason": "canary values: the fix prompt must mask secrets in test output"
-    },
-    {
-      "path": "ui/src/modules/autotest/*.test.ts",
-      "rule": "bearer-token",
-      "reason": "canary values: the fix prompt must mask secrets in test output"
-    },
-    {
-      "path": "ui/src/modules/autotest/*.test.ts",
-      "rule": "credential-assignment",
-      "reason": "canary values: the fix prompt must mask secrets in test output"
-    },
-    {
-      "path": "ui/src/modules/autotest/*.test.ts",
-      "rule": "aws-access-key",
-      "reason": "canary values: the fix prompt must mask secrets in test output"
-    },
-    {
-      "path": "ui/src/modules/autotest/*.test.ts",
-      "rule": "jwt",
-      "reason": "canary values: the fix prompt must mask secrets in test output"
-    },
-    {
-      "path": "ui/src/modules/autotest/*.test.ts",
-      "rule": "github-token",
-      "reason": "canary values: the fix prompt must mask secrets in test output"
-    },
-    {
-      "path": "ui/src/modules/autotest/*.test.tsx",
-      "rule": "credential-assignment",
-      "reason": "canary values: the fix prompt must mask secrets in test output"
-    },
-    {
-      "path": "ui/src/modules/autotest/logic.ts",
-      "rule": "stripe-key",
-      "reason": "the prefix list of the secret-masking pattern, not a key"
     }
   ]
 }

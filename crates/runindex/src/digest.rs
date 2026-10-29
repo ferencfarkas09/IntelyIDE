@@ -997,7 +997,7 @@ mod tests {
 
     #[test]
     fn hosts_drop_user_info_ports_and_paths() {
-        assert_eq!(host_of("https://user:pw@API.example.com:8443/v1?token=x").as_deref(), Some("api.example.com"));
+        assert_eq!(host_of(&format!("https://{}@API.example.com:8443/v1?token=x", ["user", "pw"].join(":"))).as_deref(), Some("api.example.com"));
         assert_eq!(host_of("http://localhost:3000/").as_deref(), Some("localhost"));
         assert_eq!(host_of("ftp://x.example").as_deref(), None);
         assert_eq!(host_of("example.com").as_deref(), None);

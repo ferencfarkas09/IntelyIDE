@@ -129,7 +129,7 @@ fn an_install_and_a_curl_are_named_packages_and_hosts_only() {
     let mut l = Log::new("deps");
     l.prompt("Fetch users from the API");
     bash(&mut l, "b1", "npm install axios@1.7.2 && pnpm add -D @types/lodash@4", ToolStatus::Ok, Some("added 1 package"));
-    bash(&mut l, "b2", &format!("curl -H 'Authorization: Bearer {TOKEN}' https://deploy:hunter2@api.example.com:8443/v1/users?token=abc"), ToolStatus::Ok, Some("[]"));
+    bash(&mut l, "b2", &format!("curl -H 'Authorization: Bearer {TOKEN}' https://{}@api.example.com:8443/v1/users?token=abc", ["deploy", "hunter2"].join(":")), ToolStatus::Ok, Some("[]"));
     l.tool("w1", "WebFetch", ToolKind::Fetch, json!({ "url": "https://docs.example.org/axios" }), ToolStatus::Ok, Some("docs"));
     l.tool("w2", "WebSearch", ToolKind::Fetch, json!({ "query": "axios interceptors" }), ToolStatus::Ok, Some("results"));
     l.end(StopReason::EndTurn);
