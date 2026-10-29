@@ -25,17 +25,37 @@ export default function MobileHealthTab() {
 
   const nameOf = (repoId: string): string => repoConfig(repoId)?.name ?? repoId;
 
+  /** Why a repository could not be scanned; the others are shown regardless. */
+  const [repoErrors, setRepoErrors] = createSignal<Record<string, string>>({});
+  let round = 0;
+
+  /** Looks for the repositories with a mobile project, then scans them one by one; each appears as soon as it is done. */
   async function load() {
+    const mine = ++round;
     setLoading(true);
+    setData([]);
+    setRepoErrors({});
     try {
-      setData(await mobileHealthApi().scan());
+      const ids = await mobileHealthApi().detect();
+      if (mine !== round) return;
       setError(undefined);
-      void refreshDetected();
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setLoading(false);
       setLoaded(true);
+      for (const id of ids) {
+        try {
+          const r = await mobileHealthApi().scan(id);
+          if (mine === round && r) setData((d) => [...d, r]);
+        } catch (e) {
+          if (mine === round) setRepoErrors((m) => ({ ...m, [id]: errorText(e) }));
+        }
+      }
+      if (mine === round) void refreshDetected();
+    } catch (e) {
+      if (mine === round) setError(errorText(e));
+    } finally {
+      if (mine === round) {
+        setLoading(false);
+        setLoaded(true);
+      }
     }
   }
   createEffect(on(() => repos().map((r) => r.id).join(","), () => void load()));
@@ -61,6 +81,14 @@ export default function MobileHealthTab() {
         </p>
       </Show>
 
+      <For each={Object.entries(repoErrors())}>
+        {([id, message]) => (
+          <p class="mh__error" role="alert">
+            {nameOf(id)}: {message}
+          </p>
+        )}
+      </For>
+
       <Show
         when={loaded()}
         fallback={
@@ -71,7 +99,7 @@ export default function MobileHealthTab() {
           </div>
         }
       >
-        <Show when={data().length} fallback={<Show when={!error()}><EmptyState icon={Smartphone} size="sm" title={t("mobilehealth.noRepo")} description={t("mobilehealth.noRepoDesc")} /></Show>}>
+        <Show when={data().length} fallback={<Show when={!error() && !loading() && !Object.keys(repoErrors()).length}><EmptyState icon={Smartphone} size="sm" title={t("mobilehealth.noRepo")} description={t("mobilehealth.noRepoDesc")} /></Show>}>
           <For each={data()}>
             {(repo) => (
               <section class="mh__repo" aria-label={nameOf(repo.repoId)} data-testid={`mobilehealth-repo-${repo.repoId}`}>

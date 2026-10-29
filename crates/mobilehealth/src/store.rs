@@ -39,7 +39,8 @@ fn ios(cx: &mut Ctx) {
         ),
     }
     // the 1024 px marketing icon
-    let sets: Vec<String> = cx.files.files.iter().filter(|f| f.ends_with(".appiconset/Contents.json") && f.contains("AppIcon")).cloned().collect();
+    // any icon set, whatever it is called (ASSETCATALOG_COMPILER_APPICON_NAME can name another one)
+    let sets: Vec<String> = cx.files.files.iter().filter(|f| f.ends_with(".appiconset/Contents.json")).cloned().collect();
     let mut ok = None;
     for f in &sets {
         let Some(text) = cx.read(f) else { continue };
@@ -82,7 +83,35 @@ fn ios(cx: &mut Ctx) {
 }
 
 fn android(cx: &mut Ctx) {
-    let icon = cx.files.files.iter().find(|f| f.contains("/src/main/res/mipmap") && f.rsplit('/').next().is_some_and(|n| n.starts_with("ic_launcher"))).cloned();
+    // the icon the manifest names (`android:icon="@mipmap/brand"`), else the template's ic_launcher
+    let named = cx
+        .files
+        .files
+        .iter()
+        .find(|f| f.ends_with("/src/main/AndroidManifest.xml"))
+        .cloned()
+        .and_then(|m| cx.read(&m))
+        .and_then(|t| crate::xml::tokens(&t))
+        .and_then(|toks| {
+            toks.into_iter().find_map(|t| match t {
+                crate::xml::Tok::Open { name, attrs, .. } if name == "application" => attrs.into_iter().find(|a| a.0 == "android:icon").map(|a| a.1),
+                _ => None,
+            })
+        })
+        .and_then(|v| v.rsplit('/').next().map(str::to_string))
+        .filter(|n| !n.is_empty() && !n.starts_with('@'));
+    let stem = |f: &str| f.rsplit('/').next().map(|n| n.split('.').next().unwrap_or(n).to_string()).unwrap_or_default();
+    let icon = cx
+        .files
+        .files
+        .iter()
+        .find(|f| {
+            f.contains("/src/main/res/") && (f.contains("/mipmap") || f.contains("/drawable")) && match &named {
+                Some(n) => stem(f) == *n,
+                None => stem(f).starts_with("ic_launcher"),
+            }
+        })
+        .cloned();
     match icon {
         Some(f) => cx.check("android.icon", "android", Status::Ok, Some(&f), &[], None),
         None => cx.check("android.icon", "android", Status::Missing, None, &[], Some("The Android app has no launcher icon (no ic_launcher in any src/main/res/mipmap-* folder). Ask me for the icon artwork (do not invent one), then add an adaptive icon (foreground and background layers) and a plain fallback, and point android:icon and android:roundIcon in the manifest at it.".to_string())),

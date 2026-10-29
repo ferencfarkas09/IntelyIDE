@@ -1,0 +1,2 @@
+[plugins]
+myorg-android-application = { id = "org.myorg.android.application" }

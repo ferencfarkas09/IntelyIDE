@@ -120,13 +120,17 @@ pub struct Report {
 /// What the scan may ask of the machine besides the repository. Passed in so a test does not depend on the environment.
 #[derive(Debug, Clone, Default)]
 pub struct Env {
+    /// `ANDROID_HOME` / `ANDROID_SDK_ROOT` as this app's own process sees them. On macOS an app started from the Dock does not
+    /// inherit the variables of a shell, so an unset value is only a hint (the finding is a note, not a warning).
     pub android_home: Option<String>,
+    /// How long one scan may take before it stops and says so. `None` = 8 seconds.
+    pub budget: Option<std::time::Duration>,
 }
 
 impl Env {
     pub fn from_process() -> Env {
         let get = |k: &str| std::env::var(k).ok().filter(|v| !v.is_empty());
-        Env { android_home: get("ANDROID_HOME").or_else(|| get("ANDROID_SDK_ROOT")) }
+        Env { android_home: get("ANDROID_HOME").or_else(|| get("ANDROID_SDK_ROOT")), budget: None }
     }
 }
 
@@ -140,13 +144,18 @@ pub fn scan(root: &Path) -> Report {
 }
 
 pub fn scan_with(root: &Path, env: &Env) -> Report {
+    let deadline = std::time::Instant::now() + env.budget.unwrap_or(DEFAULT_BUDGET);
     let (bases, notes) = walk::find_projects(root);
     let mut report = Report { detected: !bases.is_empty(), data: reviewed(), ..Report::default() };
     report.skipped.extend(notes.iter().map(|n| n.to_string()));
     for base in bases {
-        let mut cx = Ctx::new(root, &base, env);
+        let mut cx = Ctx::new(root, &base, env, deadline);
         cx.run();
-        report.skipped.append(&mut cx.skipped);
+        for s in std::mem::take(&mut cx.skipped) {
+            if !report.skipped.contains(&s) {
+                report.skipped.push(s);
+            }
+        }
         report.projects.push(cx.project);
     }
     report
@@ -161,6 +170,8 @@ pub(crate) struct Ctx<'a> {
     pub pkg: Pkg,
     pub project: Project,
     pub skipped: Vec<String>,
+    deadline: std::time::Instant,
+    bytes: u64,
 }
 
 /// What `package.json` says that matters here.
@@ -188,10 +199,26 @@ impl Pkg {
 }
 
 pub(crate) const CAP: u64 = 4 * 1024 * 1024;
+const MAX_FINDINGS: usize = 400;
+const MAX_PER_CHECK: usize = 25;
+const DEFAULT_BUDGET: std::time::Duration = std::time::Duration::from_secs(5);
+/// Together the files one project reads: a repository of many files near the per-file cap cannot make a scan read gigabytes.
+const MAX_PROJECT_BYTES: u64 = 96 * 1024 * 1024;
 
 impl<'a> Ctx<'a> {
-    fn new(root: &'a Path, base: &str, env: &'a Env) -> Ctx<'a> {
-        Ctx { root, base: base.to_string(), env, files: walk::collect(root, base), pkg: Pkg::default(), project: Project { path: base.to_string(), ..Project::default() }, skipped: Vec::new() }
+    fn new(root: &'a Path, base: &str, env: &'a Env, deadline: std::time::Instant) -> Ctx<'a> {
+        let files = walk::collect(root, base);
+        let skipped = files.truncated_dirs.iter().map(|d| format!("listingTruncated:{}", if base.is_empty() { d.clone() } else { format!("{base}/{d}") })).collect();
+        Ctx { root, base: base.to_string(), env, files, pkg: Pkg::default(), project: Project { path: base.to_string(), ..Project::default() }, skipped, deadline, bytes: 0 }
+    }
+
+    /// Whether the time or the reading budget of this scan is spent; says so once in the report.
+    pub fn over_budget(&mut self) -> bool {
+        let over = std::time::Instant::now() >= self.deadline || self.bytes > MAX_PROJECT_BYTES;
+        if over && !self.skipped.iter().any(|s| s == "stoppedEarly") {
+            self.skipped.push("stoppedEarly".to_string());
+        }
+        over
     }
 
     /// The display path (relative to the repository root) of a path relative to the project.
@@ -213,8 +240,14 @@ impl<'a> Ctx<'a> {
     }
 
     pub fn read_cap(&mut self, rel: &str, cap: u64) -> Option<String> {
+        if self.over_budget() {
+            return None;
+        }
         match safefs::read(self.root, &self.abs_rel(rel), cap) {
-            Ok(t) => Some(t),
+            Ok(t) => {
+                self.bytes += t.len() as u64;
+                Some(t)
+            }
             Err(Fail::Missing) | Err(Fail::Outside) => None,
             Err(Fail::TooLarge) => {
                 self.skipped.push(format!("tooLarge:{}", self.path(rel)));
@@ -241,7 +274,7 @@ impl<'a> Ctx<'a> {
             Some((f, l)) => (Some(self.path(f)), Some(l)),
             None => (None, None),
         };
-        self.project.facts.push(Fact { key, value: value.into(), file, line });
+        self.project.facts.push(Fact { key, value: clean(&value.into()), file, line });
     }
 
     pub fn fact_value(&self, key: &str) -> Option<&str> {
@@ -255,15 +288,22 @@ impl<'a> Ctx<'a> {
             Some((f, l)) => (Some(self.path(f)), (l > 0).then_some(l)),
             None => (None, None),
         };
-        let params = params.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
+        let params = params.iter().map(|(k, v)| (k.to_string(), clean(v))).collect();
+        let file = file.map(|f| clean(&f));
+        let prompt = scrub(&prompt);
+        // a hostile file can make one check fire thousands of times: keep the first few of each and a bounded total
+        if self.project.findings.len() >= MAX_FINDINGS || self.project.findings.iter().filter(|f| f.id == id).count() >= MAX_PER_CHECK {
+            return;
+        }
         let platform = id.split('.').next().unwrap_or("cross");
         let platform = ["ios", "android", "expo", "env"].into_iter().find(|p| *p == platform).unwrap_or("cross");
         self.project.findings.push(Finding { id, platform, severity, file, line, confidence, params, prompt });
     }
 
     pub fn check(&mut self, id: &'static str, platform: &'static str, status: Status, file: Option<&str>, params: &[(&str, &str)], prompt: Option<String>) {
-        let file = file.map(|f| self.path(f));
-        let params = params.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
+        let file = file.map(|f| clean(&self.path(f)));
+        let params = params.iter().map(|(k, v)| (k.to_string(), clean(v))).collect();
+        let prompt = prompt.map(|p| scrub(&p));
         self.project.checklist.push(ChecklistItem { id, platform, status, file, params, prompt });
     }
 
@@ -296,14 +336,16 @@ impl<'a> Ctx<'a> {
         self.project.expo = self.pkg.has("expo");
         self.project.flutter = self.is_file("pubspec.yaml");
         let perms = perm::collect(self);
-        if self.project.ios {
+        if self.project.ios && !self.over_budget() {
             ios::run(self, &perms);
         }
-        if self.project.android {
+        if self.project.android && !self.over_budget() {
             android::run(self, &perms);
         }
-        cross::run(self);
-        store::run(self);
+        if !self.over_budget() {
+            cross::run(self);
+            store::run(self);
+        }
         self.project.findings.sort_by(|a, b| a.severity.cmp(&b.severity).then(a.id.cmp(b.id)).then(a.file.cmp(&b.file)));
     }
 
@@ -321,21 +363,38 @@ impl<'a> Ctx<'a> {
         let Some(text) = self.read("package.json") else { return };
         let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) else { return };
         self.pkg.found = true;
-        self.pkg.version = v.get("version").and_then(|x| x.as_str()).map(str::to_string);
+        self.pkg.version = v.get("version").and_then(|x| x.as_str()).map(clean);
         for k in ["dependencies", "devDependencies", "peerDependencies"] {
             if let Some(o) = v.get(k).and_then(|x| x.as_object()) {
                 for (name, ver) in o {
-                    self.pkg.deps.entry(name.clone()).or_insert_with(|| ver.as_str().unwrap_or("").to_string());
+                    self.pkg.deps.entry(clean(name)).or_insert_with(|| clean(ver.as_str().unwrap_or("")));
                 }
             }
         }
     }
 }
 
-/// Quote a repository path for a prompt: no line breaks or backticks that could end the quote.
+/// Characters that have no business in a name or a value read from a repository: controls, line and paragraph separators, bidi
+/// overrides, zero-width and "tag" characters (the usual carriers of hidden text for a model).
+fn hidden(c: char) -> bool {
+    c.is_control()
+        || matches!(c, '\u{00AD}' | '\u{061C}' | '\u{180E}' | '\u{200B}'..='\u{200F}' | '\u{2028}'..='\u{202E}' | '\u{2060}'..='\u{2064}' | '\u{2066}'..='\u{2069}' | '\u{FEFF}' | '\u{FFF9}'..='\u{FFFB}' | '\u{E0000}'..='\u{E007F}')
+}
+
+/// A value read from a repository, made safe to show and to put into a prompt: one line, no backticks, no hidden characters, at
+/// most 200 characters. Every reader runs what it extracts through this, so a value that reaches a finding is already clean.
+pub(crate) fn clean(s: &str) -> String {
+    s.chars().filter(|c| *c != '`').take(200).map(|c| if hidden(c) { ' ' } else { c }).collect()
+}
+
+/// The last line of defence for a whole prompt: no hidden characters or line breaks whatever was interpolated, and a length cap.
+fn scrub(s: &str) -> String {
+    s.chars().take(3000).map(|c| if hidden(c) { ' ' } else { c }).collect()
+}
+
+/// Quote a repository value or path for a prompt.
 pub(crate) fn q(s: &str) -> String {
-    let clean: String = s.chars().filter(|c| !c.is_control() && *c != '`').take(200).collect();
-    format!("`{clean}`")
+    format!("`{}`", clean(s))
 }
 
 #[cfg(test)]
@@ -353,6 +412,11 @@ mod tests {
 
     #[test]
     fn quoting_strips_what_could_break_a_prompt() {
-        assert_eq!(q("a`b\nc"), "`abc`");
+        assert_eq!(q("a`b\nc"), "`ab c`");
+        let hostile = format!("x\u{202e}\u{200b}\u{e0041}\r\n```{}", "y".repeat(500));
+        let c = clean(&hostile);
+        assert!(!c.contains(['\n', '\r', '`', '\u{202e}', '\u{200b}', '\u{e0041}']) && c.chars().count() == 200);
+        assert_eq!(scrub("a\nb\u{202e}c"), "a b c");
+        assert_eq!(scrub(&"z".repeat(9000)).len(), 3000);
     }
 }

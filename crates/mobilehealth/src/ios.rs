@@ -1,6 +1,6 @@
 //! iOS checks: the Xcode project (`project.pbxproj`), `Info.plist`, entitlements, the Podfile and its lock files.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 
 use crate::data::cmp_version;
 use crate::openstep::{self, Node};
@@ -62,17 +62,35 @@ impl Model {
     }
 }
 
-fn cfgs_of(objects: &Node, list_id: &str) -> Vec<Cfg> {
+/// The objects of the project by id. `Node::get` is a linear search, and a project file lists thousands of ids.
+struct Objects<'a>(HashMap<&'a str, &'a Node>);
+
+impl<'a> Objects<'a> {
+    fn new(objects: &'a Node) -> Self {
+        Objects(objects.entries().iter().map(|(k, n)| (k.as_str(), n)).collect())
+    }
+    fn get(&self, id: &str) -> Option<&'a Node> {
+        self.0.get(id).copied()
+    }
+}
+
+/// Real projects have a handful of configurations per list, targets per project and settings per configuration; a file that has
+/// thousands is hostile, and only the first of them are read (so the work stays linear).
+const MAX_CONFIGS: usize = 32;
+const MAX_TARGETS: usize = 64;
+const MAX_SETTINGS: usize = 4000;
+
+fn cfgs_of(objects: &Objects, list_id: &str) -> Vec<Cfg> {
     let Some(list) = objects.get(list_id) else { return Vec::new() };
     let mut out = Vec::new();
-    for id in list.get("buildConfigurations").map(Node::items).unwrap_or(&[]) {
+    for id in list.get("buildConfigurations").map(Node::items).unwrap_or(&[]).iter().take(MAX_CONFIGS) {
         let Some(c) = id.str().and_then(|i| objects.get(i)) else { continue };
         if c.gets("isa") != Some("XCBuildConfiguration") {
             continue;
         }
         let bs = c.get("buildSettings");
         let settings = bs
-            .map(|b| b.entries().iter().filter_map(|(k, n)| n.str().map(|v| Setting { key: k.clone(), value: v.to_string(), line: n.line })).collect())
+            .map(|b| b.entries().iter().take(MAX_SETTINGS).filter_map(|(k, n)| n.str().map(|v| Setting { key: k.clone(), value: v.to_string(), line: n.line })).collect())
             .unwrap_or_default();
         let custom_base = c
             .gets("baseConfigurationReference")
@@ -85,11 +103,12 @@ fn cfgs_of(objects: &Node, list_id: &str) -> Vec<Cfg> {
 }
 
 fn model(root: &Node) -> Option<Model> {
-    let objects = root.get("objects")?;
+    let objects = Objects::new(root.get("objects")?);
+    let objects = &objects;
     let project = objects.get(root.gets("rootObject")?)?;
     let proj_cfgs = project.gets("buildConfigurationList").map(|l| cfgs_of(objects, l)).unwrap_or_default();
     let mut targets = Vec::new();
-    for id in project.get("targets").map(Node::items).unwrap_or(&[]) {
+    for id in project.get("targets").map(Node::items).unwrap_or(&[]).iter().take(MAX_TARGETS) {
         let Some(t) = id.str().and_then(|i| objects.get(i)) else { continue };
         if t.gets("isa") != Some("PBXNativeTarget") {
             continue;
@@ -215,10 +234,11 @@ fn project_checks(
                     &[("target", &t.name)],
                     format!("In {} the app target {} has no PRODUCT_BUNDLE_IDENTIFIER in its {release_name} build settings. Ask me which bundle identifier the app uses (do not invent one), set it in every build configuration of the target and change nothing else.", q(&cx.path(file)), q(&t.name)),
                 ),
-                Some(s) if literal(&s.value) => {
-                    if std::ptr::eq(t, apps[0]) {
+                Some(s) => {
+                    if std::ptr::eq(t, apps[0]) && literal(&s.value) {
                         cx.fact("ios.bundleId", s.value.clone(), Some((file, s.line)));
                     }
+                    // the stock React Native id ends in a variable, so it is matched by its start
                     if PLACEHOLDER_IDS.iter().any(|p| s.value.starts_with(p)) {
                         cx.add(
                             "ios.bundleId.placeholder",
@@ -230,7 +250,7 @@ fn project_checks(
                         );
                     }
                 }
-                _ => {}
+                None => {}
             }
             let distinct: BTreeSet<&str> = ids.iter().filter(|(_, s)| literal(&s.value)).map(|(_, s)| s.value.as_str()).collect();
             if distinct.len() > 1 {

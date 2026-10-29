@@ -69,6 +69,8 @@ pub(crate) fn find_projects(root: &Path) -> (Vec<String>, Vec<&'static str>) {
 pub(crate) struct Files {
     /// Every file below the project, as a path relative to it.
     pub files: Vec<String>,
+    /// Folders (relative to the project) that had more entries than could be looked at.
+    pub truncated_dirs: Vec<String>,
     pub dirs: BTreeSet<String>,
     pub truncated: bool,
 }
@@ -95,7 +97,7 @@ pub(crate) fn collect(root: &Path, base: &str) -> Files {
     };
     let top = safefs::list(root, base).unwrap_or_default();
     let native_root = !top.iter().any(|(n, e)| e.is_dir() && (n == "ios" || n == "android"));
-    let mut out = Files { files: Vec::new(), dirs: BTreeSet::new(), truncated: false };
+    let mut out = Files { files: Vec::new(), truncated_dirs: Vec::new(), dirs: BTreeSet::new(), truncated: false };
     let mut queue = std::collections::VecDeque::from([(String::new(), 0usize)]);
     let mut visited = 0usize;
     while let Some((rel, depth)) = queue.pop_front() {
@@ -104,7 +106,10 @@ pub(crate) fn collect(root: &Path, base: &str) -> Files {
             out.truncated = true;
             break;
         }
-        let Ok(entries) = safefs::list(root, &join(base, &rel)) else { continue };
+        let Ok((entries, cut)) = safefs::list_full(root, &join(base, &rel)) else { continue };
+        if cut && out.truncated_dirs.len() < 20 {
+            out.truncated_dirs.push(rel.clone());
+        }
         for (name, e) in entries {
             let child = join(&rel, &name);
             match e {

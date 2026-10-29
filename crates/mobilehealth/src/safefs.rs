@@ -49,11 +49,67 @@ pub(crate) fn stat(root: &Path, rel: &str) -> Entry {
     imp::stat(root, rel)
 }
 
-/// The names in the folder `rel` ("" = the repository root) with what each is. At most `MAX_ENTRIES`, sorted by name.
-pub(crate) fn list(root: &Path, rel: &str) -> Result<Vec<(String, Entry)>, Fail> {
-    let mut v = imp::list(root, rel)?;
+/// The names in the folder `rel` ("" = the repository root) with what each is, sorted by name, and whether the folder had more
+/// than could be looked at. At most `MAX_ENTRIES` names are looked at, but the well-known project files are always among them:
+/// a hostile folder of thousands of names must not be able to hide `build.gradle` or `Info.plist` and so cause a false "missing".
+pub(crate) fn list_full(root: &Path, rel: &str) -> Result<(Vec<(String, Entry)>, bool), Fail> {
+    let (mut v, truncated) = imp::list(root, rel)?;
     v.sort_by(|a, b| a.0.cmp(&b.0));
-    Ok(v)
+    Ok((v, truncated))
+}
+
+pub(crate) fn list(root: &Path, rel: &str) -> Result<Vec<(String, Entry)>, Fail> {
+    list_full(root, rel).map(|l| l.0)
+}
+
+/// Names of files and folders that the checks look for by name.
+fn priority(name: &str) -> bool {
+    matches!(
+        name,
+        "package.json" | "app.json" | "pubspec.yaml" | "Podfile" | "Podfile.lock" | "Podfile.properties.json" | "Pods" | "ios" | "android" | "app" | "src" | "main" | "res" | "fastlane" | "gradle" | "gradlew" | "build.gradle" | "build.gradle.kts" | "settings.gradle" | "settings.gradle.kts" | "gradle.properties" | "local.properties" | "libs.versions.toml" | "gradle-wrapper.properties" | "wrapper" | "AndroidManifest.xml" | "Info.plist" | "project.pbxproj" | "PrivacyInfo.xcprivacy" | "Contents.json" | ".xcode.env" | ".gitignore" | "Manifest.lock"
+    ) || name.starts_with("app.config.")
+        || name.starts_with(".env")
+        || name.starts_with("mipmap")
+        || name.starts_with("LaunchScreen")
+        || name.starts_with("ic_launcher")
+        || (name.len() < 64 && [".xcodeproj", ".xcassets", ".appiconset", ".entitlements", ".storyboard"].iter().any(|e| name.ends_with(e)))
+}
+
+/// Keeps every priority name and the first `MAX_ENTRIES` others, without remembering more than that of a folder of millions.
+struct Picker {
+    prio: Vec<String>,
+    rest: Vec<String>,
+    seen: usize,
+    truncated: bool,
+}
+
+/// More names than this are not even counted.
+const MAX_SEEN: usize = 2_000_000;
+
+impl Picker {
+    fn new() -> Picker {
+        Picker { prio: Vec::new(), rest: Vec::new(), seen: 0, truncated: false }
+    }
+    /// `false` = stop feeding names.
+    fn push(&mut self, name: String) -> bool {
+        self.seen += 1;
+        if self.seen > MAX_SEEN {
+            self.truncated = true;
+            return false;
+        }
+        if priority(&name) && self.prio.len() < 2000 {
+            self.prio.push(name);
+        } else if self.rest.len() < MAX_ENTRIES {
+            self.rest.push(name);
+        } else {
+            self.truncated = true;
+        }
+        true
+    }
+    fn names(mut self) -> (Vec<String>, bool) {
+        self.prio.append(&mut self.rest);
+        (self.prio, self.truncated)
+    }
 }
 
 fn parts_of(rel: &str) -> Result<Vec<&str>, Fail> {
@@ -131,24 +187,31 @@ mod imp {
         statat(&dir, name, AtFlags::SYMLINK_NOFOLLOW).map_or(Entry::Missing, |st| entry_of(&st))
     }
 
-    pub(super) fn list(root: &Path, rel: &str) -> Result<Vec<(String, Entry)>, Fail> {
+    pub(super) fn list(root: &Path, rel: &str) -> Result<(Vec<(String, Entry)>, bool), Fail> {
         let parts = parts_of(rel)?;
         let dir = dir_of(root, &parts)?;
         let handle = dir.try_clone().map_err(|_| Fail::Io)?;
-        let mut out = Vec::new();
+        let mut picker = Picker::new();
         for item in Dir::new(handle).map_err(fail_of)? {
             let Ok(item) = item else { continue };
             let name = item.file_name().to_string_lossy().into_owned();
             if name == "." || name == ".." {
                 continue;
             }
-            if out.len() >= MAX_ENTRIES {
+            if !picker.push(name) {
                 break;
             }
-            let kind = statat(&dir, item.file_name(), AtFlags::SYMLINK_NOFOLLOW).map_or(Entry::Missing, |st| entry_of(&st));
-            out.push((name, kind));
         }
-        Ok(out)
+        let (names, truncated) = picker.names();
+        // only the names that were kept are looked at one by one
+        let out = names
+            .into_iter()
+            .map(|name| {
+                let kind = statat(&dir, name.as_str(), AtFlags::SYMLINK_NOFOLLOW).map_or(Entry::Missing, |st| entry_of(&st));
+                (name, kind)
+            })
+            .collect();
+        Ok((out, truncated))
     }
 }
 
@@ -212,18 +275,24 @@ mod imp {
         }
     }
 
-    pub(super) fn list(root: &Path, rel: &str) -> Result<Vec<(String, Entry)>, Fail> {
+    pub(super) fn list(root: &Path, rel: &str) -> Result<(Vec<(String, Entry)>, bool), Fail> {
         let parts = parts_of(rel)?;
         let full = clean_path(root, &parts)?;
-        let mut out = Vec::new();
-        for item in fs::read_dir(full).map_err(|_| Fail::Io)?.flatten() {
-            if out.len() >= MAX_ENTRIES {
+        let mut picker = Picker::new();
+        for item in fs::read_dir(&full).map_err(|_| Fail::Io)?.flatten() {
+            if !picker.push(item.file_name().to_string_lossy().into_owned()) {
                 break;
             }
-            let kind = fs::symlink_metadata(item.path()).map_or(Entry::Missing, |m| entry_of(&m));
-            out.push((item.file_name().to_string_lossy().into_owned(), kind));
         }
-        Ok(out)
+        let (names, truncated) = picker.names();
+        let out = names
+            .into_iter()
+            .map(|name| {
+                let kind = fs::symlink_metadata(full.join(&name)).map_or(Entry::Missing, |m| entry_of(&m));
+                (name, kind)
+            })
+            .collect();
+        Ok((out, truncated))
     }
 }
 
@@ -252,6 +321,23 @@ mod tests {
             let names: Vec<String> = list(d.path(), "").unwrap().into_iter().map(|e| e.0).collect();
             assert_eq!(names, vec!["a.txt", "dir", "l.txt"]);
             assert_eq!(list(d.path(), "dir"), Err(Fail::Outside));
+        }
+    }
+
+    #[test]
+    fn a_crowded_folder_keeps_the_well_known_names_and_says_it_was_cut() {
+        let d = tempfile::tempdir().unwrap();
+        for i in 0..(MAX_ENTRIES + 500) {
+            std::fs::write(d.path().join(format!("a{i:06}")), b"").unwrap();
+        }
+        for f in ["build.gradle", "Info.plist", "Podfile", "zzz.xcodeproj"] {
+            std::fs::write(d.path().join(f), b"").unwrap();
+        }
+        let (v, truncated) = list_full(d.path(), "").unwrap();
+        assert!(truncated);
+        assert!(v.len() <= MAX_ENTRIES + 2000);
+        for f in ["build.gradle", "Info.plist", "Podfile", "zzz.xcodeproj"] {
+            assert!(v.iter().any(|e| e.0 == f), "{f} was hidden");
         }
     }
 }

@@ -52,7 +52,7 @@ fn expo(cx: &mut Ctx) {
     }
     let Some(app) = cx.pkg.app_json.clone() else { return };
     let Some(e) = app.get("expo") else { return };
-    let s = |p: &str| e.pointer(p).and_then(|v| v.as_str().map(str::to_string).or_else(|| v.as_u64().map(|n| n.to_string())));
+    let s = |p: &str| e.pointer(p).and_then(|v| v.as_str().map(crate::clean).or_else(|| v.as_u64().map(|n| n.to_string())));
     let comparisons = [
         ("expo.version", s("/version"), "ios.version", "android.versionName", "expo.version.drift"),
         ("expo.ios.buildNumber", s("/ios/buildNumber"), "ios.build", "", "expo.version.drift"),

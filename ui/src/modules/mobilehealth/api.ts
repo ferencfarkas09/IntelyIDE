@@ -9,13 +9,13 @@ import type { RepoHealth } from "./types";
 export interface MobileHealthApi {
   /** The ids of the repositories that hold an iOS or Android project (cheap: looks at folder names). */
   detect(): Promise<string[]>;
-  /** The report of every such repository. */
-  scan(): Promise<RepoHealth[]>;
+  /** The report of one repository, or `null` when it holds no mobile project. One call per repository: a slow one holds up no other. */
+  scan(repoId: string): Promise<RepoHealth | null>;
 }
 
 const tauriApi: MobileHealthApi = {
   detect: () => call("mobilehealth_detect"),
-  scan: () => call("mobilehealth_scan"),
+  scan: (repoId) => call("mobilehealth_scan_repo", { repoId }),
 };
 
 let override: MobileHealthApi | undefined;
@@ -90,6 +90,6 @@ export function createMockMobileHealth(repoIds: () => string[]): MobileHealthApi
   const first = (): string[] => repoIds().slice(0, 1);
   return {
     detect: async () => first(),
-    scan: async () => first().map(sampleReport),
+    scan: async (repoId) => (first().includes(repoId) ? sampleReport(repoId) : null),
   };
 }

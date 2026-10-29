@@ -42,6 +42,8 @@
   "mobilehealth.skipped.notRegular": "{file} is not a plain file (a link or a special file) and was not opened.",
   "mobilehealth.skipped.unreadable": "{file} could not be understood and was skipped.",
   "mobilehealth.skipped.stoppedSearching": "The search for projects stopped early because the repository has very many folders.",
+  "mobilehealth.skipped.stoppedEarly": "The scan of this repository stopped early because it took too long (a very large or unusual repository). What is shown may be incomplete.",
+  "mobilehealth.skipped.listingTruncated": "The folder {file} has so many entries that only some of them were looked at.",
   "mobilehealth.skipped.tooManyProjects": "Only the first projects of this repository are shown.",
   "mobilehealth.fact.ios.version": "iOS version",
   "mobilehealth.fact.ios.build": "iOS build number",

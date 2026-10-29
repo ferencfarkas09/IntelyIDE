@@ -2,7 +2,7 @@
   "reviewed": "2026-10-29",
   "note": "Drafted from the published Android Gradle plugin release notes (developer.android.com/build/releases/about-agp). Offline on purpose: the table is only as new as this date, so a version missing from it is reported as unknown, never as wrong.",
   "agpMinGradle": [
-    { "agp": "7.0", "gradle": "7.0" },
+    { "agp": "7.0", "gradle": "7.0.2" },
     { "agp": "7.1", "gradle": "7.2" },
     { "agp": "7.2", "gradle": "7.3.3" },
     { "agp": "7.3", "gradle": "7.4" },

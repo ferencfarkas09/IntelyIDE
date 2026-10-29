@@ -87,7 +87,7 @@
   },
   {
    "id": "android.signing.releaseUsesDebug",
-   "severity": "error"
+   "severity": "warn"
   },
   {
    "id": "android.version.codeInvalid",

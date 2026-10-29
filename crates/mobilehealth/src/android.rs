@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 use std::ops::Range;
 
 use crate::data::{self, cmp_version};
-use crate::gradle::{blocks, children, line_of, literal, number, number_after_name, properties, reference_name, settings, strip_comments};
+use crate::gradle::{blocks, children, literal, Lines, number, number_after_name, properties, reference_name, settings, strip_comments};
 use crate::perm::{self, Perms};
 use crate::xml::{self, Tok};
 use crate::{q, Confidence, Ctx, Severity};
@@ -30,6 +30,7 @@ const SENSITIVE: &[&str] = &[
 struct Script {
     rel: String,
     clean: String,
+    lines: Lines,
 }
 
 fn dir_of(rel: &str) -> &str {
@@ -57,6 +58,14 @@ fn norm(base: &str, rel: &str) -> Option<String> {
         }
     }
     Some(parts.join("/"))
+}
+
+/// Whether a build script applies the Android application plugin to itself: `Some(true)` for the stock plugin, `Some(false)` for a
+/// plugin of someone's own (a convention plugin, which may set the SDK levels and the namespace where this script cannot see them).
+/// The root script of the stock templates only declares the plugin (`apply false`) for the modules, and is not a module.
+fn application_plugin(clean: &str) -> Option<bool> {
+    let line = clean.lines().find(|l| l.contains("android.application") && !l.contains("apply false"))?;
+    Some(line.contains("com.android.application") || line.contains("libs.plugins.android.application"))
 }
 
 fn plugin_version(root: &str, toml: Option<&str>) -> Option<String> {
@@ -100,7 +109,8 @@ pub(crate) fn run(cx: &mut Ctx, perms: &Perms) {
     let names: Vec<String> = cx.files.files.iter().filter(|f| matches!(f.rsplit('/').next(), Some("build.gradle" | "build.gradle.kts"))).take(40).cloned().collect();
     for rel in names {
         if let Some(t) = cx.read(&rel) {
-            scripts.push(Script { clean: strip_comments(&t), rel });
+            let clean = strip_comments(&t);
+            scripts.push(Script { lines: Lines::new(&clean), clean, rel });
         }
     }
     // the folder of the Gradle build: the shallowest one with a settings script, else with a build script
@@ -113,7 +123,9 @@ pub(crate) fn run(cx: &mut Ctx, perms: &Perms) {
     let props = props_text.as_deref().map(properties).unwrap_or_default();
     let prop = |k: &str| props.iter().find(|p| p.0 == k);
     let toml = cx.read(&at(&root_dir, "gradle/libs.versions.toml"));
-    let agp = plugin_version(&root_script, toml.as_deref());
+    // Flutter and some templates declare the plugin version in settings.gradle(.kts)
+    let settings_script = ["settings.gradle", "settings.gradle.kts"].iter().find_map(|n| cx.read(&at(&root_dir, n))).map(|t| strip_comments(&t)).unwrap_or_default();
+    let agp = plugin_version(&root_script, toml.as_deref()).or_else(|| plugin_version(&settings_script, None));
     if let Some(v) = &agp {
         cx.fact("android.agp", v.clone(), None);
     }
@@ -149,11 +161,12 @@ pub(crate) fn run(cx: &mut Ctx, perms: &Perms) {
     }
 
     // app modules
-    let ext_source = format!("{root_script}\n{}", scripts.iter().map(|s| s.clean.as_str()).collect::<Vec<_>>().join("\n"));
     let mut first_module = true;
-    let modules: Vec<&Script> = scripts.iter().filter(|s| s.clean.contains("com.android.application") || s.clean.contains("android.application")).take(MAX_MODULES).collect();
-    for s in modules {
-        module(cx, s, &root_dir, &ext_source, agp.as_deref(), &props, perms, first_module);
+    let modules: Vec<(&Script, bool)> = scripts.iter().filter_map(|s| application_plugin(&s.clean).filter(|_| !blocks(&s.clean, 0..s.clean.len(), "android").is_empty()).map(|std| (s, std))).take(MAX_MODULES).collect();
+    for (s, standard) in modules {
+        // SDK levels are usually written once in the root script's `ext` block; the module's own text comes second
+        let ext_source = format!("{root_script}\n{}", s.clean);
+        module(cx, s, &root_dir, &ext_source, agp.as_deref(), &props, perms, first_module, standard);
         first_module = false;
     }
     keystores(cx);
@@ -249,7 +262,7 @@ fn plaintext(cx: &mut Ctx, file: &str, line: u32, key: &str, place: &str) {
 }
 
 #[allow(clippy::too_many_arguments)]
-fn module(cx: &mut Ctx, s: &Script, root_dir: &str, ext_source: &str, agp: Option<&str>, props: &[(String, String, u32)], perms: &Perms, primary: bool) {
+fn module(cx: &mut Ctx, s: &Script, root_dir: &str, ext_source: &str, agp: Option<&str>, props: &[(String, String, u32)], perms: &Perms, primary: bool, standard: bool) {
     let dir = dir_of(&s.rel).to_string();
     let t = &s.clean;
     let android: Range<usize> = blocks(t, 0..t.len(), "android").into_iter().next().unwrap_or(0..0);
@@ -257,7 +270,7 @@ fn module(cx: &mut Ctx, s: &Script, root_dir: &str, ext_source: &str, agp: Optio
     let value = |keys: &[&str]| -> (Option<u32>, bool, u32) {
         // (resolved number, written at all, line)
         let Some((raw, off)) = one(keys) else { return (None, false, 0) };
-        let line = line_of(t, off);
+        let line = s.lines.of(off);
         if let Some(n) = number(&raw) {
             return (Some(n), true, line);
         }
@@ -282,11 +295,13 @@ fn module(cx: &mut Ctx, s: &Script, root_dir: &str, ext_source: &str, agp: Optio
             }
         }
     }
+    // with a plugin of the project's own, the level may be set where this script cannot see it: only a note then
+    let if_standard = |sev: Severity| if standard { sev } else { Severity::Info };
     if !compile_set {
         cx.add(
             "android.sdk.compileMissing",
-            Severity::Error,
-            Some((&s.rel, if android.is_empty() { 0 } else { line_of(t, android.start) })),
+            if_standard(Severity::Error),
+            Some((&s.rel, if android.is_empty() { 0 } else { s.lines.of(android.start) })),
             None,
             &[],
             format!("{} does not set compileSdk, so Gradle cannot build the module. Add `compileSdk` to the android block, using the same value as the rest of the project (look at targetSdk and the root build.gradle) and tell me which level you chose.", q(&cx.path(&s.rel))),
@@ -319,8 +334,8 @@ fn module(cx: &mut Ctx, s: &Script, root_dir: &str, ext_source: &str, agp: Optio
     if !target_set && !android.is_empty() {
         cx.add(
             "android.sdk.targetMissing",
-            Severity::Warn,
-            Some((&s.rel, line_of(t, android.start))),
+            if_standard(Severity::Warn),
+            Some((&s.rel, s.lines.of(android.start))),
             None,
             &[],
             format!("{} does not set targetSdk, so the app behaves as if it targets its minSdk and the Play Store will refuse the upload. Add targetSdk to defaultConfig; ask me which level I want (normally the same as compileSdk). Check the current Play requirement before choosing.", q(&cx.path(&s.rel))),
@@ -328,24 +343,24 @@ fn module(cx: &mut Ctx, s: &Script, root_dir: &str, ext_source: &str, agp: Optio
     }
 
     // namespace and application id
-    let ns = one(&["namespace"]).and_then(|(raw, off)| literal(&raw).map(|v| (v, line_of(t, off))));
+    let ns = one(&["namespace"]).and_then(|(raw, off)| literal(&raw).map(|v| (v, s.lines.of(off))));
     if ns.is_none() && one(&["namespace"]).is_none() {
         let major = agp.and_then(|a| a.split('.').next()).and_then(|m| m.parse::<u32>().ok());
         let sev = match major {
-            Some(m) if m >= 8 => Severity::Error,
+            Some(m) if m >= 8 => if_standard(Severity::Error),
             Some(_) => Severity::Info,
-            None => Severity::Warn,
+            None => if_standard(Severity::Warn),
         };
         cx.add(
             "android.namespace.missing",
             sev,
-            Some((&s.rel, if android.is_empty() { 0 } else { line_of(t, android.start) })),
+            Some((&s.rel, if android.is_empty() { 0 } else { s.lines.of(android.start) })),
             None,
             &[],
             format!("{} has no namespace. Android Gradle plugin 8 and newer refuse to build without one (older versions took the package from AndroidManifest.xml). Add `namespace \"<package>\"` to the android block using the package that is at the top of the Kotlin/Java sources (and in the manifest's package attribute if there is one); do not change applicationId.", q(&cx.path(&s.rel))),
         );
     }
-    let app_id = one(&["applicationId"]).and_then(|(raw, off)| literal(&raw).map(|v| (v, line_of(t, off))));
+    let app_id = one(&["applicationId"]).and_then(|(raw, off)| literal(&raw).map(|v| (v, s.lines.of(off))));
     if primary {
         if let Some((id, l)) = app_id.as_ref().or(ns.as_ref()) {
             cx.fact("android.applicationId", id.clone(), Some((&s.rel, *l)));
@@ -381,13 +396,13 @@ fn module(cx: &mut Ctx, s: &Script, root_dir: &str, ext_source: &str, agp: Optio
     if let Some((raw, off)) = &code {
         if let Some(n) = number(raw) {
             if primary {
-                cx.fact("android.versionCode", n.to_string(), Some((&s.rel, line_of(t, *off))));
+                cx.fact("android.versionCode", n.to_string(), Some((&s.rel, s.lines.of(*off))));
             }
             if n == 0 || n > 2_100_000_000 {
                 cx.add(
                     "android.version.codeInvalid",
                     Severity::Error,
-                    Some((&s.rel, line_of(t, *off))),
+                    Some((&s.rel, s.lines.of(*off))),
                     None,
                     &[("versionCode", &n.to_string())],
                     format!("versionCode {n} in {} is outside what the Play Store accepts (1 to 2,100,000,000). Ask me what the last published versionCode is and set the next higher whole number.", q(&cx.path(&s.rel))),
@@ -398,7 +413,7 @@ fn module(cx: &mut Ctx, s: &Script, root_dir: &str, ext_source: &str, agp: Optio
     if let Some((raw, off)) = &name {
         if let Some(v) = literal(raw) {
             if primary {
-                cx.fact("android.versionName", v, Some((&s.rel, line_of(t, *off))));
+                cx.fact("android.versionName", v, Some((&s.rel, s.lines.of(*off))));
             }
         }
     }
@@ -406,7 +421,7 @@ fn module(cx: &mut Ctx, s: &Script, root_dir: &str, ext_source: &str, agp: Optio
         cx.add(
             "android.version.missing",
             Severity::Info,
-            Some((&s.rel, line_of(t, android.start))),
+            Some((&s.rel, s.lines.of(android.start))),
             None,
             &[],
             format!("{} sets neither versionCode nor versionName, so the app is version 1 on every build and the Play Store will not accept an update. Add both to defaultConfig; ask me for the current version name and the last published versionCode.", q(&cx.path(&s.rel))),
@@ -430,13 +445,13 @@ fn signing(cx: &mut Ctx, s: &Script, android: &Range<usize>, module_dir: &str, r
                             continue;
                         }
                         if !v.is_empty() {
-                            plaintext(cx, &s.rel, line_of(t, off), key, "gradle");
+                            plaintext(cx, &s.rel, s.lines.of(off), key, "gradle");
                         }
                     }
                 }
             }
             let Some((raw, off)) = get("storeFile") else { continue };
-            let line = line_of(t, off);
+            let line = s.lines.of(off);
             // the first quoted literal, or the property named inside file(...)
             let (lit, from_root) = (
                 raw.find(['"', '\'']).and_then(|p| literal(raw[p..].trim_end_matches(')'))),
@@ -481,8 +496,8 @@ fn signing(cx: &mut Ctx, s: &Script, android: &Range<usize>, module_dir: &str, r
                 if raw.contains("signingConfigs.debug") || raw.contains("getByName(\"debug\")") || raw.contains("getByName('debug')") {
                     cx.add(
                         "android.signing.releaseUsesDebug",
-                        Severity::Error,
-                        Some((&s.rel, line_of(t, off))),
+                        Severity::Warn,
+                        Some((&s.rel, s.lines.of(off))),
                         None,
                         &[],
                         format!("The release build type in {} is signed with the debug key. The Play Store rejects such uploads, and an app signed that way can never be updated with the real key. Add a release signing config that reads its keystore path and passwords from environment variables or ~/.gradle/gradle.properties, use it for release, and ask me for the names; do not create a keystore or print any password.", q(&cx.path(&s.rel))),

@@ -24,7 +24,12 @@ pub(crate) fn strip_comments(t: &str) -> String {
                 i += 1;
             }
             None => {
-                if c == b'"' || c == b'\'' {
+                if b[i..].starts_with(b"\"\"\"") || b[i..].starts_with(b"'''") {
+                    // a multi-line string: comment markers inside it are text
+                    let q = &t[i..i + 3];
+                    i += 3;
+                    i = t[i..].find(q).map_or(b.len(), |e| i + e + 3);
+                } else if c == b'"' || c == b'\'' {
                     quote = Some(c);
                     i += 1;
                 } else if c == b'/' && b.get(i + 1) == Some(&b'/') {
@@ -56,8 +61,22 @@ pub(crate) fn strip_comments(t: &str) -> String {
     String::from_utf8(out).unwrap_or_else(|e| String::from_utf8_lossy(e.as_bytes()).into_owned())
 }
 
+#[cfg(test)]
 pub(crate) fn line_of(t: &str, offset: usize) -> u32 {
     1 + t.as_bytes()[..offset.min(t.len())].iter().filter(|c| **c == b'\n').count() as u32
+}
+
+/// Line numbers of byte offsets without counting from the top each time (a file with many findings would otherwise cost a pass over
+/// the whole file per finding).
+pub(crate) struct Lines(Vec<usize>);
+
+impl Lines {
+    pub fn new(t: &str) -> Lines {
+        Lines(t.bytes().enumerate().filter(|(_, c)| *c == b'\n').map(|(i, _)| i).collect())
+    }
+    pub fn of(&self, offset: usize) -> u32 {
+        1 + self.0.partition_point(|nl| *nl < offset) as u32
+    }
 }
 
 /// The end (exclusive) of the `{ ... }` that opens at `open` (a `{`), string-aware; `None` when unbalanced.
@@ -68,6 +87,11 @@ fn matching(t: &str, open: usize) -> Option<usize> {
     let mut i = open;
     while i < b.len() {
         let c = b[i];
+        if quote.is_none() && (b[i..].starts_with(b"\"\"\"") || b[i..].starts_with(b"'''")) {
+            let q = &t[i..i + 3];
+            i = t[i + 3..].find(q).map_or(b.len(), |e| i + 3 + e + 3);
+            continue;
+        }
         match quote {
             Some(q) => {
                 if c == b'\\' {
@@ -199,7 +223,7 @@ pub(crate) fn settings(t: &str, range: Range<usize>, key: &str) -> Vec<(String, 
             continue;
         }
         let value_at = start + lead + (s.len() - after.len());
-        out.push((raw.to_string(), value_at));
+        out.push((crate::clean(raw), value_at));
     }
     out
 }
@@ -208,7 +232,7 @@ pub(crate) fn settings(t: &str, range: Range<usize>, key: &str) -> Vec<(String, 
 pub(crate) fn literal(raw: &str) -> Option<String> {
     let q = raw.chars().next().filter(|c| *c == '"' || *c == '\'')?;
     let inner = raw[1..].strip_suffix(q)?;
-    (!inner.contains(q) && !inner.contains('$') && !inner.contains('\\')).then(|| inner.to_string())
+    (!inner.contains(q) && !inner.contains('$') && !inner.contains('\\')).then(|| crate::clean(inner))
 }
 
 /// Digits only.
@@ -258,7 +282,7 @@ pub(crate) fn properties(t: &str) -> Vec<(String, String, u32)> {
         }
         let sep = l.find(['=', ':']);
         let Some(sep) = sep else { continue };
-        out.push((l[..sep].trim().to_string(), l[sep + 1..].trim().to_string(), n as u32 + 1));
+        out.push((crate::clean(l[..sep].trim()), crate::clean(l[sep + 1..].trim()), n as u32 + 1));
     }
     out
 }
@@ -305,10 +329,34 @@ mod tests {
     }
 
     #[test]
+    fn line_numbers_by_offset_match_counting() {
+        let t = "a\nbb\n\nccc";
+        let l = Lines::new(t);
+        for off in 0..=t.len() {
+            assert_eq!(l.of(off), line_of(t, off), "offset {off}");
+        }
+    }
+
+    #[test]
     fn properties_skip_comments() {
         let p = properties("# c\nnewArchEnabled=true\n\nhermesEnabled : false\n");
         assert_eq!(p[0], ("newArchEnabled".into(), "true".into(), 2));
         assert_eq!(p[1].0, "hermesEnabled");
+    }
+
+    #[test]
+    fn triple_quoted_strings_hide_comment_markers_and_braces() {
+        let t = "a = \"\"\"http://x // not a comment { \"\"\" // real comment\nb {\n}\n";
+        let s = strip_comments(t);
+        assert!(s.contains("http://x // not a comment {") && !s.contains("real comment"));
+        let blocks = blocks(&s, 0..s.len(), "b");
+        assert_eq!(blocks.len(), 1);
+        let unbalanced = format!("x {{ {} }}", "\"\"\"".repeat(10));
+        assert!(blocks_ok(&unbalanced));
+    }
+
+    fn blocks_ok(t: &str) -> bool {
+        blocks(t, 0..t.len(), "x").len() <= 1
     }
 
     #[test]

@@ -42,6 +42,8 @@
   "mobilehealth.skipped.notRegular": "A(z) {file} nem sima fájl (link vagy különleges fájl), ezért nem nyitottuk meg.",
   "mobilehealth.skipped.unreadable": "A(z) {file} nem értelmezhető, ezért kihagytuk.",
   "mobilehealth.skipped.stoppedSearching": "A projektek keresése korán leállt, mert a tárolóban nagyon sok a mappa.",
+  "mobilehealth.skipped.stoppedEarly": "A tároló vizsgálata túl sokáig tartott, ezért korán leállt (nagyon nagy vagy szokatlan tároló). Ami látszik, hiányos lehet.",
+  "mobilehealth.skipped.listingTruncated": "A(z) {file} mappában annyi elem van, hogy csak egy részüket vizsgáltuk.",
   "mobilehealth.skipped.tooManyProjects": "A tároló csak az első projektjei láthatók.",
   "mobilehealth.fact.ios.version": "iOS-verzió",
   "mobilehealth.fact.ios.build": "iOS-buildszám",

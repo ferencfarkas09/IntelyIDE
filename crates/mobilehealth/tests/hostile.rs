@@ -14,7 +14,7 @@ fn put(root: &Path, rel: &str, text: impl AsRef<[u8]>) {
 
 fn scan(root: &Path) -> Report {
     let t = Instant::now();
-    let r = scan_with(root, &Env { android_home: None });
+    let r = scan_with(root, &Env { android_home: None, ..Env::default() });
     assert!(t.elapsed() < Duration::from_secs(20), "scan took {:?}", t.elapsed());
     r
 }
@@ -113,21 +113,42 @@ mod links {
         assert!(!r.projects[0].react_native);
     }
 
-    #[test]
-    fn a_setting_cannot_point_the_reader_out_of_the_project() {
-        let d = base();
-        let secret = tempfile::tempdir().unwrap();
-        put(secret.path(), "Info.plist", "<plist><dict><key>NSCameraUsageDescription</key><string>LEAKMARK</string></dict></plist>");
-        put(d.path(), "ios/Pods/Manifest.lock", "x");
-        let pbx = format!(
+    /// A project whose first app target reads its Info.plist from `plist_path`.
+    fn project_reading(plist_path: &str) -> String {
+        format!(
             "{{ rootObject = P; objects = {{ P = {{ isa = PBXProject; buildConfigurationList = L; targets = ( T ); }}; T = {{ isa = PBXNativeTarget; name = App; productType = \"com.apple.product-type.application\"; buildConfigurationList = TL; }}; \
              TL = {{ isa = XCConfigurationList; buildConfigurations = ( C ); }}; L = {{ isa = XCConfigurationList; buildConfigurations = ( ); }}; \
-             C = {{ isa = XCBuildConfiguration; name = Release; buildSettings = {{ INFOPLIST_FILE = \"../../../../../../../../{}/Info.plist\"; CODE_SIGN_ENTITLEMENTS = \"/etc/passwd\"; }}; }}; }}; }}",
-            secret.path().display().to_string().trim_start_matches('/')
-        );
-        put(d.path(), PBX, pbx);
+             C = {{ isa = XCBuildConfiguration; name = Release; buildSettings = {{ INFOPLIST_FILE = \"{plist_path}\"; CODE_SIGN_ENTITLEMENTS = \"/etc/passwd\"; }}; }}; }}; }}"
+        )
+    }
+
+    #[test]
+    fn a_setting_cannot_point_the_reader_out_of_the_project() {
+        // an empty permission text is something the scan reports with the file's path: it makes a read observable
+        let plist = "<plist><dict><key>NSCameraUsageDescription</key><string></string></dict></plist>";
+        let outside = tempfile::tempdir().unwrap();
+        put(outside.path(), "Info.plist", plist);
+        let d = base();
+        put(d.path(), "ios/Pods/Manifest.lock", "x");
+        put(d.path(), "ios/Inside.plist", plist);
+
+        // control: the same plist inside the project is read and reported
+        put(d.path(), PBX, project_reading("Inside.plist"));
         let r = scan(d.path());
-        assert!(!serde_json::to_string(&r).unwrap().contains("LEAKMARK"));
+        let hit = r.projects[0].findings.iter().find(|f| f.id == "ios.permission.emptyText");
+        assert_eq!(hit.and_then(|f| f.file.as_deref()), Some("ios/Inside.plist"), "{:?}", r.skipped);
+
+        // the same setting climbing out of the project (relative, absolute, through a link) reads nothing
+        let up = "../".repeat(30);
+        let out = outside.path().display().to_string();
+        std::os::unix::fs::symlink(outside.path(), d.path().join("ios/linked")).unwrap();
+        for path in [format!("{up}{}/Info.plist", out.trim_start_matches('/')), format!("{out}/Info.plist"), "linked/Info.plist".to_string(), "$(SRCROOT)/../../x/Info.plist".to_string()] {
+            put(d.path(), PBX, project_reading(&path));
+            let r = scan(d.path());
+            let seen: Vec<_> = r.projects[0].findings.iter().filter(|f| f.id == "ios.permission.emptyText").collect();
+            assert!(seen.is_empty(), "{path}: read the plist outside the project");
+            assert!(!serde_json::to_string(&r).unwrap().contains(&out));
+        }
     }
 
     #[test]
@@ -139,4 +160,35 @@ mod links {
         let r = scan(d.path());
         assert!(r.detected && r.projects[0].android);
     }
+}
+
+#[test]
+fn a_crowded_folder_says_so_and_still_finds_the_project_files() {
+    let d = base();
+    for i in 0..5200 {
+        put(d.path(), &format!("android/app/src/a{i:05}"), "x");
+    }
+    let r = scan(d.path());
+    assert!(r.projects[0].android);
+    assert!(r.skipped.iter().any(|s| s.starts_with("listingTruncated:android/app/src")), "{:?}", r.skipped);
+    assert!(r.projects[0].facts.iter().any(|f| f.key == "android.compileSdk"));
+}
+
+#[test]
+fn a_spent_budget_stops_the_scan_and_says_so() {
+    let d = base();
+    let r = scan_with(d.path(), &Env { android_home: None, budget: Some(Duration::ZERO) });
+    assert!(r.skipped.iter().any(|s| s == "stoppedEarly"), "{:?}", r.skipped);
+    assert!(r.projects[0].findings.is_empty() && r.projects[0].facts.is_empty());
+}
+
+#[test]
+fn one_check_cannot_flood_the_report() {
+    let d = base();
+    let body = "signingConfigs { x { storePassword 'a' } }\n".repeat(5000);
+    put(d.path(), "android/app/build.gradle", format!("apply plugin: 'com.android.application'\nandroid {{\n compileSdk 34\n{body}}}\n"));
+    let r = scan(d.path());
+    let n = r.projects[0].findings.iter().filter(|f| f.id == "android.secrets.plaintext").count();
+    assert!((1..=25).contains(&n), "{n}");
+    assert!(r.projects[0].findings.len() <= 400);
 }

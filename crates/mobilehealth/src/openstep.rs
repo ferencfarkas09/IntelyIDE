@@ -115,7 +115,8 @@ impl<'a> P<'a> {
                 return Err(Bad::Syntax);
             }
             self.i += 1;
-            return Ok(String::from_utf8_lossy(&out).into_owned());
+            // what a repository writes is cleaned where it is read (one line, no hidden characters, bounded)
+            return Ok(crate::clean(&String::from_utf8_lossy(&out)));
         }
         let start = self.i;
         while self.i < self.b.len() && !matches!(self.b[self.i], b' ' | b'\t' | b'\r' | b'\n' | b';' | b',' | b'=' | b'(' | b')' | b'{' | b'}' | b'"') {
@@ -124,7 +125,7 @@ impl<'a> P<'a> {
         if self.i == start {
             return Err(Bad::Syntax);
         }
-        Ok(self.s.get(start..self.i).ok_or(Bad::Syntax)?.to_string())
+        Ok(crate::clean(self.s.get(start..self.i).ok_or(Bad::Syntax)?))
     }
 
     fn value(&mut self, depth: usize) -> Result<Node, Bad> {

@@ -23,7 +23,8 @@ fn unescape(s: &str) -> String {
     while let Some(i) = rest.find('&') {
         out.push_str(&rest[..i]);
         let tail = &rest[i..];
-        let Some(end) = tail.find(';').filter(|e| *e <= 10) else {
+        // a reference is short: look only at the first few bytes, or a long run of '&' would be searched to its end each time
+        let Some(end) = tail.as_bytes().iter().take(11).position(|b| *b == b';') else {
             out.push('&');
             rest = &tail[1..];
             continue;
@@ -72,7 +73,10 @@ fn parse_tag(inner: &str, line: u32) -> Option<Tok> {
         let after = rest[eq + 1..].trim_start();
         let Some(q) = after.chars().next().filter(|c| *c == '"' || *c == '\'') else { break };
         let Some(close) = after[1..].find(q) else { break };
-        attrs.push((key, unescape(&after[1..1 + close])));
+        if attrs.len() >= 128 {
+            break;
+        }
+        attrs.push((key, crate::clean(&unescape(&after[1..1 + close]))));
         rest = after[close + 2..].trim_start();
     }
     Some(Tok::Open { name: name.to_string(), attrs, empty, line })
@@ -80,20 +84,28 @@ fn parse_tag(inner: &str, line: u32) -> Option<Tok> {
 
 /// The tokens of `text`, or `None` when the file is too big a tangle to read.
 pub(crate) fn tokens(text: &str) -> Option<Vec<Tok>> {
+    scan(text).0
+}
+
+/// `tokens` and the number of steps it took (every construct counts, also the ones that produce no token): the work is linear in
+/// the size of the text and stops at `MAX_TOKENS` steps.
+pub(crate) fn scan(text: &str) -> (Option<Vec<Tok>>, usize) {
     let b = text.as_bytes();
     let mut out = Vec::new();
     let mut i = 0usize;
     let mut line = 1u32;
+    let mut steps = 0usize;
     let nl = |s: &str| s.bytes().filter(|c| *c == b'\n').count() as u32;
     while i < b.len() {
-        if out.len() > MAX_TOKENS {
-            return None;
+        steps += 1;
+        if steps > MAX_TOKENS {
+            return (None, steps);
         }
         if b[i] != b'<' {
             let end = text[i..].find('<').map_or(b.len(), |e| i + e);
             let chunk = &text[i..end];
             if !chunk.trim().is_empty() {
-                out.push(Tok::Text { text: unescape(chunk.trim()), line });
+                out.push(Tok::Text { text: crate::clean(&unescape(chunk.trim())), line });
             }
             line += nl(chunk);
             i = end;
@@ -107,16 +119,15 @@ pub(crate) fn tokens(text: &str) -> Option<Vec<Tok>> {
         } else if rest.starts_with("<![CDATA[") {
             let end = rest.find("]]>").map_or(rest.len(), |e| e + 3);
             let body = rest.get(9..end.saturating_sub(3).max(9)).unwrap_or("");
-            out.push(Tok::Text { text: body.to_string(), line });
+            out.push(Tok::Text { text: crate::clean(body), line });
             line += nl(&rest[..end]);
             i += end;
         } else if rest.starts_with("<?") || rest.starts_with("<!") {
             // declaration, doctype (an internal subset in brackets is skipped as a whole)
-            let end = if rest.starts_with("<!") && rest.find('[').is_some_and(|o| o < rest.find('>').unwrap_or(usize::MAX)) {
-                rest.find("]>").map_or(rest.len(), |e| e + 2)
-            } else {
-                rest.find('>').map_or(rest.len(), |e| e + 1)
-            };
+            // look for the end first, then for a bracket only before it: searching the whole rest for '[' made every `<!>` cost the rest of the file
+            let gt = rest.find('>');
+            let subset = rest.starts_with("<!") && gt.is_some_and(|g| rest[..g].contains('['));
+            let end = if subset { rest.find("]>").map_or(rest.len(), |e| e + 2) } else { gt.map_or(rest.len(), |e| e + 1) };
             line += nl(&rest[..end]);
             i += end;
         } else {
@@ -142,7 +153,7 @@ pub(crate) fn tokens(text: &str) -> Option<Vec<Tok>> {
             i += end + 1;
         }
     }
-    Some(out)
+    (Some(out), steps)
 }
 
 /// A value of a top-level plist key.
@@ -251,5 +262,20 @@ mod tests {
         assert!(plist("<<<<<<<<<<<< &&&& <key").is_ok() || plist("<<<<<<<<<<<< &&&& <key").is_err());
         let _ = tokens(&"<a b=\"".repeat(1000));
         assert!(tokens(&"<a/>".repeat(500_000)).is_none());
+    }
+
+    #[test]
+    fn the_work_is_linear_in_the_size_of_the_text() {
+        // each of these cost time quadratic in the length before: the step count and the clock both stay small now
+        let t = std::time::Instant::now();
+        for text in ["&amp;".repeat(800_000), format!("<a>{}</a>", "&amp;".repeat(800_000)), "<!>".repeat(1_300_000), "<?>".repeat(1_300_000), "<!-->".repeat(700_000), format!("<a {}/>", "b=\"1\" ".repeat(500_000))] {
+            let (tokens, steps) = scan(&text);
+            assert!(steps <= MAX_TOKENS + 1 && steps <= text.len(), "{steps} steps for {} bytes", text.len());
+            assert!(tokens.is_some() || steps > MAX_TOKENS);
+        }
+        assert!(t.elapsed() < std::time::Duration::from_secs(4), "{:?}", t.elapsed());
+        // an attribute list is cut off, not stored whole
+        let (toks, _) = scan(&format!("<a {}/>", "b=\"1\" ".repeat(10_000)));
+        assert!(matches!(&toks.unwrap()[0], Tok::Open { attrs, .. } if attrs.len() == 128));
     }
 }

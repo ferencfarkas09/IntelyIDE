@@ -26,18 +26,14 @@ pub async fn mobilehealth_detect(engine: State<'_, EngineSlot>) -> Res<Vec<Strin
     blocking(move || Ok(all.into_iter().filter(|r| detect(&r.path)).map(|r| r.id).collect())).await
 }
 
-/// The health report of every repository of the workspace that holds a mobile project.
+/// The health report of one repository, or nothing when it holds no mobile project. One repository per call, on the blocking pool,
+/// so a very large or hostile repository cannot hold up the others; the scan also stops by itself after a few seconds and says so.
 #[tauri::command]
-pub async fn mobilehealth_scan(engine: State<'_, EngineSlot>) -> Res<Vec<RepoHealth>> {
-    let all = repos(&engine).await?;
+pub async fn mobilehealth_scan_repo(engine: State<'_, EngineSlot>, repo_id: String) -> Res<Option<RepoHealth>> {
+    let root = repos(&engine).await?.into_iter().find(|r| r.id == repo_id).map(|r| r.path).ok_or_else(|| EngineError::new("notFound", format!("unknown repository {repo_id}")))?;
     blocking(move || {
-        Ok(all
-            .into_iter()
-            .filter_map(|r| {
-                let report = scan(&r.path);
-                report.detected.then_some(RepoHealth { repo_id: r.id, report })
-            })
-            .collect())
+        let report = scan(&root);
+        Ok(report.detected.then_some(RepoHealth { repo_id, report }))
     })
     .await
 }

@@ -331,7 +331,7 @@ pub fn run() {
             modules::versions::versions_plan,
             modules::versions::versions_apply,
             modules::mobilehealth::mobilehealth_detect,
-            modules::mobilehealth::mobilehealth_scan,
+            modules::mobilehealth::mobilehealth_scan_repo,
             // ==== alpha attachments commands ====
             modules::attachments::attachment_import_bytes,
             modules::attachments::attachment_import_paths,
