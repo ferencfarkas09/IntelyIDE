@@ -52,11 +52,25 @@ The permission broker, the policy hook and the deny rules work as on macOS: an a
 - **Versions.** The MSI format takes only numeric versions (`1.14.0`); a pre-release version such as `1.15.0-beta.1` builds the NSIS installer only.
 - Dock badge: not shown. The relay deploy tools are less tested on Windows.
 
-## Tests that do not run on Windows
+## Tests on Windows
 
-The Rust tests that need a Unix shell (`/bin/sh` fake programs), symbolic links, `chmod` modes or macOS paths are compiled only on Unix (`#[cfg(unix)]`); CI runs the rest on `windows-2025` (the `windows` job of `ci.yml`, not yet a required check).
+CI compiles every target of the workspace on `windows-2025` and runs the tests of the 14 crates that pass there completely (`scripts/ci/windows-tests.sh`, the `windows` job of `ci.yml`; not a required check yet). The manual `crossplatform-check` workflow runs every crate on Windows and ends its log with a digest of the failures. Tests that need a Unix shell for their fake programs are compiled on Unix only (`#[cfg(unix)]`).
 
-## Data and uninstall
+The run of every crate for 1.14.0 (before the fixes listed first) failed in 45 test targets. By cause:
+
+| Cause | Where | Status |
+|---|---|---|
+| The path picker refused every Windows path (it wanted a leading `/`) | `pathpick`, `mcp` import, the app's workspace and picker tests | Fixed: drive and UNC paths are accepted on Windows |
+| The sidecar's Node exits at start without `SystemRoot`; the tests hand the host a small made-up environment | `agent_host`, `roles` supervisor, providers | Fixed: on Windows the missing system variables come from the IDE process |
+| The relay deploy read `/dev/urandom` | `relay_deploy` plans, the app's relay commands | Fixed: the OS random source on every platform |
+| `\\?\C:\...` paths (what `canonicalize` returns on Windows) handed to git, which reads them as a host name or cannot create them | `core`, `files`, `graph` test fixtures | Open: the fixtures and, to check, the places the app hands a canonical path to git |
+| The agent policy's tests use macOS state paths (`Library/Application Support`) and Unix commands; some command routes judge differently on Windows | `agent_core` (modes table, read-only everyday, plugin flow, bypass, event log) | Open: the safety layer is not changed by the Windows beta; to be reviewed by its code owner |
+| Tests start `/bin/sh`, `sleep`, `lsof`, `ps`, a shell script or `rg` | `term`, `runner`, `hud`, `remote`, `mcp` code files, `updater`, the app's term and preview tests | Test assumption; the app uses PowerShell (ConPTY) and `taskkill` there |
+| Source scans that match `/` in file paths | `relay_deploy` and `servers` static guards, `roles` delegates, `mongo_lean` | Test assumption: the scans see `\` on Windows |
+| Process-tree stop and timing (no process groups on Windows) | `runner`, the app's checks and runner modules, `core` watcher | Open, as documented above (no process watch per run) |
+| Single cases: a file name Windows forbids (`core` diff), the Unix socket folders (`servers` ssh), a git worktree listing (`checks`), Mongo driver timing (`mongo`) | | Open |
+
+## Data and uninstall## Data and uninstall
 
 Uninstall from Settings > Apps. The IDE keeps its data in `%APPDATA%\IntelySwitchIDE` and the Agent SDK in `%APPDATA%\IntelyIDE`; delete those folders and the `IntelySwitchIDE` / `com.intelyhome.intelyide` entries in Credential Manager (Control Panel > Credential Manager > Windows Credentials) to remove everything.
 

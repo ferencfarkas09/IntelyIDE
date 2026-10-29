@@ -428,8 +428,9 @@ mod tests {
     #[test]
     fn fallback_path_keeps_the_process_path_and_appends_the_documented_dirs() {
         let p = fallback_path();
-        for d in FALLBACK_PATH.split(':') {
-            assert!(p.split(':').any(|x| x == d), "{d} missing in {p}");
+        // the platform's own separator; Windows has no fallback directories to append
+        for d in std::env::split_paths(FALLBACK_PATH).filter(|d| !d.as_os_str().is_empty()) {
+            assert!(std::env::split_paths(&p).any(|x| x == d), "{} missing in {p}", d.display());
         }
         let r = EnvResolver::with_options("git", EnvOptions { cache_path: None, ..Default::default() });
         assert_eq!(r.hook_env()["PATH"], p);
