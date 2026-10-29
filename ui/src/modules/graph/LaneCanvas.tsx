@@ -1,5 +1,5 @@
 import { createEffect, onCleanup } from "solid-js";
-import { resolvedTheme } from "../../ui-kit";
+import { appearanceLook } from "../../ui-kit";
 import { laneColor, type LaneEdge, type LaneRow } from "./lanes";
 
 export const ROW_H = 26;
@@ -49,7 +49,7 @@ export interface LaneCanvasProps {
 export function LaneCanvas(props: LaneCanvasProps) {
   let canvas!: HTMLCanvasElement;
   createEffect(() => {
-    resolvedTheme();
+    appearanceLook();
     const { rows, first, last, width } = props;
     const height = Math.max(0, last - first) * ROW_H;
     const dpr = window.devicePixelRatio || 1;
@@ -58,7 +58,7 @@ export function LaneCanvas(props: LaneCanvasProps) {
     const ctx = canvas.getContext?.("2d");
     if (!ctx) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    drawLanes(ctx, rows, first, last, getComputedStyle(canvas).getPropertyValue("--surface-1").trim() || "#fff");
+    drawLanes(ctx, rows, first, last, getComputedStyle(canvas).getPropertyValue("--pane-1").trim() || "#fff");
   });
   onCleanup(() => canvas.getContext?.("2d")?.clearRect(0, 0, canvas.width, canvas.height));
   return (

@@ -125,3 +125,10 @@
 .kit-diff__sign { flex: none; width: 16px; color: var(--text-3); }
 .kit-diff__line[data-kind="add"] .kit-diff__sign { color: var(--ok); }
 .kit-diff__line[data-kind="del"] .kit-diff__sign { color: var(--danger); }
+
+/* Cards section */
+.kit-kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; width: 100%; }
+
+/* Glass: every column paints the gradient of its own theme (the page may show both side by side). */
+:root[data-skin="glass"]:not([data-transparency="reduced"]) .kit-col[data-theme] { background: var(--bg-gradient), var(--glass-base); }
+:root[data-skin="glass"]:not([data-transparency="reduced"]) .kit-bar { -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); }

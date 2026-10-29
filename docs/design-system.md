@@ -1,6 +1,6 @@
 # Design system
 
-The design tokens, components and rules of the IntelyIDE interface. Target feel: a calm, dense, precise developer tool. Source: `ui/src/theme/` (tokens, fonts, global CSS, theme controller) and `ui/src/ui-kit/` (components). Live reference: run the UI dev server and open `/?view=kit` (side by side), `/?view=kit&theme=dark|light` (one theme), `&section=<id>` (one section: composite, buttons, selection, fields, badges, feedback, overlays, tree, foundations).
+The design tokens, components and rules of the IntelyIDE interface. Target feel: a calm, dense, precise developer tool. Source: `ui/src/theme/` (tokens, fonts, global CSS, theme controller) and `ui/src/ui-kit/` (components). Live reference: run the UI dev server and open `/?view=kit` (side by side), `/?view=kit&theme=dark|light` (one theme), `&section=<id>` (one section: composite, buttons, selection, fields, badges, cards, feedback, overlays, tree, foundations), `&skin=standard|glass` (the style; the bar also has Style and Opaque switches).
 
 Everything below is imported from `ui/src/ui-kit` (the barrel also pulls in the theme CSS). Call `initTheme()` once before the first render.
 
@@ -46,6 +46,25 @@ Inter Variable and JetBrains Mono Variable are self-hosted from `@fontsource-var
 ### Utility classes
 `ui-truncate`, `ui-tnum`, `ui-mono`, `ui-text-2/3/4`, `ui-sr-only`, `ui-selectable` (re-enables text selection; the app chrome is `user-select: none`), `ui-theme-scope` (themed sub-tree background), `ui-file-deleted` (dim + strike-through file name), `ui-path-hint` (dim path after a file name).
 
+## Glass skin (`theme/glass.css`, `theme/skin.ts`)
+A second look on its own axis: `data-skin="glass"` on `<html>`, independent of `data-theme` (light, dark) and `data-accent`, so every theme and accent combination works with both skins. The style is chosen in Settings > Appearance > Style (Standard or Glass) and stored in settings.json (`appearance.skin`, mirrored in `localStorage` for the first paint). `?skin=standard|glass` shows a skin for screenshots without storing it.
+
+Default: Glass for new installs only. A profile with no `intely.*` key in `localStorage`, no other appearance choice and no workspace is judged new once, at boot, and the verdict (`glass` or `standard`) is written to settings.json; later boots never guess again. Installs from before Glass have no `skin` key and stay on Standard until the person picks Glass.
+
+What Glass changes:
+- Backdrop: a soft gradient on `<html>` (light: blue, lilac, peach; dark: deep indigo, violet, teal) over an opaque base colour, so the page background stays opaque for checks such as `assertTheme` in `scripts/e2e/shots-lib.js`. `body`, `.shell` and `.ui-theme-scope` turn transparent.
+- Panes float as rounded sheets (`--radius-card` 18 px, hairline `--glass-border`, inset `--glass-highlight`, soft `--card-shadow`): the tool window, the centre, the dock and the Agent mode panes. Each pane paints one tint (`--glass-panel`); `--surface-1` is transparent in Glass, so nested panels never stack their tints. The rail, title bar and status bar sit on the gradient with the light `--surface-0` tint.
+- `--surface-2` (raised: cards, fields, pills), `--surface-3` (overlays) and `--surface-4` (controls) are translucent tints. Popovers, menus, dialogs, toasts and tooltips are frosted (`backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate))`); `class="glass-frost"` gives custom floating UI the same, `class="glass-panel"` the pane tint.
+- Editors, the diff and the terminal stay solid: inside `.cm-editor`, `.diff-view`, `.term-host` and `.xterm` the surfaces resolve to the opaque `--pane-1..4`. Code that paints from tokens (xterm, the lane graph canvas) reads `--pane-*`, never a translucent surface, and repaints on `appearanceLook()` (theme + skin + transparency), not only on `resolvedTheme()`.
+- Shape (also when opaque): capsule pills and badges (`--radius-full`), `--radius-3` 10 px, `--radius-4` 16 px, larger rail buttons and tree row highlights. Selected rows in a focused tree, the palette and the Settings list get a solid accent fill with the on-accent ink for every text level (any mix with the fill would drop below 4.5:1); a checked box on such a row turns into an on-accent box with an accent tick.
+- Seams: sticky headers and footers (`.ui-grid__header`, the matrix and table headers of the checks, l10n, MCP, release and versions panels) get the frosted `--glass-sticky`; tree row actions no longer sit on an opaque patch, the trailing pills fade out instead.
+
+Fallbacks, all opaque (Standard surfaces, no gradient, no blur; the Glass shape stays): the Settings switch "Reduce transparency" and the OS settings `prefers-reduced-transparency: reduce`, `prefers-contrast: more` and `forced-colors: active` (both set `data-transparency="reduced"`, see `skin.ts`), and any engine without `backdrop-filter` (`@supports`). Rules that make something translucent must sit inside the `@supports` block and carry `:not([data-transparency="reduced"])`; `glass.test.ts` checks this.
+
+Contrast: the tints and gradient stops live in `theme/glassTokens.ts` as data (and `glass.test.ts` checks that `glass.css` uses exactly those numbers). `accents.ts` composites every glass surface over every gradient stop (and the bare stops) and adds them to `SURFACES`, so every generated accent is solved and tested against them. Worst case on Glass: light `text-1` 14.2, `text-2` 7.2, `text-3` 4.9, accent-text 5.5, ok/warn/danger/info 4.5-4.9; dark `text-1` 12.2, `text-2` 6.9, `text-3` 4.6, accent-text 5.3, ok/warn/danger/info 5.0-6.8; `text-4` 2.4-2.6 (never weaker than on the standard surfaces). When you change a tint, change `glassTokens.ts` with it and run `vitest run src/theme`.
+
+Native window vibrancy (Tauri `windowEffects`) is not used: the effect is CSS only and works the same in the macOS, Windows and Linux webviews.
+
 ## Components
 All props are typed; see the source for the full list.
 
@@ -65,6 +84,10 @@ All props are typed; see the source for the full list.
 | `Popover`, `Menu` | Anchored panels, action menus | Esc and outside press close and return focus to the trigger. Menu: arrows, Home/End, type-ahead, checkable and danger items, shortcut chips. Overlays mount inside the nearest `[data-theme]` element. |
 | `Toaster` + `toast` | Transient results | `toast.success/error/warn/info/show`, pause on hover/focus, errors use `role="alert"`. Mount one `<Toaster />`. |
 | `Splitter` | Resizable panes | Pointer, arrow keys (Shift = 64 px), Home/End, double-click or Enter resets. `storageKey` persists the size (try/catch). `primary` picks which pane has the pixel size. |
+| `Card` | Grouped content on dashboards and summaries | `title` (names the region), `subtitle`, `actions`, `padding` none / sm / md. Rounded `--radius-card`, translucent in Glass. |
+| `KpiTile` | One number on a dashboard | `label`, `value` (formatted), `unit`, `delta` (`{ value, direction: up/down/flat, upIsGood }`: green when good, red when bad, spoken as "up 12%"), `hint`, `sparkline` slot. |
+| `Sparkline` | A small trend | Inline SVG, no chart library: `values`, `tone`, `area` (soft fill), `width`/`height` (scales to its box, the stroke stays crisp). `role="img"`, named "Trend: first to last" unless `title` is given. `sparkGeometry()` is the pure maths. |
+| `Tabs` | Switching panels in place | WAI-ARIA tabs with one tab stop, arrows/Home/End select, disabled tabs skipped; panels are yours (`panelId` sets `aria-controls`). Underline in Standard, capsule segments in Glass. |
 | `Skeleton`, `EmptyState`, `Spinner`, `ProgressBar` | Loading, empty, error, progress | EmptyState: an icon and one clear sentence, `tone="danger"` for errors. |
 | `Input`, `TextArea` | Text entry | Focus ring on the whole field, `invalid`, `leading`/`trailing` slots. TextArea grows between `minRows` and `maxRows`. |
 | `ScrollArea` | Scroll containers | Thin scrollbars, edge hairline + shadow when content continues; `ref` gives the viewport (virtualisers). |
@@ -73,6 +96,7 @@ All props are typed; see the source for the full list.
 | `VisuallyHidden`, `LiveRegion`, `Announcer`, `announce()` | Screen-reader output | Mount `<Announcer />` once, call `announce("3 repos committed")`. |
 | `BrandMark`, `BrandButton` | The IntelyIDE logo | See Brand below. |
 | `Icon` | Every icon | lucide-solid at 12/14/16 px with consistent stroke; decorative unless `label` is set. Add new icons to `ui-kit/icons.ts`. |
+| Skin | `applySkin(skin, reduceTransparency)`, `activeSkin()`, `transparencyReduced()`, `appearanceLook()` | See Glass skin above. Settings > Appearance calls `applySkin`; read `appearanceLook()` in effects that paint from tokens. |
 | Theme controller | `initTheme()`, `themePreference()`, `resolvedTheme()`, `setThemePreference("system" \| "dark" \| "light")` | Persisted in `localStorage` (`intely.theme`, try/catch), follows OS changes in system mode, sets `data-theme` on `<html>`. |
 
 ## Brand

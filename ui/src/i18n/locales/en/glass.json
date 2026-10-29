@@ -1,0 +1,12 @@
+{
+  "appearance.style": "Style",
+  "appearance.styleDesc": "Glass shows translucent panels and cards over a soft colour gradient. Standard is the solid look.",
+  "appearance.standard": "Standard",
+  "appearance.glass": "Glass",
+  "appearance.reduceTransparency": "Reduce transparency",
+  "appearance.reduceTransparencyDesc": "Solid panels without blur or gradient, for sharper contrast.",
+  "appearance.systemReducedTransparency": "Your system asks for less transparency or more contrast, so panels stay solid anyway.",
+  "kit.sparklineTrend": "Trend: {from} to {to}",
+  "kit.deltaUp": "up {value}",
+  "kit.deltaDown": "down {value}"
+}

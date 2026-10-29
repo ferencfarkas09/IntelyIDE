@@ -23,6 +23,10 @@ export { Toaster, createToaster, toast, type ToastOptions, type ToastTone } from
 export { Splitter, type SplitterProps } from "./Splitter";
 export { Skeleton, type SkeletonProps } from "./Skeleton";
 export { EmptyState, type EmptyStateProps } from "./EmptyState";
+export { Card, type CardProps } from "./Card";
+export { KpiTile, deltaTone, type KpiDelta, type KpiTileProps } from "./KpiTile";
+export { Sparkline, sparkGeometry, type SparkGeometry, type SparklineProps, type SparkTone } from "./Sparkline";
+export { Tabs, type TabItem, type TabsProps } from "./Tabs";
 export { Spinner, type SpinnerProps } from "./Spinner";
 export { ProgressBar, type ProgressBarProps } from "./ProgressBar";
 export { Select, type SelectOption, type SelectProps } from "./Select";
@@ -34,4 +38,5 @@ export { TitleBar, type TitleBarProps } from "./TitleBar";
 export { BrandButton, BrandMark, type BrandButtonProps, type BrandMarkProps, type BrandVariant } from "./BrandMark";
 export { VisuallyHidden, LiveRegion, Announcer, announce, type Politeness } from "./a11y";
 export { initTheme, themePreference, resolvedTheme, setThemePreference, type ThemePreference, type ResolvedTheme } from "../theme/theme";
+export { appearanceLook, activeSkin, applySkin, transparencyReduced, type Skin } from "../theme/skin";
 export { readStored, writeStored } from "./storage";

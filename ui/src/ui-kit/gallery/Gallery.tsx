@@ -3,7 +3,7 @@ import {
   Announcer, Badge, BrandMark, BranchPill, Button, Checkbox, Copy, Dialog, EmptyState, Eye, GitBranch, IconButton, Inbox, Input, Kbd, Keyboard, Menu, Moon, Monitor, Pencil, Plus, Popover,
   ProgressBar, REPO_PALETTE, RefreshCw, RepoBadge, ScrollArea, Search, SegmentedControl, ShieldAlert, Skeleton, Spinner, SplitButton, Splitter, StatusDot, StatusLetter, Sun,
   TextArea, Toaster, Tooltip, Tree, TreeRow, Trash2, TriangleAlert, Upload, createToaster, deriveCheckState, initTheme, setThemePreference, themePreference, AheadBehind, Pill, Switch, Download, Icon,
-  type ChangeKindName, type ThemePreference,
+  type ChangeKindName, type ThemePreference, Card, KpiTile, Sparkline, Tabs, activeSkin, applySkin, transparencyReduced, type Skin,
 } from "..";
 import { Composite } from "./Composite";
 import "./gallery.css";
@@ -306,6 +306,37 @@ function TreeAndSplit(props: { theme: string }) {
   );
 }
 
+const TOKENS_IN = [1.2, 1.6, 1.4, 2.1, 1.9, 2.6, 2.4, 3.1, 2.9, 3.6, 4.2, 3.9];
+const SPEND = [9, 8.2, 8.8, 7.1, 7.4, 6.2, 6.6, 5.1, 5.4, 4.8, 4.2, 4.4];
+const BUILDS = [3, 3, 4, 3, 5, 4, 4, 4, 5, 4, 4, 4];
+
+function Cards() {
+  const [tab, setTab] = createSignal<"week" | "month" | "year">("week");
+  return (
+    <>
+      <Row label="KPI tiles">
+        <div class="kit-kpis">
+          <KpiTile label="Tokens today" value="23.4k" delta={{ value: "+18%", direction: "up" }} hint="18.8k in · 4.6k out" sparkline={<Sparkline values={TOKENS_IN} format={(n) => `${n}k`} />} />
+          <KpiTile label="API-equivalent cost" value="$2.71" delta={{ value: "−12%", direction: "down", upIsGood: false }} sparkline={<Sparkline values={SPEND} tone="ok" format={(n) => `$${n}`} />} />
+          <KpiTile label="Build time" value="4.2" unit="min" delta={{ value: "0", direction: "flat" }} sparkline={<Sparkline values={BUILDS} tone="neutral" area={false} />} />
+        </div>
+      </Row>
+      <Row label="Card">
+        <Card title="Release checklist" subtitle="3 of 5 done" actions={<IconButton icon={RefreshCw} label="Refresh" size="sm" />} class="kit-w-full">
+          <Tabs aria-label="Range" value={tab()} onChange={setTab} items={[{ value: "week", label: "Week" }, { value: "month", label: "Month" }, { value: "year", label: "Year" }]} />
+          <p class="ui-text-2" style={{ margin: 0 }}>Cards group related content. With the Glass skin they are translucent sheets with a soft shadow; selected range: {tab()}.</p>
+          <div class="kit-row__items"><Pill tone="ok">Tests green</Pill><Pill tone="warn">2 warnings</Pill><Badge tone="accent">Beta</Badge></div>
+        </Card>
+      </Row>
+      <Row label="Sparklines">
+        <Sparkline values={TOKENS_IN} />
+        <Sparkline values={SPEND} tone="danger" />
+        <Sparkline values={[5]} tone="info" title="One value: 5" />
+      </Row>
+    </>
+  );
+}
+
 const SURFACES = ["surface-0", "surface-1", "surface-2", "surface-3", "surface-4"];
 const TEXTS = ["text-1", "text-2", "text-3", "text-4"];
 const SEM = ["accent", "ok", "warn", "danger", "info"];
@@ -389,6 +420,7 @@ function Column(props: { theme: "dark" | "light"; only: string | null }) {
         {show("selection") && <Section id="selection" title="Selection controls"><Selection /></Section>}
         {show("fields") && <Section id="fields" title="Fields"><Fields /></Section>}
         {show("badges") && <Section id="badges" title="Badges, pills, status"><Badges /></Section>}
+        {show("cards") && <Section id="cards" title="Cards, KPI tiles, sparklines, tabs"><Cards /></Section>}
         {show("feedback") && <Section id="feedback" title="Feedback"><Feedback side={props.theme === "dark" ? "right" : "left"} /></Section>}
         {show("overlays") && <Section id="overlays" title="Overlays"><Overlays /></Section>}
         {show("tree") && <Section id="tree" title="Tree and splitter"><TreeAndSplit theme={props.theme} /></Section>}
@@ -411,6 +443,8 @@ export function Gallery() {
         <div class="kit-bar__title"><BrandMark size={16} />IntelySwitchIDE <span class="ui-text-3">UI kit</span></div>
         <div class="kit-bar__tools">
           <SegmentedControl size="sm" aria-label="Layout" value={layout()} onChange={setLayout} options={[{ value: "both", label: "Side by side" }, { value: "dark", label: "Dark" }, { value: "light", label: "Light" }]} />
+          <SegmentedControl<Skin> size="sm" aria-label="Style" value={activeSkin()} onChange={(v) => applySkin(v, transparencyReduced())} options={[{ value: "standard", label: "Standard" }, { value: "glass", label: "Glass" }]} />
+          <Switch size="sm" label="Opaque" checked={transparencyReduced()} onChange={(v) => applySkin(activeSkin(), v)} />
           <SegmentedControl size="sm" aria-label="Page theme" value={themePreference()} onChange={setThemePreference} options={[{ value: "system", label: "System", icon: Monitor }, { value: "dark", label: "Dark", icon: Moon }, { value: "light", label: "Light", icon: Sun }]} />
         </div>
       </header>
