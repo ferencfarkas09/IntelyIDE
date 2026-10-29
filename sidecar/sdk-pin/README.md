@@ -62,9 +62,22 @@ installer (`docs/release-packaging-spec.md` 5.5) produces the same tree without 
 
 ## Provenance of the files committed today (read this)
 
-The committed `package-lock.json` and `tree.sha256` were **derived offline** from the already-installed pnpm tree of
-this checkout (`pnpm-lock.yaml` integrity values, the package files in the pnpm store), without contacting the npm
-registry. The package files are the tarball bytes, so the hashes should equal what `npm ci` produces, but this has
-**not** been proven with a real `npm ci` and `npm audit signatures` (release gate G2, which also covers the installer).
-Until a human has done step 2 to 4 above once and `hash-tree.mjs --check` matches, treat the packaged-install path as unproven: a wrong manifest fails closed
-(`sdk_unverified`), it cannot make the loader accept a different tree.
+The first `package-lock.json` and `tree.sha256` were **derived offline** from the installed pnpm tree of the checkout
+(`pnpm-lock.yaml` integrity values, the package files in the pnpm store). That derivation has since been checked
+against the real thing: `npm ci --ignore-scripts --omit=optional` (npm 10.9.4, Node 22) in an empty directory with
+that lock reproduced `tree.sha256` exactly, 6666 files, and `npm ci` accepts the integrity hash of every tarball.
+
+The pin was then refreshed once, by hand, for three security releases in the tree (body-parser 2.4.0, fast-uri 3.1.9, qs
+6.17.0): only those three entries of the lock changed, and the manifest was regenerated from the `npm ci` tree of the new
+lock (6669 files, changes only in those three packages and in `package-lock.json`).
+
+It was refreshed a second time for the security advisories of the pinned peers: `@modelcontextprotocol/sdk` 1.31.0 to 1.32.1
+(four advisories, all fixed in 1.32.0; 1.32.1 is the same code plus documentation), `zod` 4.6.5 to 4.6.7 (fixed in 4.6.6) and the
+transitive `ip-address` 10.7.3 to 10.7.4 (the first fixed version; `express-rate-limit` asks for `^10.2.0`). The Agent SDK itself
+stays at 0.3.287 and its peer ranges (`@modelcontextprotocol/sdk ^1.29.0`, `zod ^4.0.0`) are met, so no `overrides` entry is needed.
+Again only those lock entries changed (npm computed them, the entries were merged into the committed lock), `npm ci` accepted every
+tarball, `npm audit` on that tree reports 0 vulnerabilities, and the manifest was regenerated from the `npm ci` tree (6669 files;
+changes only in those three packages and in `package.json` and `package-lock.json`).
+
+`npm audit signatures` (step 3 above, release gate G2) was run on the owner's Mac on 2026-10-28 (npm 11.6.2, Node 24.13.0) on this tree as merged: 102 packages have verified registry signatures, 15 have verified attestations, nothing is invalid or missing, and `npm audit` reports 0 vulnerabilities. The tree of the first refresh gave the same counts. A caution for macOS: `hash-tree.mjs --check <dir>` prints nothing and exits 0 when the path it is given contains a symbolic link (`mktemp -d` returns `/var/folders/...`, a link to `/private/var/...`), so it checks nothing then; pass the output of `realpath`.
+A wrong manifest fails closed (`sdk_unverified`); it cannot make the loader accept a different tree.

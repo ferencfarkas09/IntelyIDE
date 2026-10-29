@@ -12,7 +12,7 @@ afterEach(() => {
   setVersionsApi(undefined);
 });
 
-const f = (key: string, role: Field["role"], value: string, path = "package.json"): Field => ({ id: `${path}#${key}`, path, kind: "packageJson", key, role, value, occurrences: 1, mixed: false, companions: [] });
+const f = (key: string, role: Field["role"], value: string, path = "package.json"): Field => ({ id: `${path}#${key}`, path, kind: "packageJson", key, role, value, occurrences: 1, mixed: false, numeric: role === "build", companions: [] });
 const repo = (fields: Field[]): RepoVersions => ({ repoId: "r", fields, truncated: false, skipped: [] });
 
 describe("version arithmetic", () => {
@@ -50,6 +50,30 @@ describe("version arithmetic", () => {
     expect(bumpBuild("9")).toBe("10");
     expect(bumpBuild("1.4")).toBe("1.5");
     expect(bumpBuild("abc")).toBeUndefined();
+    expect(bumpBuild("9007199254740993")).toBe("9007199254740994");
+  });
+
+  it("never offers a value the file could not hold", () => {
+    const bare = { ...f("version", "version", "1.5"), numeric: true };
+    expect(nextValue(bare, "minor")).toBe("1.6"); // two parts stay two parts
+    expect(nextValue(bare, "patch")).toBeUndefined(); // 1.5.1 is not a JSON number
+    const xcode = { ...f("MARKETING_VERSION", "version", "1.0.0", "App.xcodeproj/project.pbxproj"), kind: "pbxproj" as const };
+    expect(nextValue(xcode, "patch")).toBe("1.0.1");
+    expect(nextValue(f("CURRENT_PROJECT_VERSION", "build", "007"), "build")).toBe("8"); // no leading zero is written back
+  });
+
+  it("lets a skipped field go back to what is on disk instead of keeping an earlier pending change", () => {
+    const bare = { ...f("version", "version", "1.5"), numeric: true };
+    const plain = f("name", "version", "2.4.1", "app/package.json");
+    const r = repo([bare, plain]);
+    const major = bumpRepo(r, "major", {});
+    expect(major).toEqual({ "package.json#version": "2.0", "app/package.json#name": "3.0.0" });
+    // Patch afterwards: the plain row moves on from its own value, the bare number cannot take 1.5.1 and is not left at the Major edit
+    const after = bumpRepo(r, "patch", major);
+    expect(after["package.json#version"]).toBeUndefined();
+    expect(after["app/package.json#name"]).toBe("2.4.2");
+    // a typed value on a row the button does not apply to is left alone
+    expect(bumpRepo(r, "build", { "package.json#version": "9.9" })["package.json#version"]).toBe("9.9");
   });
 
   it("applies a button only to the fields it is meant for", () => {
@@ -102,6 +126,20 @@ describe("pending edits", () => {
     expect(validValue(f("version", "version", "1.0.0"), "")).toBe(false);
     expect(validValue(f("b", "build", "1"), "12")).toBe(true);
     expect(validValue(f("b", "build", "1"), "1.x")).toBe(false);
+  });
+
+  it("refuses what a bare number, an Xcode project or a pubspec cannot hold", () => {
+    const bare = { ...f("version", "version", "1.5"), numeric: true };
+    expect(validValue(bare, "2.0")).toBe(true);
+    expect(validValue(bare, "2.0.1")).toBe(false); // JSON: a number has one dot
+    expect(validValue(bare, "2-beta")).toBe(false);
+    expect(validValue(bare, "01.5")).toBe(false);
+    expect(validValue(f("b", "build", "1"), "007")).toBe(false); // read as octal by Groovy
+    expect(validValue({ ...f("b", "build", "1"), numeric: false }, "1.4")).toBe(true); // a quoted build string may be dotted
+    expect(validValue(f("b", "build", "1"), "1.4")).toBe(false); // a bare build number may not
+    expect(validValue({ ...f("MARKETING_VERSION", "version", "1.0", "App.xcodeproj/project.pbxproj"), kind: "pbxproj" }, "1.0+7")).toBe(false);
+    expect(validValue({ ...f("version", "version", "1.0.0", "pubspec.yaml"), kind: "pubspec" }, "1.0.0+7")).toBe(false);
+    expect(validValue(f("version", "version", "1.0.0"), "1.0.0+7")).toBe(true);
   });
 });
 
@@ -193,14 +231,35 @@ describe("<VersionsTab>", () => {
     await waitFor(() => expect(document.body.textContent).toContain("package.json changed since it was read"));
   });
 
+  it("says why a row is refused, and does not call a whitespace-only change a change", async () => {
+    setVersionsApi(fixture());
+    render(() => <VersionsTab />);
+    await waitFor(() => expect(screen.getByTestId("versions-repo-web")).toBeTruthy());
+    const input = screen.getByLabelText("web package.json version") as HTMLInputElement;
+    const row = input.closest(".ver__row") as HTMLElement;
+    fireEvent.input(input, { target: { value: "2.4.1 " } });
+    expect(row.hasAttribute("data-changed")).toBe(false);
+    expect(input.getAttribute("aria-invalid")).toBeNull();
+    fireEvent.input(input, { target: { value: "../x" } });
+    expect(input.getAttribute("aria-invalid")).toBe("true");
+    expect(input.getAttribute("title")).toMatch(/cannot hold this value/);
+  });
+
   it("names the repositories that have no version files and shows a read failure as text", async () => {
     setVersionsApi({ ...fixture(), scan: async () => [{ repoId: "docs", fields: [], truncated: false, skipped: [] }, { repoId: "web", fields: [f("version", "version", "1.0.0")], truncated: false, skipped: ["big/package.json is too large to read"] }] });
     render(() => <VersionsTab />);
     await waitFor(() => expect(screen.getByText(/No version files found in docs/)).toBeTruthy());
     expect(screen.getByText(/too large to read/)).toBeTruthy();
     cleanup();
+    // a repository whose only file was left out is not "without version files" in silence: the reason is shown with its name
+    setVersionsApi({ ...fixture(), scan: async () => [{ repoId: "docs", fields: [], truncated: false, skipped: ["package.json is too large to read"] }] });
+    render(() => <VersionsTab />);
+    await waitFor(() => expect(screen.getByText(/docs: package.json is too large to read/)).toBeTruthy());
+    cleanup();
     setVersionsApi({ ...fixture(), scan: async () => Promise.reject({ code: "io", message: "disk gone" }) });
     render(() => <VersionsTab />);
     await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("disk gone"));
+    // a failed read is not "no repository in this workspace"
+    expect(screen.queryByText("No repository in this workspace")).toBeNull();
   });
 });

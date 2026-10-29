@@ -2,7 +2,7 @@
   "schema": 1,
   "generator": {
     "tool": "scripts/licenses/gen.mjs",
-    "cargoLockSha256": "dd30f235f58d77d7c72e4fc08b3fe0d88df322102d9e12c44907c344a0ac7398",
+    "cargoLockSha256": "8f20b227992ecd16b1fdca70ae1dc7d9947bdcfbfa16c52fb0a2eb3128303937",
     "pnpmLockSha256": {
       "root": "0fe6185e64dca1b106fb5e97756f5b4d956caa46b7719c544073809572def13c",
       "remote-web": "628d20ebdaa78e7c2c5791a1bbb5f0f7b9e3fb3df95db00db2b97f814783eff5",
@@ -26,11 +26,11 @@
   "groups": [
     {
       "id": "MIT",
-      "count": 435
+      "count": 434
     },
     {
       "id": "Unicode-3.0",
-      "count": 19
+      "count": 20
     },
     {
       "id": "Apache-2.0",
@@ -5103,10 +5103,10 @@
       "verdict": "ok"
     },
     {
-      "id": "cargo:ico@0.5.0",
+      "id": "cargo:ico@0.6.0",
       "kind": "cargo",
       "name": "ico",
-      "version": "0.5.0",
+      "version": "0.6.0",
       "expression": "MIT",
       "chosen": [
         "MIT"
@@ -5122,7 +5122,7 @@
       ],
       "distributed": true,
       "homepage": "https://github.com/mdsteele/rust-ico",
-      "sourceUrl": "https://crates.io/crates/ico/0.5.0",
+      "sourceUrl": "https://crates.io/crates/ico/0.6.0",
       "verdict": "ok"
     },
     {
@@ -5699,10 +5699,10 @@
       "verdict": "ok"
     },
     {
-      "id": "cargo:libc@0.2.190",
+      "id": "cargo:libc@0.2.191",
       "kind": "cargo",
       "name": "libc",
-      "version": "0.2.190",
+      "version": "0.2.191",
       "expression": "MIT OR Apache-2.0",
       "chosen": [
         "MIT"
@@ -5719,7 +5719,7 @@
       ],
       "distributed": true,
       "homepage": "https://github.com/rust-lang/libc",
-      "sourceUrl": "https://crates.io/crates/libc/0.2.190",
+      "sourceUrl": "https://crates.io/crates/libc/0.2.191",
       "verdict": "ok"
     },
     {
@@ -6464,10 +6464,10 @@
       "verdict": "ok"
     },
     {
-      "id": "cargo:objc2@0.6.4",
+      "id": "cargo:objc2@0.6.5",
       "kind": "cargo",
       "name": "objc2",
-      "version": "0.6.4",
+      "version": "0.6.5",
       "expression": "MIT",
       "chosen": [
         "MIT"
@@ -6481,7 +6481,7 @@
       ],
       "distributed": true,
       "homepage": "https://github.com/madsmtm/objc2",
-      "sourceUrl": "https://crates.io/crates/objc2/0.6.4",
+      "sourceUrl": "https://crates.io/crates/objc2/0.6.5",
       "generic": true,
       "verdict": "attention"
     },
@@ -7061,10 +7061,10 @@
       "verdict": "ok"
     },
     {
-      "id": "cargo:plist@1.10.1",
+      "id": "cargo:plist@1.10.3",
       "kind": "cargo",
       "name": "plist",
-      "version": "1.10.1",
+      "version": "1.10.3",
       "expression": "MIT",
       "chosen": [
         "MIT"
@@ -7080,31 +7080,7 @@
       ],
       "distributed": true,
       "homepage": "https://github.com/ebarnard/rust-plist",
-      "sourceUrl": "https://crates.io/crates/plist/1.10.1",
-      "verdict": "ok"
-    },
-    {
-      "id": "cargo:png@0.17.16",
-      "kind": "cargo",
-      "name": "png",
-      "version": "0.17.16",
-      "expression": "MIT OR Apache-2.0",
-      "chosen": [
-        "MIT"
-      ],
-      "copyright": [
-        "Copyright (c) 2015 nwin"
-      ],
-      "textIds": [
-        "a60eea817514",
-        "23f18e03dc49"
-      ],
-      "shippedIn": [
-        "app"
-      ],
-      "distributed": true,
-      "homepage": "https://github.com/image-rs/image-png",
-      "sourceUrl": "https://crates.io/crates/png/0.17.16",
+      "sourceUrl": "https://crates.io/crates/plist/1.10.3",
       "verdict": "ok"
     },
     {
@@ -8535,10 +8511,10 @@
       "verdict": "ok"
     },
     {
-      "id": "cargo:serde_json@1.0.151",
+      "id": "cargo:serde_json@1.0.154",
       "kind": "cargo",
       "name": "serde_json",
-      "version": "1.0.151",
+      "version": "1.0.154",
       "expression": "MIT OR Apache-2.0",
       "chosen": [
         "MIT"
@@ -8553,7 +8529,7 @@
       ],
       "distributed": true,
       "homepage": "https://github.com/serde-rs/json",
-      "sourceUrl": "https://crates.io/crates/serde_json/1.0.151",
+      "sourceUrl": "https://crates.io/crates/serde_json/1.0.154",
       "verdict": "ok"
     },
     {
@@ -8865,10 +8841,10 @@
       "verdict": "ok"
     },
     {
-      "id": "cargo:sha2@0.11.0",
+      "id": "cargo:sha2@0.11.1",
       "kind": "cargo",
       "name": "sha2",
-      "version": "0.11.0",
+      "version": "0.11.1",
       "expression": "MIT OR Apache-2.0",
       "chosen": [
         "MIT"
@@ -8888,7 +8864,7 @@
       ],
       "distributed": true,
       "homepage": "https://github.com/RustCrypto/hashes",
-      "sourceUrl": "https://crates.io/crates/sha2/0.11.0",
+      "sourceUrl": "https://crates.io/crates/sha2/0.11.1",
       "verdict": "ok"
     },
     {
@@ -9432,10 +9408,10 @@
       "verdict": "ok"
     },
     {
-      "id": "cargo:swift-rs@1.0.8",
+      "id": "cargo:swift-rs@1.0.9",
       "kind": "cargo",
       "name": "swift-rs",
-      "version": "1.0.8",
+      "version": "1.0.9",
       "expression": "MIT OR Apache-2.0",
       "chosen": [
         "MIT"
@@ -9452,7 +9428,7 @@
       ],
       "distributed": true,
       "homepage": "https://github.com/Brendonovich/swift-rs",
-      "sourceUrl": "https://crates.io/crates/swift-rs/1.0.8",
+      "sourceUrl": "https://crates.io/crates/swift-rs/1.0.9",
       "verdict": "ok"
     },
     {
@@ -9709,10 +9685,10 @@
       "verdict": "ok"
     },
     {
-      "id": "cargo:tauri@2.12.1",
+      "id": "cargo:tauri@2.12.5",
       "kind": "cargo",
       "name": "tauri",
-      "version": "2.12.1",
+      "version": "2.12.5",
       "expression": "Apache-2.0 OR MIT",
       "chosen": [
         "MIT"
@@ -9729,14 +9705,14 @@
       ],
       "distributed": true,
       "homepage": "https://tauri.app",
-      "sourceUrl": "https://crates.io/crates/tauri/2.12.1",
+      "sourceUrl": "https://crates.io/crates/tauri/2.12.5",
       "verdict": "ok"
     },
     {
-      "id": "cargo:tauri-codegen@2.7.1",
+      "id": "cargo:tauri-codegen@2.7.4",
       "kind": "cargo",
       "name": "tauri-codegen",
-      "version": "2.7.1",
+      "version": "2.7.4",
       "expression": "Apache-2.0 OR MIT",
       "chosen": [
         "MIT"
@@ -9753,14 +9729,14 @@
       ],
       "distributed": true,
       "homepage": "https://tauri.app",
-      "sourceUrl": "https://crates.io/crates/tauri-codegen/2.7.1",
+      "sourceUrl": "https://crates.io/crates/tauri-codegen/2.7.4",
       "verdict": "ok"
     },
     {
-      "id": "cargo:tauri-macros@2.7.1",
+      "id": "cargo:tauri-macros@2.7.4",
       "kind": "cargo",
       "name": "tauri-macros",
-      "version": "2.7.1",
+      "version": "2.7.4",
       "expression": "Apache-2.0 OR MIT",
       "chosen": [
         "MIT"
@@ -9777,14 +9753,14 @@
       ],
       "distributed": true,
       "homepage": "https://tauri.app",
-      "sourceUrl": "https://crates.io/crates/tauri-macros/2.7.1",
+      "sourceUrl": "https://crates.io/crates/tauri-macros/2.7.4",
       "verdict": "ok"
     },
     {
-      "id": "cargo:tauri-runtime@2.12.1",
+      "id": "cargo:tauri-runtime@2.12.2",
       "kind": "cargo",
       "name": "tauri-runtime",
-      "version": "2.12.1",
+      "version": "2.12.2",
       "expression": "Apache-2.0 OR MIT",
       "chosen": [
         "MIT"
@@ -9801,14 +9777,14 @@
       ],
       "distributed": true,
       "homepage": "https://tauri.app",
-      "sourceUrl": "https://crates.io/crates/tauri-runtime/2.12.1",
+      "sourceUrl": "https://crates.io/crates/tauri-runtime/2.12.2",
       "verdict": "ok"
     },
     {
-      "id": "cargo:tauri-runtime-wry@2.12.1",
+      "id": "cargo:tauri-runtime-wry@2.12.3",
       "kind": "cargo",
       "name": "tauri-runtime-wry",
-      "version": "2.12.1",
+      "version": "2.12.3",
       "expression": "Apache-2.0 OR MIT",
       "chosen": [
         "MIT"
@@ -9825,14 +9801,14 @@
       ],
       "distributed": true,
       "homepage": "https://tauri.app",
-      "sourceUrl": "https://crates.io/crates/tauri-runtime-wry/2.12.1",
+      "sourceUrl": "https://crates.io/crates/tauri-runtime-wry/2.12.3",
       "verdict": "ok"
     },
     {
-      "id": "cargo:tauri-utils@2.10.1",
+      "id": "cargo:tauri-utils@2.10.2",
       "kind": "cargo",
       "name": "tauri-utils",
-      "version": "2.10.1",
+      "version": "2.10.2",
       "expression": "Apache-2.0 OR MIT",
       "chosen": [
         "MIT"
@@ -9849,7 +9825,7 @@
       ],
       "distributed": true,
       "homepage": "https://tauri.app",
-      "sourceUrl": "https://crates.io/crates/tauri-utils/2.10.1",
+      "sourceUrl": "https://crates.io/crates/tauri-utils/2.10.2",
       "verdict": "ok"
     },
     {
@@ -10769,29 +10745,33 @@
       "verdict": "attention"
     },
     {
-      "id": "cargo:unicode-normalization@0.1.25",
+      "id": "cargo:unicode-normalization@0.1.26",
       "kind": "cargo",
       "name": "unicode-normalization",
-      "version": "0.1.25",
-      "expression": "MIT OR Apache-2.0",
+      "version": "0.1.26",
+      "expression": "(MIT OR Apache-2.0) AND Unicode-3.0",
       "chosen": [
-        "MIT"
+        "MIT",
+        "Unicode-3.0"
       ],
       "copyright": [
-        "Copyright (c) 2015 The Rust Project Developers"
+        "Copyright (c) 2015 The Rust Project Developers",
+        "COPYRIGHT AND PERMISSION NOTICE",
+        "Copyright © 1991-2023 Unicode, Inc."
       ],
       "textIds": [
         "23860c2a7b5d",
         "a60eea817514",
-        "23f18e03dc49"
+        "23f18e03dc49",
+        "4a020f21ec1a"
       ],
       "shippedIn": [
         "app"
       ],
       "distributed": true,
       "homepage": "https://github.com/unicode-rs/unicode-normalization",
-      "sourceUrl": "https://crates.io/crates/unicode-normalization/0.1.25",
-      "verdict": "ok"
+      "sourceUrl": "https://crates.io/crates/unicode-normalization/0.1.26",
+      "verdict": "attention"
     },
     {
       "id": "cargo:unicode-properties@0.1.4",
@@ -11010,10 +10990,10 @@
       "verdict": "ok"
     },
     {
-      "id": "cargo:uuid@1.26.1",
+      "id": "cargo:uuid@1.28.0",
       "kind": "cargo",
       "name": "uuid",
-      "version": "1.26.1",
+      "version": "1.28.0",
       "expression": "Apache-2.0 OR MIT",
       "chosen": [
         "MIT"
@@ -11031,7 +11011,7 @@
       ],
       "distributed": true,
       "homepage": "https://github.com/uuid-rs/uuid",
-      "sourceUrl": "https://crates.io/crates/uuid/1.26.1",
+      "sourceUrl": "https://crates.io/crates/uuid/1.28.0",
       "verdict": "ok"
     },
     {
@@ -11440,10 +11420,10 @@
       "verdict": "ok"
     },
     {
-      "id": "cargo:zeroize@1.9.0",
+      "id": "cargo:zeroize@1.9.1",
       "kind": "cargo",
       "name": "zeroize",
-      "version": "1.9.0",
+      "version": "1.9.1",
       "expression": "Apache-2.0 OR MIT",
       "chosen": [
         "MIT"
@@ -11460,7 +11440,7 @@
       ],
       "distributed": true,
       "homepage": "https://github.com/RustCrypto/utils",
-      "sourceUrl": "https://crates.io/crates/zeroize/1.9.0",
+      "sourceUrl": "https://crates.io/crates/zeroize/1.9.1",
       "verdict": "ok"
     },
     {

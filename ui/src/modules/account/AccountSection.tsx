@@ -127,27 +127,29 @@ export default function AccountSection() {
             </div>
           </FormRow>
           <FormRow label={t("account.set.stored")} description={t("account.set.stored.desc")} stacked>
-            <div class="account-set__row-actions">
-              <Button loading={busy() === "show"} onClick={() => void show()}>
-                {stored() ? t("account.set.hide") : t("account.set.show")}
-              </Button>
+            <div class="account-set__stored">
+              <div class="account-set__row-actions">
+                <Button loading={busy() === "show"} onClick={() => void show()}>
+                  {stored() ? t("account.set.hide") : t("account.set.show")}
+                </Button>
+              </div>
+              <Show when={stored()}>
+                {(d) => (
+                  <table class="account-set__table">
+                    <tbody>
+                      <For each={rows(d())}>
+                        {([k, v]) => (
+                          <tr>
+                            <th scope="row">{k}</th>
+                            <td>{v}</td>
+                          </tr>
+                        )}
+                      </For>
+                    </tbody>
+                  </table>
+                )}
+              </Show>
             </div>
-            <Show when={stored()}>
-              {(d) => (
-                <table class="account-set__table">
-                  <tbody>
-                    <For each={rows(d())}>
-                      {([k, v]) => (
-                        <tr>
-                          <th scope="row">{k}</th>
-                          <td>{v}</td>
-                        </tr>
-                      )}
-                    </For>
-                  </tbody>
-                </table>
-              )}
-            </Show>
           </FormRow>
           <FormRow label={t("account.set.delete")} description={t("account.set.delete.desc")}>
             <Button variant="danger" onClick={() => setConfirming(true)}>

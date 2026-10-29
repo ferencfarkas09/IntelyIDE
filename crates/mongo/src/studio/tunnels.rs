@@ -662,10 +662,13 @@ mod tests {
         let who = Who { name: "Bastion DB".into(), environment: "production".into(), level: "ProductionLevel".into(), label: "db.example.com".into() };
         studio.tunnels().open(&env, Owner::Connection("p1".into()), who, &spec, &TunnelSecrets::default(), allow, Arc::new(AtomicBool::new(false))).await.unwrap().keep();
 
+        // the end hook drops the connection first and emits the state right after: wait for both, then give a second emission (there
+        // must be none) time to show before counting
         let t0 = Instant::now();
-        while studio.session_count() > 0 && t0.elapsed() < Duration::from_secs(10) {
+        while (studio.session_count() > 0 || sink.0.load(std::sync::atomic::Ordering::SeqCst) == 0) && t0.elapsed() < Duration::from_secs(10) {
             tokio::time::sleep(Duration::from_millis(50)).await;
         }
+        tokio::time::sleep(Duration::from_millis(300)).await;
         assert_eq!(studio.session_count(), 0, "the connection was closed when its master ended");
         assert_eq!(studio.cursor_count(), 0, "its cursors were dropped");
         assert_eq!(sink.0.load(std::sync::atomic::Ordering::SeqCst), 1, "the state was emitted once");

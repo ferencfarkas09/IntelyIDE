@@ -59,7 +59,7 @@ export default function VersionsTab() {
   /** A pending value the files would not accept: marked in the row, and Apply stays off. */
   const invalid = (repoId: string, f: Field): boolean => {
     const v = editsOf(repoId)[f.id];
-    return v !== undefined && v.trim() !== "" && v !== f.value && !validValue(f, v.trim());
+    return v !== undefined && v.trim() !== "" && v.trim() !== f.value && !validValue(f, v.trim());
   };
   const hasInvalid = createMemo(() => data().some((r) => r.fields.some((f) => invalid(r.repoId, f))));
 
@@ -108,6 +108,7 @@ export default function VersionsTab() {
       const next: Record<string, FilePlan[]> = {};
       const errs: Record<string, string> = {};
       for (const r of repoList) {
+        if (mine !== seq) return; // a newer edit has started its own round: this one's answers would be dropped anyway
         const ch = changesOf(r, e[r.repoId] ?? {});
         if (!ch.length || ch.some((c) => !validValue(r.fields.find((f) => f.id === c.id)!, c.to))) continue;
         try {
@@ -179,7 +180,7 @@ export default function VersionsTab() {
           </div>
         }
       >
-        <Show when={data().length} fallback={<EmptyState icon={Hash} size="sm" title={t("versions.noRepo")} description={t("versions.noRepoDesc")} />}>
+        <Show when={data().length} fallback={<Show when={!error()}><EmptyState icon={Hash} size="sm" title={t("versions.noRepo")} description={t("versions.noRepoDesc")} /></Show>}>
           <For each={withFiles()}>
             {(repo) => {
               const cfg = () => repoConfig(repo.repoId);
@@ -220,7 +221,7 @@ export default function VersionsTab() {
                             {(f) => {
                               const shown = () => editsOf(repo.repoId)[f.id] ?? f.value;
                               return (
-                                <div class="ver__row" data-changed={shown() !== f.value ? "" : undefined}>
+                                <div class="ver__row" data-changed={shown().trim() !== f.value ? "" : undefined}>
                                   <span class="ver__key">
                                     {f.key}
                                     <Show when={f.role === "build"}>
@@ -236,6 +237,7 @@ export default function VersionsTab() {
                                     aria-label={`${nameOf(repo.repoId)} ${f.path} ${f.key}`}
                                     value={shown()}
                                     invalid={invalid(repo.repoId, f)}
+                                    title={invalid(repo.repoId, f) ? t("versions.invalidTip") : undefined}
                                     spellcheck={false}
                                     onInput={(e) => editField(repo, f, e.currentTarget.value)}
                                   />
@@ -299,6 +301,14 @@ export default function VersionsTab() {
 
           <Show when={withoutFiles().length}>
             <p class="ver__hint ver__none">{t("versions.noFiles", { names: fmt.list(withoutFiles().map((r) => nameOf(r.repoId))) })}</p>
+            {/* a repository with nothing listed may still have had files left out: say which and why, not only "no version files" */}
+            <For each={withoutFiles().filter((r) => r.skipped.length > 0)}>
+              {(repo) => (
+                <For each={repo.skipped}>
+                  {(s) => <p class="ver__note"><Icon icon={TriangleAlert} size={12} /> {nameOf(repo.repoId)}: {s}</p>}
+                </For>
+              )}
+            </For>
           </Show>
 
           <Show when={Object.keys({ ...planErrors(), ...applyErrors() }).length}>

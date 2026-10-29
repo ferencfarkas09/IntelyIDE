@@ -35,6 +35,8 @@ impl P<'_> {
                     self.i = j + 1;
                     return Some((start, j));
                 }
+                // JSON allows no raw line break inside a string: a string that has one is a damaged file, not a place to write
+                b'\n' | b'\r' => return None,
                 _ => j += 1,
             }
         }

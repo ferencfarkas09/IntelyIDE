@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 /// The version (a date) of the privacy notice the first-start screen shows (`ui/src/modules/account`, `docs/privacy.md`). When the
 /// text changes, change this date: everybody who agreed to an older one is asked again, and nothing is sent for them until they answer.
-pub const NOTICE: &str = "2026-10-23";
+pub const NOTICE: &str = "2026-10-28";
 
 /// Where the registry lives: the only host this crate talks to. Shown on the first-start screen and in Settings.
 pub const REGISTRY_URL: &str = "https://registry.intelyhome.com";

@@ -45,7 +45,7 @@ export function registryApi(): RegistryApi {
 
 // ---- the fixture -----------------------------------------------------------------------------------------------------
 
-export const MOCK_NOTICE = "2026-10-23";
+export const MOCK_NOTICE = "2026-10-28";
 export const MOCK_URL = "https://registry.example.invalid"; // i18n-ignore
 
 /** In memory only: starts "not registered, not asking" so a browser preview or a screenshot run never shows the first-start screen by itself. */
@@ -67,7 +67,7 @@ export function createMockRegistry(): RegistryApi {
       return {
         notice: MOCK_NOTICE,
         user: { name: status.name ?? "", email: status.email ?? "", consentNotice: MOCK_NOTICE, consentAt: now, newsletter: status.newsletter ?? "none" },
-        computer: { os: "macos", os_version: "15.4", arch: "aarch64", cpu_cores: 10, ram_gb: 32, locale: "en-US", tz: "Europe/Budapest", app_version: "1.13.0", country: "HU", region: "Budapest", city: "Budapest", first_seen: now - 86400, last_seen: now, launches: 3 },
+        computer: { os: "macos", os_version: "15.4", arch: "aarch64", cpu_cores: 10, ram_gb: 32, locale: "en-US", tz: "Europe/Budapest", app_version: "1.14.0", country: "HU", region: "Budapest", city: "Budapest", first_seen: now - 86400, last_seen: now, launches: 3 },
         computers: 1,
       };
     },

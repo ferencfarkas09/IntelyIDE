@@ -79,7 +79,7 @@ export async function reconsent(accept: boolean): Promise<RegistryStatus> {
 export const openPrivacy = (): Promise<void> => registryApi().openExternal(PRIVACY_URL).catch(() => {});
 
 /** The words for a problem the person can act on; anything else shows the registry's own message. */
-export function problemKey(p: RegistryProblem): "account.err.offline" | "account.err.unavailable" | "account.err.rateLimited" | "account.err.name" | "account.err.email" | "account.err.consent" | undefined {
+export function problemKey(p: RegistryProblem): "account.err.offline" | "account.err.unavailable" | "account.err.rateLimited" | "account.err.unknown" | "account.err.rejected" | "account.err.name" | "account.err.email" | "account.err.consent" | undefined {
   switch (p.code) {
     case "offline":
       return "account.err.offline";
@@ -90,6 +90,12 @@ export function problemKey(p: RegistryProblem): "account.err.offline" | "account
       return "account.err.unavailable";
     case "rateLimited":
       return "account.err.rateLimited";
+    // the registry no longer knows this computer (its data was deleted from another computer, or here and elsewhere)
+    case "unknownInstall":
+      return "account.err.unknown";
+    // the registry refused the request itself: an app older than the registry, or another service answering on the host
+    case "badRequest":
+      return "account.err.rejected";
     case "invalidName":
       return "account.err.name";
     case "invalidEmail":
