@@ -58,16 +58,22 @@ fn lines(text: &str) -> impl Iterator<Item = (usize, &str)> {
 /// The value written after `from` in `line`: a quoted string (its content) or a bare word up to whitespace or one of
 /// `stops`. Offsets are within `line`. Empty values give `None`.
 fn value_after(line: &str, from: usize, stops: &[char]) -> Option<(usize, usize)> {
+    // only ASCII blanks separate a value from what is around it: a non-breaking space belongs to the value (YAML, Gradle and Xcode
+    // read it that way), and then the value is not a version
     let rest = line.get(from..)?;
-    let skipped = rest.len() - rest.trim_start().len();
+    let skipped = rest.len() - rest.trim_start_matches([' ', '\t']).len();
     let s = from + skipped;
     let tail = line.get(s..)?;
     let first = tail.chars().next()?;
     if first == '"' || first == '\'' {
         let close = tail[1..].find(first)?;
+        // a doubled quote is an escaped quote inside the string (YAML), not its end
+        if tail[1 + close + 1..].starts_with(first) {
+            return None;
+        }
         return (close > 0).then_some((s + 1, s + 1 + close));
     }
-    let len = tail.find(|c: char| c.is_whitespace() || stops.contains(&c)).unwrap_or(tail.len());
+    let len = tail.find(|c: char| c == ' ' || c == '\t' || stops.contains(&c)).unwrap_or(tail.len());
     (len > 0).then_some((s, s + len))
 }
 

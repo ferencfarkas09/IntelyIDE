@@ -23,9 +23,15 @@ pub use formats::{Kind, Role};
 use formats::{occurrences, Occ};
 
 /// What a place may hold to be listed and written: not empty, short (a repository controls every byte, so a value of megabytes
-/// would be copied into every answer), and a literal (no variable reference, no tag, no line break).
+/// would be copied into every answer), and a plain literal: plain ASCII that starts with a letter or a digit, with no variable
+/// reference, tag, escape, path or comment in it (`$(X)`, `<b>`, `\"`, `../package.json`, `1.0/* c */`, `!!str 1.0`).
 fn usable(o: &Occ) -> bool {
-    !o.value.is_empty() && o.value.len() <= 128 && !o.value.contains(['$', '<', '\n', '\r'])
+    let v = o.value.as_str();
+    !v.is_empty()
+        && v.len() <= 128
+        && v.chars().next().is_some_and(|c| c.is_ascii_alphanumeric())
+        && v.chars().all(|c| c.is_ascii() && !c.is_ascii_control())
+        && !v.contains(['$', '<', '\\', '/'])
 }
 
 fn occs_of(kind: Kind, text: &str) -> Vec<Occ> {
@@ -37,6 +43,8 @@ const MAX_FIELDS: usize = 80;
 const MAX_CHANGES: usize = 200;
 /// A lock file may be big (a monorepo's is tens of megabytes); more than this is neither read nor written.
 const MAX_LOCK_BYTES: u64 = 64 * 1024 * 1024;
+/// Together the files one plan or apply holds in memory (the text before and after, of each): more than this is refused.
+const MAX_PLAN_BYTES: usize = 256 * 1024 * 1024;
 
 /// One version a repository writes down, in one file under one key. A key that appears several times in the file
 /// (an Xcode target has a build configuration for Debug and Release, and there can be several targets) is one field.
@@ -190,6 +198,24 @@ fn plain_number(part: &str) -> bool {
     part == "0" || (!part.is_empty() && !part.starts_with('0') && part.chars().all(|c| c.is_ascii_digit()))
 }
 
+/// `MAJOR.MINOR.PATCH` with an optional `-pre.release` and `+build`, as Cargo, Tauri and Dart's pub read a version (`1.0` is not one).
+fn semver_like(v: &str) -> bool {
+    let (rest, build) = match v.split_once('+') {
+        Some((r, b)) => (r, Some(b)),
+        None => (v, None),
+    };
+    let (core, pre) = match rest.split_once('-') {
+        Some((c, p)) => (c, Some(p)),
+        None => (rest, None),
+    };
+    let identifiers = |s: &str, no_leading_zero: bool| {
+        !s.is_empty()
+            && s.split('.').all(|id| !id.is_empty() && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') && !(no_leading_zero && id.len() > 1 && id.starts_with('0') && id.chars().all(|c| c.is_ascii_digit())))
+    };
+    let parts: Vec<&str> = core.split('.').collect();
+    parts.len() == 3 && parts.iter().all(|p| plain_number(p)) && pre.map_or(true, |p| identifiers(p, true)) && build.map_or(true, |b| identifiers(b, false))
+}
+
 fn valid(role: Role, to: &str, numeric: bool, kind: Kind) -> Result<(), VersionsError> {
     let ok = match role {
         // a bare JSON number (`"version": 1.5`) takes a number and nothing else; `+` cannot be written bare in an Xcode project or
@@ -199,6 +225,8 @@ fn valid(role: Role, to: &str, numeric: bool, kind: Kind) -> Result<(), Versions
             to.len() <= 64
                 && to.chars().next().is_some_and(|c| c.is_ascii_alphanumeric())
                 && to.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-') || (c == '+' && !matches!(kind, Kind::Pbxproj | Kind::Pubspec)))
+                // Cargo, Tauri and pub refuse (or misread) a version that is not a full `x.y.z`
+                && (!matches!(kind, Kind::Cargo | Kind::Tauri | Kind::Pubspec) || semver_like(to))
         }
         Role::Build => !to.is_empty() && to.len() <= 16 && to.split('.').all(plain_number) && (!numeric || !to.contains('.')),
     };
@@ -225,6 +253,20 @@ fn splice(rel: &str, text: &str, repl: &mut [(Range<usize>, &str)]) -> Result<St
     }
     out.push_str(&text[at..]);
     Ok(out)
+}
+
+/// Keeps an edit. A file may not grow past what is read back (it would then be neither listed nor put back by a rollback), and one
+/// plan only holds so much.
+fn keep(edits: &mut Vec<FileEdit>, total: &mut usize, e: FileEdit) -> Result<(), VersionsError> {
+    if e.after.len() as u64 > cap_of(&e.rel) {
+        return fail("tooLarge", format!("{} would be larger than {} bytes after the change", e.rel, cap_of(&e.rel)));
+    }
+    *total += e.before.len() + e.after.len();
+    if *total > MAX_PLAN_BYTES {
+        return fail("tooLarge", "the files this would change are too large together");
+    }
+    edits.push(e);
+    Ok(())
 }
 
 struct FileEdit {
@@ -258,6 +300,7 @@ fn compute(root: &Path, changes: &[Change]) -> Result<Vec<FileEdit>, VersionsErr
         by_file.entry(f.path.clone()).or_default().push((c, f));
     }
     let mut edits = Vec::new();
+    let mut total = 0usize;
     for (rel, items) in by_file {
         let kind = items[0].1.kind;
         let before = read(root, &rel)?;
@@ -280,7 +323,7 @@ fn compute(root: &Path, changes: &[Change]) -> Result<Vec<FileEdit>, VersionsErr
             continue;
         }
         let after = splice(&rel, &before, &mut repl)?;
-        edits.push(FileEdit { rel: rel.clone(), before, after });
+        keep(&mut edits, &mut total, FileEdit { rel: rel.clone(), before, after })?;
         for (lock_rel, from, to) in lock_jobs {
             let text = read(root, &lock_rel)?;
             let ranges = lock_ranges(&text, from);
@@ -289,7 +332,7 @@ fn compute(root: &Path, changes: &[Change]) -> Result<Vec<FileEdit>, VersionsErr
             }
             let mut repl: Vec<(Range<usize>, &str)> = ranges.into_iter().map(|r| (r, to)).collect();
             let after = splice(&lock_rel, &text, &mut repl)?;
-            edits.push(FileEdit { rel: lock_rel, before: text, after });
+            keep(&mut edits, &mut total, FileEdit { rel: lock_rel, before: text, after })?;
         }
     }
     Ok(edits)

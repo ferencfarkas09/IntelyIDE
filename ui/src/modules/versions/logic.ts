@@ -107,12 +107,25 @@ export function versionValues(repo: RepoVersions): string[] {
 
 const plainNumber = (part: string): boolean => part === "0" || /^[1-9]\d*$/.test(part);
 
+/** `MAJOR.MINOR.PATCH` with an optional `-pre.release` and `+build`: what Cargo, Tauri and Dart's pub read as a version (`1.0` is not one). */
+function semverLike(v: string): boolean {
+  const plus = v.indexOf("+");
+  const rest = plus < 0 ? v : v.slice(0, plus);
+  const build = plus < 0 ? undefined : v.slice(plus + 1);
+  const dash = rest.indexOf("-");
+  const core = dash < 0 ? rest : rest.slice(0, dash);
+  const pre = dash < 0 ? undefined : rest.slice(dash + 1);
+  const identifiers = (s: string, noLeadingZero: boolean): boolean => s !== "" && s.split(".").every((id) => /^[0-9A-Za-z-]+$/.test(id) && !(noLeadingZero && /^0\d+$/.test(id)));
+  const parts = core.split(".");
+  return parts.length === 3 && parts.every(plainNumber) && (pre === undefined || identifiers(pre, true)) && (build === undefined || identifiers(build, false));
+}
+
 /** The same check the Rust side makes (`valid` in crates/versions), so a bad value is marked before anything is sent. */
 export function validValue(field: Field, value: string): boolean {
   const plus = !(field.kind === "pbxproj" || field.kind === "pubspec");
   if (field.role === "version") {
     if (field.numeric) return value.length <= 16 && value.split(".").length <= 2 && value.split(".").every(plainNumber);
-    return /^[0-9A-Za-z][0-9A-Za-z.+-]{0,63}$/.test(value) && (plus || !value.includes("+"));
+    return /^[0-9A-Za-z][0-9A-Za-z.+-]{0,63}$/.test(value) && (plus || !value.includes("+")) && (!(field.kind === "cargo" || field.kind === "tauri" || field.kind === "pubspec") || semverLike(value));
   }
   return value.length > 0 && value.length <= 16 && value.split(".").every(plainNumber) && (!field.numeric || !value.includes("."));
 }
