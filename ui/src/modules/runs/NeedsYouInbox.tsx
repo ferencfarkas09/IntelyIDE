@@ -13,9 +13,11 @@ import { setCentreView } from "./state";
 
 const fail = (e: unknown) => toast.error(t("runs.inbox.sendFail"), (e as { message?: string }).message ?? String(e));
 
-function Entry(props: { entry: InboxEntry }) {
+/** One waiting request with its answer card. `onOpen` and `repoName` let the Needs-You radar window (no workspace UI) reuse it. */
+export function InboxEntryView(props: { entry: InboxEntry; onOpen?: (agentId: string) => void; repoName?: (repoId: string) => string | undefined }) {
   const e = () => props.entry;
-  const repos = () => e().repoIds.map((id) => repoConfig(id)?.name ?? id).join(", ");
+  const repos = () => e().repoIds.map((id) => (props.repoName ? props.repoName(id) : repoConfig(id)?.name) ?? id).join(", ");
+  const open = () => (props.onOpen ? props.onOpen(e().agentId) : (setCentreView("run"), void selectAgent(e().agentId)));
   return (
     <li class="inbox__entry">
       <div class="inbox__head">
@@ -25,7 +27,7 @@ function Entry(props: { entry: InboxEntry }) {
           {e().runTitle}
         </span>
         <span class="inbox__repos ui-truncate">{repos()}</span>
-        <Button size="sm" variant="ghost" onClick={() => (setCentreView("run"), void selectAgent(e().agentId))}>
+        <Button size="sm" variant="ghost" onClick={open}>
           {t("runs.inbox.open")}
         </Button>
       </div>
@@ -55,7 +57,7 @@ export function NeedsYouInbox() {
       <Show when={inbox().length > 0} fallback={<EmptyState icon={CircleCheck} title={t("runs.inbox.none")} description={t("runs.inbox.noneDesc")} />}>
         <ScrollArea class="inbox__scroll">
           <ul class="inbox__list">
-            <For each={inbox()}>{(entry) => <Entry entry={entry} />}</For>
+            <For each={inbox()}>{(entry) => <InboxEntryView entry={entry} />}</For>
           </ul>
         </ScrollArea>
       </Show>

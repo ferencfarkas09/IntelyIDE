@@ -2,7 +2,8 @@
 //! `tray_update`; this file draws the item. Desktop notifications of runs live in `notify.rs`.
 //!
 //! Optional and lazy: no icon exists until `tray_configure { enabled: true }`; switching it off removes the icon.
-//! Events: `tray:action {id}` for menu entries the UI handles (`new-run`, `needs-you`, `stop-all`).
+//! Events: `tray:action {id}` for menu entries the UI handles (`new-run`, `stop-all`; `needs-you` only when the radar window
+//! cannot be opened, see `radar.rs`).
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
@@ -59,6 +60,14 @@ fn on_menu(app: &AppHandle, id: &str) {
             }
         }
         "open" => show_window(app),
+        // the small always-on-top Needs-You radar instead of the whole window
+        "needs-you" => {
+            if let Err(e) = crate::modules::radar::show(app) {
+                eprintln!("radar failed: {e}");
+                show_window(app);
+                let _ = app.emit("tray:action", serde_json::json!({ "id": "needs-you" }));
+            }
+        }
         other => {
             show_window(app);
             if let Err(e) = app.emit("tray:action", serde_json::json!({ "id": other })) {

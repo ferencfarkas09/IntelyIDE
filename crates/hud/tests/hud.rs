@@ -173,6 +173,6 @@ fn the_tray_title_and_menu_follow_the_counts() {
     assert_eq!(en("stop-all"), Some(false));
     assert_eq!(en("needs-you"), Some(false));
     assert_eq!(en("open"), Some(true));
-    let busy = menu_items(&TrayStatus { running: 3, needs_you: 2, timer: "running".into(), timer_label: "PROJ-1".into() });
+    let busy = menu_items(&TrayStatus { running: 3, needs_you: 2, timer: "running".into(), timer_label: "PROJ-1".into(), plan_percent: None });
     assert!(busy.iter().any(|i| matches!(i, MenuItem::Info { text, .. } if text == "Timer running: PROJ-1")));
 }
