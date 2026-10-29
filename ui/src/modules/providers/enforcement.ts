@@ -32,8 +32,8 @@ export interface ShownTier {
 }
 
 /**
- * The highest tier the chip shows on Windows. The git shim there is a shell script only Git Bash runs: a command run through
- * PowerShell or cmd, or git.exe called by its full path, never meets it, and no process-tree or memory watch backs a run up
+ * The highest tier the chip shows on Windows. The git shim there is a Git Bash script (cmd and PowerShell reach it through
+ * git.cmd), git.exe by its full path bypasses it, there is no sandbox and no process-tree or memory watch backs a run up
  * (docs/install-windows.md). Policy hook and deny rules still stop commit and push, so it is best-effort at most.
  */
 export const WINDOWS_MAX_TIER: Tier = "bestEffort";
