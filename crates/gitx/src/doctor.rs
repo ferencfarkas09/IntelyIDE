@@ -198,10 +198,34 @@ fn path_sanity(opts: &DoctorOpts, found: &BTreeMap<&'static str, PathBuf>, out: 
 
 // ---- disk -------------------------------------------------------------------------------------------------------------
 
-/// Windows: not reported (std has no free-space call and the check must not shell out); the disk check is skipped there.
-#[cfg(not(unix))]
+/// Windows: `GetDiskFreeSpaceExW` of kernel32 (which std links anyway; no binding crate, no shelling out). The space this
+/// user may still write, quotas included.
+#[cfg(windows)]
+pub fn free_bytes(path: &Path) -> Option<u64> {
+    use std::os::windows::ffi::OsStrExt;
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn GetDiskFreeSpaceExW(dir: *const u16, avail_to_caller: *mut u64, total: *mut u64, free: *mut u64) -> i32;
+    }
+    let wide: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
+    let mut avail = 0u64;
+    // SAFETY: `wide` is a NUL-terminated UTF-16 path; `avail` is a valid ULARGE_INTEGER out-pointer, the other two may be null.
+    let ok = unsafe { GetDiskFreeSpaceExW(wide.as_ptr(), &mut avail, std::ptr::null_mut(), std::ptr::null_mut()) };
+    (ok != 0).then_some(avail)
+}
+
+#[cfg(not(any(unix, windows)))]
 pub fn free_bytes(_path: &Path) -> Option<u64> {
     None
+}
+
+/// What tells two volumes apart: the device number, or on Windows (where std has no device id) the drive or share prefix.
+fn volume_key(probe: &Path, m: &fs::Metadata) -> String {
+    if cfg!(windows) {
+        probe.components().next().map(|c| c.as_os_str().to_string_lossy().to_uppercase()).unwrap_or_default()
+    } else {
+        intely_core::sys::file_ids(m).0.to_string()
+    }
 }
 
 #[cfg(unix)]
@@ -220,11 +244,11 @@ pub fn free_bytes(path: &Path) -> Option<u64> {
 
 fn disk(opts: &DoctorOpts, out: &mut Vec<DoctorCheck>) {
     // One line per volume: the repos and the IDE state directory that live on it.
-    let mut volumes: BTreeMap<u64, (PathBuf, Vec<String>)> = BTreeMap::new();
+    let mut volumes: BTreeMap<String, (PathBuf, Vec<String>)> = BTreeMap::new();
     let mut add = |label: String, path: &Path| {
         let probe = path.ancestors().find(|a| a.exists()).unwrap_or(path);
         if let Ok(m) = fs::metadata(probe) {
-            volumes.entry(intely_core::sys::file_ids(&m).0).or_insert_with(|| (probe.to_path_buf(), Vec::new())).1.push(label);
+            volumes.entry(volume_key(probe, &m)).or_insert_with(|| (probe.to_path_buf(), Vec::new())).1.push(label);
         }
     };
     for (id, p) in &opts.repos {
@@ -540,5 +564,26 @@ mod hardening_tests {
         assert!(o.ok && o.stdout.contains("a.txt"), "{}", o.stderr);
         let _ = child(&git, &["-C", &repo.to_string_lossy(), "ls-files", "--others", "--exclude-standard"], &opts, None);
         assert!(!marker.exists(), "the doctor executed core.fsmonitor");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[cfg(any(unix, windows))]
+    #[test]
+    fn the_free_space_of_a_real_folder_is_known_on_macos_linux_and_windows() {
+        let dir = tempfile::tempdir().unwrap();
+        assert!(free_bytes(dir.path()).is_some_and(|b| b > 0));
+        assert_eq!(free_bytes(&dir.path().join("missing/deeper")), None);
+    }
+
+    #[test]
+    fn two_folders_of_one_volume_share_a_key() {
+        let a = tempfile::tempdir().unwrap();
+        let b = tempfile::tempdir().unwrap();
+        let key = |p: &Path| volume_key(p, &fs::metadata(p).unwrap());
+        assert_eq!(key(a.path()), key(b.path()));
     }
 }
