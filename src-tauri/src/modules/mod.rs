@@ -35,6 +35,7 @@ pub mod team;
 pub mod term;
 pub mod tray;
 pub mod updates;
+pub mod devices;
 pub mod versions;
 pub mod viewers;
 pub mod workspaces;

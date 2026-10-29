@@ -223,6 +223,9 @@ const LINT_WORDS: [&str; 7] = ["lint", "eslint", "prettier", "format", "typechec
 const BUILD_WORDS: [&str; 17] = [
     "build", "builder", "compile", "bundle", "dist", "pack", "export", "publish", "deploy", "release", "ipa", "aab", "apk", "sign", "analyze", "clean", "rebuild",
 ];
+/// Commands that build the native app and install it on a simulator or device. A script that runs one is a build whatever
+/// it is called (`ios`, `android`, `device`): it takes minutes, writes `ios/build` or `android/app/build` and starts an app.
+const NATIVE_RUN: [&str; 7] = ["run:ios", "run-ios", "run:android", "run-android", "xcodebuild", "expo prebuild", "eas build"];
 const DEV_WORDS: [&str; 6] = ["dev", "serve", "watch", "web", "local", "nodemon"];
 const DEV_BODY: [&str; 9] = ["expo start", "webpack serve", "webpack-dev-server", "srcwebserver", "srcserver", "next dev", "vite", "nodemon", "react-scripts start"];
 
@@ -244,10 +247,14 @@ fn group_of(name: &str, body: &str, scripts: &Scripts) -> ScriptGroup {
     if has(&BUILD_WORDS) {
         return ScriptGroup::Build;
     }
+    let body_lower = body.to_ascii_lowercase();
+    let reached = closure(name, scripts).to_ascii_lowercase();
+    if NATIVE_RUN.iter().any(|h| reached.contains(h)) {
+        return ScriptGroup::Build;
+    }
     if lower.starts_with("start") {
         return ScriptGroup::Start;
     }
-    let body_lower = body.to_ascii_lowercase();
     if has(&DEV_WORDS) || DEV_BODY.iter().any(|h| body_lower.contains(h)) {
         return ScriptGroup::Dev;
     }
@@ -286,6 +293,9 @@ fn reasons_of(name: &str, group: &ScriptGroup, closure_text: &str) -> Vec<String
     }
     if lower_body.contains("npm install") || lower_body.contains("npm i ") || lower_body.contains("yarn install") || lower_body.contains("pnpm install") {
         r.push("installs packages".to_owned());
+    }
+    if NATIVE_RUN.iter().any(|h| lower_body.contains(h)) {
+        r.push("builds the native app and installs it on a simulator or device".to_owned());
     }
     if *group == ScriptGroup::Build && r.is_empty() {
         r.push("build: writes output and is heavy".to_owned());
@@ -344,6 +354,24 @@ mod tests {
 
     fn find<'a>(c: &'a Catalog, name: &str) -> &'a ScriptInfo {
         c.scripts.iter().find(|s| s.name == name).unwrap_or_else(|| panic!("no script {name}"))
+    }
+
+    #[test]
+    fn scripts_that_build_and_install_the_native_app_are_builds_that_need_a_confirmation() {
+        let pkg = r#"{"scripts":{
+            "start":"expo start","ios":"expo run:ios","android":"react-native run-android",
+            "device":"npm run ios","xcode":"xcodebuild -workspace ios/App.xcworkspace","web":"expo start --web","lint":"eslint . && expo run:ios"
+        }}"#;
+        let dir = repo(&[("package.json", pkg)]);
+        let c = catalog("r", dir.path()).unwrap();
+        for name in ["ios", "android", "device", "xcode"] {
+            let s = find(&c, name);
+            assert_eq!((s.group.clone(), s.safety.clone(), s.forbidden_to_agents), (ScriptGroup::Build, Safety::Confirm, true), "{name}");
+            assert!(s.reasons.iter().any(|r| r.contains("simulator or device")) || name == "device" || name == "xcode", "{name}: {:?}", s.reasons);
+        }
+        assert_eq!(find(&c, "start").safety, Safety::Normal);
+        assert_eq!(find(&c, "web").safety, Safety::Normal);
+        assert_eq!(find(&c, "lint").group, ScriptGroup::Lint, "the name still wins for lint and test scripts");
     }
 
     #[test]

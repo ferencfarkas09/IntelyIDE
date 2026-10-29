@@ -330,6 +330,16 @@ pub fn run() {
             modules::versions::versions_scan,
             modules::versions::versions_plan,
             modules::versions::versions_apply,
+            // ==== React Native / Expo device loop ====
+            modules::devices::devices_detect,
+            modules::devices::devices_list,
+            modules::devices::devices_boot,
+            modules::devices::devices_shutdown,
+            modules::devices::devices_log_start,
+            modules::devices::devices_log_stop,
+            modules::devices::devices_log_clear,
+            modules::devices::devices_logs,
+            modules::devices::devices_reload,
             // ==== alpha attachments commands ====
             modules::attachments::attachment_import_bytes,
             modules::attachments::attachment_import_paths,
@@ -648,6 +658,7 @@ pub fn run() {
             modules::attachments::setup(app)?;
             // ==== track P state (run) ====
             modules::runner::setup(app)?;
+            modules::devices::setup(app)?;
             // ==== wave3 X2 checks state ====
             modules::checks::setup(app)?;
             // ==== track P state (preview) ====
@@ -739,6 +750,7 @@ pub fn run() {
             }
             modules::term::shutdown(handle);
             modules::runner::shutdown(handle);
+            modules::devices::shutdown(handle);
             modules::checks::shutdown(handle);
             modules::preview::shutdown(handle);
             modules::remote::shutdown(handle);

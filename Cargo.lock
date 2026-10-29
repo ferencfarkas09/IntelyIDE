@@ -2776,6 +2776,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "intely-devices"
+version = "0.0.0"
+dependencies = [
+ "intely-core",
+ "intely-runner",
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "intely-files"
 version = "0.0.0"
 dependencies = [
@@ -3113,6 +3124,7 @@ dependencies = [
  "intely-contract",
  "intely-core",
  "intely-deeppattern",
+ "intely-devices",
  "intely-files",
  "intely-gitx",
  "intely-graph",

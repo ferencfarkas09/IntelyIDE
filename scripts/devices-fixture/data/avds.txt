@@ -1,0 +1,3 @@
+INFO    | Storing crashdata in: /tmp/android-user/emu-crash-34.2.16.db, detection is enabled for process: 12345
+Pixel_7_API_34
+Pixel_Tablet_API_33

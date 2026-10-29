@@ -1,0 +1,7 @@
+Starting project at /tmp/app
+Starting Metro Bundler
+Metro waiting on exp://192.168.1.20:8081
+› Metro waiting on http://localhost:8081
+iOS Bundled 812ms index.js (1 module)
+ ERROR  Invariant Violation: Native module cannot be null.
+error: Unable to resolve module ./Missing from /tmp/app/App.js
