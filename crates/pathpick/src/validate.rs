@@ -498,16 +498,16 @@ mod tests {
     #[test]
     fn hygiene_understands_pasted_paths() {
         let home = Path::new("/Users/alice");
-        assert_eq!(hygiene("  \"/a/b c\"  ", home).unwrap(), PathBuf::from("/a/b c"));
-        assert_eq!(hygiene("'/a/b'", home).unwrap(), PathBuf::from("/a/b"));
-        assert_eq!(hygiene("file:///a/b%20c", home).unwrap(), PathBuf::from("/a/b c"));
-        assert_eq!(hygiene("/a/b\\ c", home).unwrap(), PathBuf::from("/a/b c"));
-        assert_eq!(hygiene("~", home).unwrap(), PathBuf::from("/Users/alice"));
-        assert_eq!(hygiene("~/Projects/x", home).unwrap(), PathBuf::from("/Users/alice/Projects/x"));
+        assert_eq!(hygiene_for("  \"/a/b c\"  ", home, false).unwrap(), PathBuf::from("/a/b c"));
+        assert_eq!(hygiene_for("'/a/b'", home, false).unwrap(), PathBuf::from("/a/b"));
+        assert_eq!(hygiene_for("file:///a/b%20c", home, false).unwrap(), PathBuf::from("/a/b c"));
+        assert_eq!(hygiene_for("/a/b\\ c", home, false).unwrap(), PathBuf::from("/a/b c"));
+        assert_eq!(hygiene_for("~", home, false).unwrap(), PathBuf::from("/Users/alice"));
+        assert_eq!(hygiene_for("~/Projects/x", home, false).unwrap(), PathBuf::from("/Users/alice/Projects/x"));
         for bad in ["", "relative/x", "~bob/x", "/a\0b", "/a\nb", "file:///a%zz"] {
-            assert_eq!(hygiene(bad, home).unwrap_err().code, codes::PATH_INVALID, "{bad:?}");
+            assert_eq!(hygiene_for(bad, home, false).unwrap_err().code, codes::PATH_INVALID, "{bad:?}");
         }
-        assert_eq!(hygiene(&"/a".repeat(3000), home).unwrap_err().code, codes::PATH_INVALID);
+        assert_eq!(hygiene_for(&"/a".repeat(3000), home, false).unwrap_err().code, codes::PATH_INVALID);
     }
 
     #[test]

@@ -377,7 +377,7 @@ mod tests {
         .into_iter()
         .map(|(k, v)| (k.to_string(), v.to_string()))
         .collect();
-        let kept: Vec<String> = scrub_env(&vars).into_keys().collect();
+        let kept: Vec<String> = scrub_env_for(&vars, false, |_| None).into_keys().collect();
         assert_eq!(kept, ["CLAUDE_CONFIG_DIR", "HOME", "LANG", "PATH"]);
     }
 
@@ -389,7 +389,7 @@ mod tests {
         ];
         let mut vars: HashMap<String, String> = canaries.iter().map(|k| (k.to_string(), "CANARY".to_string())).collect();
         vars.extend([("PATH", "/usr/bin"), ("LC_ALL", "C"), ("USER", "u")].map(|(k, v)| (k.to_string(), v.to_string())));
-        let kept = scrub_env(&vars);
+        let kept = scrub_env_for(&vars, false, |_| None);
         assert!(kept.values().all(|v| v != "CANARY"), "{kept:?}");
         assert_eq!(kept.len(), 3);
     }
