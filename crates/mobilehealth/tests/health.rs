@@ -138,7 +138,7 @@ fn cases() -> Vec<Case> {
         case!("android.sdk.targetMissing", Warn, APP_GRADLE, |r| ed(r, APP_GRADLE, "        targetSdkVersion rootProject.ext.targetSdkVersion\n", "")),
         case!("android.sdkDir.missing", Info, "local.properties", |r| rm(r, "android/local.properties")),
         case!("android.secrets.plaintext", Error, APP_GRADLE, |r| ed(r, APP_GRADLE, "storePassword System.getenv(\"DEMO_STORE_PASSWORD\")", "storePassword 'hunter2hunter2'")),
-        case!("android.signing.absoluteKeystore", Warn, APP_GRADLE, |r| ed(r, APP_GRADLE, "file(System.getenv(\"DEMO_STORE_FILE\") ?: \"release.jks\")", "file(\"/Users/dev/keys/release.jks\")")),
+        case!("android.signing.absoluteKeystore", Warn, APP_GRADLE, |r| ed(r, APP_GRADLE, "file(System.getenv(\"DEMO_STORE_FILE\") ?: \"release.jks\")", "file(\"/Users/someone/keys/release.jks\")")),
         case!("android.signing.keystoreMissing", Error, APP_GRADLE, |r| rm(r, "android/app/debug.keystore")),
         case!("android.signing.releaseUsesDebug", Error, APP_GRADLE, |r| ed(r, APP_GRADLE, "signingConfig signingConfigs.release", "signingConfig signingConfigs.debug")),
         case!("android.version.codeInvalid", Error, APP_GRADLE, |r| ed(r, APP_GRADLE, "versionCode 7", "versionCode 0")),
