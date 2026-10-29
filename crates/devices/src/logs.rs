@@ -287,10 +287,11 @@ mod tests {
     #[test]
     fn lines_are_masked_capped_and_classified_before_they_are_stored() {
         let hub = LogHub::new();
-        hub.feed("ios", &["2024-05-01 10:00:01.200 E   App[1:2] token=ghp_abcdefghijklmnopqrstuvwxyz0123456789 and more", &"y".repeat(10_000), "   ", "\u{1b}[2J\u{7}hello"]);
+        let secret = format!("ghp_{}", "x".repeat(36));
+        hub.feed("ios", &[&format!("2024-05-01 10:00:01.200 E   App[1:2] token={secret} and more"), &"y".repeat(10_000), "   ", "\u{1b}[2J\u{7}hello"]);
         let c = hub.chunk("ios", 0);
         assert_eq!(c.entries.len(), 3, "the blank line is dropped");
-        assert!(!c.entries[0].text.contains("ghp_abcdefghijklmnopqrstuvwxyz"), "{}", c.entries[0].text);
+        assert!(!c.entries[0].text.contains(&secret), "{}", c.entries[0].text);
         assert_eq!(c.entries[0].level, Level::Error);
         assert_eq!(c.entries[1].text.len(), MAX_LINE);
         assert!(!c.entries[2].text.contains('\u{1b}'));

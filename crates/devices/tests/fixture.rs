@@ -155,7 +155,7 @@ fn the_ios_stream_masks_secrets_and_a_stuck_stream_can_be_stopped() {
     wait_until("the stream to end", || !hub.chunk("ios", 0).running);
     let c = hub.chunk("ios", 0);
     assert!(c.entries.iter().any(|e| e.text.contains("Invariant Violation")));
-    assert!(c.entries.iter().all(|e| !e.text.contains("ghp_abcdefghijklmnopqrstuvwxyz")), "{:?}", c.entries);
+    assert!(c.entries.iter().all(|e| !e.text.contains("ghp_xxxxxxxxxxxx")), "{:?}", c.entries);
     // A stream that never ends (the hang mode keeps `sleep` alive) stops on request.
     let hub = LogHub::new();
     hub.start(&devices(true), Path::new("/"), &Tools { adb: tools().adb, ..Tools::default() }, &env("hang", None), &LogTarget::Android { serial: None }).unwrap();

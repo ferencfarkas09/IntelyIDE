@@ -1,6 +1,6 @@
 Filtering the log data using "process == "MyApp" OR subsystem == "com.facebook.react.log""
 Timestamp                       Ty Process[PID:TID]
 2024-05-01 10:00:00.100 Df  MyApp[1234:5678] [com.facebook.react.log:javascript] Running "MyApp"
-2024-05-01 10:00:01.200 E   MyApp[1234:5678] [com.facebook.react.log:javascript] Invariant Violation: "MyApp" has not been registered. token=ghp_abcdefghijklmnopqrstuvwxyz0123456789
+2024-05-01 10:00:01.200 E   MyApp[1234:5678] [com.facebook.react.log:javascript] Invariant Violation: "MyApp" has not been registered. token=@@TOKEN@@
 2024-05-01 10:00:02.300 Df  MyApp[1234:5678] [com.facebook.react.log:javascript] WARN  Require cycle: a.js -> b.js -> a.js
 2024-05-01 10:00:03.400 Fa  MyApp[1234:5678] *** Terminating app due to uncaught exception 'RCTFatalException'
