@@ -7,14 +7,21 @@ use crate::types::{AdbState, AndroidDevice, IosSimulator, Level, SimState};
 pub const MAX_DEVICES: usize = 200;
 pub const MAX_LINE: usize = 2000;
 
-/// `text` without control characters (a tab becomes a space), at most `max` chars.
+/// Characters that draw nothing but can hide or reorder text: zero-width and bidi characters, variation selectors, the
+/// Unicode tag characters that can carry an invisible message.
+fn is_format(c: char) -> bool {
+    matches!(c, '\u{200b}'..='\u{200f}' | '\u{2060}'..='\u{2064}' | '\u{feff}' | '\u{00ad}' | '\u{202a}'..='\u{202e}' | '\u{061c}' | '\u{180e}' | '\u{2066}'..='\u{2069}' | '\u{fe00}'..='\u{fe0f}' | '\u{fff9}'..='\u{fffb}' | '\u{e0000}'..='\u{e007f}')
+}
+
+/// `text` without control and format characters (a tab becomes a space), at most `max` chars.
 pub fn clean(text: &str, max: usize) -> String {
-    text.chars().map(|c| if c == '\t' { ' ' } else { c }).filter(|c| !c.is_control()).take(max).collect()
+    text.chars().map(|c| if c == '\t' { ' ' } else { c }).filter(|c| !c.is_control() && !is_format(*c)).take(max).collect()
 }
 
 /// A simulator UDID: 36 chars of hex and dashes. Anything else never reaches a command line.
 pub fn valid_udid(s: &str) -> bool {
-    s.len() == 36 && s.bytes().all(|b| b.is_ascii_hexdigit() || b == b'-') && s.matches('-').count() == 4
+    let parts: Vec<&str> = s.split('-').collect();
+    parts.len() == 5 && parts.iter().zip([8, 4, 4, 4, 12]).all(|(p, n)| p.len() == n && p.bytes().all(|b| b.is_ascii_hexdigit()))
 }
 
 /// An AVD name as the emulator lists it.
@@ -193,7 +200,10 @@ mod tests {
     #[test]
     fn ids_are_validated_before_they_reach_a_command_line() {
         assert!(valid_udid("6D0F0B7E-1A2B-4C3D-8E4F-5A6B7C8D9E01"));
-        for bad in ["", "6D0F0B7E", "6D0F0B7E-1A2B-4C3D-8E4F-5A6B7C8D9E0;", "--help", "6D0F0B7E1A2B4C3D8E4F5A6B7C8D9E01XXXX"] {
+        for bad in [
+            "", "6D0F0B7E", "6D0F0B7E-1A2B-4C3D-8E4F-5A6B7C8D9E0;", "--help", "6D0F0B7E1A2B4C3D8E4F5A6B7C8D9E01XXXX",
+            "-D0F0B7E-1A2B-4C3D-8E4F-5A6B7C8D9E01", "-D0F0B7E1A2B-4C3D-8E4F-5A6B7C8D9E01", "--F0B7E-1A2B-4C3D-8E4F-5A6B7C8D9E01-", "6D0F0B7E-1A2B-4C3D-8E4F5-A6B7C8D9E01", "6D0F0B7E1-A2B-4C3D-8E4F-5A6B7C8D9E01", "6D0F0B7E-1A2B-4C3D-8E4F-5A6B7C8D9E01\n",
+        ] {
             assert!(!valid_udid(bad), "{bad}");
         }
         assert!(valid_avd("Pixel_7_API_34") && valid_avd("Pixel-7.1"));
@@ -276,5 +286,6 @@ mod tests {
     fn clean_strips_control_characters_and_caps() {
         assert_eq!(clean("a\u{1b}[31mb\tc\u{7}", 10), "a[31mb c");
         assert_eq!(clean(&"é".repeat(100), 5).chars().count(), 5);
+        assert_eq!(clean("a\u{200b}b\u{202e}c\u{e0041}d\u{85}e\u{fe0f}", 10), "abcde", "format and C1 characters go too");
     }
 }

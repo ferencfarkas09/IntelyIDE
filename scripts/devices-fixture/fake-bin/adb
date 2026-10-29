@@ -3,11 +3,12 @@
 D=$(cd "$(dirname "$0")/.." && pwd)
 [ -n "$FAKE_DEVICES_LOG" ] && echo "adb $*" >> "$FAKE_DEVICES_LOG"
 MODE=${FAKE_MODE:-ok}
-[ "$MODE" = hang ] && exec sleep 600
+[ "$MODE" = hang ] && { [ -n "$FAKE_PIDS" ] && echo $$ >> "$FAKE_PIDS"; exec sleep 600; }
 [ "$MODE" = fail ] && { echo "adb: server didn't ACK" >&2; exit 1; }
 [ "$1" = -s ] && shift 2
 case "$1" in
-  devices) case "$MODE" in empty) printf 'List of devices attached\n\n' ;; garbled) cat "$D/data/adb-garbled.txt" ;; *) cat "$D/data/adb.txt" ;; esac ;;
+  devices) [ "$MODE" = daemon ] && { cat "$D/data/adb.txt"; sleep 30 & exit 0; }
+    case "$MODE" in empty) printf 'List of devices attached\n\n' ;; garbled) cat "$D/data/adb-garbled.txt" ;; *) cat "$D/data/adb.txt" ;; esac ;;
   emu) exit 0 ;;
   logcat) cat "$D/data/android-log.txt" ;;
   *) exit 64 ;;

@@ -5,7 +5,8 @@ use std::collections::HashMap;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use intely_core::jail::Jail;
@@ -51,26 +52,55 @@ impl Tools {
     }
 }
 
-struct Captured {
-    code: Option<i32>,
-    stdout: String,
-    stderr: String,
+/// Output collected by a reader thread. The thread ends at end of file; a background daemon that inherited the pipe can keep
+/// it open long after the tool exited, so the caller takes what is there after a short drain instead of joining.
+#[derive(Default)]
+struct Collected {
+    bytes: Mutex<Vec<u8>>,
+    done: AtomicBool,
 }
 
-fn read_capped(mut r: impl Read + Send + 'static) -> std::thread::JoinHandle<String> {
+impl Collected {
+    fn text(&self) -> String {
+        String::from_utf8_lossy(&self.bytes.lock().unwrap_or_else(|e| e.into_inner())).into_owned()
+    }
+}
+
+/// How long the output is drained after the tool exited.
+const DRAIN: Duration = Duration::from_millis(500);
+
+fn read_capped(mut r: impl Read + Send + 'static) -> Arc<Collected> {
+    let out = Arc::new(Collected::default());
+    let sink = out.clone();
     std::thread::spawn(move || {
-        let mut buf = Vec::new();
         let mut chunk = [0u8; 8192];
         while let Ok(n) = r.read(&mut chunk) {
             if n == 0 {
                 break;
             }
+            let mut buf = sink.bytes.lock().unwrap_or_else(|e| e.into_inner());
             if buf.len() < MAX_OUT {
-                buf.extend_from_slice(&chunk[..n.min(MAX_OUT - buf.len())]);
+                let room = MAX_OUT - buf.len();
+                buf.extend_from_slice(&chunk[..n.min(room)]);
             }
         }
-        String::from_utf8_lossy(&buf).into_owned()
-    })
+        sink.done.store(true, Ordering::SeqCst);
+    });
+    out
+}
+
+/// Waits (at most [`DRAIN`]) for the readers to reach end of file.
+fn drain(readers: &[&Collected]) {
+    let until = Instant::now() + DRAIN;
+    while Instant::now() < until && !readers.iter().all(|r| r.done.load(Ordering::SeqCst)) {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
+
+struct Captured {
+    code: Option<i32>,
+    stdout: String,
+    stderr: String,
 }
 
 /// Applies the environment shared by every child: the login `PATH`, no `INTELY_*`, no prompts.
@@ -84,6 +114,7 @@ pub(crate) fn prepare(cmd: &mut Command, env: &HashMap<String, String>) {
     }
     intely_core::sys::NewGroup::new_group(cmd);
 }
+
 
 fn run_capture(program: &Path, args: &[&str], env: &HashMap<String, String>, timeout: Duration) -> Result<Captured, EngineError> {
     let mut cmd = Command::new(program);
@@ -106,9 +137,9 @@ fn run_capture(program: &Path, args: &[&str], env: &HashMap<String, String>, tim
             Err(_) => break None,
         }
     };
-    let (stdout, stderr) = (out.join().unwrap_or_default(), err.join().unwrap_or_default());
+    drain(&[&out, &err]);
     match status {
-        Some(s) => Ok(Captured { code: s.code(), stdout, stderr }),
+        Some(s) => Ok(Captured { code: s.code(), stdout: out.text(), stderr: err.text() }),
         None => Err(EngineError::new("timeout", "the tool did not answer in time")),
     }
 }

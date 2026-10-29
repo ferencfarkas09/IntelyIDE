@@ -145,14 +145,25 @@ pub async fn devices_logs(state: State<'_, DevicesState>, platform: String, from
     Ok(state.hub.chunk(&platform, from_seq))
 }
 
-/// Asks the running Metro server (a dev server the Run panel started) to reload the app. The port is the server's detected
-/// loopback port, looked up here; the webview never names a port or a host.
+/// Asks the running Metro server (a dev server the Run panel started) to reload the app. The port is neither what the webview
+/// says nor what the script printed: it is a port `lsof` found listening in the server's process tree AND one Metro is
+/// configured for (8081, 19000, the `--port` of the start script, `RCT_METRO_PORT`). A script that prints some other port
+/// cannot aim the one request at it.
 #[tauri::command]
-pub async fn devices_reload(run: State<'_, RunState>, server_id: String) -> Res<()> {
-    let info = run.0.list().into_iter().find(|s| s.id == server_id).ok_or_else(|| EngineError::new("unknownServer", "that dev server is not running"))?;
+pub async fn devices_reload(engine: State<'_, EngineSlot>, run: State<'_, RunState>, server_id: String) -> Res<()> {
+    let unknown = || EngineError::new("unknownServer", "that dev server is not running");
+    let info = run.0.list().into_iter().find(|s| s.id == server_id).ok_or_else(unknown)?;
     if !matches!(info.status, ServerStatus::Running | ServerStatus::Starting) {
-        return Err(EngineError::new("unknownServer", "that dev server is not running"));
+        return Err(unknown());
     }
-    let port = *info.ports.first().ok_or_else(|| EngineError::new("noPort", "the dev server has no detected port yet"))?;
-    blocking(move || intely_devices::net::reload(port)).await
+    let root = repo_path(&engine, &info.repo_id).await?;
+    let env_port = engine.get().map(Engine::login_env).ok().and_then(|e| e.get("RCT_METRO_PORT").cloned());
+    let script = info.script.strip_prefix("npm:").unwrap_or(&info.script).to_owned();
+    let confirmed = run.0.confirmed_ports(&server_id);
+    blocking(move || {
+        let allowed = intely_devices::detect::metro_ports(&root, &script, env_port.as_deref());
+        let port = confirmed.into_iter().find(|p| allowed.contains(p)).ok_or_else(|| EngineError::new("noPort", "Metro is not confirmed to listen on its port yet"))?;
+        intely_devices::net::reload(port)
+    })
+    .await
 }

@@ -19,13 +19,13 @@ A repository counts as a React Native or Expo app when its `package.json` depend
 | iOS Pods | `ios/Pods/Manifest.lock` against `ios/Podfile.lock`: installed, out of date, or not installed |
 | Android SDK | `ANDROID_HOME`, `ANDROID_SDK_ROOT`, `android/local.properties`, then the usual install folders |
 
-A fact that cannot be told (for example a `latest` tag instead of a version) shows as unknown. Only small project files are read, each up to 2 MB, and `.env*` files are never opened.
+A fact that cannot be told (for example a `latest` tag instead of a version) shows as unknown. Only small project files are read, each up to 2 MB, and `.env*` files are never opened. A path is read only when it still lies inside the repository after every symbolic link on the way is resolved, so a link such as `android -> /somewhere/else` is ignored (a pnpm `node_modules` link into the repository is fine).
 
 ## Metro
 
 Start, Stop, Restart and Reload app act on the `package.json` script that starts Metro: the script called `start` (or `dev`) whose command contains `expo start` or `react-native start`. The script runs through the same runner as the Run panel, so everything there applies: the "Allow processes" switch in read-only mode, the detected port, the memory chip, the masking of secrets in the output, and the one-click Stop. Metro shows in the Run panel as well. If the project has no such script, the panel says which one to add.
 
-Reload app asks the running Metro server to reload the app with one request to `127.0.0.1` on the port the runner detected. Nothing leaves the machine, and the button is off until a port is known.
+Reload app asks the running Metro server to reload the app with one request to `127.0.0.1`. The port is never one the script printed: it must be a port that `lsof` found listening in the server's own process tree and that Metro is configured for (8081, 19000, the `--port` of the start script, or `RCT_METRO_PORT`). Nothing leaves the machine, and the button is off until such a port is known.
 
 ## Devices
 
@@ -39,7 +39,7 @@ The device lists come from three optional tools, looked up on the `PATH` of your
 
 A missing tool is a normal state with a hint, never an error. A phone that needs the USB debugging prompt accepted shows as unauthorized. Only emulators can be shut down from the panel, never a phone. Booting an AVD opens the emulator window; it is left running when you close IntelyIDE.
 
-Run app builds the native app and installs it on the device: it runs the project's `ios` or `android` script (for example `expo run:ios` or `react-native run-android`). Such a script is a build, so it asks for a confirmation first, lists why, and is never started by an agent; this holds for any script that runs `expo run:*`, `react-native run-*`, `xcodebuild`, `expo prebuild` or `eas build`, whatever it is called. The CLI picks the device (the booted simulator, or the one it asks for); the panel passes no arguments.
+Run app builds the native app and installs it on the device: it runs the project's `ios` or `android` script (for example `expo run:ios` or `react-native run-android`). Such a script is a build, so it asks for a confirmation first, lists why, and is never started by an agent; this holds for any script that runs `expo run:*`, `react-native run-*` or `build-*`, `xcodebuild`, `expo prebuild`, `eas build` or `eas submit`, `pod install`, `fastlane` or `gradlew assemble*` / `bundle*` / `install*`, whatever it is called and however it reaches them (through another script, with flags in between, in a workspace command, in a `pre` or `post` hook, or after `&&`). The CLI picks the device (the booted simulator, or the one it asks for); the panel passes no arguments.
 
 ## Device logs
 
@@ -67,7 +67,7 @@ The panel reads the Metro output and both device logs for the failures that usua
 | The Metro port is already in use | `EADDRINUSE`, port in use |
 | The iOS Pods are out of date | `The sandbox is not in sync with the Podfile.lock` |
 
-The same error is one card with a count; Dismiss hides a card. Fix with agent opens the New Run dialog with a prompt that holds the error, a few lines after it and the app's name and version. It only fills the form: nothing runs until you press Start run, and you choose the role.
+The same error is one card with a count; Dismiss hides a card. Fix with agent opens the New Run dialog with a prompt that holds the error, a few lines after it and the app's name and version. The log lines in it are stripped of control and invisible characters, put in a fence that nothing inside can close, and introduced to the agent as untrusted output, because a repository decides what its scripts print. It only fills the form: nothing runs until you press Start run, and you choose the role.
 
 ## Safety and privacy
 

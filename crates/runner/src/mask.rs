@@ -81,8 +81,15 @@ pub fn mask(text: &str) -> String {
     mask_plain(text)
 }
 
+/// Characters a terminal does not draw (or draws over): zero-width and bidi characters, C0 and C1 controls other than the line
+/// break and the tab (the escape and the backspace are handled apart), variation selectors and tag characters.
 fn is_invisible(c: char) -> bool {
-    matches!(c, '\u{200b}'..='\u{200f}' | '\u{2060}'..='\u{2064}' | '\u{feff}' | '\u{00ad}' | '\u{202a}'..='\u{202e}')
+    matches!(
+        c,
+        '\u{0}'..='\u{7}' | '\u{b}'..='\u{1a}' | '\u{1c}'..='\u{1f}' | '\u{7f}'..='\u{9f}'
+            | '\u{200b}'..='\u{200f}' | '\u{2060}'..='\u{2064}' | '\u{feff}' | '\u{00ad}' | '\u{202a}'..='\u{202e}'
+            | '\u{061c}' | '\u{180e}' | '\u{2066}'..='\u{2069}' | '\u{fe00}'..='\u{fe0f}' | '\u{fff9}'..='\u{fffb}' | '\u{e0000}'..='\u{e007f}'
+    )
 }
 
 /// `text` without ANSI escape sequences and invisible characters; a backspace is dropped, with the character before
@@ -566,6 +573,18 @@ mod tests {
         let colored = "\u{1b}[32mCompiled\u{1b}[0m ok \u{200b}";
         assert_eq!(mask(colored), colored, "a line without a secret keeps its colours");
         assert_eq!(mask(&format!("\u{1b}[1m{t}")), "***");
+    }
+
+    #[test]
+    fn a_token_split_by_a_control_or_format_character_is_still_masked() {
+        let t = gh();
+        let (a, b) = t.split_at(10);
+        for hidden in ["\u{0}", "\u{1}", "\r", "\u{7f}", "\u{85}", "\u{9b}", "\u{200d}", "\u{2066}", "\u{e0041}", "\u{fe0f}", "\u{61c}", "\u{c}", "\u{b}"] {
+            let m = mask(&format!("tok {a}{hidden}{b} end"));
+            assert!(!m.contains(&b[2..]) && !m.contains(&a[4..]) && m.contains(MASK), "{hidden:?} -> {m:?}");
+        }
+        let plain = "line one\r\nline\ttwo";
+        assert_eq!(mask(plain), plain, "ordinary line ends and tabs are kept");
     }
 
     #[test]

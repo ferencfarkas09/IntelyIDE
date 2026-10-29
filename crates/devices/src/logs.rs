@@ -105,16 +105,29 @@ impl Ring {
     }
 }
 
+/// One run of one stream. A restart makes a NEW session (sharing the ring, so the lines stay), and the old session's reader
+/// thread only ever touches the old one: it can neither mark the new stream as ended nor take away its process group.
 struct Session {
-    ring: Mutex<Ring>,
+    ring: Arc<Mutex<Ring>>,
     running: AtomicBool,
+    /// Set by `stop` before the kill: what the dying process still prints is dropped.
+    closed: AtomicBool,
     exit_code: Mutex<Option<i32>>,
     pgid: Mutex<Option<i32>>,
 }
 
 impl Session {
+    fn new(ring: Arc<Mutex<Ring>>) -> Arc<Self> {
+        Arc::new(Self { ring, running: AtomicBool::new(false), closed: AtomicBool::new(false), exit_code: Mutex::new(None), pgid: Mutex::new(None) })
+    }
+
+    /// Controls are taken out first, then the secrets are masked, then the length is capped: a token split by a control
+    /// character is whole again when the masker sees it, and a cap never cuts a token in two before it is masked.
     fn push_line(&self, raw: &str) {
-        let text = clean(&intely_runner::mask::mask(raw), MAX_LINE);
+        if self.closed.load(Ordering::SeqCst) {
+            return;
+        }
+        let text = clean(&intely_runner::mask::mask(&clean(raw, usize::MAX)), MAX_LINE);
         if text.trim().is_empty() {
             return;
         }
@@ -186,11 +199,12 @@ impl LogHub {
         let mut child = cmd.spawn().map_err(|e| EngineError::new(code::IO, format!("could not start the log stream: {e}")))?;
         let session = {
             let mut map = lock(&self.sessions);
-            let session = map.entry(platform).or_insert_with(|| Arc::new(Session { ring: Mutex::default(), running: AtomicBool::new(false), exit_code: Mutex::new(None), pgid: Mutex::new(None) })).clone();
+            let ring = map.get(platform).map(|old| old.ring.clone()).unwrap_or_default();
+            let session = Session::new(ring);
+            map.insert(platform, session.clone());
             session
         };
         session.running.store(true, Ordering::SeqCst);
-        *lock(&session.exit_code) = None;
         *lock(&session.pgid) = Some(child.id() as i32);
         let (stdout, stderr) = (child.stdout.take().expect("piped"), child.stderr.take().expect("piped"));
         let err_session = session.clone();
@@ -209,6 +223,7 @@ impl LogHub {
     /// Ends the stream (the lines stay until cleared).
     pub fn stop(&self, platform: &str) {
         if let Some(s) = self.session(platform) {
+            s.closed.store(true, Ordering::SeqCst);
             if let Some(pgid) = lock(&s.pgid).take() {
                 intely_core::sys::kill_group(pgid, true);
             }
@@ -245,7 +260,7 @@ impl LogHub {
 impl LogHub {
     /// Test hook: feeds lines as if a stream had printed them.
     pub fn feed(&self, platform: &'static str, lines: &[&str]) {
-        let s = lock(&self.sessions).entry(platform).or_insert_with(|| Arc::new(Session { ring: Mutex::default(), running: AtomicBool::new(false), exit_code: Mutex::new(None), pgid: Mutex::new(None) })).clone();
+        let s = lock(&self.sessions).entry(platform).or_insert_with(|| Session::new(Arc::default())).clone();
         for l in lines {
             s.push_line(l);
         }
@@ -295,6 +310,21 @@ mod tests {
         assert_eq!(c.entries[0].level, Level::Error);
         assert_eq!(c.entries[1].text.len(), MAX_LINE);
         assert!(!c.entries[2].text.contains('\u{1b}'));
+    }
+
+    #[test]
+    fn a_secret_split_by_a_control_character_is_masked_before_the_controls_are_stripped() {
+        let hub = LogHub::new();
+        let secret = format!("ghp_{}", "x".repeat(36));
+        let (a, b) = secret.split_at(12);
+        for hidden in ["\u{1}", "\u{0}", "\r", "\u{200b}", "\u{85}", "\u{e0041}"] {
+            hub.feed("android", &[&format!("05-01 10:00:00.100  1  2 E T: tok {a}{hidden}{b} end")]);
+        }
+        let c = hub.chunk("android", 0);
+        assert!(!c.entries.is_empty());
+        for e in &c.entries {
+            assert!(!e.text.contains(&b[2..]) && !e.text.contains(&a[4..]), "{:?}", e.text);
+        }
     }
 
     #[test]

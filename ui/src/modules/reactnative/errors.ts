@@ -9,12 +9,14 @@ const MAX_LINES = 4000;
 
 // eslint-disable-next-line no-control-regex
 const ANSI = /\u001b\[[0-9;?]*[ -/]*[@-~]|\u001b\][^\u0007]*\u0007/g;
+// Control characters (C0 except nothing: a line has no line break or tab left), DEL and C1, then the characters that draw
+// nothing but hide or reorder text: zero-width, bidi, variation selectors, the Unicode tag block.
 // eslint-disable-next-line no-control-regex
-const CONTROL = /[\u0000-\u0008\u000b-\u001f\u007f]/g;
+const INVISIBLE = /[\u0000-\u001f\u007f-\u009f\u00ad\u061c\u180e\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufe00-\ufe0f\ufeff\ufff9-\ufffb]|[\u{e0000}-\u{e007f}]/gu;
 
 /** The line without colour codes and control characters, trimmed, at most `max` chars. */
 export function plain(line: string, max = MAX_SNIPPET): string {
-  return line.replace(ANSI, "").replace(CONTROL, "").trim().slice(0, max);
+  return line.replace(ANSI, "").replace(INVISIBLE, "").trim().slice(0, max);
 }
 
 interface Rule {

@@ -163,3 +163,58 @@ fn the_ios_stream_masks_secrets_and_a_stuck_stream_can_be_stopped() {
     hub.stop("android");
     wait_until("the stream to stop", || !hub.chunk("android", 0).running);
 }
+
+fn alive(pid: i32) -> bool {
+    intely_core::sys::pid_alive(pid as u32)
+}
+
+#[test]
+fn a_restarted_stream_keeps_its_state_and_can_still_be_stopped() {
+    let hub = LogHub::new();
+    let pids = tempfile::NamedTempFile::new().unwrap();
+    let mut e = env("hang", None);
+    e.insert("FAKE_PIDS".to_owned(), pids.path().to_string_lossy().into_owned());
+    let only_adb = Tools { adb: tools().adb, ..Tools::default() };
+    let target = LogTarget::Android { serial: None };
+    hub.start(&devices(true), Path::new("/"), &only_adb, &e, &target).unwrap();
+    wait_until("the first stream", || std::fs::read_to_string(pids.path()).unwrap().lines().count() == 1);
+    hub.start(&devices(true), Path::new("/"), &only_adb, &e, &target).unwrap();
+    wait_until("the second stream", || std::fs::read_to_string(pids.path()).unwrap().lines().count() == 2);
+    // The first stream's reader finishes after its kill; it must not touch the state of the second one.
+    std::thread::sleep(Duration::from_millis(400));
+    assert!(hub.chunk("android", 0).running, "the second stream is running");
+    hub.stop("android");
+    wait_until("the second stream to stop", || !hub.chunk("android", 0).running);
+    let started: Vec<i32> = std::fs::read_to_string(pids.path()).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+    assert_eq!(started.len(), 2);
+    wait_until("every stream process to be gone", || started.iter().all(|p| !alive(*p)));
+}
+
+#[test]
+fn many_restarts_leave_no_process_behind() {
+    let hub = LogHub::new();
+    let pids = tempfile::NamedTempFile::new().unwrap();
+    let mut e = env("hang", None);
+    e.insert("FAKE_PIDS".to_owned(), pids.path().to_string_lossy().into_owned());
+    let only_adb = Tools { adb: tools().adb, ..Tools::default() };
+    let target = LogTarget::Android { serial: None };
+    for _ in 0..40 {
+        hub.start(&devices(true), Path::new("/"), &only_adb, &e, &target).unwrap();
+    }
+    std::thread::sleep(Duration::from_millis(300));
+    assert!(hub.chunk("android", 0).running);
+    hub.stop("android");
+    wait_until("the stream to stop", || !hub.chunk("android", 0).running);
+    let started: Vec<i32> = std::fs::read_to_string(pids.path()).unwrap().lines().filter_map(|l| l.trim().parse().ok()).collect();
+    assert!(!started.is_empty());
+    wait_until("every stream process to be gone", || started.iter().all(|p| !alive(*p)));
+}
+
+#[test]
+fn a_background_daemon_that_keeps_the_pipe_open_does_not_block_the_list() {
+    // `adb devices` starts the adb server, which inherits the pipes and outlives the call.
+    let t = Instant::now();
+    let list = devices(true).list(Path::new("/"), &Tools { adb: tools().adb, ..Tools::default() }, &env("daemon", None)).unwrap();
+    assert_eq!(list.android.len(), 4, "what was printed before the exit is used: {:?}", list.notes);
+    assert!(t.elapsed() < Duration::from_secs(10), "{:?}", t.elapsed());
+}

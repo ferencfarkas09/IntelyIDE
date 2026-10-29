@@ -1,6 +1,6 @@
 //! Project detection: is this repository a React Native or Expo app, and what does it look like. Reads `package.json`,
-//! `app.json`, `ios/Podfile.lock`, `android/gradle.properties` and a few other small files (each capped), follows no
-//! symbolic link out of the repository and never opens `.env*`.
+//! `app.json`, `ios/Podfile.lock`, `android/gradle.properties` and a few other small files (each capped). A path is read only
+//! when it still lies inside the repository after every link on the way is resolved (see `resolve`), and `.env*` is never opened.
 
 use std::path::{Path, PathBuf};
 
@@ -9,19 +9,33 @@ use crate::types::{PodsState, ProjectInfo, ProjectKind};
 
 const MAX_FILE: u64 = 2 * 1024 * 1024;
 
-fn read_text(path: &Path) -> Option<String> {
-    let meta = std::fs::symlink_metadata(path).ok()?;
+/// `rel` under `root`, with every link on the way resolved, when the result is still inside `root`: a link that leaves the
+/// repository (`android -> /elsewhere`, `node_modules -> ~/x`) is not followed, one that stays inside (pnpm's
+/// `node_modules/react-native`) is.
+fn resolve(root: &Path, rel: &str) -> Option<PathBuf> {
+    let target = root.join(rel).canonicalize().ok()?;
+    target.starts_with(root.canonicalize().ok()?).then_some(target)
+}
+
+fn read_text(root: &Path, rel: &str) -> Option<String> {
+    let path = resolve(root, rel)?;
+    let meta = std::fs::metadata(&path).ok()?;
     if !meta.is_file() || meta.len() > MAX_FILE {
         return None;
     }
     std::fs::read_to_string(path).ok()
 }
 
-fn read_json(path: &Path) -> Option<serde_json::Value> {
-    serde_json::from_str(&read_text(path)?).ok()
+fn read_json(root: &Path, rel: &str) -> Option<serde_json::Value> {
+    serde_json::from_str(&read_text(root, rel)?).ok()
 }
 
-fn is_dir(path: &Path) -> bool {
+fn is_dir(root: &Path, rel: &str) -> bool {
+    resolve(root, rel).is_some_and(|p| p.is_dir())
+}
+
+/// A folder of the user's own machine (an SDK), not of the repository.
+fn dir_exists(path: &Path) -> bool {
     std::fs::symlink_metadata(path).is_ok_and(|m| m.is_dir())
 }
 
@@ -35,7 +49,7 @@ fn version_of(spec: &str) -> String {
 }
 
 fn installed_version(root: &Path, name: &str) -> Option<String> {
-    let json = read_json(&root.join("node_modules").join(name).join("package.json"))?;
+    let json = read_json(root, &format!("node_modules/{name}/package.json"))?;
     let v = json.get("version")?.as_str()?;
     Some(clean(v, 40))
 }
@@ -71,9 +85,9 @@ fn pods(root: &Path, has_ios: bool) -> PodsState {
     if !has_ios {
         return PodsState::NotApplicable;
     }
-    let manifest = read_text(&root.join("ios/Pods/Manifest.lock"));
+    let manifest = read_text(root, "ios/Pods/Manifest.lock");
     let Some(manifest) = manifest else { return PodsState::Missing };
-    match read_text(&root.join("ios/Podfile.lock")) {
+    match read_text(root, "ios/Podfile.lock") {
         Some(lock) if lock != manifest => PodsState::Stale,
         _ => PodsState::Installed,
     }
@@ -93,13 +107,13 @@ pub fn android_sdk(home: Option<&Path>) -> Option<PathBuf> {
 }
 
 fn has_sdk_parts(d: &Path) -> bool {
-    d.is_absolute() && (is_dir(&d.join("platform-tools")) || is_dir(&d.join("emulator")))
+    d.is_absolute() && (dir_exists(&d.join("platform-tools")) || dir_exists(&d.join("emulator")))
 }
 
 /// What the status card shows: the trusted SDK, else the `sdk.dir` of `android/local.properties` (shown, never run).
 fn android_sdk_display(root: &Path, home: Option<&Path>) -> Option<PathBuf> {
     android_sdk(home).or_else(|| {
-        let text = read_text(&root.join("android/local.properties"))?;
+        let text = read_text(root, "android/local.properties")?;
         let dir = text.lines().filter_map(|l| l.split_once('=')).find(|(k, _)| k.trim() == "sdk.dir").map(|(_, v)| v.trim().replace("\\:", ":").replace("\\\\", "\\"))?;
         Some(PathBuf::from(dir)).filter(|d| has_sdk_parts(d))
     })
@@ -130,7 +144,7 @@ fn process_name(s: &str) -> Option<String> {
 
 fn ios_process(root: &Path, expo_app: bool, has_ios: bool) -> Option<String> {
     if has_ios {
-        if let Ok(rd) = std::fs::read_dir(root.join("ios")) {
+        if let Some(rd) = resolve(root, "ios").and_then(|d| std::fs::read_dir(d).ok()) {
             let mut names: Vec<String> = rd.filter_map(Result::ok).filter_map(|e| e.file_name().into_string().ok()).filter_map(|n| n.strip_suffix(".xcodeproj").map(str::to_owned)).collect();
             names.sort();
             if let Some(n) = names.into_iter().find_map(|n| process_name(&n)) {
@@ -141,6 +155,37 @@ fn ios_process(root: &Path, expo_app: bool, has_ios: bool) -> Option<String> {
     expo_app.then(|| "Expo Go".to_owned())
 }
 
+/// The ports Metro may legitimately listen on: the defaults (8081, and 19000 of older Expo), the `--port` / `-p` of the start
+/// script, a `RCT_METRO_PORT` set in the script or in `env_port`. Only the project's own files and the user's environment are
+/// read, never the output of the running script.
+pub fn metro_ports(root: &Path, script: &str, env_port: Option<&str>) -> Vec<u16> {
+    let mut ports: Vec<u16> = vec![8081, 19000];
+    let mut add = |text: &str| {
+        if let Ok(p) = text.trim().parse::<u32>() {
+            if (1024..=65535).contains(&p) && !ports.contains(&(p as u16)) {
+                ports.push(p as u16);
+            }
+        }
+    };
+    if let Some(p) = env_port {
+        add(p);
+    }
+    let body = read_json(root, "package.json").and_then(|j| j.get("scripts")?.get(script)?.as_str().map(str::to_owned));
+    if let Some(body) = body {
+        let toks: Vec<&str> = body.split_whitespace().collect();
+        for (i, t) in toks.iter().enumerate() {
+            if let Some(v) = t.strip_prefix("--port=").or_else(|| t.strip_prefix("RCT_METRO_PORT=")) {
+                add(v);
+            } else if matches!(*t, "--port" | "-p") {
+                if let Some(v) = toks.get(i + 1) {
+                    add(v);
+                }
+            }
+        }
+    }
+    ports
+}
+
 /// `Some` when the folder is a React Native or Expo app: `package.json` depends on `react-native` or `expo`, and there is
 /// an `ios/` or `android/` folder or an `app.json` / `app.config.*`.
 pub fn detect(root: &Path) -> Option<ProjectInfo> {
@@ -148,15 +193,15 @@ pub fn detect(root: &Path) -> Option<ProjectInfo> {
 }
 
 pub fn detect_with_home(root: &Path, home: Option<&Path>) -> Option<ProjectInfo> {
-    let pkg = read_json(&root.join("package.json"))?;
+    let pkg = read_json(root, "package.json")?;
     let rn_spec = dep(&pkg, "react-native");
     let expo_spec = dep(&pkg, "expo");
     if rn_spec.is_none() && expo_spec.is_none() {
         return None;
     }
-    let has_ios = is_dir(&root.join("ios"));
-    let has_android = is_dir(&root.join("android"));
-    let app_json = read_json(&root.join("app.json"));
+    let has_ios = is_dir(root, "ios");
+    let has_android = is_dir(root, "android");
+    let app_json = read_json(root, "app.json");
     let has_config = app_json.is_some() || ["app.config.js", "app.config.ts", "app.config.json"].iter().any(|f| root.join(f).is_file());
     if !has_ios && !has_android && !has_config {
         return None;
@@ -174,8 +219,8 @@ pub fn detect_with_home(root: &Path, home: Option<&Path>) -> Option<ProjectInfo>
     let expo_version = expo_spec.as_ref().map(|s| installed_version(root, "expo").unwrap_or_else(|| version_of(s)));
     let rn_mm = rn_version.as_deref().and_then(major_minor);
 
-    let gradle = read_text(&root.join("android/gradle.properties")).unwrap_or_default();
-    let podprops = read_json(&root.join("ios/Podfile.properties.json"));
+    let gradle = read_text(root, "android/gradle.properties").unwrap_or_default();
+    let podprops = read_json(root, "ios/Podfile.properties.json");
     let new_arch = properties_flag(&gradle, "newArchEnabled")
         .or_else(|| podprops.as_ref().and_then(|p| p.get("newArchEnabled")).and_then(|v| v.as_str().map(|s| s == "true").or_else(|| v.as_bool())))
         .or_else(|| expo_cfg.as_ref().and_then(|c| c.get("newArchEnabled")).and_then(|v| v.as_bool()))
@@ -311,12 +356,61 @@ mod tests {
         assert!(p.notes.contains(&"noMetroScript".to_owned()));
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn a_symbolic_link_out_of_the_repository_is_not_followed() {
+        let d = tempfile::tempdir().unwrap();
+        let (repo, outside) = (d.path().join("repo"), d.path().join("outside"));
+        write(&repo, "package.json", r#"{"dependencies":{"react-native":"0.76.0"}}"#);
+        write(&outside, "gradle.properties", "newArchEnabled=false\nhermesEnabled=false\n");
+        write(&outside, "node_modules/react-native/package.json", r#"{"version":"0.12.34"}"#);
+        write(&outside, "Pods/Manifest.lock", "x");
+        write(&outside, "Podfile.lock", "x");
+        write(&outside, "Evil.xcodeproj/x", "");
+        // android/ and ios/ point out of the repository; so does node_modules.
+        std::os::unix::fs::symlink(&outside, repo.join("android")).unwrap();
+        std::os::unix::fs::symlink(&outside, repo.join("ios")).unwrap();
+        std::os::unix::fs::symlink(outside.join("node_modules"), repo.join("node_modules")).unwrap();
+        write(&repo, "app.json", r#"{"expo":{"name":"x"}}"#);
+        let p = detect_with_home(&repo, None).unwrap();
+        assert_eq!((p.has_ios, p.has_android), (false, false), "a linked folder is not the project's own");
+        assert_eq!(p.rn_version.as_deref(), Some("0.76.0"), "the version of a package outside the repository is not read");
+        assert_eq!(p.new_arch, Some(true), "gradle.properties behind a link is not read");
+        assert_eq!((p.pods, p.ios_process), (PodsState::NotApplicable, None));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_link_that_stays_inside_the_repository_is_followed() {
+        // pnpm links node_modules/react-native into node_modules/.pnpm/...
+        let d = tempfile::tempdir().unwrap();
+        let repo = d.path();
+        write(repo, "package.json", r#"{"dependencies":{"react-native":"^0.70.0"}}"#);
+        write(repo, "app.json", "{}");
+        write(repo, "node_modules/.pnpm/react-native@0.76.5/node_modules/react-native/package.json", r#"{"version":"0.76.5"}"#);
+        std::os::unix::fs::symlink(repo.join("node_modules/.pnpm/react-native@0.76.5/node_modules/react-native"), repo.join("node_modules/react-native")).unwrap();
+        assert_eq!(detect_with_home(repo, None).unwrap().rn_version.as_deref(), Some("0.76.5"));
+    }
+
     #[test]
     fn the_xcode_project_name_must_be_safe_for_a_predicate() {
         let d = tempfile::tempdir().unwrap();
         write(d.path(), "package.json", r#"{"dependencies":{"react-native":"0.76.0"}}"#);
         write(d.path(), "ios/a\"b.xcodeproj/x", "");
         assert_eq!(detect_with_home(d.path(), None).unwrap().ios_process, None);
+    }
+
+    #[test]
+    fn metro_ports_come_from_the_defaults_the_script_and_the_environment_only() {
+        let d = tempfile::tempdir().unwrap();
+        write(d.path(), "package.json", r#"{"scripts":{"start":"react-native start --port 8090","web":"expo start --port=19006","env":"RCT_METRO_PORT=8123 react-native start","short":"expo start -p 9000","low":"expo start --port 80","junk":"expo start --port abc"}}"#);
+        assert_eq!(metro_ports(d.path(), "start", None), [8081, 19000, 8090]);
+        assert_eq!(metro_ports(d.path(), "web", Some("7000")), [8081, 19000, 7000, 19006]);
+        assert_eq!(metro_ports(d.path(), "env", None), [8081, 19000, 8123]);
+        assert_eq!(metro_ports(d.path(), "short", None), [8081, 19000, 9000]);
+        assert_eq!(metro_ports(d.path(), "low", None), [8081, 19000], "a privileged port is never a target");
+        assert_eq!(metro_ports(d.path(), "junk", Some("999999")), [8081, 19000]);
+        assert_eq!(metro_ports(d.path(), "missing", None), [8081, 19000]);
     }
 
     #[test]

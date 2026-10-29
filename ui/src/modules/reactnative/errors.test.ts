@@ -49,6 +49,11 @@ describe("classifyError", () => {
 });
 
 describe("plain", () => {
+  it("strips C1 controls, format and bidi characters, variation selectors and tag characters, and joins what a carriage return split", () => {
+    expect(plain("a\u0085b\u200bc\u202ed\u2066e\ufe0ff\u{e0041}g\u001fh\u007fi")).toBe("abcdefghi");
+    expect(plain("first\rsecond")).toBe("firstsecond");
+  });
+
   it("strips colour codes and control characters and caps the length", () => {
     expect(plain("\u001b[31mred\u001b[0m\u0007 text\u0000")).toBe("red text");
     expect(plain("x".repeat(1000)).length).toBe(300);
