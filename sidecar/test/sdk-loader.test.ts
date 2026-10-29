@@ -401,6 +401,35 @@ describe('packaged mode (PK18)', () => {
   }
   const emptyHome = () => { const h = path.join(tmp, 'home'); mkdirSync(h, { recursive: true }); return h; };
 
+  it('isPackagedPath on Windows: the sidecar folder next to IntelyIDE.exe counts, a source checkout does not', () => {
+    const win = (p: string) => isPackagedPath(p, 'win32');
+    // NSIS per user, MSI in Program Files, a folder of the person's choice, other spellings of the same paths
+    expect(win('C:\\Users\\u\\AppData\\Local\\IntelyIDE\\sidecar\\index.js')).toBe(true);
+    expect(win('C:\\Program Files\\IntelyIDE\\sidecar\\index.js')).toBe(true);
+    expect(win('C:/Program Files/IntelyIDE/sidecar/sdk-install.js')).toBe(true);
+    expect(win('c:\\program files\\intelyide\\SIDECAR\\INDEX.JS')).toBe(true);
+    expect(win('D:\\Tools\\Intely\\sidecar\\index.js')).toBe(true);
+    expect(win('\\\\server\\share\\IntelyIDE\\sidecar\\index.js')).toBe(true);
+    expect(win('C:\\Program Files\\IntelyIDE\\sidecar\\..\\sidecar\\index.js')).toBe(true); // resolved first
+    // a source checkout: the bundle is in sidecar\dist, the sources in sidecar\src
+    expect(win('C:\\src\\IntelyIDE\\sidecar\\dist\\index.js')).toBe(false);
+    expect(win('C:/src/IntelyIDE/sidecar/dist/sdk-install.js')).toBe(false);
+    expect(win('C:\\src\\IntelyIDE\\sidecar\\src\\sdk.ts')).toBe(false);
+    expect(win('C:\\Program Files\\IntelyIDE\\sidecar')).toBe(false);
+    expect(win('C:\\Program Files\\IntelyIDE\\sidecar\\')).toBe(false);
+    expect(win('C:\\Program Files\\IntelyIDE\\sidecars\\index.js')).toBe(false);
+    // the macOS rules are untouched by the platform switch
+    expect(isPackagedPath('/Users/x/repo/sidecar/dist/index.js', 'darwin')).toBe(false);
+    expect(isPackagedPath('/Users/x/repo/sidecar/index.js', 'darwin')).toBe(false);
+  });
+
+  it('sdkSetupHint writes the installer command for PowerShell on Windows', () => {
+    const hint = sdkSetupHint({ file: "C:\\Program Files\\Ann's Apps\\IntelyIDE\\sidecar\\index.js", platform: 'win32' });
+    expect(hint).toContain("node 'C:\\Program Files\\Ann''s Apps\\IntelyIDE\\sidecar\\sdk-install.js' --plan");
+    expect(sdkSetupHint({ file: 'C:\\src\\IntelyIDE\\sidecar\\dist\\index.js', platform: 'win32' })).toMatch(/pnpm install/);
+    expect(sdkSetupHint({ file: '/Applications/IntelyIDE.app/Contents/Resources/sidecar/index.js', platform: 'darwin' })).toContain("node '/Applications/IntelyIDE.app/Contents/Resources/sidecar/sdk-install.js' --plan");
+  });
+
   it('isPackagedPath: only a location inside <name>.app/Contents/Resources counts', () => {
     expect(isPackagedPath('/Applications/IntelyIDE.app/Contents/Resources/sidecar/index.js')).toBe(true);
     expect(isPackagedPath('/Users/x/Downloads/Some Name.app/Contents/Resources/sidecar/sdk-install.js')).toBe(true);

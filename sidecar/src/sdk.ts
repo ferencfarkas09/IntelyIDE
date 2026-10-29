@@ -76,8 +76,15 @@ const MAX_BYTES = 256 * 1024 * 1024;
 const SKIP = new Set(['node_modules/.bin', 'node_modules/.package-lock.json']);
 
 const sidecarDir = () => path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-/** True for a file inside `<name>.app/Contents/Resources/` (the bundle layout of (design notes: release-packaging-spec) 4.1), or inside `<dir>/.intely/<version>/resources/sidecar/` (the layout Setup uploads to a remote Linux server). The first is case-insensitive: APFS usually is, and a false positive only makes the loader stricter. */
-export const isPackagedPath = (file: string): boolean => {
+/** True for a file inside `<name>.app/Contents/Resources/` (the bundle layout of (design notes: release-packaging-spec) 4.1), or inside `<dir>/.intely/<version>/resources/sidecar/` (the layout Setup uploads to a remote Linux server). The first is case-insensitive: APFS usually is, and a false positive only makes the loader stricter.
+ * Windows: Tauri installs the resources next to IntelyIDE.exe, wherever the installer put it (NSIS per user, MSI in Program Files,
+ * or a folder the person chose), so the bundled sidecar is `<install dir>\sidecar\<file>.js`; a source checkout has it one folder
+ * deeper (`sidecar\dist\`, `sidecar\src\`). Matched on the resolved path with `/` separators and without case. */
+export const isPackagedPath = (file: string, platform: NodeJS.Platform = process.platform): boolean => {
+  if (platform === 'win32') {
+    const abs = path.win32.resolve(file).replace(/\\/g, '/').replace(/\/+$/, '');
+    return /[^/]\.app\/Contents\/Resources\//i.test(abs) || /\/sidecar\/[^/]+\.[cm]?js$/i.test(abs);
+  }
   const abs = path.resolve(file);
   return /[^/]\.app\/Contents\/Resources\//i.test(abs) || /[^/]\/\.intely\/[^/]+\/resources\/sidecar\//.test(abs);
 };
@@ -95,10 +102,14 @@ let last: SdkReport | null = null;
  * that sits next to this file (a plan first, then the install); in a source checkout the step that fetches the SDK.
  * `file` and `packaged` are for tests; production passes nothing.
  */
-export function sdkSetupHint(opts: { file?: string; packaged?: boolean } = {}): string {
+export function sdkSetupHint(opts: { file?: string; packaged?: boolean; platform?: NodeJS.Platform } = {}): string {
+  const platform = opts.platform ?? process.platform;
   const file = opts.file ?? fileURLToPath(import.meta.url);
-  if (!(opts.packaged ?? isPackagedPath(file))) return 'Run `pnpm install` in the source checkout.';
-  const installer = `'${path.join(path.dirname(file), 'sdk-install.js').replace(/'/g, `'\\''`)}'`;
+  if (!(opts.packaged ?? isPackagedPath(file, platform))) return 'Run `pnpm install` in the source checkout.';
+  // the quoting of the shell a person opens there: PowerShell on Windows (a quote doubled), a POSIX shell elsewhere
+  const installer = platform === 'win32'
+    ? `'${path.win32.join(path.win32.dirname(file), 'sdk-install.js').replace(/'/g, "''")}'`
+    : `'${path.join(path.dirname(file), 'sdk-install.js').replace(/'/g, `'\\''`)}'`;
   return `Install it once in a terminal: node ${installer} --plan (lists what would be downloaded), then node ${installer} --yes.`;
 }
 
