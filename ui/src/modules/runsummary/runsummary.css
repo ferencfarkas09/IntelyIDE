@@ -1,0 +1,63 @@
+.runsummary {
+  margin: var(--space-2) var(--space-3) 0;
+  padding: var(--space-1) var(--space-2) var(--space-2);
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-3);
+  user-select: text;
+}
+
+.runsummary__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-md);
+}
+
+.runsummary__toggle {
+  font-weight: var(--weight-semibold);
+}
+
+.runsummary__grow {
+  flex: 1;
+}
+
+.runsummary__body {
+  padding: 0 var(--space-2);
+}
+
+.runsummary__sub {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: var(--space-3) 0 var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--text-2);
+}
+
+.runsummary__sub[data-tone="warn"] {
+  color: var(--warn);
+}
+
+.runsummary__list {
+  margin: var(--space-1) 0 0;
+  padding-left: var(--space-4);
+  color: var(--text-1);
+  font-size: var(--text-base);
+  line-height: 1.5;
+}
+
+.runsummary__list li + li {
+  margin-top: var(--space-half);
+}
+
+.runsummary__risks li::marker {
+  color: var(--warn);
+}
+
+.runsummary__note {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-xs);
+  color: var(--text-3);
+}
