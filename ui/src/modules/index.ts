@@ -3,8 +3,10 @@
 // the module edits its folder; this file is complete and never changes when a module grows.
 import { register as account } from "./account";
 import { register as attachments } from "./attachments";
+import { register as autotest } from "./autotest";
 import { register as branches } from "./branches";
 import { register as brief } from "./brief";
+import { register as checkpoints } from "./checkpoints";
 import { register as checks } from "./checks";
 import { register as contract } from "./contract";
 import { register as deepPattern } from "./deeppattern";
@@ -38,6 +40,7 @@ import { register as remote } from "./remote";
 import { register as roles } from "./roles";
 import { register as run } from "./run";
 import { register as runs } from "./runs";
+import { register as runSummary } from "./runsummary";
 import { register as search } from "./search";
 import { register as sentry } from "./sentry";
 import { register as settingsCore } from "./settings-core";
@@ -98,6 +101,9 @@ export const MODULES: readonly FeatureModule[] = [
   { id: "intelyfix", register: intelyfix },
   { id: "account", register: account },
   { id: "deeppattern", register: deepPattern },
+  { id: "checkpoints", register: checkpoints },
+  { id: "autotest", register: autotest },
+  { id: "runsummary", register: runSummary },
 ];
 
 /** Runs every module's `register()`. A module that throws is logged and skipped: the app and the other modules start anyway. */

@@ -43,6 +43,9 @@ use crate::remote::{self, NotReady, RemoteFs, SidecarFs, FS_QUERY_TIMEOUT, REMOT
 use crate::run::{context_for, context_for_remote, meta_path, plan_dir, Live, Meta, RemoteDirs, RepoRef, Run, RunState, SnapshotRef, TeamRun};
 use crate::sidecar::{Handler, Incoming, Sidecar};
 
+mod checkpoints;
+pub use checkpoints::{CheckpointSettings, ConfigCopy, RepoCheckpoint, RepoCheckpointPlan, RepoCheckpointRestore, RunCheckpoint};
+
 /// Where committed events go. Called only after the durable append, in `seq` order per agent.
 pub trait HostSink: Send + Sync {
     fn events(&self, events: Vec<AgentEvent>);
@@ -104,6 +107,8 @@ struct Inner {
     log: Arc<JsonlEventLog>,
     sink: Arc<dyn HostSink>,
     rewind: Rewind,
+    /// Per-turn checkpoints and the opt-in copies of ignored config files (host/checkpoints.rs).
+    checkpoints: checkpoints::Checkpoints,
     /// `enforcement.json` as last read; re-read when the file changes (the attempt-suite harness writes it).
     book: Mutex<(Option<SystemTime>, EnforcementBook)>,
     book_path: PathBuf,
@@ -365,6 +370,7 @@ impl AgentHost {
         let book = (file_mtime(&book_path), EnforcementBook::load(&book_path).unwrap_or_default());
         let inner = Arc::new_cyclic(|me| Inner {
             rewind: Rewind::new(&cfg.git),
+            checkpoints: checkpoints::Checkpoints::new(&cfg.data_dir),
             cfg,
             gate: gate.clone(),
             log,
@@ -767,6 +773,10 @@ impl AgentHost {
             return Err(err("turnOpen", "the agent is still working; stop it first or wait"));
         }
         lock(&inner.peers).human_message(agent_id);
+        // a checkpoint before the prompt, so this step can be undone on its own (skipped when nothing changed since the last one)
+        if let Err(e) = inner.checkpoint_step(agent_id, "turn", None, false) {
+            eprintln!("agent host: no checkpoint before the prompt of {agent_id}: {e}");
+        }
         inner.prompt(agent_id, text, files)
     }
 
@@ -2434,9 +2444,26 @@ impl Inner {
             Self::apply(&self.gate, run, &event);
             events.push(event);
         }
+        let turn_ended = events.iter().any(|e| matches!(e.kind, EventKind::TurnEnd { .. }));
         if !quiet {
             self.commit(agent_id, events);
         }
+        if turn_ended && !quiet {
+            // a turn the host ended (cancel, sidecar death) is a step of the timeline too; the thread waits for `st` to be released
+            self.checkpoint_later(agent_id);
+        }
+    }
+
+    /// Takes the "after the turn" checkpoint off the calling thread (it reads the disk; the caller may hold the state lock).
+    fn checkpoint_later(&self, agent_id: &str) {
+        let (weak, id) = (self.me.clone(), agent_id.to_string());
+        std::thread::spawn(move || {
+            if let Some(inner) = weak.upgrade() {
+                if let Err(e) = inner.checkpoint_step(&id, "end", None, false) {
+                    eprintln!("agent host: no checkpoint after the turn of {id}: {e}");
+                }
+            }
+        });
     }
 
     /// Folds one stored event into the run, and mirrors it to the gate and the cancel tracker.
@@ -2523,12 +2550,17 @@ impl Inner {
         if let Some(caps) = stored.iter().rev().find_map(|e| if let EventKind::SessionInfo { caps: Some(c), .. } = &e.kind { Some(c.clone()) } else { None }) {
             st.negotiated.insert(provider.to_string(), caps);
         }
+        let turn_ended = !quiet && stored.iter().any(|e| matches!(e.kind, EventKind::TurnEnd { .. }));
         if !quiet {
             self.commit(agent_id, stored);
         }
         drop(st);
         if let Some(m) = meta.filter(|_| !quiet) {
             self.persist_meta(&m);
+        }
+        if turn_ended {
+            // after each turn: what the agent did in it becomes one step of the run's timeline
+            self.checkpoint_later(agent_id);
         }
     }
 

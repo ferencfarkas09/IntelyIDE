@@ -8,6 +8,7 @@ import type { AgentRow } from "../../store/agents";
 import { foreignReason, isForeign } from "../../store/agentScope";
 import { repoConfig } from "../../store/workspace";
 import { LocationChip } from "../servers/LocationChip";
+import { RunSlots } from "../../components/RunSlots";
 import { announce, Badge, IconButton, Icon, MessagesSquare, RepoBadge, ShieldCheck, StatusDot, Undo2, X } from "../../ui-kit";
 import { focusNeighbour } from "./listFocus";
 import { startRunDrag } from "./paneDnd";
@@ -62,6 +63,7 @@ export function RunCard(props: { row: AgentRow; view: AgentView | undefined; sel
           </Show>
         </span>
         <span class="run-card__grow" />
+        <RunSlots place="card" agent={r()} />
         <Show when={effectiveMode(r()) === "bypass"}>
           <Badge size="sm" tone="danger" variant="solid" title={t("modes.header.bypassTip")}>
             {t("modes.header.bypassChip")}
@@ -112,6 +114,9 @@ export function RunRow(props: { row: AgentRow; view: AgentView | undefined; sele
           <StatusDot tone={status().tone} label={status().label} />
           <span class="run-row__title ui-truncate">{r().title}</span>
           <span class="run-row__ago ui-tnum">{ago(r().startedAt)}</span>
+        </span>
+        <span class="run-row__slots">
+          <RunSlots place="card" agent={r()} />
         </span>
         <Show when={props.detail}>
           <span class="run-row__activity ui-truncate">{activityLine(r(), props.view)}</span>
