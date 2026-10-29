@@ -309,7 +309,8 @@ impl Validator {
         if state.starts_with(root) || root.starts_with(state) {
             return true;
         }
-        [".ssh", ".aws", ".gnupg", "Library"].iter().any(|d| root.starts_with(home.join(d)))
+        // `Library` on macOS; `AppData` is its Windows counterpart (application data, credentials, browser profiles)
+        [".ssh", ".aws", ".gnupg", "Library", "AppData"].iter().any(|d| root.starts_with(home.join(d)))
     }
 
     fn location_warnings(&self, canonical: &Path) -> Vec<PickWarning> {
@@ -448,7 +449,45 @@ fn hygiene_for(raw: &str, home: &Path, windows: bool) -> Result<PathBuf, EngineE
     if s.is_empty() || s.chars().any(|c| c == '\0') || !absolute {
         return Err(bad());
     }
+    if windows {
+        windows_hostile(&s).map_err(|why| err(codes::PATH_INVALID, why))?;
+    }
     Ok(PathBuf::from(s))
+}
+
+/// Windows paths the picker never opens, before any file system call: the device namespace (`\\.\`, `\\?\` other than the
+/// long form of a drive path), network shares (opening `\\host\share` makes Windows log on to that host with the user's
+/// credentials), reserved device names (`CON`, `NUL`, `COM1`, ...), alternate data streams (`file:stream`) and names that end in
+/// a dot or a space (Windows drops them, so the path shown is not the path opened).
+fn windows_hostile(s: &str) -> Result<(), &'static str> {
+    let p = s.replace('/', "\\");
+    let body = if let Some(rest) = p.strip_prefix(r"\\?\") {
+        let b = rest.as_bytes();
+        if !(b.len() >= 3 && b[0].is_ascii_alphabetic() && b[1] == b':' && b[2] == b'\\') {
+            return Err("device and network paths are not supported");
+        }
+        rest
+    } else if p.starts_with(r"\\") {
+        return Err("network shares and device paths are not supported on Windows; map the folder to a local drive or copy it");
+    } else {
+        p.as_str()
+    };
+    // `C:` is the drive; every other colon is a stream name
+    if body.get(2..).is_some_and(|rest| rest.contains(':')) {
+        return Err("alternate data streams are not folders");
+    }
+    for name in body.get(3..).unwrap_or("").split('\\').filter(|n| !n.is_empty()) {
+        if name.ends_with('.') && name != "." && name != ".." || name.ends_with(' ') {
+            return Err("a name that ends in a dot or a space");
+        }
+        let stem = name.split('.').next().unwrap_or("").trim_end().to_ascii_uppercase();
+        let reserved = matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL" | "CONIN$" | "CONOUT$")
+            || (stem.len() == 4 && (stem.starts_with("COM") || stem.starts_with("LPT")) && stem.as_bytes()[3].is_ascii_digit());
+        if reserved {
+            return Err("a reserved device name (CON, NUL, COM1, ...)");
+        }
+    }
+    Ok(())
 }
 
 fn percent_decode(s: &str) -> Option<String> {
@@ -516,7 +555,6 @@ mod tests {
         let ok = |raw: &str| hygiene_for(raw, home, true).unwrap();
         assert_eq!(ok(r"C:\Users\u\Projects\app"), PathBuf::from(r"C:\Users\u\Projects\app"));
         assert_eq!(ok("D:/work/app"), PathBuf::from("D:/work/app"));
-        assert_eq!(ok(r"\\server\share\repo"), PathBuf::from(r"\\server\share\repo"));
         assert_eq!(ok(r#""C:\Program Files\x""#), PathBuf::from(r"C:\Program Files\x"));
         assert_eq!(ok("file:///C:/a%20b"), PathBuf::from("C:/a b"));
         assert_eq!(ok(r"C:\a\ b"), PathBuf::from(r"C:\a\ b"), "a backslash is a separator on Windows");
@@ -524,7 +562,33 @@ mod tests {
         for bad in ["relative\\x", "C:", "C:relative", "/a/b", "\\single"] {
             assert_eq!(hygiene_for(bad, home, true).unwrap_err().code, codes::PATH_INVALID, "{bad:?}");
         }
+        assert_eq!(ok(r"\\?\C:\Users\u\repo"), PathBuf::from(r"\\?\C:\Users\u\repo"), "the long form of a drive path");
+        assert_eq!(ok(r"C:\Users\u\my.repo\.git-ish"), PathBuf::from(r"C:\Users\u\my.repo\.git-ish"));
+        assert_eq!(ok(r"C:\Users\u\console\nullable\com10"), PathBuf::from(r"C:\Users\u\console\nullable\com10"), "only the exact device names");
         assert_eq!(hygiene_for(r"C:\Users\u", Path::new("/Users/alice"), false).unwrap_err().code, codes::PATH_INVALID, "not on macOS");
+    }
+
+    #[test]
+    fn hostile_windows_paths_are_refused_before_anything_is_opened() {
+        let home = Path::new(r"C:\Users\u");
+        let corpus = [
+            r"\\.\PhysicalDrive0", r"\\.\pipe\x", r"\\.\C:\x", r"\\.\COM1", r"\\?\GLOBALROOT\Device\HarddiskVolume1\x",
+            r"\\?\UNC\evil\share", r"\\?\Volume{01234567-89ab-cdef-0123-456789abcdef}\x", r"\\?\pipe\x",
+            r"\\evil\share", r"\\evil\share\repo", r"\\evil@80\DavWWWRoot\x", r"\\evil@SSL\share", r"\\10.0.0.1\c$",
+            r"\\localhost\c$\Users", "//evil/share/x", r"\\\\x", "file://evil/share/x",
+            r"C:\Users\u\CON", r"C:\Users\u\con.txt", r"C:\Users\u\NUL", r"C:\Users\u\nul.git", r"C:\Users\u\aux\x",
+            r"C:\Users\u\PRN", r"C:\Users\u\COM1", r"C:\Users\u\com9.log", r"C:\Users\u\LPT1", r"C:\Users\u\lpt3\x",
+            r"C:\Users\u\CONIN$", r"C:\Users\u\conout$", r"C:\Users\u\CON .txt",
+            r"C:\Users\u\repo:stream", r"C:\Users\u\repo::$DATA", r"C:\Users\u\.env::$DATA", r"C:\a:b\c",
+            r"C:\Users\u\repo.", r"C:\Users\u\repo \x", r"C:\Users\u\repo...\x", r"C:\Users\u\a \b", r"C:\Users\u\x.\",
+            r"C:\Users\u\COM9 ",
+        ];
+        assert_eq!(corpus.len(), 40);
+        for bad in corpus {
+            assert_eq!(hygiene_for(bad, home, true).map_err(|e| e.code), Err(codes::PATH_INVALID.to_owned()), "{bad:?} must be refused");
+        }
+        // the same text on macOS is judged by the macOS rules only (relative, so refused there too, but not by these)
+        assert!(hygiene_for("/Volumes/CON/x", Path::new("/Users/alice"), false).is_ok());
     }
 
     #[test]

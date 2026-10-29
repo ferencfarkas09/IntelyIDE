@@ -66,6 +66,10 @@ pub fn shape_of(dir: &Path) -> Result<Found, EngineError> {
                 return Ok(Found { shape: Shape::NotGit, git_symlink });
             };
             let raw = raw.trim();
+            // Windows: a gitdir on a network share or device would make canonicalize log on to that host; never follow it
+            if cfg!(windows) && windows_remote(raw) {
+                return Ok(Found { shape: Shape::NotGit, git_symlink });
+            }
             let target_path = if Path::new(raw).is_absolute() { PathBuf::from(raw) } else { dir.join(raw) };
             let Ok(git_dir) = std::fs::canonicalize(&target_path) else {
                 return Ok(Found { shape: Shape::NotGit, git_symlink });
@@ -74,12 +78,10 @@ pub fn shape_of(dir: &Path) -> Result<Found, EngineError> {
                 return Ok(Found { shape: Shape::NotGit, git_symlink });
             }
             let shown = git_dir.to_string_lossy().into_owned();
-            let shape = if shown.contains("/worktrees/") {
-                Shape::Worktree { commondir: read_commondir(&git_dir), git_dir }
-            } else if shown.contains("/modules/") {
-                Shape::Submodule { git_dir }
-            } else {
-                Shape::Redirect { git_dir, target: shown }
+            let shape = match redirect_kind(&shown, cfg!(windows)) {
+                RedirectKind::Worktree => Shape::Worktree { commondir: read_commondir(&git_dir), git_dir },
+                RedirectKind::Submodule => Shape::Submodule { git_dir },
+                RedirectKind::Other => Shape::Redirect { git_dir, target: shown },
             };
             Ok(Found { shape, git_symlink })
         }
@@ -91,6 +93,37 @@ pub fn shape_of(dir: &Path) -> Result<Found, EngineError> {
             Ok(Found { shape: if bare { Shape::Bare } else { Shape::NotGit }, git_symlink: false })
         }
     }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum RedirectKind {
+    Worktree,
+    Submodule,
+    Other,
+}
+
+/// What a `.git` file points at, from the canonical target: a linked worktree, a submodule or anything else. On Windows the
+/// target is spelled with `\` (and often `\\?\`), so the separators are made `/` before matching.
+fn redirect_kind(shown: &str, windows: bool) -> RedirectKind {
+    let s = if windows { shown.replace('\\', "/") } else { shown.to_owned() };
+    if s.contains("/worktrees/") {
+        RedirectKind::Worktree
+    } else if s.contains("/modules/") {
+        RedirectKind::Submodule
+    } else {
+        RedirectKind::Other
+    }
+}
+
+/// A Windows `gitdir:` target on another host or in the device namespace (`\\host\share`, `//host/share`, `\\.\`, `\\?\UNC\`).
+/// The long form of a local drive path (`\\?\C:\`) is local.
+fn windows_remote(raw: &str) -> bool {
+    let p = raw.replace('/', "\\");
+    if let Some(rest) = p.strip_prefix(r"\\?\") {
+        let b = rest.as_bytes();
+        return !(b.len() >= 2 && b[0].is_ascii_alphabetic() && b[1] == b':');
+    }
+    p.starts_with(r"\\")
 }
 
 fn read_commondir(git_dir: &Path) -> Option<PathBuf> {
@@ -423,5 +456,30 @@ mod tests {
         assert_eq!(risk_name(&e[0]).as_deref(), Some("core.fsmonitor"));
         let e = parse_ini("[core]\nbare = false\n");
         assert!(risk_name(&e[0]).is_none());
+    }
+}
+
+#[cfg(test)]
+mod windows_tests {
+    use super::*;
+
+    #[test]
+    fn worktrees_and_submodules_are_recognised_with_windows_separators() {
+        assert_eq!(redirect_kind(r"\\?\C:\src\app\.git\worktrees\feature", true), RedirectKind::Worktree);
+        assert_eq!(redirect_kind(r"C:\src\app\.git\modules\lib", true), RedirectKind::Submodule);
+        assert_eq!(redirect_kind(r"C:\elsewhere\repo.git", true), RedirectKind::Other);
+        // macOS and Linux unchanged: only `/` separates
+        assert_eq!(redirect_kind("/src/app/.git/worktrees/feature", false), RedirectKind::Worktree);
+        assert_eq!(redirect_kind(r"/src/a\worktrees\b", false), RedirectKind::Other);
+    }
+
+    #[test]
+    fn a_gitdir_on_another_host_is_never_followed_on_windows() {
+        for remote in [r"\\host\share\x.git", "//host/share/x.git", r"\\?\UNC\host\share", r"\\.\pipe\x", r"\\?\GLOBALROOT\Device\x", r"\\host@80\DavWWWRoot\x"] {
+            assert!(windows_remote(remote), "{remote}");
+        }
+        for local in [r"C:\src\app\.git\worktrees\x", r"\\?\C:\src\.git", "../.git/modules/lib", r"D:/x/.git"] {
+            assert!(!windows_remote(local), "{local}");
+        }
     }
 }
