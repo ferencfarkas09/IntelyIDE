@@ -35,7 +35,12 @@ The window has one title bar: the app's own, with minimize, maximize and close a
 
 The layers that keep agents from committing and pushing are described in [safety.md](safety.md). On Windows some of them are thinner, and the **enforcement chip never shows more than Best effort** there, whatever the attempt suites recorded:
 
-- **Git guard.** The allow-list `git` shim is a shell script run by Git Bash, the shell Claude Code uses for its Bash tool. For commands that go through `cmd` or PowerShell, the shim folder also holds a `git.cmd` that runs the same script with the `sh.exe` of your Git for Windows install. `git.exe` called by its full path (`"C:\Program Files\Git\cmd\git.exe" commit`) bypasses both, as `/usr/bin/git` does on macOS; the policy hook is what stops that. If no Git Bash is found next to `git.exe`, there is no `git.cmd`, and `cmd` and PowerShell reach the real git directly.
+- **Git guard.** The allow-list `git` shim is a shell script run by Git Bash, the shell Claude Code uses for its Bash tool. For commands that go through `cmd` or PowerShell, the shim folder also holds a `git.cmd` that runs the same script with `usr\bin\sh.exe` of your Git for Windows install. The guard does **not** cover:
+  - `git.exe` called by its full path (`"C:\Program Files\Git\cmd\git.exe" commit`), as `/usr/bin/git` on macOS; the policy hook is what stops that;
+  - programs that start `git.exe` themselves rather than through a shell: a Node `execFile('git')`, a Python `subprocess`, npm or cargo scripts, build tools;
+  - `cmd` and PowerShell when there is no `git.cmd`: it is written only when `git.exe` belongs to a Git for Windows install in its usual layout (`cmd\git.exe` or `git-bash.exe` next to `usr\bin\sh.exe`) and the paths hold no `%` or `"`. Without it, the run's log says that `cmd` and PowerShell are not guarded in that run.
+
+  Under the Windows rules the shim's `git add` also compares secret-file names without case (`.ENV` is `.env`), and refuses stream names (`.env::$DATA`) and 8.3 short names (`ENV~1`).
 - **No sandbox and no process watch.** Windows has no equivalent of the process-group, memory-budget and process-tree watch of a run: the memory limit per run and the processes panel do nothing yet, and stopping a run ends its tree with `taskkill /T`.
 - **The Agent SDK folder** is checked file by file against the shipped checksums, as on macOS, but its owner and permission bits are not: Windows has no uid and no mode bits to read. The per-user permissions of `%APPDATA%` are what keep other accounts out of it.
 - **Environment.** Agents and the sidecar get the macOS allow-list plus the variables Windows programs need to start: `SystemRoot`, `SystemDrive`, `windir`, `ComSpec`, `PATHEXT`, `USERPROFILE`, `USERNAME`, `HOMEDRIVE`, `HOMEPATH`, `APPDATA`, `LOCALAPPDATA`, `TEMP`, `TMP`, the `ProgramFiles` family, `ProgramData`, `CommonProgramFiles`, `OS`, `PROCESSOR_ARCHITECTURE`, `NUMBER_OF_PROCESSORS` and `CLAUDE_CODE_GIT_BASH_PATH`. None of them carries a credential; tokens and keys are still dropped.
@@ -70,7 +75,7 @@ The run of every crate for 1.14.0 (before the fixes listed first) failed in 45 t
 | Process-tree stop and timing (no process groups on Windows) | `runner`, the app's checks and runner modules, `core` watcher | Open, as documented above (no process watch per run) |
 | Single cases: a file name Windows forbids (`core` diff), the Unix socket folders (`servers` ssh), a git worktree listing (`checks`), Mongo driver timing (`mongo`) | | Open |
 
-## Data and uninstall## Data and uninstall
+## Data and uninstall
 
 Uninstall from Settings > Apps. The IDE keeps its data in `%APPDATA%\IntelySwitchIDE` and the Agent SDK in `%APPDATA%\IntelyIDE`; delete those folders and the `IntelySwitchIDE` / `com.intelyhome.intelyide` entries in Credential Manager (Control Panel > Credential Manager > Windows Credentials) to remove everything.
 

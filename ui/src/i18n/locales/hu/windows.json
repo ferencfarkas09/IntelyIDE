@@ -3,5 +3,5 @@
   "windowControls.minimize": "Kis méret",
   "windowControls.maximize": "Teljes méret",
   "windowControls.close": "Bezárás",
-  "windowsSafety.capped": "Windowson a jelvény legfeljebb {tier} szintet mutat. Az ottani git-őr egy Git Bash-szkript (a cmd és a PowerShell egy git.cmd burkolón át éri el); a teljes útvonalon hívott git.exe megkerüli, az ügynöknek Windowson nincs homokozója, és a futások memória- és folyamatfigyelése még nem működik. A commitot és a pusht a szabályhorog és a tiltólisták így is megállítják."
+  "windowsSafety.capped": "Windowson a jelvény legfeljebb {tier} szintet mutat. Az ottani git-őr egy Git Bash-szkript; a cmd és a PowerShell egy git.cmd burkolón át éri el, amely csak akkor jön létre, ha a Git for Windows a szokásos elrendezésben van telepítve (különben a futás naplója jelzi, hogy a cmd és a PowerShell nincs őrizve). Nem fedi le a teljes útvonalon hívott git.exe-t, sem azokat a programokat, amelyek maguk indítják a git.exe-t (szkriptek, build-eszközök, Python). Az ügynöknek Windowson nincs homokozója, és a futások memória- és folyamatfigyelése még nem működik. A commitot és a pusht a szabályhorog és a tiltólisták így is megállítják."
 }

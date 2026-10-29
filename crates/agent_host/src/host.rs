@@ -2186,7 +2186,13 @@ impl Inner {
             Some(env) => self.upload_remote_shim(env, agent_id)?,
             None => {
                 let shim_dir = self.cfg.data_dir.join("shims").join(agent_id);
-                shim::generate(&shim_dir, &self.cfg.git).map_err(|e| err("shim", format!("cannot prepare the git guard: {e}")))?.dir.to_string_lossy().into_owned()
+                let guard = shim::generate(&shim_dir, &self.cfg.git).map_err(|e| err("shim", format!("cannot prepare the git guard: {e}")))?;
+                // Windows: without git.cmd (no Git Bash next to git.exe, or a path a batch file cannot quote) cmd and PowerShell reach
+                // the real git; said in the log of every such run and in the enforcement chip (docs/install-windows.md)
+                if cfg!(windows) && guard.cmd.is_none() {
+                    eprintln!("agent host: no git.cmd for {agent_id}: the git guard does not cover cmd and PowerShell in this run (no Git Bash found next to {})", self.cfg.git.display());
+                }
+                guard.dir.to_string_lossy().into_owned()
             }
         };
         let (cwd, add_dirs) = match &remote_target {
