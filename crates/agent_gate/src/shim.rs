@@ -21,6 +21,9 @@ pub struct Shim {
     pub script: PathBuf,
     /// One tab-separated line per refusal: epoch seconds, working directory, the arguments.
     pub refusal_log: PathBuf,
+    /// Windows: `git.cmd` next to the script, so that cmd and PowerShell (which only run `.exe`/`.cmd` from `PATH`) meet the
+    /// allow-list too; it runs the script with Git for Windows' own `sh.exe`. `None` elsewhere, or when no Git Bash was found.
+    pub cmd: Option<PathBuf>,
 }
 
 impl Shim {
@@ -75,7 +78,43 @@ fn generate_with(dir: &Path, real_git: &Path, allow_add: bool) -> io::Result<Shi
     }
     fs::rename(&tmp, &script)?;
     open_options(0o600).append(true).create(true).open(&refusal_log)?;
-    Ok(Shim { dir, script, refusal_log })
+    let cmd = if cfg!(windows) { write_cmd_shim(&dir, real_git)? } else { None };
+    Ok(Shim { dir, script, refusal_log, cmd })
+}
+
+/// Git for Windows' `sh.exe` that belongs to `real_git` (`<Git>\cmd\git.exe`, `<Git>\bin\git.exe` or
+/// `<Git>\mingw64\bin\git.exe`): `bin\sh.exe` or `usr\bin\sh.exe` of the install, at most three folders up. Never taken
+/// from `PATH`, so a repository cannot plant a `sh.exe` the shim would run.
+pub fn git_bash_for(real_git: &Path) -> Option<PathBuf> {
+    real_git.ancestors().skip(1).take(3).flat_map(|d| [d.join("bin").join("sh.exe"), d.join("usr").join("bin").join("sh.exe")]).find(|p| p.is_file())
+}
+
+/// The `git.cmd` body that hands every argument to the shim script through `sh`. `None` when a path holds a character a
+/// batch file would expand or end a quote on (`%`, `"`, a line break): the cmd shim is then left out, never written wrong.
+pub fn render_cmd(sh: &Path) -> Option<String> {
+    let sh = sh.to_string_lossy();
+    if sh.contains(['%', '"', '\n', '\r', '\0']) {
+        return None;
+    }
+    Some(format!(
+        "@echo off\r\nrem IntelySwitchIDE git shim for cmd and PowerShell (generated, do not edit): the same allow-list, run by Git Bash.\r\n\"{sh}\" \"%~dp0git\" %*\r\nexit /b %ERRORLEVEL%\r\n"
+    ))
+}
+
+fn write_cmd_shim(dir: &Path, real_git: &Path) -> io::Result<Option<PathBuf>> {
+    let Some(body) = git_bash_for(real_git).and_then(|sh| render_cmd(&sh)) else { return Ok(None) };
+    if dir.to_string_lossy().contains(['%', '"']) {
+        return Ok(None);
+    }
+    let path = dir.join("git.cmd");
+    let tmp = dir.join(".git.cmd.tmp");
+    {
+        let mut f = open_options(0o755).write(true).create(true).truncate(true).open(&tmp)?;
+        f.write_all(body.as_bytes())?;
+        f.sync_all()?;
+    }
+    fs::rename(&tmp, &path)?;
+    Ok(Some(path))
 }
 
 /// Makes `dir` private to the user and returns its canonical path. Unix: mode 0700 and owned by the current user. Windows:
@@ -276,3 +315,50 @@ GIT_PAGER=cat
 export GIT_PAGER
 exec "$REAL_GIT" --no-pager $OPTLOCK "$VERB" "$@"
 "#;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn git_bash_is_found_next_to_the_git_of_a_git_for_windows_install_only() {
+        let root = tempfile::tempdir().unwrap();
+        let git = root.path().join("Git");
+        for d in ["cmd", "bin", "usr/bin", "mingw64/bin"] {
+            fs::create_dir_all(git.join(d)).unwrap();
+        }
+        fs::write(git.join("cmd/git.exe"), "").unwrap();
+        fs::write(git.join("mingw64/bin/git.exe"), "").unwrap();
+        assert_eq!(git_bash_for(&git.join("cmd/git.exe")), None, "no sh.exe yet");
+        fs::write(git.join("usr/bin/sh.exe"), "").unwrap();
+        assert_eq!(git_bash_for(&git.join("cmd/git.exe")), Some(git.join("usr").join("bin").join("sh.exe")));
+        fs::write(git.join("bin/sh.exe"), "").unwrap();
+        assert_eq!(git_bash_for(&git.join("cmd/git.exe")), Some(git.join("bin").join("sh.exe")));
+        assert_eq!(git_bash_for(&git.join("mingw64/bin/git.exe")), Some(git.join("bin").join("sh.exe")), "two folders up");
+        let lone = root.path().join("elsewhere/deep/a/b/git.exe");
+        assert_eq!(git_bash_for(&lone), None);
+    }
+
+    #[test]
+    fn the_cmd_shim_hands_every_argument_to_the_script_and_refuses_paths_it_cannot_quote() {
+        let body = render_cmd(Path::new(r"C:\Program Files\Git\bin\sh.exe")).unwrap();
+        assert!(body.starts_with("@echo off\r\n"));
+        assert!(body.contains("\"C:\\Program Files\\Git\\bin\\sh.exe\" \"%~dp0git\" %*\r\n"), "{body}");
+        assert!(body.ends_with("exit /b %ERRORLEVEL%\r\n"));
+        for bad in [r"C:\100%\sh.exe", "C:\\a\"b\\sh.exe", "C:\\a\nb\\sh.exe"] {
+            assert_eq!(render_cmd(Path::new(bad)), None, "{bad:?}");
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn on_windows_the_shim_also_writes_a_cmd_file_when_git_bash_is_there() {
+        let dir = tempfile::tempdir().unwrap();
+        let Some(git) = std::env::var("PATH").ok().and_then(|p| intely_core::sys::find_in_path(&p, "git")) else { return };
+        let shim = generate(&dir.path().join("shim"), &git).unwrap();
+        match git_bash_for(&git) {
+            Some(_) => assert!(shim.cmd.as_ref().is_some_and(|c| c.is_file())),
+            None => assert!(shim.cmd.is_none()),
+        }
+    }
+}

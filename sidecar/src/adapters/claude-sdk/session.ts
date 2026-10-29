@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 import type { AgentDefinition, Options, Query, SDKUserMessage, SpawnedProcess } from '@anthropic-ai/claude-agent-sdk';
 import { buildChildEnv } from '../../env.js';
 import { killTree } from '../../killtree.js';
+import { claudeExecutable } from '../../winbin.js';
 import { redact } from '../../redact.js';
 import { loadSdk, loadZod } from '../../sdk.js';
 import type {
@@ -186,7 +187,7 @@ export class ClaudeSession implements AgentSession {
     const role: ResolvedRole = spec.role;
     const peer = await this.peerServer(sdk);
     const options: Options = {
-      pathToClaudeCodeExecutable: spec.env.claudeBin ?? undefined,
+      pathToClaudeCodeExecutable: spec.env.claudeBin ? claudeExecutable(spec.env.claudeBin) : undefined,
       cwd: spec.cwd,
       model: role.model,
       ...(role.effort ? { effort: role.effort as NonNullable<Options['effort']> } : {}),

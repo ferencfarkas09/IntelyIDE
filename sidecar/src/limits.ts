@@ -5,6 +5,7 @@ import type { Query } from '@anthropic-ai/claude-agent-sdk';
 import { buildChildEnv } from './env.js';
 import type { ProtocolClient } from './protocol.js';
 import { redact } from './redact.js';
+import { claudeExecutable } from './winbin.js';
 import { loadSdk, SdkError, sdkSetupHint } from './sdk.js';
 
 export interface LimitWindow {
@@ -76,7 +77,7 @@ export async function queryLimits(req: LimitsRequest, o: { sdk?: LimitsSdk; time
   const env = buildChildEnv({ claudeBin: bin, vars: req.env.vars ?? undefined }, { mode: 'subscription', key: null }, { addDirs: false }).env;
   let q: ReturnType<LimitsSdk['query']> | undefined;
   try {
-    q = sdk.query({ prompt: never, options: { cwd: req.cwd ?? process.cwd(), pathToClaudeCodeExecutable: bin, settingSources: [], strictMcpConfig: true, mcpServers: {}, env } });
+    q = sdk.query({ prompt: never, options: { cwd: req.cwd ?? process.cwd(), pathToClaudeCodeExecutable: claudeExecutable(bin), settingSources: [], strictMcpConfig: true, mcpServers: {}, env } });
     const ask = q.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET;
     if (typeof ask !== 'function') return { error: 'failed', detail: 'this Claude Agent SDK has no usage request' };
     const live = q;
