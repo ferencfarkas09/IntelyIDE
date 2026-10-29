@@ -27,7 +27,7 @@ pub struct RunState(pub(crate) Arc<RunManager>, pub(crate) Arc<RunExtra>);
 
 /// Where each server was started and which processes survived the last switch.
 pub struct RunExtra {
-    cwds: Mutex<HashMap<String, PathBuf>>,
+    pub(crate) cwds: Mutex<HashMap<String, PathBuf>>,
     survivors: Mutex<Vec<(Survivor, Vec<u16>)>>,
     /// Records a surviving process group in the next-start sweep registry (`run-gate.json`); a no-op without one.
     record: Arc<dyn Fn(i32) + Send + Sync>,

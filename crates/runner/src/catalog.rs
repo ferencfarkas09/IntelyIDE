@@ -1,7 +1,8 @@
 //! Script discovery for one repo: `package.json` scripts (name, group, safety, heavy flag, env var names) plus a few
-//! synthetic `cargo` entries. The catalog never carries a body. A body is only available through [`display_command`],
+//! synthetic `cargo` entries, and a synthetic `pytest` entry when the repo carries pytest markers. The catalog never carries a body. A body is only available through [`display_command`],
 //! masked and with env var values replaced, when the user asks for it. The files read are `package.json`,
-//! `Cargo.toml` (existence) and `src-tauri/tauri.conf.json`; `.env*` files are never opened.
+//! `Cargo.toml` (existence), `src-tauri/tauri.conf.json` and the pytest markers (`pytest.ini`, `conftest.py`, the
+//! `[tool.pytest` table of `pyproject.toml`); `.env*` files are never opened.
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::path::Path;
@@ -28,6 +29,7 @@ pub fn catalog(repo_id: &str, repo: &Path) -> Result<Catalog, EngineError> {
     let (pm, scripts, notes) = load(repo)?;
     let mut infos: Vec<ScriptInfo> = scripts.iter().map(|(name, body)| npm_info(name, body, &scripts, &pm, repo)).collect();
     infos.extend(cargo_scripts(repo));
+    infos.extend(pytest_scripts(repo));
     infos.sort_by(|a, b| (group_rank(&a.group), a.source != "npm", priority(&a.name), &a.name).cmp(&(group_rank(&b.group), b.source != "npm", priority(&b.name), &b.name)));
     Ok(Catalog { repo_id: repo_id.to_owned(), package_manager: pm, scripts: infos, notes })
 }
@@ -44,6 +46,10 @@ pub fn plan(repo: &Path, script_id: &str) -> Result<Plan, EngineError> {
         }
         return Ok(Plan { argv, info });
     }
+    if script_id == PYTEST_ID {
+        let info = pytest_scripts(repo).into_iter().next().ok_or_else(unknown)?;
+        return Ok(Plan { argv: PYTEST_ARGV.iter().map(|s| (*s).to_owned()).collect(), info });
+    }
     let name = script_id.strip_prefix("npm:").ok_or_else(unknown)?;
     let (pm, scripts, _) = load(repo)?;
     let body = scripts.get(name).filter(|_| !name.starts_with('-') && !name.contains('\0')).ok_or_else(unknown)?;
@@ -55,6 +61,9 @@ pub fn plan(repo: &Path, script_id: &str) -> Result<Plan, EngineError> {
 pub fn display_command(repo: &Path, script_id: &str) -> Result<String, EngineError> {
     if let Some(kind) = script_id.strip_prefix("cargo:") {
         return Ok(format!("cargo {kind}"));
+    }
+    if script_id == PYTEST_ID {
+        return Ok(PYTEST_ARGV.join(" "));
     }
     let name = script_id.strip_prefix("npm:").unwrap_or(script_id);
     let (_, scripts, _) = load(repo)?;
@@ -83,7 +92,7 @@ fn priority(name: &str) -> u8 {
     }
 }
 
-type Scripts = BTreeMap<String, String>;
+pub(crate) type Scripts = BTreeMap<String, String>;
 
 fn read_json(path: &Path) -> Option<serde_json::Value> {
     let meta = std::fs::metadata(path).ok()?;
@@ -93,7 +102,7 @@ fn read_json(path: &Path) -> Option<serde_json::Value> {
     serde_json::from_slice(&std::fs::read(path).ok()?).ok()
 }
 
-fn load(repo: &Path) -> Result<(String, Scripts, Vec<String>), EngineError> {
+pub(crate) fn load(repo: &Path) -> Result<(String, Scripts, Vec<String>), EngineError> {
     let mut notes = Vec::new();
     let mut scripts = Scripts::new();
     let pkg = repo.join("package.json");
@@ -110,7 +119,7 @@ fn load(repo: &Path) -> Result<(String, Scripts, Vec<String>), EngineError> {
             }
             None => notes.push("package.json could not be read (invalid or larger than 2 MB).".to_owned()),
         }
-    } else if cargo_manifest(repo).is_none() {
+    } else if cargo_manifest(repo).is_none() && !has_pytest(repo) {
         return Err(EngineError::new(code::IO, "the repo has no package.json or Cargo.toml"));
     }
     let pm = ["pnpm-lock.yaml:pnpm", "yarn.lock:yarn", "bun.lockb:bun", "bun.lock:bun"]
@@ -149,13 +158,47 @@ fn cargo_scripts(repo: &Path) -> Vec<ScriptInfo> {
     ]
 }
 
+/// The id of the synthetic pytest entry; its argv is fixed and never comes from a file.
+pub const PYTEST_ID: &str = "pytest:test";
+const PYTEST_ARGV: [&str; 4] = ["python3", "-m", "pytest", "-q"];
+const MAX_PYPROJECT_BYTES: u64 = 512 * 1024;
+
+/// Whether the repo root says it uses pytest: `pytest.ini`, `conftest.py`, or a `[tool.pytest` table in `pyproject.toml`.
+pub(crate) fn has_pytest(repo: &Path) -> bool {
+    if repo.join("pytest.ini").is_file() || repo.join("conftest.py").is_file() {
+        return true;
+    }
+    let py = repo.join("pyproject.toml");
+    let small = std::fs::metadata(&py).is_ok_and(|m| m.is_file() && m.len() <= MAX_PYPROJECT_BYTES);
+    small && std::fs::read_to_string(&py).is_ok_and(|text| text.lines().any(|l| l.trim_start().starts_with("[tool.pytest")))
+}
+
+fn pytest_scripts(repo: &Path) -> Vec<ScriptInfo> {
+    if !has_pytest(repo) {
+        return Vec::new();
+    }
+    vec![ScriptInfo {
+        id: PYTEST_ID.to_owned(),
+        name: "pytest".to_owned(),
+        source: "pytest".to_owned(),
+        group: ScriptGroup::Test,
+        safety: Safety::Normal,
+        reasons: Vec::new(),
+        forbidden_to_agents: false,
+        heavy_mb: None,
+        env_names: Vec::new(),
+        port_hint: None,
+        runner: PYTEST_ARGV.join(" "),
+    }]
+}
+
 /// Lower-case alphanumeric words of a script name or body (`test:e2e:full` -> test, e2e, full).
-fn words(text: &str) -> Vec<String> {
+pub(crate) fn words(text: &str) -> Vec<String> {
     text.split(|c: char| !c.is_ascii_alphanumeric()).filter(|w| !w.is_empty()).map(str::to_ascii_lowercase).collect()
 }
 
 /// A script together with the scripts it runs through `npm run x` / `pnpm x` style references.
-fn closure(name: &str, scripts: &Scripts) -> String {
+pub(crate) fn closure(name: &str, scripts: &Scripts) -> String {
     fn walk(name: &str, scripts: &Scripts, depth: usize, seen: &mut HashSet<String>, out: &mut String) {
         if depth > REF_DEPTH || !seen.insert(name.to_owned()) {
             return;
@@ -218,7 +261,7 @@ fn env_names(text: &str) -> Vec<String> {
     names.into_iter().collect()
 }
 
-const TEST_WORDS: [&str; 9] = ["test", "tests", "e2e", "jest", "vitest", "cypress", "playwright", "cover", "lambdatest"];
+const TEST_WORDS: [&str; 10] = ["test", "tests", "unit", "e2e", "jest", "vitest", "cypress", "playwright", "cover", "lambdatest"];
 const LINT_WORDS: [&str; 7] = ["lint", "eslint", "prettier", "format", "typecheck", "tsc", "check"];
 const BUILD_WORDS: [&str; 17] = [
     "build", "builder", "compile", "bundle", "dist", "pack", "export", "publish", "deploy", "release", "ipa", "aab", "apk", "sign", "analyze", "clean", "rebuild",
@@ -425,6 +468,23 @@ mod tests {
         assert_eq!(find(&c, "cargo build").safety, Safety::Confirm);
         let p = plan(dir.path(), "cargo:check").unwrap();
         assert_eq!(p.argv, vec!["cargo", "check", "--manifest-path", "src-tauri/Cargo.toml"]);
+    }
+
+    #[test]
+    fn pytest_markers_add_one_fixed_entry_and_a_plain_python_repo_stays_an_error() {
+        let plain = repo(&[("main.py", "print(1)"), ("pyproject.toml", "[project]\nname='x'\n")]);
+        assert!(catalog("r", plain.path()).is_err(), "no marker: no catalog, as before");
+        let py = repo(&[("pyproject.toml", "[project]\nname='x'\n\n[tool.pytest.ini_options]\naddopts='-q'\n")]);
+        let c = catalog("r", py.path()).unwrap();
+        assert_eq!(c.scripts.len(), 1);
+        let s = find(&c, "pytest");
+        assert_eq!((s.id.as_str(), s.group.clone(), s.safety.clone(), s.forbidden_to_agents), (PYTEST_ID, ScriptGroup::Test, Safety::Normal, false));
+        assert_eq!(plan(py.path(), PYTEST_ID).unwrap().argv, vec!["python3", "-m", "pytest", "-q"]);
+        assert_eq!(display_command(py.path(), PYTEST_ID).unwrap(), "python3 -m pytest -q");
+        let ini = repo(&[("pytest.ini", "[pytest]\n"), ("package.json", r#"{"scripts":{"test":"jest"}}"#)]);
+        let c = catalog("r", ini.path()).unwrap();
+        assert_eq!(c.scripts.iter().map(|s| s.id.as_str()).collect::<Vec<_>>(), vec!["npm:test", PYTEST_ID]);
+        assert_eq!(plan(plain.path(), PYTEST_ID).unwrap_err().code, "unknownScript");
     }
 
     #[test]
