@@ -1,0 +1,9 @@
+PODS:
+  - React-Core (0.74.5)
+
+DEPENDENCIES:
+  - React-Core (from `../node_modules/react-native`)
+
+PODFILE CHECKSUM: 0000000000000000000000000000000000000000
+
+COCOAPODS: 1.15.2

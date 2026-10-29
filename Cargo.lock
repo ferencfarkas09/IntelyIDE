@@ -2881,6 +2881,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "intely-mobilehealth"
+version = "0.0.0"
+dependencies = [
+ "rustix",
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "intely-mongo"
 version = "0.0.0"
 dependencies = [
@@ -3120,6 +3130,7 @@ dependencies = [
  "intely-hud",
  "intely-l10n",
  "intely-mcp",
+ "intely-mobilehealth",
  "intely-mongo",
  "intely-pathpick",
  "intely-preview-proxy",

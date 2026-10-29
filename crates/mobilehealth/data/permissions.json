@@ -1,0 +1,28 @@
+{
+  "permissions": [
+    { "id": "camera", "plist": ["NSCameraUsageDescription"], "android": ["android.permission.CAMERA"],
+      "packages": [["react-native-camera", "medium"], ["expo-camera", "medium"], ["react-native-vision-camera", "medium"], ["expo-barcode-scanner", "medium"], ["react-native-image-picker", "low"], ["expo-image-picker", "low"]],
+      "iosSymbols": ["AVCaptureDevice", "AVCaptureSession"], "androidSymbols": ["android.hardware.camera2", "androidx.camera", "MediaStore.ACTION_IMAGE_CAPTURE"] },
+    { "id": "microphone", "plist": ["NSMicrophoneUsageDescription"], "android": ["android.permission.RECORD_AUDIO"],
+      "packages": [["react-native-audio-recorder-player", "medium"], ["react-native-voice", "medium"], ["@react-native-voice/voice", "medium"], ["expo-audio", "low"], ["expo-av", "low"], ["react-native-vision-camera", "low"]],
+      "iosSymbols": ["AVAudioRecorder"], "androidSymbols": ["android.media.MediaRecorder", "android.media.AudioRecord", "SpeechRecognizer"] },
+    { "id": "location", "plist": ["NSLocationWhenInUseUsageDescription", "NSLocationAlwaysAndWhenInUseUsageDescription"], "android": ["android.permission.ACCESS_FINE_LOCATION", "android.permission.ACCESS_COARSE_LOCATION"],
+      "packages": [["expo-location", "medium"], ["react-native-geolocation-service", "medium"], ["@react-native-community/geolocation", "medium"], ["react-native-background-geolocation", "medium"], ["react-native-maps", "low"]],
+      "iosSymbols": ["CLLocationManager"], "androidSymbols": ["android.location.LocationManager", "FusedLocationProviderClient"] },
+    { "id": "photos", "plist": ["NSPhotoLibraryUsageDescription", "NSPhotoLibraryAddUsageDescription"], "android": ["android.permission.READ_MEDIA_IMAGES", "android.permission.READ_MEDIA_VIDEO", "android.permission.READ_EXTERNAL_STORAGE", "android.permission.WRITE_EXTERNAL_STORAGE"],
+      "packages": [["expo-media-library", "medium"], ["@react-native-camera-roll/camera-roll", "medium"], ["@react-native-community/cameraroll", "medium"], ["react-native-image-picker", "low"], ["expo-image-picker", "low"]],
+      "iosSymbols": ["PHPhotoLibrary", "ALAssetsLibrary"], "androidSymbols": ["MediaStore.Images"] },
+    { "id": "contacts", "plist": ["NSContactsUsageDescription"], "android": ["android.permission.READ_CONTACTS", "android.permission.WRITE_CONTACTS"],
+      "packages": [["expo-contacts", "medium"], ["react-native-contacts", "medium"]],
+      "iosSymbols": ["CNContactStore"], "androidSymbols": ["ContactsContract"] },
+    { "id": "biometrics", "plist": ["NSFaceIDUsageDescription"], "android": ["android.permission.USE_BIOMETRIC", "android.permission.USE_FINGERPRINT"],
+      "packages": [["expo-local-authentication", "medium"], ["react-native-biometrics", "medium"], ["react-native-touch-id", "medium"], ["react-native-keychain", "low"]],
+      "iosSymbols": ["LAContext"], "androidSymbols": ["androidx.biometric", "BiometricPrompt"] },
+    { "id": "bluetooth", "plist": ["NSBluetoothAlwaysUsageDescription", "NSBluetoothPeripheralUsageDescription"], "android": ["android.permission.BLUETOOTH_CONNECT", "android.permission.BLUETOOTH_SCAN"],
+      "packages": [["react-native-ble-plx", "medium"], ["react-native-ble-manager", "medium"]],
+      "iosSymbols": ["CBCentralManager"], "androidSymbols": ["android.bluetooth.le"] },
+    { "id": "notifications", "plist": [], "android": ["android.permission.POST_NOTIFICATIONS"],
+      "packages": [["expo-notifications", "medium"], ["@react-native-firebase/messaging", "medium"], ["@notifee/react-native", "medium"], ["react-native-push-notification", "medium"], ["react-native-onesignal", "medium"]],
+      "iosSymbols": ["UNUserNotificationCenter", "registerForRemoteNotifications"], "androidSymbols": ["NotificationManagerCompat", "FirebaseMessagingService"] }
+  ]
+}
