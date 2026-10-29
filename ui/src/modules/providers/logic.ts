@@ -2,6 +2,7 @@ import type { ProviderEnforcement, ProviderInfo, ProviderKind, ProviderState } f
 import { t, type MessageKey } from "../../i18n";
 import { TIER_LABEL, TIER_TONE, tierFor } from "./enforcement";
 import type { Tone } from "../../ui-kit";
+import { currentPlatform, type Platform } from "../../platform/platform";
 
 const STATE_TONE: Record<ProviderState, Tone> = { off: "neutral", notInstalled: "warn", needsLogin: "warn", needsKey: "warn", needsConfirm: "warn", probing: "info", ready: "ok", throttled: "warn", offline: "warn", blocked: "danger", error: "danger" };
 
@@ -103,7 +104,15 @@ export function shellQuote(text: string): string {
  * would be downloaded, `--yes` downloads the pinned packages from registry.npmjs.org, checks every hash and the whole file tree
  * against the shipped list and installs it into the state folder. No npm, no scripts of the packages are run.
  */
-export function sdkSetupCommands(resourcesDir: string): string[] {
-  const installer = shellQuote(`${resourcesDir.replace(/\/+$/, "")}/sidecar/sdk-install.js`);
+export function sdkSetupCommands(resourcesDir: string, platform: Platform = currentPlatform()): string[] {
+  const installer =
+    platform === "windows"
+      ? powershellQuote(`${resourcesDir.replace(/[\\/]+$/, "")}\\sidecar\\sdk-install.js`)
+      : shellQuote(`${resourcesDir.replace(/\/+$/, "")}/sidecar/sdk-install.js`);
   return [`node ${installer} --plan`, `node ${installer} --yes`];
+}
+
+/** One PowerShell word (the Windows Terminal default): single quotes, a quote inside doubled. */
+export function powershellQuote(text: string): string {
+  return `'${text.replace(/'/g, "''")}'`;
 }

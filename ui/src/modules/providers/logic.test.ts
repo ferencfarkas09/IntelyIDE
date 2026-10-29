@@ -68,4 +68,11 @@ describe("SDK problems from Detection.message", () => {
     expect(shellQuote("/tmp/it's")).toBe("'/tmp/it'\\''s'");
     expect(sdkSetupCommands("/Volumes/My Disk/IntelyIDE.app/Contents/Resources")[1]).toBe("node '/Volumes/My Disk/IntelyIDE.app/Contents/Resources/sidecar/sdk-install.js' --yes");
   });
+
+  it("on Windows writes the commands for PowerShell: backslashes, a quote doubled", () => {
+    const [plan, install] = sdkSetupCommands("C:\\Users\\Ann O'Neil\\AppData\\Local\\IntelyIDE\\", "windows");
+    expect(plan).toBe("node 'C:\\Users\\Ann O''Neil\\AppData\\Local\\IntelyIDE\\sidecar\\sdk-install.js' --plan");
+    expect(install.endsWith("sdk-install.js' --yes")).toBe(true);
+    expect(sdkSetupCommands("/Applications/IntelyIDE.app/Contents/Resources", "mac")[0]).toBe("node '/Applications/IntelyIDE.app/Contents/Resources/sidecar/sdk-install.js' --plan");
+  });
 });

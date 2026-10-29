@@ -45,7 +45,9 @@ export const STATE_DIR_NAME = 'IntelyIDE';
 
 /** The per-user state directory, from the home directory and the platform only (never from XDG_* or any other variable). `platform` is for tests. */
 export const stateDirOf = (home: string, platform: NodeJS.Platform = process.platform): string =>
-  platform === 'linux' ? path.join(home, '.local', 'share', STATE_DIR_NAME) : path.join(home, 'Library', 'Application Support', STATE_DIR_NAME);
+  platform === 'linux' ? path.join(home, '.local', 'share', STATE_DIR_NAME)
+    : platform === 'win32' ? path.join(home, 'AppData', 'Roaming', STATE_DIR_NAME)
+      : path.join(home, 'Library', 'Application Support', STATE_DIR_NAME);
 
 export interface LoadOptions {
   /** Verified-install root (tests). Production: `<state dir>/sdk`. When given, the checkout lookup is skipped. */
@@ -163,8 +165,11 @@ async function resolveAndImport(opts: LoadOptions, home: string, packaged: boole
 type Stat = Stats;
 const uid = () => (typeof process.getuid === 'function' ? process.getuid() : -1);
 
-/** Entry-level rules shared by the root and every file below it: ours, not writable by group or other. */
-function owned(st: Stat, what: string): void {
+/** Entry-level rules shared by the root and every file below it: ours, not writable by group or other. Windows has no uid and
+ * no mode bits to read: there the per-user ACL of the profile folder (`%APPDATA%`) is what keeps other accounts out, and the
+ * hash of every file is the whole check (weaker; docs/install-windows.md). */
+function owned(st: Stat, what: string, platform: NodeJS.Platform = process.platform): void {
+  if (platform === 'win32') return;
   if (uid() < 0) throw new SdkUnverifiedError('cannot check file ownership on this platform');
   if (st.uid !== uid()) throw new SdkUnverifiedError(`${what} is not owned by the current user`);
   if ((Number(st.mode) & 0o022) !== 0) throw new SdkUnverifiedError(`${what} is writable by group or others (run chmod -R go-w on it)`);

@@ -540,6 +540,10 @@ describe('the sandbox flags and the network permission of newer Node', () => {
     expect(nodeSupportsAllowNet(new Set(['--permission', '--allow-fs-read']))).toBe(false);
     expect(sandboxFlags(p).includes('--allow-net')).toBe(process.allowedNodeEnvironmentFlags.has('--allow-net'));
   });
+  it('uses the platform separator before the wildcard (backslash on Windows)', () => {
+    const w = { script: 'C:\\app\\sdk-install.js', pinDir: 'C:\\app\\sdk-pin', stateDir: 'C:\\Users\\u\\AppData\\Roaming\\IntelyIDE', home: 'C:\\Users\\u', env: {} as NodeJS.ProcessEnv };
+    expect(sandboxFlags(w, false, '\\')).toContain('--allow-fs-write=C:\\Users\\u\\AppData\\Roaming\\IntelyIDE\\*');
+  });
   it('never widens the filesystem or process limits, whatever the network flag does', () => {
     for (const net of [true, false]) {
       const flags = sandboxFlags(p, net);
@@ -792,6 +796,8 @@ describe('runCli', () => {
     expect(stateDirOf('/home/u', 'linux')).toBe('/home/u/.local/share/IntelyIDE');
     expect(stateDirOf('/home/u', 'linux')).toBe(loaderStateDirOf('/home/u', 'linux'));
     expect(stateDirOf('/Users/u', 'darwin')).toBe(loaderStateDirOf('/Users/u', 'darwin'));
+    expect(stateDirOf('/c/Users/u', 'win32')).toBe(path.join('/c/Users/u', 'AppData', 'Roaming', 'IntelyIDE'));
+    expect(stateDirOf('/c/Users/u', 'win32')).toBe(loaderStateDirOf('/c/Users/u', 'win32'));
   });
 
   it('planSdk on linux plans <home>/.local/share/IntelyIDE/sdk', async () => {
@@ -987,6 +993,12 @@ describe('the bundled program', () => {
   it('the sandboxed child gets an allow-listed environment', () => {
     const env = childEnv({ PATH: '/usr/bin', HOME: '/evil', HTTPS_PROXY: 'http://p', LC_ALL: 'C', DYLD_INSERT_LIBRARIES: '/x.dylib', LD_PRELOAD: '/x', NODE_DEBUG: 'fs', GITHUB_TOKEN: 't', NODE_EXTRA_CA_CERTS: '/c.pem' }, '/home/user');
     expect(env).toEqual({ HOME: '/home/user', PATH: '/usr/bin', HTTPS_PROXY: 'http://p', LC_ALL: 'C', NODE_EXTRA_CA_CERTS: '/c.pem' });
+  });
+
+  it('on Windows the sandboxed child also keeps what Node needs for DNS and TLS, under canonical names', () => {
+    const env = childEnv({ Path: 'C:\\Windows', SYSTEMROOT: 'C:\\Windows', TEMP: 'C:\\t', APPDATA: 'C:\\a', GITHUB_TOKEN: 't' }, 'C:\\Users\\u', true);
+    expect(env).toEqual({ HOME: 'C:\\Users\\u', PATH: 'C:\\Windows', SystemRoot: 'C:\\Windows', TEMP: 'C:\\t', APPDATA: 'C:\\a' });
+    expect(childEnv({ SystemRoot: 'C:\\Windows' }, '/h', false)).toEqual({ HOME: '/h' });
   });
 
   describe('under Node\'s permission model (the flags the CLI uses)', () => {

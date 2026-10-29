@@ -2,6 +2,7 @@ import type { EnforcementChip, PermissionMode, Suite, SuiteResult, Tier } from "
 import type { ProviderEnforcement } from "../../ipc/providers";
 import { TIER_LABEL, TIER_TONE } from "../../components/chat/format";
 import { t, type MessageKey } from "../../i18n";
+import { currentPlatform, type Platform } from "../../platform/platform";
 
 export { TIER_LABEL, TIER_TONE };
 
@@ -26,17 +27,28 @@ export interface ShownTier {
   passed: Suite[];
   /** The backend sent a tier above weak without a passing suite behind it; it is shown as weak. */
   downgraded: boolean;
+  /** Windows: shown no higher than best-effort, whatever the suites say (WINDOWS_MAX_TIER). */
+  capped: boolean;
 }
 
+/**
+ * The highest tier the chip shows on Windows. The git shim there is a shell script only Git Bash runs: a command run through
+ * PowerShell or cmd, or git.exe called by its full path, never meets it, and no process-tree or memory watch backs a run up
+ * (docs/install-windows.md). Policy hook and deny rules still stop commit and push, so it is best-effort at most.
+ */
+export const WINDOWS_MAX_TIER: Tier = "bestEffort";
+
 /** The chip as the UI shows it: a tier counts only when a recorded run with at least one passing suite stands behind it. */
-export function shownTier(chip: EnforcementChip | null | undefined): ShownTier {
+export function shownTier(chip: EnforcementChip | null | undefined, platform: Platform = currentPlatform()): ShownTier {
   const suites = chip?.run?.suites ?? {};
   const results = SUITES.flatMap((suite) => (suites[suite] !== undefined ? [{ suite, result: suites[suite]! }] : []));
   const passed = results.filter((r) => r.result === "pass").map((r) => r.suite);
   const claimed = chip?.tier ?? "weak";
   const proven = chip?.run !== undefined && chip.run !== null && passed.length > 0;
   const downgraded = claimed !== "weak" && !proven;
-  return { tier: downgraded ? "weak" : claimed, results, passed, downgraded };
+  const tier: Tier = downgraded ? "weak" : claimed;
+  const capped = platform === "windows" && TIER_RANK[tier] > TIER_RANK[WINDOWS_MAX_TIER];
+  return { tier: capped ? WINDOWS_MAX_TIER : tier, results, passed, downgraded, capped };
 }
 
 export function chipFor(list: readonly ProviderEnforcement[], provider: string, kind: RoleKind): EnforcementChip | undefined {

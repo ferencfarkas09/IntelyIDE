@@ -2,5 +2,6 @@
   "windowControls.label": "Ablakvezérlők",
   "windowControls.minimize": "Kis méret",
   "windowControls.maximize": "Teljes méret",
-  "windowControls.close": "Bezárás"
+  "windowControls.close": "Bezárás",
+  "windowsSafety.capped": "Windowson a jelvény legfeljebb {tier} szintet mutat. Az ottani git-őr egy Git Bash-szkript: a PowerShellen vagy cmd-n át futó parancs, vagy a teljes útvonalon hívott git.exe megkerüli, és a futások memória- és folyamatfigyelése még nem működik. A commitot és a pusht a szabályhorog és a tiltólisták így is megállítják."
 }
