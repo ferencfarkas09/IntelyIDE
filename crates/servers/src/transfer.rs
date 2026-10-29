@@ -913,6 +913,7 @@ pub(crate) fn send_patch(ssh: &Ssh, cfg: &ServerCfg, server_path: &str, head: &s
     Ok(Applied { files, bytes: patch.len() as u64 })
 }
 
-#[cfg(all(test, unix))] // the fake server of testkit is a set of /bin/sh scripts
+#[cfg(test)]
+#[cfg(unix)] // the fake server of testkit is a set of /bin/sh scripts
 #[path = "transfer_tests.rs"]
 mod tests;
