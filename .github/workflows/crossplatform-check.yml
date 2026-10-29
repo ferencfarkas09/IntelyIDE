@@ -59,5 +59,10 @@ jobs:
       - name: cargo check (all targets)
         run: cargo check --workspace --all-targets --locked
       - name: cargo test
+        if: runner.os == 'Linux'
         # No --fail-fast: list every failing test of the platform in one run. Unix-only tests are #[cfg(unix)].
         run: cargo test --workspace --no-fail-fast --locked
+      - name: cargo test (every crate, with a digest of the failures at the end)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: bash scripts/ci/windows-tests.sh --all
