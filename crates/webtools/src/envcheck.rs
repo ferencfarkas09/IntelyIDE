@@ -294,10 +294,10 @@ mod tests {
 
     #[test]
     fn compares_example_and_real_files_and_checks_gitignore() {
-        let secret = "fixture-value-that-must-not-leak-123";
+        let canary = "fixture-value-that-must-not-leak-123";
         let d = repo(&[
             (".env.example", "API_URL=\nDB_URL=\nNEW_KEY=\n"),
-            (".env", &format!("API_URL=http://x\nDB_URL={secret}\nLOCAL_ONLY=1\n")),
+            (".env", &format!("API_URL=http://x\nDB_URL={canary}\nLOCAL_ONLY=1\n")),
             (".gitignore", "node_modules\n.env*\n!.env.example\n"),
             ("web/.env.local", "A=1\n"),
             ("web/.env.example", "A=\nB=\n"),
@@ -313,7 +313,7 @@ mod tests {
         // web/.env.local: the root rule `.env*` matches any basename below the root too
         assert!(web.files.iter().all(|f| !f.unprotected));
         let json = serde_json::to_string(&r).unwrap();
-        assert!(!json.contains(secret) && !json.contains("http://x"));
+        assert!(!json.contains(canary) && !json.contains("http://x"));
     }
 
     #[test]
