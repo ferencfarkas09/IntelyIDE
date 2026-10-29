@@ -234,14 +234,15 @@ pub fn resolve_model(model: &str) -> String {
     }
 }
 
-/// False when the provider declares no effort control, or the model is one this build knows to have none (Haiku 4.5). A model id this
-/// build does not know (a newer one) keeps its effort: the CLI reports what the model really takes when the session starts.
+/// False when the provider declares no effort control, or the model is one this build knows to have none (Haiku 4.5, and any other
+/// Haiku id). Another model id this build does not know (a newer one) keeps its effort: the CLI reports what it takes at session start.
 pub fn effort_available(provider: &str, model: &str) -> bool {
     if static_caps(provider).effort.cap == Cap::No {
         return false;
     }
     let id = resolve_model(model);
-    claude_caps().models.iter().find(|m| m.id == id).map_or(true, |m| !m.effort_levels.is_empty())
+    // an id the built-in list does not have: Haiku is still recognised by name (dated and cloud-prefixed variants have no effort either)
+    claude_caps().models.iter().find(|m| m.id == id).map_or_else(|| !id.to_ascii_lowercase().contains("haiku"), |m| !m.effort_levels.is_empty())
 }
 
 fn parse_effort(s: &str) -> Option<RoleEffort> {
@@ -921,13 +922,14 @@ pub fn model_caps_of(id: &str, label: &str, effort_levels: &[String]) -> ModelCa
 }
 
 /// The Claude caps with the live models first, in the CLI's order, then the built-in models it did not list (the offline fallback stays
-/// pickable). An empty live list leaves the caps as they are.
-pub fn merge_live_models(caps: &mut RoleProviderCaps, live: &[ModelCaps]) {
+/// pickable). `resolved` are the full ids the CLI's aliases stand for: a built-in model listed under an alias is not listed twice. An
+/// empty live list leaves the caps as they are.
+pub fn merge_live_models(caps: &mut RoleProviderCaps, live: &[ModelCaps], resolved: &[String]) {
     if live.is_empty() {
         return;
     }
     let mut models: Vec<ModelCaps> = Vec::with_capacity(live.len() + caps.models.len());
-    for m in live.iter().chain(caps.models.iter()) {
+    for m in live.iter().chain(caps.models.iter().filter(|b| !resolved.contains(&b.id))) {
         if !models.iter().any(|x| x.id == m.id) {
             models.push(m.clone());
         }

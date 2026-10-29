@@ -644,7 +644,7 @@ mod tests {
         assert_eq!(defaults_from(&ns(serde_json::json!({"defaultEffort": "max"}))).effort, Some(Effort::Max));
         assert_eq!(defaults_from(&ns(serde_json::json!({"defaultModel": "opus", "defaultEffort": "xhigh"}))).effort, Some(Effort::Xhigh));
         // a model this build does not know keeps its effort (no name test)
-        assert_eq!(defaults_from(&ns(serde_json::json!({"defaultModel": "claude-haiku-9", "defaultEffort": "low"}))).effort, Some(Effort::Low));
+        assert_eq!(defaults_from(&ns(serde_json::json!({"defaultModel": "claude-fable-5-1", "defaultEffort": "low"}))).effort, Some(Effort::Low));
         let nested = defaults_from(&ns(serde_json::json!({"auto": {"enabled": false}, "delegation": {"enabled": false}, "autoEnabled": true})));
         assert!(!nested.auto_enabled && !nested.delegation_enabled, "the nested switches the UI writes win over the flat keys");
         assert_eq!(defaults_from(&ns(serde_json::json!({"delegationCap": 500}))).delegation_cap, 40);

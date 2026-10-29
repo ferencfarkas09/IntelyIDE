@@ -288,7 +288,7 @@ fn run_picks(req: &AgentStartRequest, role: &RoleDef) -> Result<RunPicks, Engine
     let model = req.model.as_deref().map(str::trim).filter(|m| !m.is_empty()).map(str::to_string);
     if let Some(m) = &model {
         if !roles::valid_model_id(m) {
-            return Err(err("invalidModel", format!("{m:?} is not a model id")));
+            return Err(err("invalidModel", format!("\"{}\" is not a model id", roles::shown_model_id(m))));
         }
     }
     let ultracode = req.ultracode == Some(true);
@@ -917,6 +917,9 @@ impl AgentHost {
     /// The models the installed Claude CLI offers right now, each with the effort levels it takes (`models/list`): the sidecar starts the
     /// CLI for a moment and reads its model catalog; nothing goes to a model. Like [`Self::usage_limits`], a missing CLI and the sidecar's own
     /// failures are answers with an `error` field. `timeout` bounds the whole ask.
+    ///
+    /// No `Jail::check_op`, like [`Self::usage_limits`]: the CLI starts in the IDE's own state folder with no repository, no tools and no
+    /// session (the sidecar passes `settingSources: []`, no MCP servers and the deny-rule overlay), and only answers `initialize`.
     pub fn models_live(&self, timeout: Duration) -> Result<Value, EngineError> {
         let env_vars = scrub_env(&(self.inner.cfg.env)());
         let all: HashMap<String, String> = env_vars.clone().into_iter().collect();

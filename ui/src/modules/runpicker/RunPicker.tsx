@@ -3,7 +3,7 @@ import { createUniqueId, Show } from "solid-js";
 import { modelLabel } from "../../components/chat/format";
 import { t, type MessageKey } from "../../i18n";
 import type { RoleProviderCaps } from "../../ipc/roles";
-import { Input, Select, Switch } from "../../ui-kit";
+import { Button, Input, Select, Switch } from "../../ui-kit";
 import { effortAfterModelChange, effortChoice, isClaudeModelId, modelChoices, OTHER_MODEL, type RunPick } from "./logic";
 import "./runpicker.css";
 
@@ -17,6 +17,10 @@ export interface RunPickerProps {
   onChange: (next: RunPick) => void;
   /** A Claude run of one role (not Auto, not another provider). */
   ultracodeOffered: boolean;
+  /** The model or effort shown is the one remembered from the last start of this role (nothing was picked now). */
+  remembered?: boolean;
+  /** Back to the role's own model and effort. */
+  onReset?: () => void;
   disabled?: boolean;
 }
 
@@ -82,6 +86,14 @@ export default function RunPicker(props: RunPickerProps) {
           />
         </label>
       </div>
+      <Show when={props.remembered}>
+        <div class="runpicker__remembered" role="status">
+          <small class="newrun__provider-note">{t("runpicker.remembered")}</small>
+          <Button size="sm" variant="ghost" onClick={() => props.onReset?.()} disabled={props.disabled}>
+            {t("runpicker.reset")}
+          </Button>
+        </div>
+      </Show>
       <Show when={otherOpen()}>
         <label class="runpicker__other">
           <span class="runpicker__label">{t("runpicker.otherModelLabel")}</span>

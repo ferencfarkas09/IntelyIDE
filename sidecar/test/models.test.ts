@@ -28,6 +28,10 @@ describe('models/list', () => {
 
   it('drops junk entries and answers errors instead of throwing', async () => {
     expect(modelsOf([{ value: '' }, null, { value: 'x'.repeat(200) }, { value: 'ok', displayName: 'Ok' }])).toEqual([{ id: 'ok', label: 'Ok', effortLevels: [] }]);
+    expect(modelsOf([{ value: 'opus', displayName: 'Opus', resolvedModel: 'claude-opus-5-5' }, { value: 'claude-x', resolvedModel: 'claude-x' }])).toEqual([
+      { id: 'opus', label: 'Opus', effortLevels: [], resolved: 'claude-opus-5-5' },
+      { id: 'claude-x', label: 'claude-x', effortLevels: [] },
+    ]);
     expect(await queryModels({ env: {} })).toEqual({ error: 'claudeNotFound' });
     const failing: ModelsSdk = { query: () => ({ initializationResult: async () => { throw new Error('boom'); }, close: () => undefined }) as never };
     expect(await queryModels({ env: { claudeBin: '/bin/claude' } }, { sdk: failing })).toMatchObject({ error: 'failed', detail: 'boom' });

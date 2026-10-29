@@ -88,7 +88,8 @@ export function NewRunDialog() {
   const [caps, setCaps] = createSignal<RoleProviderCaps[]>([]);
   const [runPick, setRunPick] = createSignal<RunPick>({});
   const [pickTouched, setPickTouched] = createSignal(false);
-  const [savedPick, setSavedPick] = createSignal<{ lastModel?: unknown; lastEffort?: unknown }>({});
+  // The choice remembered from the last start, per provider and role (Auto included): `runs.lastPicks["claude:developer"]`.
+  const [savedPicks, setSavedPicks] = createSignal<Record<string, { lastModel?: unknown; lastEffort?: unknown }>>({});
   // Where the runs go: how many on this Mac and on each server. Shown only when a server is enabled; with none the dialog starts one run here, as ever.
   const [counts, setCounts] = createSignal<Record<string, number>>({ [THIS_MAC]: 1 });
   const [numbering, setNumbering] = createSignal<boolean | undefined>(undefined);
@@ -111,6 +112,10 @@ export function NewRunDialog() {
   const defaultModel = () => (claudeAuto() ? autoInfo()?.model : provider() && provider() !== current()?.provider ? undefined : current()?.model);
   const defaultEffort = () => (claudeAuto() ? autoInfo()?.effort : provider() && provider() !== current()?.provider ? undefined : current()?.effort);
   const ultraOk = () => ultracodeOffered(modeProvider(), claudeAuto());
+  /** Where the picker's choice is remembered: per provider and role, Auto being a role of its own. */
+  const pickKey = () => `${modeProvider()}:${claudeAuto() ? "auto" : (role() ?? "")}`;
+  /** The picker shows a choice remembered from the last start of this role, not one made now. */
+  const remembered = () => !pickTouched() && (!!runPick().model || !!runPick().effort);
   /** What the picker adds to the request: only what was picked (nothing while the extra is off or untouched). */
   const pickSent = () => {
     if (!runPickerEnabled()) return undefined;
@@ -262,7 +267,7 @@ export function NewRunDialog() {
       void ipc.settings.get("agents").then((v) => setMacMax(typeof v.maxRuns === "number" && Number.isInteger(v.maxRuns) ? Math.max(1, Math.min(MAC_MAX, v.maxRuns)) : MAC_MAX), () => setMacMax(MAC_MAX));
       void ipc.settings.get("roles").then((v) => setNoticeDone(v.derivationNoticeDone === true), () => {});
       // The mode used last is this dialog's default (Bypass never is); a read failure leaves the initial default.
-      void ipc.settings.get("runs").then((v) => (setLastMode(typeof v.lastMode === "string" ? (v.lastMode as PermissionMode) : undefined), setSavedPick({ lastModel: v.lastModel, lastEffort: v.lastEffort })), () => {});
+      void ipc.settings.get("runs").then((v) => (setLastMode(typeof v.lastMode === "string" ? (v.lastMode as PermissionMode) : undefined), setSavedPicks(v.lastPicks && typeof v.lastPicks === "object" ? (v.lastPicks as Record<string, { lastModel?: unknown; lastEffort?: unknown }>) : {})), () => {});
       // From the backend's cache; nothing is started. A failure leaves the picker with the role's own provider.
       let live = false;
       void Promise.all([ipc.providers.list(), ipc.roles.capabilities(), ipc.providers.enforcement()]).then(
@@ -291,7 +296,7 @@ export function NewRunDialog() {
   // The picker follows the remembered choice until the person changes it; another provider keeps only what still fits it.
   createEffect(() => {
     if (!newRunOpen() || pickTouched() || caps().length === 0) return;
-    setRunPick(restoredPick(savedPick(), caps(), modeProvider()));
+    setRunPick(restoredPick(savedPicks()[pickKey()] ?? {}, caps(), modeProvider()));
   });
   createEffect(
     on(modeProvider, (p) => {
@@ -355,6 +360,11 @@ export function NewRunDialog() {
     const lastMode = permission();
     // the picker's choice is remembered only when the person made one (an untouched picker leaves the remembered choice as it is)
     const lastPick = pickTouched() ? pickSent() : undefined;
+    const lastPicks = (() => {
+      if (!lastPick) return undefined;
+      const { [pickKey()]: _old, ...rest } = savedPicks();
+      return lastPick.model || lastPick.effort ? { ...rest, [pickKey()]: { lastModel: lastPick.model ?? null, lastEffort: lastPick.effort ?? null } } : rest;
+    })();
     const typed = prompt().trim();
     const jobs: RunJob[] = whereShown() ? planRuns(placed(), rows(), team() ?? true) : [{ name: "", index: 1, of: 1 }];
     const numbered = jobs.length > 1 && (numbering() ?? true);
@@ -426,7 +436,7 @@ export function NewRunDialog() {
       const run = started[0];
       if (!revealed && started.length > 1) void selectAgent(run.agentId);
       if (failures.length > 0) toast.error(t("runs.where.someFailed", { count: failures.length }), lines.join("\n"));
-      void ipc.settings.set("runs", { lastMode, ...(lastPick ? { lastModel: lastPick.model ?? null, lastEffort: lastPick.effort ?? null } : {}) }).catch(() => {});
+      void ipc.settings.set("runs", { lastMode, ...(lastPicks ? { lastPicks } : {}) }).catch(() => {});
       if (wanted && run.provider !== wanted) toast.warn(t("runs.new.otherProvider", { actual: run.provider, wanted }), t("runs.new.otherProviderDesc"));
       if (!revealed) {
         resetForm();
@@ -591,6 +601,8 @@ export function NewRunDialog() {
               value={runPick()}
               onChange={(next) => (setPickTouched(true), setRunPick(next))}
               ultracodeOffered={ultraOk()}
+              remembered={remembered()}
+              onReset={() => (setPickTouched(true), setRunPick({}))}
               disabled={busy()}
             />
           </Show>

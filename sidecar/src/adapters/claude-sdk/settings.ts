@@ -22,7 +22,7 @@ export const DENY_RULES = [
 // absolute one under the cwd); an absolute path outside the cwd, one inside an added directory, and a relative `../x` are all ignored and the
 // default is used. The policy refuses that default, and the gate tells the model to put the plan in its reply text (notes.ts).
 // `ultracode` (the New run picker, one run only): standing Workflow orchestration. It needs the Workflows feature on, so both keys go
-// together; a run without it carries neither key, so its settings are exactly what they were before the picker.
+// together; a run without it gets Workflows switched off and the "ultracode" keyword trigger disabled (defence in depth).
 export function settingsOverlay(env: SessionEnv, denyRules = true, allowRemoteControl = false, addDirs: readonly string[] = [], planDir?: string, ultracode = false): Record<string, unknown> {
   const deny = denyRules ? [...DENY_RULES] : [];
   if (denyRules && env.shimDir) deny.push(`Edit(${env.shimDir}/**)`, `Write(${env.shimDir}/**)`);
@@ -32,6 +32,7 @@ export function settingsOverlay(env: SessionEnv, denyRules = true, allowRemoteCo
     permissions: { deny, ...(addDirs.length ? { additionalDirectories: [...addDirs] } : {}) },
     ...(allowRemoteControl ? {} : { disableRemoteControl: true }),
     ...(planDir ? { plansDirectory: planDir } : {}),
-    ...(ultracode ? { ultracode: true, enableWorkflows: true } : {}),
+    // without it, Workflows are off and the word "ultracode" in a prompt cannot opt a turn into them (the broker refuses Workflow anyway)
+    ...(ultracode ? { ultracode: true, enableWorkflows: true } : { disableWorkflows: true, workflowKeywordTriggerEnabled: false }),
   };
 }

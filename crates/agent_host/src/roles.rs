@@ -46,6 +46,19 @@ pub fn valid_model_id(id: &str) -> bool {
     !id.is_empty() && id.len() <= 128 && !id.starts_with('-') && id.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.' | ':' | '/' | '@' | '[' | ']'))
 }
 
+/// Whether a model takes an effort level: never when the provider has no effort control; for Claude, no Haiku model does (the built-in
+/// Haiku 4.5, a dated or cloud-prefixed variant). Any other id is assumed to (the CLI reports what it really takes at session start).
+pub fn model_takes_effort(provider: &str, model: &str) -> bool {
+    static_caps(provider).effort.cap != Cap::No && !model.to_ascii_lowercase().contains("haiku")
+}
+
+/// A refused model id as it may appear in an error: at most 80 characters, control characters escaped.
+pub fn shown_model_id(id: &str) -> String {
+    let cut: String = id.chars().take(80).collect();
+    let more = if id.chars().count() > 80 { "..." } else { "" };
+    format!("{}{more}", cut.escape_debug())
+}
+
 pub const SYSTEM_PREAMBLE: &str = "You are an agent running inside IntelySwitchIDE. The working tree is the user's repository; the session lists the folders you work \
 in, and one task often spans several repositories, so move between them freely (cd, absolute paths). Work like a careful engineer: read what you \
 change, edit with the editing tools, run the project's own lint and tests for what you touched with the shell (npm, npx, jest, eslint, python3 \
@@ -190,13 +203,18 @@ impl RoleDef {
 
     /// The role as the New run picker changed it for one run: the picked model and effort win, and ultracode takes `Workflow` off
     /// the deny list (and onto a role's own tool list). No pick = the role unchanged.
+    /// A picked model id that is not one (a hand-edited meta file read back on resume) is ignored; a picked model without effort control
+    /// sends no effort at all, neither the role's nor a picked one.
     pub fn with_picks(&self, picks: &RunPicks) -> Self {
         let mut role = self.clone();
-        if let Some(model) = &picks.model {
-            role.model = model.clone();
-        }
         if let Some(effort) = picks.effort {
             role.effort = Some(effort);
+        }
+        if let Some(model) = picks.model.as_deref().filter(|m| valid_model_id(m)) {
+            role.model = model.to_string();
+            if !model_takes_effort(&role.provider, model) {
+                role.effort = None;
+            }
         }
         if picks.ultracode {
             role.disallowed_tools.retain(|t| t != WORKFLOW_TOOL);

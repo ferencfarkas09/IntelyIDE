@@ -29,5 +29,7 @@
   "runpicker.section.enable": "Modellválasztó megjelenítése",
   "runpicker.section.enableDesc": "Kikapcsolva az Új ágensfutás minden futást a szerepköre modelljével és erőfeszítésével indít, mint eddig.",
   "runpicker.section.enableAria": "Modellválasztó megjelenítése az Új ágensfutásban",
-  "runpicker.cmd.newRun": "Új ágensfutás választott modellel"
+  "runpicker.cmd.newRun": "Új ágensfutás választott modellel",
+  "runpicker.remembered": "A szerepkör legutóbbi futásából megjegyezve.",
+  "runpicker.reset": "A szerepkör alapértelmezései"
 }

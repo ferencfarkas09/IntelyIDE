@@ -11,7 +11,10 @@ import { redact } from './redact.js';
 import { loadSdk, SdkError, sdkSetupHint } from './sdk.js';
 import type { ModelInfo } from './types.js';
 
-export type ModelsReply = { ok: true; models: ModelInfo[] } | { error: 'claudeNotFound' | 'failed'; detail?: string };
+/** A listed model; `resolved` is the full id an alias (`opus`) stands for, when the CLI says so. */
+export type LiveModel = ModelInfo & { resolved?: string };
+
+export type ModelsReply = { ok: true; models: LiveModel[] } | { error: 'claudeNotFound' | 'failed'; detail?: string };
 
 export interface ModelsRequest {
   env: { claudeBin?: string | null; vars?: Record<string, string> | null };
@@ -37,13 +40,14 @@ const withTimeout = <T>(p: Promise<T>, ms: number): Promise<T> =>
   });
 
 /** The CLI's catalog as the wire's `ModelInfo`: ids and labels that are not plain text are dropped, the effort levels are kept as reported. */
-export function modelsOf(raw: unknown): ModelInfo[] {
+export function modelsOf(raw: unknown): LiveModel[] {
   const list = Array.isArray(raw) ? (raw as CliModel[]) : [];
-  const out: ModelInfo[] = [];
+  const out: LiveModel[] = [];
   for (const m of list) {
     if (!m || typeof m.value !== 'string' || !m.value || m.value.length > 128) continue;
     const info = toModelInfo(m);
-    out.push({ ...info, label: info.label.slice(0, 80), effortLevels: (info.effortLevels ?? []).filter((l) => typeof l === 'string' && l.length <= 16) });
+    const resolved = typeof m.resolvedModel === 'string' && m.resolvedModel && m.resolvedModel !== m.value && m.resolvedModel.length <= 128 ? m.resolvedModel : undefined;
+    out.push({ ...info, label: info.label.slice(0, 80), effortLevels: (info.effortLevels ?? []).filter((l) => typeof l === 'string' && l.length <= 16), ...(resolved ? { resolved } : {}) });
     if (out.length >= MAX_MODELS) break;
   }
   return out;

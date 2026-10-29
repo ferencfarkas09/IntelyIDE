@@ -113,7 +113,11 @@ fn effort_is_not_available_when_the_model_or_provider_has_none() {
     assert!(!effort_available("claude", "haiku") && !effort_available("claude", "claude-haiku-4-5-20251001"));
     assert!(!effort_available("mock", "mock-1"), "the provider's caps say no");
     // no name test: a model id this build does not know keeps its effort (the CLI reports what it takes at session start)
-    assert!(effort_available("claude", "claude-haiku-9") && effort_available("claude", "claude-fable-5-1"));
+    assert!(effort_available("claude", "claude-fable-5-1") && effort_available("claude", "claude-opus-9"));
+    // a Haiku id that is not the built-in one (another date, a cloud prefix) is still known to have no effort control
+    for id in ["claude-haiku-4-5", "us.anthropic.claude-haiku-4-5-20251001-v1:0", "claude-haiku-4-5-20260101", "claude-haiku-9"] {
+        assert!(!effort_available("claude", id), "{id}");
+    }
     let r = rig();
     write(&r.global, "researcher.md", "---\nname: researcher\nmodel: haiku\neffort: low\n---\nFind.\n");
     let role = r.store.list(&[]).remove(0);
@@ -631,11 +635,15 @@ fn the_built_in_models_offer_the_whole_ladder_and_the_live_list_comes_first() {
     let live = model_caps_of("claude-fable-5-1", "", &["max".into(), "low".into(), "turbo".into(), "low".into()]);
     assert_eq!((live.label.as_str(), live.effort_levels.clone()), ("claude-fable-5-1", vec![Low, Max]));
     let mut merged = claude_caps();
-    merge_live_models(&mut merged, &[live, model_caps_of(MODEL_OPUS, "Opus 5.5 (live)", &["low".into()])]);
+    merge_live_models(&mut merged, &[live, model_caps_of(MODEL_OPUS, "Opus 5.5 (live)", &["low".into()])], &[]);
     let ids: Vec<&str> = merged.models.iter().map(|m| m.id.as_str()).collect();
     assert_eq!(ids, ["claude-fable-5-1", MODEL_OPUS, MODEL_HAIKU, MODEL_SONNET], "live first, then the built-ins it did not list");
     assert_eq!(merged.models[1].effort_levels, vec![Low], "the live answer wins for a model both know");
     let mut untouched = claude_caps();
-    merge_live_models(&mut untouched, &[]);
+    merge_live_models(&mut untouched, &[], &[]);
+    // a built-in the CLI lists under an alias only (`sonnet` resolving to the built-in id) is not listed twice
+    let mut aliased = claude_caps();
+    merge_live_models(&mut aliased, &[model_caps_of("sonnet", "Sonnet (alias)", &["low".into()])], &[MODEL_SONNET.to_string()]);
+    assert_eq!(aliased.models.iter().map(|m| m.id.as_str()).collect::<Vec<_>>(), ["sonnet", MODEL_HAIKU, MODEL_OPUS]);
     assert_eq!(untouched.models.len(), 3, "no live list: the built-in models stay");
 }

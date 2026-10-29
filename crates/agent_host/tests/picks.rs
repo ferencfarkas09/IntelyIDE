@@ -39,7 +39,8 @@ fn the_picks_are_recorded_shown_and_kept_by_a_restart_and_a_resume() {
     let picked = AgentStartRequest { model: Some(" claude-next-9 ".into()), effort: Some(Effort::Max), ultracode: Some(true), mode: Some(PermissionMode::Automatic), ..req("mock-plain-reply", &repo) };
     let s = host.start(picked, std::slice::from_ref(&repo)).expect("start");
     assert_eq!(s.model, "claude-next-9", "an id this build does not know passes through (trimmed)");
-    assert_eq!((s.requested.effort, s.requested.ultracode), (Some(Effort::Max), Some(true)));
+    // the mock provider has no effort control: the pick is recorded, but no effort is sent (as for a Haiku model on Claude)
+    assert_eq!((s.requested.effort, s.requested.ultracode), (None, Some(true)));
     sink.wait_turn_end(&s.agent_id);
     let meta = host.metas().into_iter().find(|m| m.agent_id == s.agent_id).unwrap();
     assert_eq!(meta.picks, RunPicks { model: Some("claude-next-9".into()), effort: Some(Effort::Max), ultracode: true });
@@ -57,7 +58,7 @@ fn the_picks_are_recorded_shown_and_kept_by_a_restart_and_a_resume() {
     host.send(&s.agent_id, "again").expect("resume");
     sink.wait(&s.agent_id, "the resumed turn", 20, |e| e.seq > last && e.kind.name() == "turn.end");
     let after = host.list().into_iter().find(|r| r.agent_id == s.agent_id).unwrap();
-    assert_eq!((after.model.as_str(), after.requested.effort, after.requested.ultracode), ("claude-next-9", Some(Effort::Max), Some(true)));
+    assert_eq!((after.model.as_str(), after.requested.effort, after.requested.ultracode), ("claude-next-9", None, Some(true)));
     host.shutdown();
 }
 
@@ -94,7 +95,9 @@ fn ultracode_is_refused_for_auto_and_other_providers_and_a_bad_model_id_is_refus
     assert_eq!(host.start_role(&other, ultra("mock-plain-reply"), repos).unwrap_err().code, "ultracodeProvider");
     for bad in ["--settings=/tmp/x", "claude opus", "claude-\u{0}", &"x".repeat(200)] {
         let r = AgentStartRequest { model: Some(bad.into()), ..req("mock-plain-reply", &repo) };
-        assert_eq!(host.start(r, repos).unwrap_err().code, "invalidModel", "{bad:?}");
+        let e = host.start(r, repos).unwrap_err();
+        assert_eq!(e.code, "invalidModel", "{bad:?}");
+        assert!(e.message.chars().count() < 140 && !e.message.contains('\u{0}'), "the refused id is cut and escaped: {}", e.message);
     }
     assert!(host.list().is_empty(), "a refused start leaves nothing behind");
     host.shutdown();
@@ -126,6 +129,13 @@ fn ultracode_takes_workflow_off_a_claude_role_deny_list_only_for_that_run() {
     let listed = RoleDef { tools: vec!["Read".into(), "Bash".into()], ..base.clone() }.with_picks(&RunPicks { ultracode: true, ..Default::default() });
     assert_eq!(listed.tools, ["Read", "Bash", WORKFLOW_TOOL]);
     assert!(base.disallowed_tools.iter().any(|t| t == WORKFLOW_TOOL), "the role itself is not changed");
+    // a picked model without effort control drops the role's effort (and a picked one): nothing is sent
+    let sonnet_high = RoleDef { effort: Some(Effort::High), ..base.clone() };
+    assert_eq!(sonnet_high.with_picks(&RunPicks { model: Some("claude-haiku-4-5-20251001".into()), ..Default::default() }).effort, None);
+    assert_eq!(sonnet_high.with_picks(&RunPicks { model: Some("us.anthropic.claude-haiku-4-5".into()), effort: Some(Effort::Max), ..Default::default() }).effort, None);
+    assert_eq!(sonnet_high.with_picks(&RunPicks { model: Some("claude-opus-5-5".into()), ..Default::default() }).effort, Some(Effort::High), "a model with effort keeps the role's");
+    // a stored pick that is not a model id (a hand-edited meta file) is ignored on resume: the role's model applies
+    assert_eq!(base.with_picks(&RunPicks { model: Some("--settings=/tmp/x".into()), ..Default::default() }).model, "claude-sonnet-5-5");
     assert!(roles::valid_model_id("claude-opus-5-5[1m]") && roles::valid_model_id("us.anthropic.claude-x:0") && !roles::valid_model_id("-x"));
 }
 

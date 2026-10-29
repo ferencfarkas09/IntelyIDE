@@ -966,6 +966,10 @@ fn decide_other(eff: &Eff, intent: &ToolIntent) -> PolicyDecision {
     if matches!(name, "Task" | "Agent") {
         return decide_spawn(eff, intent);
     }
+    // another place to run is a hard stop for a workflow as it is for `Agent`, ultracode or not, in every mode
+    if let Some(w) = intent.workflow_check.as_ref().filter(|w| name == "Workflow" && w.kind == "isolation") {
+        return hard_stop("workflow.isolation", format!("the workflow script names \"{}\": a workflow runs its agents here, in the run's folders, never in a worktree or off this machine (avoid that word in the script, also in prompts and comments)", w.detail));
+    }
     // An MCP-looking name that arrived as another class is not judged as an unknown tool (Bypass would allow it).
     if name.starts_with("mcp__") {
         return role_deny("mcp.unknown", "MCP call that was not classified as one: it is refused");
@@ -1006,15 +1010,25 @@ fn decide_other(eff: &Eff, intent: &ToolIntent) -> PolicyDecision {
     }
 }
 
-/// `Workflow` in a run with ultracode on: the lead may start one in every mode (the user chose it for this run); its helper agents are
-/// judged call by call like the lead. A helper agent that starts another workflow, and a workflow sent to run off this machine, are refused.
+/// `Workflow` in a run with ultracode on (the user chose it for this run): only an inline script that passes the text checks of
+/// [`workflow_check`](super::intent::workflow_check), started by the lead. Ask shows a card for it; every other mode runs it (Plan too:
+/// the helper agents are judged in the run's mode, so they cannot write). The text checks are best effort; the structural defence is that
+/// every tool call of the helper agents reaches this broker with their actor, hard stops first.
 fn decide_workflow(eff: &Eff, intent: &ToolIntent) -> PolicyDecision {
     // (the intent's actor, not `eff.actor`: a run of one role has no delegate rules, but a workflow's helper agent still names itself)
     if eff.actor.is_some() || intent.actor.is_some() {
         return role_deny("workflow.nested", "only the lead may start a workflow; a helper agent reports back instead");
     }
-    if intent.isolation.as_deref() == Some("remote") {
-        return role_deny("workflow.remote", "a workflow that runs off this machine is refused: the work stays in the run's folders");
+    if let Some(w) = &intent.workflow_check {
+        return match w.kind.as_str() {
+            "input" if w.detail == "script" => role_deny("workflow.input", "a workflow must be an inline `script` (with optional `args`); write the script into the call"),
+            "input" => role_deny("workflow.input", format!("a workflow input with `{}` is refused: only an inline `script` (with optional `args`) is run, never a script file, a named or resumed workflow", w.detail)),
+            "override" => role_deny("workflow.override", format!("the script sets `{}` for its agents: the run's model and effort apply to every helper; remove it", w.detail.trim_end_matches(':'))),
+            _ => role_deny("workflow.evasion", format!("the script builds keys, text or code at run time (`{}`), which the IDE cannot check in advance; write keys and strings as plain literals", w.detail)),
+        };
+    }
+    if eff.mode == PermissionMode::Ask {
+        return ask("workflow.ask", "start a workflow: its helper agents work in parallel, each of their actions is checked like the lead's");
     }
     allow("workflow.ultracode", "ultracode is on for this run; every tool call of the workflow's agents is judged on its own")
 }

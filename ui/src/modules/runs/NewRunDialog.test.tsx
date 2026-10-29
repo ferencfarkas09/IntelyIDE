@@ -454,7 +454,7 @@ describe("<NewRunDialog> run picker", () => {
   const model = (d: ReturnType<typeof within>) => d.getByRole("combobox", { name: "Model" }) as HTMLSelectElement;
   const effort = (d: ReturnType<typeof within>) => d.getByRole("combobox", { name: "Effort" }) as HTMLSelectElement;
   beforeEach(async () => {
-    await ipc.settings.set("runs", { lastModel: null, lastEffort: null });
+    await ipc.settings.set("runs", { lastPicks: null });
   });
 
   it("lists every model the CLI offers and sends nothing while it is untouched", async () => {
@@ -483,7 +483,28 @@ describe("<NewRunDialog> run picker", () => {
     await waitFor(() => expect(spy).toHaveBeenCalled());
     expect(spy.mock.calls[0][0]).toMatchObject({ role: "developer", model: "claude-opus-5-5", effort: "max", ultracode: true });
     await waitFor(() => expect(agentRows().find((r) => r.model === "claude-opus-5-5")?.requested.ultracode).toBe(true));
-    await waitFor(async () => expect(await ipc.settings.get("runs")).toMatchObject({ lastModel: "claude-opus-5-5", lastEffort: "max" }));
+    await waitFor(async () => expect((await ipc.settings.get("runs")).lastPicks).toEqual({ "claude:developer": { lastModel: "claude-opus-5-5", lastEffort: "max" } }));
+  });
+
+  it("remembers the choice per role: another role starts from its own defaults, the same role shows it as remembered with a reset", async () => {
+    await ipc.settings.set("runs", { lastPicks: { "claude:developer": { lastModel: "claude-opus-5-5", lastEffort: "max" } } });
+    const spy = vi.spyOn(ipc, "agentStart");
+    const d = await open();
+    await waitFor(() => expect(model(d).value).toBe("claude-opus-5-5"));
+    expect(d.getByText(/Remembered from your last run/)).toBeTruthy();
+    role(d, "reviewer");
+    await waitFor(() => expect(model(d).value).toBe(""));
+    expect(d.queryByText(/Remembered from your last run/)).toBeNull();
+    role(d, "developer");
+    await waitFor(() => expect(model(d).value).toBe("claude-opus-5-5"));
+    fireEvent.click(d.getByRole("button", { name: "Use the role's defaults" }));
+    await waitFor(() => expect(model(d).value).toBe(""));
+    expect(effort(d).value).toBe("");
+    await ready(d);
+    fireEvent.click(d.getByRole("button", { name: "Start run" }));
+    await waitFor(() => expect(spy).toHaveBeenCalled());
+    expect((spy.mock.calls[0][0] as Record<string, unknown>).model).toBeUndefined();
+    await waitFor(async () => expect((await ipc.settings.get("runs")).lastPicks).toEqual({}), { timeout: 3000 });
   });
 
   it("offers no ultracode for Auto, and blocks Start on a typed id that is not a Claude model", async () => {

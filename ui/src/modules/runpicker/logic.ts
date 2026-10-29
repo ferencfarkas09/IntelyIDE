@@ -76,7 +76,7 @@ export function pickBlocker(pick: RunPick, caps: readonly RoleProviderCaps[], pr
 /** Ultracode is offered for a Claude run of one role: Auto already hands work to the roles, other providers have no Workflow tool. */
 export const ultracodeOffered = (provider: string, auto: boolean): boolean => provider === "claude" && !auto;
 
-/** The remembered choice (settings `runs.lastModel` / `runs.lastEffort`) as a pick, kept only where it still fits this provider's list. */
+/** The choice remembered for this provider and role (settings `runs.lastPicks[key]`) as a pick, kept only where it still fits the list. */
 export function restoredPick(saved: { lastModel?: unknown; lastEffort?: unknown }, caps: readonly RoleProviderCaps[], provider: string): RunPick {
   const model = typeof saved.lastModel === "string" && saved.lastModel ? saved.lastModel : undefined;
   const listed = model !== undefined && modelChoices(caps, provider).some((m) => m.id === model);

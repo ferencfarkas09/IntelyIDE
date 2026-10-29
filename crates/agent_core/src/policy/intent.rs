@@ -68,6 +68,11 @@ pub struct ToolIntent {
     #[serde(default)]
     #[cfg_attr(feature = "specta", specta(optional))]
     pub subagent_flags: Option<SubagentFlags>,
+    /// `Workflow` only: the first thing about its input the broker refuses (see [`workflow_check`]); `None` = an inline script that
+    /// passed every check.
+    #[serde(default)]
+    #[cfg_attr(feature = "specta", specta(optional))]
+    pub workflow_check: Option<WorkflowCheck>,
     /// MCP call: the raw candidate strings of the input, for the argument guard to judge (mcp-management spec 5.4.1). NEVER
     /// serialised (the type is written by hand and skips it, specta does not list it), so it cannot reach an event, the event log,
     /// a card or the phone; `Deserialize` reads it from the sidecar's `policy/decide` message only.
@@ -86,7 +91,7 @@ pub struct ToolIntent {
 impl serde::Serialize for ToolIntent {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         use serde::ser::SerializeStruct;
-        let present = [self.actor.is_some(), self.isolation.is_some(), self.subagent_flags.is_some(), self.args_unjudgeable].iter().filter(|p| **p).count();
+        let present = [self.actor.is_some(), self.isolation.is_some(), self.subagent_flags.is_some(), self.workflow_check.is_some(), self.args_unjudgeable].iter().filter(|p| **p).count();
         let mut st = serializer.serialize_struct("ToolIntent", 11 + present)?;
         st.serialize_field("class", &self.class)?;
         st.serialize_field("tool", &self.tool)?;
@@ -107,6 +112,9 @@ impl serde::Serialize for ToolIntent {
         if let Some(f) = &self.subagent_flags {
             st.serialize_field("subagentFlags", f)?;
         }
+        if let Some(w) = &self.workflow_check {
+            st.serialize_field("workflowCheck", w)?;
+        }
         if self.args_unjudgeable {
             st.serialize_field("argsUnjudgeable", &true)?;
         }
@@ -122,6 +130,16 @@ wire_types! {
     pub struct Actor {
         pub agent_id: String,
         pub role: String,
+    }
+
+    /// Why a `Workflow` input is refused: `kind` is `input` (anything but an inline `script` with optional `args`: a `scriptPath`, a
+    /// named workflow, a resume, an unknown key), `isolation` (the words isolation, worktree or remote anywhere in the script: a hard
+    /// stop), `evasion` (code that builds keys or code at run time, which a text check cannot see through) or `override` (a script that
+    /// picks the model, effort or agent type of its helpers). `detail` names what was found.
+    #[serde(rename_all = "camelCase")]
+    pub struct WorkflowCheck {
+        pub kind: String,
+        pub detail: String,
     }
 
     /// What an `Agent`/`Task` call asks for, as the broker needs it.
@@ -164,6 +182,7 @@ impl ToolIntent {
             actor: None,
             isolation: None,
             subagent_flags: None,
+            workflow_check: None,
             args: Vec::new(),
             args_unjudgeable: false,
             summary: summary.into(),
@@ -263,9 +282,7 @@ impl ToolIntent {
             // A workflow is judged by the broker only when ultracode is on; one that asks to run off this machine carries `remote`.
             "Workflow" => {
                 let mut i = Self::other(name);
-                if workflow_goes_remote(input) {
-                    i.isolation = Some("remote".into());
-                }
+                i.workflow_check = workflow_check(input);
                 i
             }
             // The CLI's own resource tools join the MCP class with the pseudo-tool key `resources` (mcp-management spec 5.4 step 1);
@@ -302,16 +319,45 @@ impl ToolIntent {
     }
 }
 
-/// A `Workflow` input that asks to run somewhere else than this machine: a `remote` key that is not `false`/`null`, or a script that
-/// sets `remote: true` for one of its agents (whitespace and quotes ignored). Best effort on the script text; the TypeScript mapping
-/// (`intentFor`) does the same.
-pub fn workflow_goes_remote(input: &Value) -> bool {
-    if input.get("remote").is_some_and(|r| !r.is_null() && r != &Value::Bool(false)) {
-        return true;
+/// The keys of a `Workflow` input that may be present: the inline script and its `args` (`description` and `title` are ignored by the CLI).
+pub const WORKFLOW_KEYS: [&str; 4] = ["script", "args", "description", "title"];
+/// Words that ask for another place to run: a hard stop anywhere in a workflow script, as `isolation` is for `Agent`.
+pub const WORKFLOW_ISOLATION_WORDS: [&str; 3] = ["isolation", "worktree", "remote"];
+/// Code that builds keys, strings or code at run time (searched with the whitespace removed, case kept).
+pub const WORKFLOW_EVASION: [&str; 13] = ["]:", "eval(", "Function(", "\\u", "\\x", "fromCharCode", "fromCodePoint", "JSON.parse", "Object.assign", "Reflect.", "defineProperty", "import(", "require("];
+/// Keys that would pick what the run's own choice already set (searched with the whitespace removed, lower case).
+pub const WORKFLOW_OVERRIDES: [&str; 3] = ["model:", "effort:", "agenttype:"];
+
+/// What the broker refuses about a `Workflow` input, or `None`. A best-effort TEXT check of a program: it cannot be complete, which is
+/// why every tool call of a workflow's helper agents is judged on its own by the broker (hard stops first). The TypeScript mappings
+/// (`intentFor` in the sidecar and in `packages/protocol`) implement the same rules; `intent-cases.json` keeps them in step.
+pub fn workflow_check(input: &Value) -> Option<WorkflowCheck> {
+    let found = |kind: &str, detail: &str| Some(WorkflowCheck { kind: kind.into(), detail: detail.into() });
+    if let Some(obj) = input.as_object() {
+        let mut keys: Vec<&String> = obj.keys().filter(|k| !WORKFLOW_KEYS.contains(&k.as_str()) && !obj[k.as_str()].is_null()).collect();
+        keys.sort();
+        if let Some(k) = keys.first() {
+            return found("input", k);
+        }
     }
     let script = input.get("script").and_then(Value::as_str).unwrap_or("");
-    let squeezed: String = script.chars().filter(|c| !c.is_whitespace() && !matches!(c, '"' | '\'' | '`')).collect();
-    squeezed.contains("remote:true")
+    if script.trim().is_empty() {
+        return found("input", "script");
+    }
+    let lower = script.to_lowercase();
+    if let Some(w) = WORKFLOW_ISOLATION_WORDS.iter().find(|w| lower.contains(**w)) {
+        return found("isolation", w);
+    }
+    let squeezed: String = script.chars().filter(|c| !c.is_whitespace()).collect();
+    if let Some(e) = WORKFLOW_EVASION.iter().find(|e| squeezed.contains(**e)) {
+        return found("evasion", e);
+    }
+    // two string literals joined with `+` (`'re' + 'mote'`): a word assembled at run time
+    if ["'+'", "\"+\"", "'+\"", "\"+'", "`+`", "'+`", "`+'", "\"+`", "`+\""].iter().any(|p| squeezed.contains(p)) {
+        return found("evasion", "string concatenation");
+    }
+    let low_sq = squeezed.to_lowercase();
+    WORKFLOW_OVERRIDES.iter().find(|o| low_sq.contains(**o)).and_then(|o| found("override", o))
 }
 
 /// The four built-in tools of the CLI that read or refresh MCP resources; they are judged like MCP tools of the pseudo-tool `resources`.

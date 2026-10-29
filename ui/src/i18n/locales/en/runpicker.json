@@ -29,5 +29,7 @@
   "runpicker.section.enable": "Show the model picker",
   "runpicker.section.enableDesc": "When it is off, New run starts every run with its role's model and effort, as before.",
   "runpicker.section.enableAria": "Show the model picker in New run",
-  "runpicker.cmd.newRun": "New run with a chosen model"
+  "runpicker.cmd.newRun": "New run with a chosen model",
+  "runpicker.remembered": "Remembered from your last run of this role.",
+  "runpicker.reset": "Use the role's defaults"
 }

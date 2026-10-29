@@ -632,6 +632,9 @@
   },
   {
     "input": {
+      "args": {
+        "q": 1
+      },
       "script": "export const meta = {name: 'x'}\nawait agent('a')"
     },
     "intent": {
@@ -656,7 +659,6 @@
     "intent": {
       "argv": null,
       "class": "other",
-      "isolation": "remote",
       "parentToolId": null,
       "paths": [],
       "rawCommand": null,
@@ -665,7 +667,34 @@
       "subagentType": null,
       "summary": "Workflow",
       "tool": "Workflow",
-      "url": null
+      "url": null,
+      "workflowCheck": {
+        "detail": "remote",
+        "kind": "isolation"
+      }
+    },
+    "tool": "Workflow"
+  },
+  {
+    "input": {
+      "script": "await agent('a', {isolation:'worktree'})"
+    },
+    "intent": {
+      "argv": null,
+      "class": "other",
+      "parentToolId": null,
+      "paths": [],
+      "rawCommand": null,
+      "readOnlyHint": null,
+      "server": null,
+      "subagentType": null,
+      "summary": "Workflow",
+      "tool": "Workflow",
+      "url": null,
+      "workflowCheck": {
+        "detail": "isolation",
+        "kind": "isolation"
+      }
     },
     "tool": "Workflow"
   },
@@ -677,7 +706,6 @@
     "intent": {
       "argv": null,
       "class": "other",
-      "isolation": "remote",
       "parentToolId": null,
       "paths": [],
       "rawCommand": null,
@@ -686,7 +714,266 @@
       "subagentType": null,
       "summary": "Workflow",
       "tool": "Workflow",
-      "url": null
+      "url": null,
+      "workflowCheck": {
+        "detail": "name",
+        "kind": "input"
+      }
+    },
+    "tool": "Workflow"
+  },
+  {
+    "input": {
+      "script": "await agent('decoy')",
+      "scriptPath": "/tmp/wf.js"
+    },
+    "intent": {
+      "argv": null,
+      "class": "other",
+      "parentToolId": null,
+      "paths": [],
+      "rawCommand": null,
+      "readOnlyHint": null,
+      "server": null,
+      "subagentType": null,
+      "summary": "Workflow",
+      "tool": "Workflow",
+      "url": null,
+      "workflowCheck": {
+        "detail": "scriptPath",
+        "kind": "input"
+      }
+    },
+    "tool": "Workflow"
+  },
+  {
+    "input": {
+      "resumeFromRunId": "wf_1",
+      "script": "x"
+    },
+    "intent": {
+      "argv": null,
+      "class": "other",
+      "parentToolId": null,
+      "paths": [],
+      "rawCommand": null,
+      "readOnlyHint": null,
+      "server": null,
+      "subagentType": null,
+      "summary": "Workflow",
+      "tool": "Workflow",
+      "url": null,
+      "workflowCheck": {
+        "detail": "resumeFromRunId",
+        "kind": "input"
+      }
+    },
+    "tool": "Workflow"
+  },
+  {
+    "input": {
+      "script": " "
+    },
+    "intent": {
+      "argv": null,
+      "class": "other",
+      "parentToolId": null,
+      "paths": [],
+      "rawCommand": null,
+      "readOnlyHint": null,
+      "server": null,
+      "subagentType": null,
+      "summary": "Workflow",
+      "tool": "Workflow",
+      "url": null,
+      "workflowCheck": {
+        "detail": "script",
+        "kind": "input"
+      }
+    },
+    "tool": "Workflow"
+  },
+  {
+    "input": {
+      "script": "await agent('a', { ['re' + 'mote']: true })"
+    },
+    "intent": {
+      "argv": null,
+      "class": "other",
+      "parentToolId": null,
+      "paths": [],
+      "rawCommand": null,
+      "readOnlyHint": null,
+      "server": null,
+      "subagentType": null,
+      "summary": "Workflow",
+      "tool": "Workflow",
+      "url": null,
+      "workflowCheck": {
+        "detail": "]:",
+        "kind": "evasion"
+      }
+    },
+    "tool": "Workflow"
+  },
+  {
+    "input": {
+      "script": "await agent('a', { 're\\u006dote': 1 })"
+    },
+    "intent": {
+      "argv": null,
+      "class": "other",
+      "parentToolId": null,
+      "paths": [],
+      "rawCommand": null,
+      "readOnlyHint": null,
+      "server": null,
+      "subagentType": null,
+      "summary": "Workflow",
+      "tool": "Workflow",
+      "url": null,
+      "workflowCheck": {
+        "detail": "\\u",
+        "kind": "evasion"
+      }
+    },
+    "tool": "Workflow"
+  },
+  {
+    "input": {
+      "script": "const k = 're' + 'mo'"
+    },
+    "intent": {
+      "argv": null,
+      "class": "other",
+      "parentToolId": null,
+      "paths": [],
+      "rawCommand": null,
+      "readOnlyHint": null,
+      "server": null,
+      "subagentType": null,
+      "summary": "Workflow",
+      "tool": "Workflow",
+      "url": null,
+      "workflowCheck": {
+        "detail": "string concatenation",
+        "kind": "evasion"
+      }
+    },
+    "tool": "Workflow"
+  },
+  {
+    "input": {
+      "script": "eval('x')"
+    },
+    "intent": {
+      "argv": null,
+      "class": "other",
+      "parentToolId": null,
+      "paths": [],
+      "rawCommand": null,
+      "readOnlyHint": null,
+      "server": null,
+      "subagentType": null,
+      "summary": "Workflow",
+      "tool": "Workflow",
+      "url": null,
+      "workflowCheck": {
+        "detail": "eval(",
+        "kind": "evasion"
+      }
+    },
+    "tool": "Workflow"
+  },
+  {
+    "input": {
+      "script": "new Function('x')"
+    },
+    "intent": {
+      "argv": null,
+      "class": "other",
+      "parentToolId": null,
+      "paths": [],
+      "rawCommand": null,
+      "readOnlyHint": null,
+      "server": null,
+      "subagentType": null,
+      "summary": "Workflow",
+      "tool": "Workflow",
+      "url": null,
+      "workflowCheck": {
+        "detail": "Function(",
+        "kind": "evasion"
+      }
+    },
+    "tool": "Workflow"
+  },
+  {
+    "input": {
+      "script": "String.fromCharCode(1)"
+    },
+    "intent": {
+      "argv": null,
+      "class": "other",
+      "parentToolId": null,
+      "paths": [],
+      "rawCommand": null,
+      "readOnlyHint": null,
+      "server": null,
+      "subagentType": null,
+      "summary": "Workflow",
+      "tool": "Workflow",
+      "url": null,
+      "workflowCheck": {
+        "detail": "fromCharCode",
+        "kind": "evasion"
+      }
+    },
+    "tool": "Workflow"
+  },
+  {
+    "input": {
+      "script": "await agent('a', { model: 'opus' })"
+    },
+    "intent": {
+      "argv": null,
+      "class": "other",
+      "parentToolId": null,
+      "paths": [],
+      "rawCommand": null,
+      "readOnlyHint": null,
+      "server": null,
+      "subagentType": null,
+      "summary": "Workflow",
+      "tool": "Workflow",
+      "url": null,
+      "workflowCheck": {
+        "detail": "model:",
+        "kind": "override"
+      }
+    },
+    "tool": "Workflow"
+  },
+  {
+    "input": {
+      "script": "await agent('a', { agentType : 'x' })"
+    },
+    "intent": {
+      "argv": null,
+      "class": "other",
+      "parentToolId": null,
+      "paths": [],
+      "rawCommand": null,
+      "readOnlyHint": null,
+      "server": null,
+      "subagentType": null,
+      "summary": "Workflow",
+      "tool": "Workflow",
+      "url": null,
+      "workflowCheck": {
+        "detail": "agenttype:",
+        "kind": "override"
+      }
     },
     "tool": "Workflow"
   }

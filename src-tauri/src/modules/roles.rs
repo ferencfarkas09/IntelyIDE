@@ -188,7 +188,8 @@ pub async fn roles_delete(engine: State<'_, EngineSlot>, slot: State<'_, RolesSl
 /// A failure is remembered for a shorter time so a CLI that was just installed or logged in shows up soon.
 struct LiveModels {
     at: std::time::Instant,
-    models: Option<Vec<ModelCaps>>,
+    /// The models, and the full ids the listed aliases stand for.
+    models: Option<(Vec<ModelCaps>, Vec<String>)>,
 }
 
 static LIVE_MODELS: std::sync::Mutex<Option<LiveModels>> = std::sync::Mutex::new(None);
@@ -197,7 +198,7 @@ const LIVE_RETRY: std::time::Duration = std::time::Duration::from_secs(60);
 const LIVE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(12);
 
 /// The last live list that was read, however old (the built-in models stand in until there is one).
-fn cached_live_models() -> Option<Vec<ModelCaps>> {
+fn cached_live_models() -> Option<(Vec<ModelCaps>, Vec<String>)> {
     LIVE_MODELS.lock().unwrap_or_else(|e| e.into_inner()).as_ref().and_then(|l| l.models.clone())
 }
 
@@ -206,22 +207,39 @@ fn live_models_fresh() -> bool {
     LIVE_MODELS.lock().unwrap_or_else(|e| e.into_inner()).as_ref().is_some_and(|l| l.at.elapsed() < if l.models.is_some() { LIVE_FRESH } else { LIVE_RETRY })
 }
 
-/// The models of a `models/list` reply; `None` for an error reply (no CLI, the CLI did not answer).
-pub(crate) fn live_models_of(reply: &serde_json::Value) -> Option<Vec<ModelCaps>> {
-    if reply.get("ok") != Some(&serde_json::Value::Bool(true)) {
+/// The models of a `models/list` reply and the full ids its kept aliases stand for; `None` for an error reply (no CLI, no answer) or an
+/// empty list. An id that cannot be started (not a model id) is dropped, so is an alias the CLI also lists by its full id; a kept alias
+/// says what it stands for in its label.
+pub(crate) fn live_models_of(reply: &serde_json::Value) -> Option<(Vec<ModelCaps>, Vec<String>)> {
+    use serde_json::Value;
+    if reply.get("ok") != Some(&Value::Bool(true)) {
         return None;
     }
-    let models = reply.get("models")?.as_array()?;
-    let out: Vec<ModelCaps> = models
+    let entries: Vec<(&str, &str, Option<&str>, Vec<String>)> = reply
+        .get("models")?
+        .as_array()?
         .iter()
         .filter_map(|m| {
             let id = m.get("id")?.as_str()?;
-            let label = m.get("label").and_then(serde_json::Value::as_str).unwrap_or(id);
-            let levels: Vec<String> = m.get("effortLevels").and_then(serde_json::Value::as_array).map(|a| a.iter().filter_map(|l| l.as_str().map(str::to_string)).collect()).unwrap_or_default();
-            intely_agent_host::roles::valid_model_id(id).then(|| model_caps_of(id, label, &levels))
+            let label = m.get("label").and_then(Value::as_str).unwrap_or(id);
+            let resolved = m.get("resolved").and_then(Value::as_str).filter(|r| *r != id && intely_agent_host::roles::valid_model_id(r));
+            let levels = m.get("effortLevels").and_then(Value::as_array).map(|a| a.iter().filter_map(|l| l.as_str().map(str::to_string)).collect()).unwrap_or_default();
+            intely_agent_host::roles::valid_model_id(id).then_some((id, label, resolved, levels))
         })
         .collect();
-    (!out.is_empty()).then_some(out)
+    let mut models = Vec::new();
+    let mut resolved_ids = Vec::new();
+    for (id, label, resolved, levels) in &entries {
+        match resolved {
+            Some(full) if entries.iter().any(|(other, ..)| other == full) => continue,
+            Some(full) => {
+                models.push(model_caps_of(id, &format!("{label} (alias of {full})"), levels));
+                resolved_ids.push(full.to_string());
+            }
+            None => models.push(model_caps_of(id, label, levels)),
+        }
+    }
+    (!models.is_empty()).then_some((models, resolved_ids))
 }
 
 /// `roles_models_live`: asks the installed Claude CLI which models it offers (with each model's effort levels), unless the answer of the
@@ -245,8 +263,8 @@ pub async fn roles_models_live(agents: State<'_, crate::agents::AgentSlot>) -> R
 #[tauri::command]
 pub async fn roles_capabilities(agents: State<'_, crate::agents::AgentSlot>) -> Res<Vec<RoleProviderCaps>> {
     let mut claude = claude_caps();
-    if let Some(live) = cached_live_models() {
-        merge_live_models(&mut claude, &live);
+    if let Some((live, resolved)) = cached_live_models() {
+        merge_live_models(&mut claude, &live, &resolved);
     }
     let mut caps = vec![claude];
     // e2e only: the ACP provider that runs against the scripted fake agent can take read-only roles (never write roles).
@@ -357,11 +375,20 @@ mod tests {
             {"id": "--settings=/x", "label": "not an id"},
             {"label": "no id"}
         ]});
-        let models = live_models_of(&reply).expect("models");
+        let (models, _) = live_models_of(&reply).expect("models");
         assert_eq!(models.iter().map(|m| m.id.as_str()).collect::<Vec<_>>(), ["claude-fable-5-1", "claude-haiku-4-5-20251001"]);
         assert_eq!(models[0].effort_levels, vec![RoleEffort::Low, RoleEffort::Max]);
         assert!(models[1].effort_levels.is_empty());
         assert_eq!(live_models_of(&json!({"error": "claudeNotFound"})), None);
         assert_eq!(live_models_of(&json!({"ok": true, "models": []})), None, "an empty list keeps the built-in models");
+        // an alias the CLI also lists by its full id is dropped; another alias is kept and marked, and its full id is reported
+        let reply = json!({"ok": true, "models": [
+            {"id": "opus", "label": "Opus", "resolved": "claude-opus-5-5", "effortLevels": ["low"]},
+            {"id": "claude-opus-5-5", "label": "Opus 5.5", "effortLevels": ["low"]},
+            {"id": "sonnet", "label": "Sonnet", "resolved": "claude-sonnet-5-5", "effortLevels": ["low"]}
+        ]});
+        let (models, resolved) = live_models_of(&reply).expect("models");
+        assert_eq!(models.iter().map(|m| (m.id.as_str(), m.label.as_str())).collect::<Vec<_>>(), [("claude-opus-5-5", "Opus 5.5"), ("sonnet", "Sonnet (alias of claude-sonnet-5-5)")]);
+        assert_eq!(resolved, ["claude-sonnet-5-5"]);
     }
 }
