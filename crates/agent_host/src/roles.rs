@@ -7,7 +7,7 @@ use intely_agent_core::providers::{AttachmentsCap, Cap, CapEntry, Effort, Permis
 use intely_agent_core::sidecar::ResolvedRole;
 
 use crate::config::HostConfig;
-use crate::run::TeamRun;
+use crate::run::{RunPicks, TeamRun};
 
 /// Scenarios of the mock adapter (`sidecar/src/adapters/mock/scenarios`).
 pub const MOCK_SCENARIOS: [(&str, &str); 12] = [
@@ -37,6 +37,14 @@ pub const ACP_MOCK_SCENARIOS: [(&str, &str, PermissionMode); 3] = [
 pub const CLAUDE_DISALLOWED: [&str; 9] = [
     "RemoteTrigger", "SendMessage", "ListAgents", "CronCreate", "ScheduleWakeup", "Workflow", "PushNotification", "DesignSync", "EnterWorktree",
 ];
+
+/// The tool ultracode lets the lead use (it is in [`CLAUDE_DISALLOWED`] for every other run).
+pub const WORKFLOW_TOOL: &str = "Workflow";
+
+/// A model id the picker may send: what Claude ids and aliases are made of (`claude-opus-5-5`, `opus[1m]`, `us.anthropic.x:0`).
+pub fn valid_model_id(id: &str) -> bool {
+    !id.is_empty() && id.len() <= 128 && !id.starts_with('-') && id.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.' | ':' | '/' | '@' | '[' | ']'))
+}
 
 pub const SYSTEM_PREAMBLE: &str = "You are an agent running inside IntelySwitchIDE. The working tree is the user's repository; the session lists the folders you work \
 in, and one task often spans several repositories, so move between them freely (cd, absolute paths). Work like a careful engineer: read what you \
@@ -180,6 +188,25 @@ impl RoleDef {
         Self { provider: provider.into(), model: "default".into(), effort: None, tools: Vec::new(), disallowed_tools: Vec::new(), max_turns: None, ..self.clone() }
     }
 
+    /// The role as the New run picker changed it for one run: the picked model and effort win, and ultracode takes `Workflow` off
+    /// the deny list (and onto a role's own tool list). No pick = the role unchanged.
+    pub fn with_picks(&self, picks: &RunPicks) -> Self {
+        let mut role = self.clone();
+        if let Some(model) = &picks.model {
+            role.model = model.clone();
+        }
+        if let Some(effort) = picks.effort {
+            role.effort = Some(effort);
+        }
+        if picks.ultracode {
+            role.disallowed_tools.retain(|t| t != WORKFLOW_TOOL);
+            if !role.tools.is_empty() && !role.tools.iter().any(|t| t == WORKFLOW_TOOL) {
+                role.tools.push(WORKFLOW_TOOL.into());
+            }
+        }
+        role
+    }
+
     /// A role that leads a team: Auto, and the scripted `mock-auto` of the e2e harness. Its delegates are resolved when a session
     /// opens (start, resume, a queued run leaving the queue), never frozen into the definition.
     pub fn is_delegating(&self) -> bool {
@@ -199,6 +226,7 @@ impl RoleDef {
             disallowed_tools: self.disallowed_tools.clone(),
             max_turns: self.max_turns,
             max_budget_usd: if self.provider == "claude" { cfg.max_budget_usd.or_else(|| if self.name == AUTO_ROLE { cfg.defaults().max_budget_usd } else { None }) } else { None },
+            ultracode: None,
         }
     }
 }

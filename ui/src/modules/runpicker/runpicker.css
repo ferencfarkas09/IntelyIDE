@@ -1,0 +1,6 @@
+/* Run picker (New run): model, effort and ultracode of one run. */
+.runpicker__row { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: var(--space-2); }
+.runpicker__cell, .runpicker__other { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.runpicker__label { color: var(--text-2); font-size: var(--text-xs); }
+.runpicker__ultra { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+@media (max-width: 560px) { .runpicker__row { grid-template-columns: minmax(0, 1fr); } }

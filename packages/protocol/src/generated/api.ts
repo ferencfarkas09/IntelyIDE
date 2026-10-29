@@ -29,6 +29,15 @@ export type AgentStartRequest = {
 	 *  does not know MCP (queued runs, tray quick actions, Remote, scripts) never starts a server.
 	 */
 	mcpServers?: string[] | null,
+	/**
+	 *  The model of this run (the New run picker). Absent = the role's own (or the Auto settings'); any id passes through unchanged,
+	 *  so a model newer than this build can be used.
+	 */
+	model?: string | null,
+	/**  The effort of this run. Absent = the role's own. */
+	effort?: Effort | null,
+	/**  Ultracode: the lead may start the Workflow tool (helper agents). Absent or false = off, the Workflow tool stays denied. */
+	ultracode?: boolean | null,
 };
 
 /**  One row of `agent_list` / the reply of `agent_start`; the run header reads all of it. */
@@ -112,6 +121,8 @@ export type QuestionAnswer = {
 export type Requested = {
 	effort?: Effort | null,
 	permission: PermissionMode,
+	/**  The run was started with ultracode on (the New run picker); absent = off. */
+	ultracode?: boolean | null,
 };
 
 /**  One entry of the New run popover. */

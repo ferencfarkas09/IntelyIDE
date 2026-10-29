@@ -238,6 +238,9 @@ pub fn intent_cases() -> Vec<(&'static str, serde_json::Value, ToolIntent)> {
         ("mcp__my_server__do__thing", json!({})),
         ("mcp__broken", json!({})),
         ("SomethingNew", json!({})),
+        ("Workflow", json!({"script": "export const meta = {name: 'x'}\nawait agent('a')"})),
+        ("Workflow", json!({"script": "await agent('a', { remote : true })"})),
+        ("Workflow", json!({"name": "spec", "remote": true})),
     ]
     .into_iter()
     .map(|(tool, input)| {

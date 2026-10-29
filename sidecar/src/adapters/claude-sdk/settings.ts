@@ -21,7 +21,9 @@ export const DENY_RULES = [
 // which no IDE session may touch. MEASURED (probe L3, claude 2.1.284): the CLI honours it only INSIDE the project root (a relative value, or an
 // absolute one under the cwd); an absolute path outside the cwd, one inside an added directory, and a relative `../x` are all ignored and the
 // default is used. The policy refuses that default, and the gate tells the model to put the plan in its reply text (notes.ts).
-export function settingsOverlay(env: SessionEnv, denyRules = true, allowRemoteControl = false, addDirs: readonly string[] = [], planDir?: string): Record<string, unknown> {
+// `ultracode` (the New run picker, one run only): standing Workflow orchestration. It needs the Workflows feature on, so both keys go
+// together; a run without it carries neither key, so its settings are exactly what they were before the picker.
+export function settingsOverlay(env: SessionEnv, denyRules = true, allowRemoteControl = false, addDirs: readonly string[] = [], planDir?: string, ultracode = false): Record<string, unknown> {
   const deny = denyRules ? [...DENY_RULES] : [];
   if (denyRules && env.shimDir) deny.push(`Edit(${env.shimDir}/**)`, `Write(${env.shimDir}/**)`);
   return {
@@ -30,5 +32,6 @@ export function settingsOverlay(env: SessionEnv, denyRules = true, allowRemoteCo
     permissions: { deny, ...(addDirs.length ? { additionalDirectories: [...addDirs] } : {}) },
     ...(allowRemoteControl ? {} : { disableRemoteControl: true }),
     ...(planDir ? { plansDirectory: planDir } : {}),
+    ...(ultracode ? { ultracode: true, enableWorkflows: true } : {}),
   };
 }

@@ -93,6 +93,11 @@ export function RunHeader(props: { agent: AgentRow; stopping: boolean; onInterru
         <Badge tone={effort().tone} title={effort().title}>
           {t("chat.header.effort", { text: effort().text })}
         </Badge>
+        <Show when={a().requested.ultracode}>
+          <Badge tone="info" title={t("runpicker.chipTitle")}>
+            {t("runpicker.chip")}
+          </Badge>
+        </Show>
         <ModeChip agent={a()} />
         <McpChip agent={a()} />
         <Tooltip label={tierTitle()}>

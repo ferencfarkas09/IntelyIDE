@@ -354,7 +354,7 @@ fn start_item(app: &AppHandle, inner: &Arc<Inner>, item_id: &str) {
             });
         }
     }
-    let req = AgentStartRequest { role: item.role_id.clone(), repo_ids: item.repo_ids.clone(), prompt: item.prompt.clone(), mode: None, mcp_servers: None };
+    let req = AgentStartRequest { role: item.role_id.clone(), repo_ids: item.repo_ids.clone(), prompt: item.prompt.clone(), mode: None, mcp_servers: None, ..Default::default() };
     // Never `run_without_safety_net`: a repo that cannot be snapshotted fails the item with `noSafetyNet`.
     match roles.supervisor().start_now_with(req, &repos, StartOptions::default()) {
         Ok(summary) => inner.with_plan(|p| p.on_started(item_id, &summary.agent_id, now_ms())),

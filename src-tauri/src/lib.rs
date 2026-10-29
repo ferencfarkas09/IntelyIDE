@@ -194,6 +194,7 @@ pub fn run() {
             modules::roles::roles_delete_preview,
             modules::roles::roles_delete,
             modules::roles::roles_capabilities,
+            modules::roles::roles_models_live,
             modules::roles::runs_start,
             modules::roles::runs_list,
             modules::roles::runs_history,

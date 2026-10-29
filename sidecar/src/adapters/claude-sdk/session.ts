@@ -53,6 +53,9 @@ export const DEFAULT_TOOLS = [
   'TaskCreate', 'TaskGet', 'TaskList', 'TaskStop', 'TaskUpdate', 'WebFetch', 'WebSearch', 'Write',
 ];
 
+/** The tool ultracode adds to a run (never part of DEFAULT_TOOLS). */
+export const WORKFLOW_TOOL = 'Workflow';
+
 /** `Bash(npm test:*)` -> `Bash`: the name of a tool entry as the CLI registers it. */
 const baseTool = (entry: string): string => entry.split('(')[0]!.trim();
 
@@ -63,6 +66,8 @@ const baseTool = (entry: string): string => entry.split('(')[0]!.trim();
 export function sessionTools(role: ResolvedRole, delegates: readonly DelegateSpec[] | undefined, hasMcp: boolean): string[] {
   if (role.tools?.length) return role.tools;
   const all = new Set(DEFAULT_TOOLS);
+  // ultracode: the lead may start a Workflow (Rust took it off the deny list for this run only, and the broker allows it only then)
+  if (role.ultracode) all.add(WORKFLOW_TOOL);
   for (const d of delegates ?? []) for (const t of d.tools ?? []) if (baseTool(t)) all.add(baseTool(t));
   if (hasMcp) all.add('ToolSearch');
   return [...all];
@@ -195,7 +200,7 @@ export class ClaudeSession implements AgentSession {
       settingSources: spec.settingSources ?? [],
       strictMcpConfig: true,
       mcpServers: { ...(spec.mcp as Options['mcpServers']), ...(peer ? { [PEER_SERVER]: peer } : {}) },
-      settings: settingsOverlay(spec.env, spec.denyRules ?? true, false, spec.addDirs, spec.planDir) as Options['settings'],
+      settings: settingsOverlay(spec.env, spec.denyRules ?? true, false, spec.addDirs, spec.planDir, role.ultracode === true) as Options['settings'],
       // an empty list (Rust sends one for "no restriction") means the IDE default set (see DEFAULT_TOOLS), not no tools at all
       tools: sessionTools(role, this.delegates, Object.keys(spec.mcp ?? {}).length > 0),
       disallowedTools: [...new Set([...(role.disallowedTools ?? []), ...ALWAYS_HIDDEN_TOOLS, ...(delegating ? LEAD_HIDDEN_AGENT_TYPES : [])])],
@@ -398,7 +403,8 @@ export class ClaudeSession implements AgentSession {
   }
 
   async setEffort(level: string): Promise<void> {
-    await this.q.applyFlagSettings({ effortLevel: level as never });
+    // SDK quirk: an effort change sent without an `ultracode` key switches ultracode off, so a run that has it says so again
+    await this.q.applyFlagSettings({ effortLevel: level as never, ...(this.spec.role.ultracode ? { ultracode: true } : {}) } as never);
     this.appliedEffort = level;
     this.sink.emit({ kind: 'session.info', nativeId: this.nativeId, effective: { effort: effortOf(level) } });
   }

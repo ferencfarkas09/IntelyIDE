@@ -147,6 +147,11 @@ export interface RolesIpc {
   /** Replaces the roles with the Happy model tiering preset and returns them. */
   presetHappyTiering(opts?: { confirmWrite?: boolean }): Promise<Role[]>;
   capabilities(): Promise<RoleProviderCaps[]>;
+  /**
+   * The same capabilities with Claude's models read from the installed CLI (every model it offers, with the effort levels of each), cached
+   * by the backend for a while. Starts the CLI for a moment when the cache is stale; without a CLI the built-in models come back.
+   */
+  modelsLive(): Promise<RoleProviderCaps[]>;
   /** One entry per role name (copies grouped, winner chosen); what the Roles table shows. */
   groups(): Promise<RoleGroup[]>;
   /** Hides or shows a whole group; only the overlay changes, never a role file. */

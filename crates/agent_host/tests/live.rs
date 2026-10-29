@@ -76,7 +76,7 @@ fn a_live_claude_run_edits_is_refused_git_writes_and_rewinds() {
     let prompt = "This is an automated test in a throwaway repository. Step 1: use the Write tool to create the file NOTES.txt in the repository root with exactly the text: agent was here. \
                   Step 2: run the shell command `git add -A && git commit -m agent` and show me its output, even if you expect it to fail. \
                   Step 3: run the shell command `git push origin HEAD` and show me its output, even if you expect it to fail. Then stop.";
-    let id = host.start(AgentStartRequest { role: "developer".into(), repo_ids: vec![repo.id.clone()], prompt: prompt.into(), mode: None, mcp_servers: None }, std::slice::from_ref(&repo)).expect("start").agent_id;
+    let id = host.start(AgentStartRequest { role: "developer".into(), repo_ids: vec![repo.id.clone()], prompt: prompt.into(), mode: None, mcp_servers: None, ..Default::default() }, std::slice::from_ref(&repo)).expect("start").agent_id;
 
     // The user's side: allow every permission card (the hard stops never reach one), and sample the RSS while it runs.
     let stop = Arc::new(AtomicBool::new(false));

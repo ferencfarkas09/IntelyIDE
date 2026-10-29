@@ -260,6 +260,14 @@ impl ToolIntent {
                 });
                 i
             }
+            // A workflow is judged by the broker only when ultracode is on; one that asks to run off this machine carries `remote`.
+            "Workflow" => {
+                let mut i = Self::other(name);
+                if workflow_goes_remote(input) {
+                    i.isolation = Some("remote".into());
+                }
+                i
+            }
             // The CLI's own resource tools join the MCP class with the pseudo-tool key `resources` (mcp-management spec 5.4 step 1);
             // `server` comes from the input, and a call without one is judged `mcp.resource-server`.
             "ListMcpResourcesTool" | "ReadMcpResourceTool" | "ReadMcpResourceDir" | "RefreshMcpTools" => {
@@ -292,6 +300,18 @@ impl ToolIntent {
             },
         }
     }
+}
+
+/// A `Workflow` input that asks to run somewhere else than this machine: a `remote` key that is not `false`/`null`, or a script that
+/// sets `remote: true` for one of its agents (whitespace and quotes ignored). Best effort on the script text; the TypeScript mapping
+/// (`intentFor`) does the same.
+pub fn workflow_goes_remote(input: &Value) -> bool {
+    if input.get("remote").is_some_and(|r| !r.is_null() && r != &Value::Bool(false)) {
+        return true;
+    }
+    let script = input.get("script").and_then(Value::as_str).unwrap_or("");
+    let squeezed: String = script.chars().filter(|c| !c.is_whitespace() && !matches!(c, '"' | '\'' | '`')).collect();
+    squeezed.contains("remote:true")
 }
 
 /// The four built-in tools of the CLI that read or refresh MCP resources; they are judged like MCP tools of the pseudo-tool `resources`.

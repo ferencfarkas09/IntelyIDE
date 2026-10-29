@@ -197,6 +197,7 @@ fn model_effort_and_turns_are_resolved_and_clamped() {
     r.role("cheap", "description: d\nmodel: haiku\neffort: low\n", "x");
     r.role("thinker", "description: d\nmodel: opus\neffort: max\nmaxTurns: 500\n", "x");
     r.role("default", "description: d\n", "x");
+    r.role("newer", "description: d\nmodel: claude-nova-9\neffort: xhigh\n", "x");
     r.role("short", "description: d\nmodel: sonnet\neffort: medium\nmaxTurns: 7\ndisallowedTools: WebFetch\ncolor: green\n", "x");
     let store = r.store(false);
     let set = r.set(&store, &[]);
@@ -204,7 +205,9 @@ fn model_effort_and_turns_are_resolved_and_clamped() {
     let cheap = spec("cheap");
     assert_eq!((cheap.model.as_str(), cheap.effort), (MODEL_HAIKU, None), "Haiku has no effort control: omitted");
     let thinker = spec("thinker");
-    assert_eq!((thinker.model.as_str(), thinker.effort, thinker.max_turns), (MODEL_OPUS, Some(Effort::High), Some(150)), "max is clamped to high, turns to 150");
+    assert_eq!((thinker.model.as_str(), thinker.effort, thinker.max_turns), (MODEL_OPUS, Some(Effort::Max), Some(150)), "max is sent as max (the whole ladder is allowed), turns are clamped to 150");
+    let newer = spec("newer");
+    assert_eq!((newer.model.as_str(), newer.effort), ("claude-nova-9", Some(Effort::Xhigh)), "a model this build does not know passes through with its effort");
     let d = spec("default");
     assert_eq!((d.model.as_str(), d.effort, d.max_turns), (MODEL_SONNET, None, Some(120)));
     let short = spec("short");

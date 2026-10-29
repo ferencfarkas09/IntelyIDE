@@ -473,6 +473,6 @@
   "roles.overlay.resetFailed": "A fájl visszaállítása nem sikerült",
   "roles.delete.noBackupDir": "az IntelyIDE adatmappája",
   "roles.warn.effortXhigh": "Az xhigh erőfeszítés sok tokent használ. Csak szándékosan használd.",
-  "roles.warn.effortMax": "A max erőfeszítés tiltva van: sokkal többe kerül, keveset ad. Ha kell, használj xhigh-t.",
+  "roles.warn.effortMax": "A max erőfeszítés használja a legtöbb tokent. Csak tudatosan válaszd.",
   "roles.warn.effortNotSent": "Ennek a modellnek nincs erőfeszítés-beállítása, ezért az erőfeszítést nem küldi el."
 }

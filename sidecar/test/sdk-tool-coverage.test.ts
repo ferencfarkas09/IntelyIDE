@@ -63,4 +63,9 @@ describe('SDK tool coverage (the pinned sdk-tools.d.ts against constants.json sd
       expect(intentFor(e.tool, sample[k] ?? {}).class, `${e.input} (${e.tool}) is kind ${e.kind}`).toBe(wantClass[k]);
     }
   });
+
+  it('Workflow stays a state-changing tool: only a run with ultracode on lets the lead use it (the broker reads the run, not the kind)', () => {
+    expect(coverage.find((e) => e.tool === 'Workflow')?.kind.toLowerCase()).toBe('otherstatechange');
+    expect(intentFor('Workflow', { script: 'x' }).class).toBe('other');
+  });
 });

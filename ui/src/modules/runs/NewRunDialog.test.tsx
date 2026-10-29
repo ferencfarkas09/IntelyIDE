@@ -443,3 +443,58 @@ describe("<NewRunDialog> permission mode", () => {
     expect(within(group(d)).getByRole("radio", { name: /^Plan/ })).toBeTruthy();
   });
 });
+
+describe("<NewRunDialog> run picker", () => {
+  const ready = async (d: ReturnType<typeof within>) => {
+    // a role proposes its own repositories; Auto starts with none
+    if (d.getByRole("button", { name: "admin" }).getAttribute("aria-pressed") !== "true") repo(d, "admin");
+    fireEvent.input(d.getByLabelText("Prompt"), { target: { value: "Fix the total" } });
+    await waitFor(() => expect((d.getByRole("button", { name: "Start run" }) as HTMLButtonElement).disabled).toBe(false));
+  };
+  const model = (d: ReturnType<typeof within>) => d.getByRole("combobox", { name: "Model" }) as HTMLSelectElement;
+  const effort = (d: ReturnType<typeof within>) => d.getByRole("combobox", { name: "Effort" }) as HTMLSelectElement;
+  beforeEach(async () => {
+    await ipc.settings.set("runs", { lastModel: null, lastEffort: null });
+  });
+
+  it("lists every model the CLI offers and sends nothing while it is untouched", async () => {
+    const spy = vi.spyOn(ipc, "agentStart");
+    const d = await open();
+    await waitFor(() => expect([...model(d).options].map((o) => o.textContent)).toContain("Fable 5.1"));
+    expect(model(d).options[0].textContent).toBe("Default: Sonnet 5.5");
+    await ready(d);
+    fireEvent.click(d.getByRole("button", { name: "Start run" }));
+    await waitFor(() => expect(spy).toHaveBeenCalled());
+    const req = spy.mock.calls[0][0] as Record<string, unknown>;
+    expect(req.model).toBeUndefined();
+    expect(req.effort).toBeUndefined();
+    expect(req.ultracode).toBeUndefined();
+  });
+
+  it("sends the exact model, effort and ultracode picked, shows the chip, and remembers model and effort for the next dialog", async () => {
+    const spy = vi.spyOn(ipc, "agentStart");
+    const d = await open();
+    await waitFor(() => expect([...model(d).options].map((o) => o.value)).toContain("claude-opus-5-5"));
+    fireEvent.change(model(d), { target: { value: "claude-opus-5-5" } });
+    fireEvent.change(effort(d), { target: { value: "max" } });
+    fireEvent.click(d.getByRole("switch", { name: /Ultracode/ }));
+    await ready(d);
+    fireEvent.click(d.getByRole("button", { name: "Start run" }));
+    await waitFor(() => expect(spy).toHaveBeenCalled());
+    expect(spy.mock.calls[0][0]).toMatchObject({ role: "developer", model: "claude-opus-5-5", effort: "max", ultracode: true });
+    await waitFor(() => expect(agentRows().find((r) => r.model === "claude-opus-5-5")?.requested.ultracode).toBe(true));
+    await waitFor(async () => expect(await ipc.settings.get("runs")).toMatchObject({ lastModel: "claude-opus-5-5", lastEffort: "max" }));
+  });
+
+  it("offers no ultracode for Auto, and blocks Start on a typed id that is not a Claude model", async () => {
+    const d = await open("auto");
+    await waitFor(() => expect(model(d)).toBeTruthy());
+    expect(d.queryByRole("switch", { name: /Ultracode/ })).toBeNull();
+    fireEvent.change(model(d), { target: { value: "other model" } });
+    fireEvent.input(d.getByRole("textbox", { name: "Model id" }), { target: { value: "gpt-5" } });
+    await ready(d).catch(() => undefined);
+    expect((d.getByRole("button", { name: "Start run" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.input(d.getByRole("textbox", { name: "Model id" }), { target: { value: "claude-next-6" } });
+    await waitFor(() => expect((d.getByRole("button", { name: "Start run" }) as HTMLButtonElement).disabled).toBe(false));
+  });
+});

@@ -32,7 +32,7 @@ fn child_make_run() {
     std::fs::write(repo.path.join("a.txt"), "dirty before the run\n").unwrap();
     let (host, sink) = host_with(config(&dir.join("data"), sidecar_js()));
     let id = host
-        .start(AgentStartRequest { role: "mock-plain-reply".into(), repo_ids: vec![repo.id.clone()], prompt: "go".into(), mode: None, mcp_servers: None }, std::slice::from_ref(&repo))
+        .start(AgentStartRequest { role: "mock-plain-reply".into(), repo_ids: vec![repo.id.clone()], prompt: "go".into(), mode: None, mcp_servers: None, ..Default::default() }, std::slice::from_ref(&repo))
         .unwrap()
         .agent_id;
     sink.wait_turn_end(&id);

@@ -63,6 +63,9 @@ export function intentFromClaudeTool(name: string, input: Input = {}): ToolInten
         summary: name,
       };
     }
+    case "Workflow":
+      // judged by the broker only when ultracode is on; one that asks to run off this machine carries `remote`
+      return { class: "other", tool: name, ...(workflowGoesRemote(input) ? { isolation: "remote" } : {}), summary: name };
     default: {
       // Anything named `mcp__...` is an MCP call, also a malformed one (`mcp__`, `mcp____x`, `mcp__a__`): the same split as the
       // Rust mapping, which hands it to the broker (denied there as `mcp.unknown`) instead of the unknown-tool row.
@@ -79,4 +82,14 @@ export function intentFromClaudeTool(name: string, input: Input = {}): ToolInten
       return { class: "other", tool: name, summary: name };
     }
   }
+}
+
+/**
+ * A `Workflow` input that asks to run somewhere else than this machine: a `remote` key that is not `false`/`null`, or a script that sets
+ * `remote: true` for one of its agents (whitespace and quotes ignored). Same rule as `workflow_goes_remote` in Rust.
+ */
+export function workflowGoesRemote(input: Record<string, unknown>): boolean {
+  if (input.remote !== undefined && input.remote !== null && input.remote !== false) return true;
+  const script = typeof input.script === "string" ? input.script : "";
+  return script.replace(/[\s"'`]/g, "").includes("remote:true");
 }

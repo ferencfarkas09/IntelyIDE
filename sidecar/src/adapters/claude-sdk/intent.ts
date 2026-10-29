@@ -63,6 +63,9 @@ export function intentFor(tool: string, rawInput: unknown, parentToolId?: string
         summary: `Subagent ${sub ?? ''} ${short(str(input.description) ?? '', 80)}`.trim(),
       };
     }
+    // A workflow (ultracode runs only): one that asks to run off this machine carries `remote`, which the broker refuses.
+    case 'Workflow':
+      return { ...base, class: 'other', ...(workflowGoesRemote(input) ? { isolation: 'remote' } : {}), summary: `Workflow ${short(str(input.name) ?? str(input.scriptPath) ?? '', 80)}`.trim() };
     // The plan itself travels in the permission.request `plan` field, never in the intent (the Remote record shrinks the summary).
     case 'ExitPlanMode':
       return { ...base, class: 'other', summary: 'ExitPlanMode: leave plan mode' };
@@ -85,4 +88,14 @@ export function intentFor(tool: string, rawInput: unknown, parentToolId?: string
       return { ...base, class: 'other', summary: `${tool} ${short(redact(safeJson(rawInput)), 200)}`.trim() };
     }
   }
+}
+
+/**
+ * A `Workflow` input that asks to run somewhere else than this machine: a `remote` key that is not `false`/`null`, or a script that sets
+ * `remote: true` for one of its agents (whitespace and quotes ignored). Same rule as `workflow_goes_remote` in Rust.
+ */
+export function workflowGoesRemote(input: In): boolean {
+  if (input.remote !== undefined && input.remote !== null && input.remote !== false) return true;
+  const script = typeof input.script === 'string' ? input.script : '';
+  return script.replace(/[\s"'`]/g, '').includes('remote:true');
 }

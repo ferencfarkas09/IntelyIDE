@@ -82,6 +82,10 @@ wire_types! {
         #[serde(default)]
         #[cfg_attr(feature = "specta", specta(optional))]
         pub max_budget_usd: Option<f64>,
+        /// Ultracode for this run (standing Workflow orchestration): the sidecar turns it on in the session settings. Absent = off.
+        #[serde(default)]
+        #[cfg_attr(feature = "specta", specta(optional))]
+        pub ultracode: Option<bool>,
     }
 
     /// Key hand-off: from the `KeySource`, in memory, never argv or the sidecar's own env.

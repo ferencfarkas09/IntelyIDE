@@ -77,6 +77,8 @@ export type ResolvedRole = {
 	disallowedTools?: string[],
 	maxTurns?: number | null,
 	maxBudgetUsd?: number | null,
+	/**  Ultracode for this run (standing Workflow orchestration): the sidecar turns it on in the session settings. Absent = off. */
+	ultracode?: boolean | null,
 };
 
 export type ResumeRef = {

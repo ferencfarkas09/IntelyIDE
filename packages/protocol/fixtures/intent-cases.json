@@ -629,5 +629,65 @@
       "url": null
     },
     "tool": "SomethingNew"
+  },
+  {
+    "input": {
+      "script": "export const meta = {name: 'x'}\nawait agent('a')"
+    },
+    "intent": {
+      "argv": null,
+      "class": "other",
+      "parentToolId": null,
+      "paths": [],
+      "rawCommand": null,
+      "readOnlyHint": null,
+      "server": null,
+      "subagentType": null,
+      "summary": "Workflow",
+      "tool": "Workflow",
+      "url": null
+    },
+    "tool": "Workflow"
+  },
+  {
+    "input": {
+      "script": "await agent('a', { remote : true })"
+    },
+    "intent": {
+      "argv": null,
+      "class": "other",
+      "isolation": "remote",
+      "parentToolId": null,
+      "paths": [],
+      "rawCommand": null,
+      "readOnlyHint": null,
+      "server": null,
+      "subagentType": null,
+      "summary": "Workflow",
+      "tool": "Workflow",
+      "url": null
+    },
+    "tool": "Workflow"
+  },
+  {
+    "input": {
+      "name": "spec",
+      "remote": true
+    },
+    "intent": {
+      "argv": null,
+      "class": "other",
+      "isolation": "remote",
+      "parentToolId": null,
+      "paths": [],
+      "rawCommand": null,
+      "readOnlyHint": null,
+      "server": null,
+      "subagentType": null,
+      "summary": "Workflow",
+      "tool": "Workflow",
+      "url": null
+    },
+    "tool": "Workflow"
   }
 ]

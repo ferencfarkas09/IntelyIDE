@@ -79,7 +79,7 @@ fn setup_and_a_scripted_run_on_a_real_linux_server() {
     let (host, sink) = host_with(hostcfg);
     let def = host.find_role("mock-bash-twice", std::slice::from_ref(&local)).expect("role");
     let run = host
-        .start_role_with(&def, AgentStartRequest { role: def.name.clone(), repo_ids: vec![local.id.clone()], prompt: "go".into(), mode: None, mcp_servers: None }, std::slice::from_ref(&local), StartOptions { location: Some("real".into()), ..Default::default() })
+        .start_role_with(&def, AgentStartRequest { role: def.name.clone(), repo_ids: vec![local.id.clone()], prompt: "go".into(), mode: None, mcp_servers: None, ..Default::default() }, std::slice::from_ref(&local), StartOptions { location: Some("real".into()), ..Default::default() })
         .expect("start on the container");
     let card = sink.wait_kind(&run.agent_id, "permission.request");
     println!("the broker asked about: {:?}", card.kind);

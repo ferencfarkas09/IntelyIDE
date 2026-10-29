@@ -83,6 +83,8 @@ export type ResolvedRole = {
   disallowedTools?: string[];
   maxTurns?: number | null;
   maxBudgetUsd?: number | null;
+  /** Ultracode for this run (the New run picker): standing Workflow orchestration; absent = off. */
+  ultracode?: boolean | null;
 };
 
 export interface McpSet { [server: string]: Record<string, unknown> }
@@ -243,6 +245,8 @@ export interface SidecarMsg {
   'session/note': { body: { agentId: string; noteId: string; text: string; parentToolId?: string | null; from?: string }; reply: { ok: true } | { error: 'noSession' | 'unsupported' | NoteErrorCode; detail?: string } };
   /** The plan limits of the signed-in Claude account (limits.ts): no open session needed. */
   'usage/limits': { body: import('./limits.js').LimitsRequest; reply: import('./limits.js').LimitsReply };
+  /** The models the installed claude CLI offers, with their effort levels (models.ts): no open session needed. */
+  'models/list': { body: import('./models.js').ModelsRequest; reply: import('./models.js').ModelsReply };
   /** File-system questions of the permission broker about THIS machine (fsquery.ts); a read-only oracle, sent ad hoc by the host (not in the generated Rust enum). */
   'fs/query': { body: { ops: import('./fsquery.js').FsOp[] }; reply: import('./fsquery.js').FsQueryReply };
   // session history (history.ts): no open session needed

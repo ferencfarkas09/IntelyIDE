@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use intely_agent_host::{AgentHost, HostConfig, HostSink, RepoRef, RoleResolver};
 use intely_core::EngineError;
-use intely_roles::store::claude_caps;
+use intely_roles::store::{claude_caps, merge_live_models, model_caps_of};
 use intely_roles::types::{
     AdoptOptions, DeletePreview, DeleteReport, HistoryEntry, ModelCaps, RolePermission, HistoryQuery, Role, RoleDraft, RoleDrift, RoleGroup, RoleProviderCaps, RolesStatus, RewindSnapshotInfo, RunRecord, RunsStartRequest, UsageSummary,
 };
@@ -184,9 +184,71 @@ pub async fn roles_delete(engine: State<'_, EngineSlot>, slot: State<'_, RolesSl
     blocking(move || Ok(store.delete(&role_ids, &typed, typed_link.as_deref(), &repos)?)).await
 }
 
+/// The live model list of the installed Claude CLI, kept for a while: asking starts the CLI, and New run and Settings > Roles open often.
+/// A failure is remembered for a shorter time so a CLI that was just installed or logged in shows up soon.
+struct LiveModels {
+    at: std::time::Instant,
+    models: Option<Vec<ModelCaps>>,
+}
+
+static LIVE_MODELS: std::sync::Mutex<Option<LiveModels>> = std::sync::Mutex::new(None);
+const LIVE_FRESH: std::time::Duration = std::time::Duration::from_secs(10 * 60);
+const LIVE_RETRY: std::time::Duration = std::time::Duration::from_secs(60);
+const LIVE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(12);
+
+/// The last live list that was read, however old (the built-in models stand in until there is one).
+fn cached_live_models() -> Option<Vec<ModelCaps>> {
+    LIVE_MODELS.lock().unwrap_or_else(|e| e.into_inner()).as_ref().and_then(|l| l.models.clone())
+}
+
+/// `true` while the cached answer (a list or a failure) is recent enough to be used without asking again.
+fn live_models_fresh() -> bool {
+    LIVE_MODELS.lock().unwrap_or_else(|e| e.into_inner()).as_ref().is_some_and(|l| l.at.elapsed() < if l.models.is_some() { LIVE_FRESH } else { LIVE_RETRY })
+}
+
+/// The models of a `models/list` reply; `None` for an error reply (no CLI, the CLI did not answer).
+pub(crate) fn live_models_of(reply: &serde_json::Value) -> Option<Vec<ModelCaps>> {
+    if reply.get("ok") != Some(&serde_json::Value::Bool(true)) {
+        return None;
+    }
+    let models = reply.get("models")?.as_array()?;
+    let out: Vec<ModelCaps> = models
+        .iter()
+        .filter_map(|m| {
+            let id = m.get("id")?.as_str()?;
+            let label = m.get("label").and_then(serde_json::Value::as_str).unwrap_or(id);
+            let levels: Vec<String> = m.get("effortLevels").and_then(serde_json::Value::as_array).map(|a| a.iter().filter_map(|l| l.as_str().map(str::to_string)).collect()).unwrap_or_default();
+            intely_agent_host::roles::valid_model_id(id).then(|| model_caps_of(id, label, &levels))
+        })
+        .collect();
+    (!out.is_empty()).then_some(out)
+}
+
+/// `roles_models_live`: asks the installed Claude CLI which models it offers (with each model's effort levels), unless the answer of the
+/// last ask is still fresh, and returns the capabilities with that list merged in (see `roles_capabilities`). Starts the sidecar and the
+/// CLI for a moment; nothing is sent to a model. Without a CLI, or when it does not answer in time, the built-in models are returned.
+#[tauri::command]
+pub async fn roles_models_live(agents: State<'_, crate::agents::AgentSlot>) -> Res<Vec<RoleProviderCaps>> {
+    if !live_models_fresh() {
+        let host = agents.host().clone();
+        let models = blocking(move || Ok(host.models_live(LIVE_TIMEOUT).ok().and_then(|v| live_models_of(&v)))).await?;
+        let mut slot = LIVE_MODELS.lock().unwrap_or_else(|e| e.into_inner());
+        // a failed ask keeps the list an earlier ask read (for the dropdown), but is retried sooner
+        let models = models.or_else(|| slot.as_ref().and_then(|l| l.models.clone()));
+        *slot = Some(LiveModels { at: std::time::Instant::now(), models });
+    }
+    roles_capabilities(agents).await
+}
+
+/// What each provider offers a role and a run. Claude's models are the live list of the installed CLI once `roles_models_live` has read
+/// it, followed by the built-in models; before that, the built-in models alone.
 #[tauri::command]
 pub async fn roles_capabilities(agents: State<'_, crate::agents::AgentSlot>) -> Res<Vec<RoleProviderCaps>> {
-    let mut caps = vec![claude_caps()];
+    let mut claude = claude_caps();
+    if let Some(live) = cached_live_models() {
+        merge_live_models(&mut claude, &live);
+    }
+    let mut caps = vec![claude];
     // e2e only: the ACP provider that runs against the scripted fake agent can take read-only roles (never write roles).
     if let Some(provider) = crate::agents::acp_mock_provider(&agents) {
         caps.push(RoleProviderCaps {
@@ -279,4 +341,27 @@ pub async fn runs_rewind_snapshots(slot: State<'_, RolesSlot>, run_id: String) -
 pub async fn runs_rewind_restore(slot: State<'_, RolesSlot>, run_id: String, confirm: bool, repo_id: Option<String>) -> Res<()> {
     let sup = slot.sup.clone();
     blocking(move || sup.rewind_restore(&run_id, confirm, repo_id.as_deref())).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::live_models_of;
+    use intely_roles::types::RoleEffort;
+    use serde_json::json;
+
+    #[test]
+    fn a_models_list_reply_becomes_the_live_models_and_an_error_reply_none() {
+        let reply = json!({"ok": true, "models": [
+            {"id": "claude-fable-5-1", "label": "Fable 5.1", "effortLevels": ["low", "max"]},
+            {"id": "claude-haiku-4-5-20251001", "label": "Haiku 4.5", "effortLevels": []},
+            {"id": "--settings=/x", "label": "not an id"},
+            {"label": "no id"}
+        ]});
+        let models = live_models_of(&reply).expect("models");
+        assert_eq!(models.iter().map(|m| m.id.as_str()).collect::<Vec<_>>(), ["claude-fable-5-1", "claude-haiku-4-5-20251001"]);
+        assert_eq!(models[0].effort_levels, vec![RoleEffort::Low, RoleEffort::Max]);
+        assert!(models[1].effort_levels.is_empty());
+        assert_eq!(live_models_of(&json!({"error": "claudeNotFound"})), None);
+        assert_eq!(live_models_of(&json!({"ok": true, "models": []})), None, "an empty list keeps the built-in models");
+    }
 }

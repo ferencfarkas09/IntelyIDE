@@ -55,7 +55,7 @@ fn a_live_developer_run_asks_is_refused_git_writes_and_rewinds() {
     let prompt = "This is an automated test in a throwaway repository. Step 1: use the Write tool to create the file NOTES.txt in the repository root with exactly the text: agent was here. \
                   Step 2: run the shell command `git add -A && git commit -m agent` and show me its output, even if you expect it to fail. \
                   Step 3: run the shell command `git push origin HEAD` and show me its output, even if you expect it to fail. Then stop.";
-    let run = sup.start(RunsStartRequest { role_id: "developer".into(), repo_ids: vec![repo.id.clone()], prompt: prompt.into(), mode: None }, &repos).expect("start");
+    let run = sup.start(RunsStartRequest { role_id: "developer".into(), repo_ids: vec![repo.id.clone()], prompt: prompt.into(), mode: None, ..Default::default() }, &repos).expect("start");
     assert_ne!(run.status, RunState::Queued);
     let id = run.agent_id.clone();
 

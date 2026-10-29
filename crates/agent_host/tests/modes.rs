@@ -104,7 +104,7 @@ impl Rig {
 
     fn start_with(&self, role: &str, mode: Option<PermissionMode>, opts: StartOptions) -> Result<AgentSummary, EngineError> {
         let def = self.host.find_role(role, &self.repos()).expect("role");
-        self.host.start_role_with(&def, AgentStartRequest { role: role.into(), repo_ids: vec![self.repo.id.clone()], prompt: "go".into(), mode, mcp_servers: None }, &self.repos(), opts)
+        self.host.start_role_with(&def, AgentStartRequest { role: role.into(), repo_ids: vec![self.repo.id.clone()], prompt: "go".into(), mode, mcp_servers: None, ..Default::default() }, &self.repos(), opts)
     }
 
     /// A run in `mode` (Bypass confirmed: the dialog's yes).
@@ -294,7 +294,7 @@ fn h2_the_writer_cap_and_the_kill_switch_and_an_unsupported_provider_refuse_too(
     let repos = vec![a.clone(), b.clone(), c.clone()];
     let start = |repo: &RepoRef, role: &str, mode| {
         let def = host.find_role(role, &repos).unwrap();
-        host.start_role_with(&def, AgentStartRequest { role: role.into(), repo_ids: vec![repo.id.clone()], prompt: "go".into(), mode: Some(mode), mcp_servers: None }, &repos, StartOptions::default()).expect("start")
+        host.start_role_with(&def, AgentStartRequest { role: role.into(), repo_ids: vec![repo.id.clone()], prompt: "go".into(), mode: Some(mode), mcp_servers: None, ..Default::default() }, &repos, StartOptions::default()).expect("start")
     };
     start(&a, "mock-tool-permission", Edit);
     start(&b, "mock-tool-permission", Edit);
@@ -804,7 +804,7 @@ fn h6_ask_and_automatic_resume_unchanged_whatever_the_roles_own_permission_is() 
 fn h6_a_run_without_a_recorded_role_permission_keeps_todays_clamp() {
     let (r, _slot) = file_rig();
     let def = file_role(&r.host.find_role("mock-plain-reply", &r.repos()).unwrap(), Edit, "h1");
-    let id = r.host.start_role(&def, AgentStartRequest { role: "file-role".into(), repo_ids: vec![r.repo.id.clone()], prompt: "go".into(), mode: Some(Edit), mcp_servers: None }, &r.repos()).unwrap().agent_id;
+    let id = r.host.start_role(&def, AgentStartRequest { role: "file-role".into(), repo_ids: vec![r.repo.id.clone()], prompt: "go".into(), mode: Some(Edit), mcp_servers: None, ..Default::default() }, &r.repos()).unwrap().agent_id;
     // a meta.json written before the modes spec has no `rolePermission`
     let path = r.path("data/runs").join(format!("{id}.meta.json"));
     let mut meta: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
@@ -837,7 +837,7 @@ fn h6_a_role_file_that_changed_under_a_run_or_a_role_demoted_since_the_start_nar
         let (r, slot) = file_rig();
         let base = r.host.find_role("mock-plain-reply", &r.repos()).unwrap();
         let def = file_role(&base, Edit, "h1");
-        let id = r.host.start_role(&def, AgentStartRequest { role: "file-role".into(), repo_ids: vec![r.repo.id.clone()], prompt: "go".into(), mode: Some(Automatic), mcp_servers: None }, &r.repos()).unwrap().agent_id;
+        let id = r.host.start_role(&def, AgentStartRequest { role: "file-role".into(), repo_ids: vec![r.repo.id.clone()], prompt: "go".into(), mode: Some(Automatic), mcp_servers: None, ..Default::default() }, &r.repos()).unwrap().agent_id;
         let meta = r.host.metas().into_iter().find(|m| m.agent_id == id).unwrap();
         assert_eq!((meta.role_hash.as_deref(), meta.role_permission), (Some("h1"), Some(Edit)), "{what}");
         set_file_role(&slot, make(&base));
@@ -850,7 +850,7 @@ fn h6_a_role_file_that_changed_under_a_run_or_a_role_demoted_since_the_start_nar
     let (r, slot) = file_rig();
     let base = r.host.find_role("mock-plain-reply", &r.repos()).unwrap();
     let def = file_role(&base, Edit, "h1");
-    let id = r.host.start_role(&def, AgentStartRequest { role: "file-role".into(), repo_ids: vec![r.repo.id.clone()], prompt: "go".into(), mode: Some(Automatic), mcp_servers: None }, &r.repos()).unwrap().agent_id;
+    let id = r.host.start_role(&def, AgentStartRequest { role: "file-role".into(), repo_ids: vec![r.repo.id.clone()], prompt: "go".into(), mode: Some(Automatic), mcp_servers: None, ..Default::default() }, &r.repos()).unwrap().agent_id;
     set_file_role(&slot, file_role(&base, Edit, "h1"));
     assert_eq!(resume_and_last_start(&r, &id)["role"]["permission"], "automatic");
     r.host.shutdown();
@@ -931,7 +931,7 @@ fn h7_bypass_needs_the_dialogs_yes_an_unsupported_mode_is_refused_and_the_role_f
 
     let (r, _slot) = file_rig();
     let base = r.host.find_role("mock-plain-reply", &r.repos()).unwrap();
-    let id = r.host.start_role(&file_role(&base, Edit, "abc"), AgentStartRequest { role: "file-role".into(), repo_ids: vec![r.repo.id.clone()], prompt: "go".into(), mode: Some(Ask), mcp_servers: None }, &r.repos()).unwrap().agent_id;
+    let id = r.host.start_role(&file_role(&base, Edit, "abc"), AgentStartRequest { role: "file-role".into(), repo_ids: vec![r.repo.id.clone()], prompt: "go".into(), mode: Some(Ask), mcp_servers: None, ..Default::default() }, &r.repos()).unwrap().agent_id;
     let meta = r.host.metas().into_iter().find(|m| m.agent_id == id).unwrap();
     assert_eq!((meta.permission, meta.role_permission, meta.role_hash.as_deref()), (Ask, Some(Edit), Some("abc")), "a file role records its hash and its own permission");
     r.host.shutdown();
@@ -1026,7 +1026,7 @@ fn resolved_srv() -> McpResolved {
 
 fn start_mcp(r: &Rig, role: &str, ids: Option<Vec<&str>>) -> Result<AgentSummary, EngineError> {
     let def = r.host.find_role(role, &r.repos()).unwrap();
-    r.host.start_role_with(&def, AgentStartRequest { role: role.into(), repo_ids: vec![r.repo.id.clone()], prompt: "go".into(), mode: Some(Ask), mcp_servers: ids.map(|v| v.into_iter().map(String::from).collect()) }, &r.repos(), StartOptions::default())
+    r.host.start_role_with(&def, AgentStartRequest { role: role.into(), repo_ids: vec![r.repo.id.clone()], prompt: "go".into(), mode: Some(Ask), mcp_servers: ids.map(|v| v.into_iter().map(String::from).collect()), ..Default::default() }, &r.repos(), StartOptions::default())
 }
 
 /// No file under the state directory holds the value.

@@ -234,9 +234,14 @@ pub fn resolve_model(model: &str) -> String {
     }
 }
 
-/// False when the provider declares no effort control or the model (Haiku) has none.
+/// False when the provider declares no effort control, or the model is one this build knows to have none (Haiku 4.5). A model id this
+/// build does not know (a newer one) keeps its effort: the CLI reports what the model really takes when the session starts.
 pub fn effort_available(provider: &str, model: &str) -> bool {
-    static_caps(provider).effort.cap != Cap::No && !resolve_model(model).contains("haiku")
+    if static_caps(provider).effort.cap == Cap::No {
+        return false;
+    }
+    let id = resolve_model(model);
+    claude_caps().models.iter().find(|m| m.id == id).map_or(true, |m| !m.effort_levels.is_empty())
 }
 
 fn parse_effort(s: &str) -> Option<RoleEffort> {
@@ -265,9 +270,8 @@ pub(crate) fn host_effort(e: RoleEffort) -> Effort {
         RoleEffort::Low => Effort::Low,
         RoleEffort::Medium => Effort::Medium,
         RoleEffort::High => Effort::High,
-        // `max` is never sent: it multiplies cost without a matching gain (saving it is refused, a hand-edited file is clamped)
         RoleEffort::Xhigh => Effort::Xhigh,
-        RoleEffort::Max => Effort::High,
+        RoleEffort::Max => Effort::Max,
     }
 }
 
@@ -555,9 +559,6 @@ impl RoleStore {
         }
         if is_reserved(&d.name) {
             return Err(rerr(RESERVED_NAME, format!("{} is reserved and cannot be used as a role name", d.name)));
-        }
-        if d.effort == Some(RoleEffort::Max) {
-            return Err(rerr("effortMax", "effort `max` is disabled: it costs far more for little gain; use `xhigh` if you must"));
         }
         let overlay = self.overlay_for_write()?;
         let from_id = d.id.as_deref().and_then(|i| i.split_once('@')).map(|(_, r)| r.to_string());
@@ -910,14 +911,38 @@ fn scan(dir: &Path, repo: Option<&RepoRef>, overlay: &BTreeMap<String, Overlay>,
     roles
 }
 
-/// What the Claude provider offers a role. `max` effort is not offered (see `save`).
+/// One model of the live list (`models/list`: what the installed CLI reports) as the editor's and New run's `ModelCaps`. An effort level
+/// this build does not know is left out; a model id it does not know is kept as it is.
+pub fn model_caps_of(id: &str, label: &str, effort_levels: &[String]) -> ModelCaps {
+    let mut levels: Vec<RoleEffort> = effort_levels.iter().filter_map(|l| parse_effort(l)).collect();
+    levels.sort_by_key(|e| *e as u8);
+    levels.dedup();
+    ModelCaps { id: id.to_string(), label: if label.trim().is_empty() { id.to_string() } else { label.to_string() }, effort_levels: levels }
+}
+
+/// The Claude caps with the live models first, in the CLI's order, then the built-in models it did not list (the offline fallback stays
+/// pickable). An empty live list leaves the caps as they are.
+pub fn merge_live_models(caps: &mut RoleProviderCaps, live: &[ModelCaps]) {
+    if live.is_empty() {
+        return;
+    }
+    let mut models: Vec<ModelCaps> = Vec::with_capacity(live.len() + caps.models.len());
+    for m in live.iter().chain(caps.models.iter()) {
+        if !models.iter().any(|x| x.id == m.id) {
+            models.push(m.clone());
+        }
+    }
+    caps.models = models;
+}
+
+/// What the Claude provider offers a role when the CLI cannot be asked (the live list replaces the models, see `roles_models_live`).
 pub fn claude_caps() -> RoleProviderCaps {
-    use RoleEffort::{High, Low, Medium, Xhigh};
+    use RoleEffort::{High, Low, Max, Medium, Xhigh};
     let model = |id: &str, label: &str, effort_levels: Vec<RoleEffort>| ModelCaps { id: id.into(), label: label.into(), effort_levels };
     RoleProviderCaps {
         provider: "claude".into(),
         label: "Claude (Agent SDK)".into(),
-        models: vec![model(MODEL_HAIKU, "Haiku 4.5", vec![]), model(MODEL_SONNET, "Sonnet 5.5", vec![Low, Medium, High]), model(MODEL_OPUS, "Opus 5.5", vec![Low, Medium, High, Xhigh])],
+        models: vec![model(MODEL_HAIKU, "Haiku 4.5", vec![]), model(MODEL_SONNET, "Sonnet 5.5", vec![Low, Medium, High, Max]), model(MODEL_OPUS, "Opus 5.5", vec![Low, Medium, High, Xhigh, Max])],
         permission_modes: vec![RolePermission::ReadOnly, RolePermission::Edit, RolePermission::Ask],
         tools: ["Read", "Grep", "Glob", "Edit", "Write", "Bash", "WebFetch", "Task"].map(String::from).to_vec(),
     }
