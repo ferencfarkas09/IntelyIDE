@@ -6,8 +6,9 @@ import { repos } from "../../store/workspace";
 import { Button, Dialog, FileText, Icon, toast } from "../../ui-kit";
 import { frameOf, postMode, previewFrames } from "./frames";
 import { handleHint, openCandidate, type OpenDeps, type Outcome } from "./open";
-import { parseInspectMessage } from "./protocol";
-import { inspecting, picker, setPicker } from "./state";
+import { parseInspectMessage, parseStyleMessage } from "./protocol";
+import { inspecting, picker, setPicker, setStyleInfo } from "./state";
+import StylePanel from "./StylePanel";
 import "./preview-inspect.css";
 
 const MIN_GAP_MS = 150;
@@ -32,7 +33,12 @@ export default function PickerAndWatcher() {
     const frame = frameOf(e);
     if (!frame) return;
     const hint = parseInspectMessage(e.data);
-    if (!hint) return;
+    if (!hint) {
+      // the second message of the same click: the element's tag, classes and a few computed styles
+      const style = parseStyleMessage(e.data);
+      if (style) setStyleInfo({ hint: style, repoId: frame.dataset.repoId });
+      return;
+    }
     const now = Date.now();
     if (now - last < MIN_GAP_MS) return;
     last = now;
@@ -68,6 +74,8 @@ export default function PickerAndWatcher() {
   };
 
   return (
+    <>
+    <StylePanel />
     <Dialog open={!!picker()} onClose={() => setPicker(undefined)} title={t("pvi.picker.title", { name: picker()?.name ?? "" })} description={picker()?.note ?? t("pvi.picker.desc")} size="md">
       <Show when={picker()}>
         {(p) => (
@@ -91,5 +99,6 @@ export default function PickerAndWatcher() {
         <Button variant="ghost" onClick={() => setPicker(undefined)}>{t("pvi.cancel")}</Button>
       </div>
     </Dialog>
+    </>
   );
 }

@@ -46,6 +46,7 @@ export const IGNORED_EDGES = [["tauri", "reqwest"]];
 // (7) loopback-only probes outside the allowed crates, by exact file (reason in the comment)
 export const RUST_NET_ALLOW = [
   "src-tauri/src/modules/preview/gate.rs", // TcpStream::connect_timeout to 127.0.0.1 / ::1 only: "is a dev server listening"
+  "crates/webtools/src/tryit.rs", // Try it: one HTTP request to 127.0.0.1 / ::1, on the port of a dev server the Scripts panel started (target_addrs is loopback by construction)
 ];
 // (6) the one sidecar file allowed to use the network (confirm-first SDK installer); must be named in privacy.md
 export const SIDECAR_NET_FILE = "sidecar/src/sdk-install.ts";

@@ -1,0 +1,21 @@
+[package]
+name = "intely-webtools"
+version = "0.0.0"
+edition = "2021"
+rust-version = "1.77"
+license.workspace = true
+publish = false
+
+[lib]
+name = "intely_webtools"
+
+[dependencies]
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+
+# Unix: files are reached through directory handles that never follow a link (src/safefs.rs); `rustix` is already part of the app
+[target.'cfg(unix)'.dependencies]
+rustix = { version = "1.1.5", default-features = false, features = ["fs", "std"] }
+
+[dev-dependencies]
+tempfile = "3.27.0"
