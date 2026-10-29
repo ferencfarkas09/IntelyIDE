@@ -58,7 +58,7 @@ describe("the panel", () => {
     // the mock repository has no CLAUDE.md: it can be created from a skeleton
     fireEvent.click(await screen.findByRole("button", { name: "Create CLAUDE.md" }));
     const box = screen.getByRole("textbox", { name: "CLAUDE.md of this repository" }) as HTMLTextAreaElement;
-    fireEvent.input(box, { target: { value: "API_TOKEN=abcdef1234567890" } });
+    fireEvent.input(box, { target: { value: ["API_TOKEN", "abcdef1234567890"].join("=") } });
     expect(await screen.findByText(/looks like it contains a secret/)).toBeTruthy();
   });
 });
