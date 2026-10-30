@@ -1,7 +1,7 @@
 import { Show } from "solid-js";
 import { t } from "../../i18n";
 import type { AgentRow } from "../../store/agents";
-import { Badge, CircleCheck, CircleX, Clock, TriangleAlert, type Tone } from "../../ui-kit";
+import { Badge, CircleCheck, CircleX, Clock, ListChecks, TriangleAlert, type Tone } from "../../ui-kit";
 import type { LucideIcon } from "lucide-solid";
 import { runResults } from "./store";
 import type { RepoTest } from "./types";
@@ -15,8 +15,8 @@ interface Chip {
 
 /** What the chip says for the results of one run; undefined when there is nothing to show. */
 export function chipOf(results: RepoTest[]): Chip | undefined {
-  const shown = results.filter((r) => r.status !== "noTests");
-  if (!shown.length) return undefined;
+  const shown = results.filter((r) => r.status !== "noTests" && r.status !== "notTested");
+  if (!shown.length) return results.some((r) => r.status === "notTested") ? { tone: "neutral", icon: ListChecks, text: t("autotest.chip.notTested"), title: t("autotest.status.notTestedServer") } : undefined;
   if (shown.some((r) => r.status === "running" || r.status === "waiting")) return { tone: "info", icon: Clock, text: t("autotest.chip.running"), title: t("autotest.chip.runningTip") };
   const failed = shown.filter((r) => r.status === "failed");
   if (failed.length) {

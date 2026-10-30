@@ -264,7 +264,8 @@ fn a_finished_digest_is_cached_with_a_fingerprint_and_rebuilt_when_the_log_chang
     assert_eq!(cached.generated_ms, 100, "served from the cache");
     assert_eq!(cached, first);
     let forced = load_or_build(runs, "r1", &git(&[]), 300, true).unwrap();
-    assert_eq!((forced.generated_ms, forced.file_count), (300, 0), "refresh ignores the cache");
+    // git now shows nothing, the agent's edit of src/fee.js still counts
+    assert_eq!((forced.generated_ms, forced.file_count), (300, 1), "refresh ignores the cache");
 
     // The run continues: the log grows, the fingerprint no longer matches.
     l.prompt("Also the tax").end(StopReason::EndTurn);
@@ -296,7 +297,7 @@ fn a_corrupt_cache_is_rebuilt() {
     finished("r2", "Fix").write(dir.path(), Some(meta_with_snapshot("web")));
     fs::write(digest_path(dir.path(), "r2"), b"{not json").unwrap();
     let d = load_or_build(dir.path(), "r2", &git(&[("src/a.js", "modified")]), 7, false).unwrap();
-    assert_eq!((d.generated_ms, d.file_count), (7, 1));
+    assert_eq!((d.generated_ms, d.file_count), (7, 2), "git's file and the one the agent's tools wrote");
     let stored: RunDigest = serde_json::from_slice(&fs::read(digest_path(dir.path(), "r2")).unwrap()).unwrap();
     assert_eq!(stored, d);
 }
@@ -313,4 +314,119 @@ fn a_run_without_meta_still_lists_the_files_of_its_log() {
     assert_eq!(d.file_count, 1);
     assert_eq!(d.groups[0].examples, vec!["src/Button.css"], "never the home directory");
     assert_eq!(d.checks.iter().find(|c| c.code == "devServer").map(|c| c.repo_ids.len()), Some(0));
+}
+
+// ---- what the summary may claim about changed files ---------------------------------------------------------------
+
+/// A diff source per repository path (a repo it does not know has no git).
+struct ByRepo(Vec<(&'static str, Vec<FileChange>)>);
+
+impl DiffSource for ByRepo {
+    fn changes(&self, repo: &Path, _: &str) -> Result<Vec<FileChange>, String> {
+        self.0.iter().find(|(p, _)| Path::new(p) == repo).map(|(_, f)| f.clone()).ok_or_else(|| "not a git repository".to_owned())
+    }
+}
+
+fn repo_of<'a>(d: &'a RunDigest, id: &str) -> &'a intely_runindex::digest::RepoDigest {
+    d.repos.iter().find(|r| r.repo_id == id).unwrap_or_else(|| panic!("no repo {id}: {:?}", d.repos))
+}
+
+#[test]
+fn a_shell_edit_of_a_tracked_file_is_counted_from_git() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut l = Log::new("sed");
+    l.prompt("Bump the version");
+    bash(&mut l, "b1", "sed -i 's/1.0.0/1.0.1/' package.json", ToolStatus::Ok, None);
+    l.end(StopReason::EndTurn);
+    l.write(dir.path(), Some(meta_with_snapshot("web")));
+    let d = build(dir.path(), "sed", &git(&[("package.json", "modified")]), 1).unwrap();
+    assert_eq!((d.file_count, d.repos[0].source.as_str()), (1, "git"));
+}
+
+#[test]
+fn a_file_git_ignores_is_still_counted_when_the_agent_wrote_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut l = Log::new("ignored");
+    l.prompt("Set the API URL");
+    create(&mut l, "w1", "/work/web/.env.local");
+    edit_with(&mut l, "e1", "/work/web/src/api.ts", "url");
+    l.end(StopReason::EndTurn);
+    l.write(dir.path(), Some(meta_with_snapshot("web")));
+    // git shows the tracked file only: `.env.local` is ignored
+    let d = build(dir.path(), "ignored", &git(&[("src/api.ts", "modified")]), 1).unwrap();
+    assert_eq!((d.file_count, d.created, d.modified), (2, 1, 1), "{:?}", d.repos);
+    assert_eq!(d.repos[0].source, "git");
+    assert_eq!(risk(&d, "envFileTouched").unwrap().evidence, vec![".env.local"]);
+    // and nothing is counted twice when git shows it too
+    let d = build(dir.path(), "ignored", &git(&[("src/api.ts", "modified"), (".env.local", "created")]), 2).unwrap();
+    assert_eq!(d.file_count, 2);
+}
+
+#[test]
+fn a_missing_snapshot_is_never_read_as_nothing_changed() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut l = Log::new("nosnap");
+    l.prompt("Tidy up");
+    bash(&mut l, "b1", "rm -rf build && sed -i s/a/b/ src/x.js", ToolStatus::Ok, None);
+    l.end(StopReason::EndTurn);
+    l.write(dir.path(), Some(meta("developer", &["web"], 1)));
+    let d = build(dir.path(), "nosnap", &git(&[]), 1).unwrap();
+    assert_eq!((d.file_count, d.repos[0].source.as_str()), (0, "none"), "no snapshot and no tool edits: nothing could be checked");
+}
+
+#[test]
+fn an_errored_run_without_git_says_what_its_tools_touched_only() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut l = Log::new("err");
+    l.prompt("Fix it");
+    edit_with(&mut l, "e1", "/work/web/src/a.ts", "x");
+    l.push(EventKind::Error { class: ErrorClass::Provider, message: "provider hiccup".into(), retryable: false });
+    l.write(dir.path(), Some(meta_with_snapshot("web")));
+    let d = build(dir.path(), "err", &Fake(Err("git broke".into())), 1).unwrap();
+    assert_eq!(d.status, "failed");
+    assert_eq!((d.file_count, d.repos[0].source.as_str()), (1, "log"));
+    // the same run with nothing in the log: `none`, not an empty `git` result
+    let mut l = Log::new("err2");
+    l.prompt("Fix it").push(EventKind::Error { class: ErrorClass::Provider, message: "boom".into(), retryable: false });
+    l.write(dir.path(), Some(meta_with_snapshot("web")));
+    let d = build(dir.path(), "err2", &Fake(Err("git broke".into())), 1).unwrap();
+    assert_eq!((d.file_count, d.repos[0].source.as_str()), (0, "none"));
+}
+
+#[test]
+fn a_multi_repo_run_keeps_the_unchecked_repository_apart() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut l = Log::new("multi");
+    l.prompt("Change both");
+    edit_with(&mut l, "e1", "/work/api/src/server.ts", "x");
+    l.end(StopReason::EndTurn);
+    let m = json!({ "role": "developer", "model": "m", "startedAt": 1,
+        "repos": [{ "id": "web", "path": "/work/web" }, { "id": "api", "path": "/work/api" }, { "id": "docs", "path": "/work/docs" }],
+        "snapshots": [{ "repoId": "web", "path": "/work/web", "refName": "refs/intely/snapshots/r", "skipped": 0 },
+                      { "repoId": "api", "path": "/work/api", "refName": "refs/intely/snapshots/r", "skipped": 0 }] });
+    l.write(dir.path(), Some(m));
+    let src = ByRepo(vec![("/work/web", vec![]), ("/work/api", vec![change("src/server.ts", "modified")])]);
+    let d = build(dir.path(), "multi", &src, 1).unwrap();
+    assert_eq!((repo_of(&d, "web").source.as_str(), repo_of(&d, "web").file_count), ("git", 0));
+    assert_eq!((repo_of(&d, "api").source.as_str(), repo_of(&d, "api").file_count), ("git", 1));
+    assert_eq!((repo_of(&d, "docs").source.as_str(), repo_of(&d, "docs").file_count), ("none", 0), "no snapshot of docs");
+    assert_eq!(d.file_count, 1);
+}
+
+#[test]
+fn a_worktree_run_matches_the_log_against_the_worktree() {
+    let dir = tempfile::tempdir().unwrap();
+    let wt = "/work/.intely-worktrees/web-run1";
+    let mut l = Log::new("wt");
+    l.prompt("Try it in a worktree");
+    edit_with(&mut l, "e1", &format!("{wt}/src/a.ts"), "x");
+    create(&mut l, "w1", &format!("{wt}/dist/out.js"));
+    l.end(StopReason::EndTurn);
+    let m = json!({ "role": "developer", "model": "m", "startedAt": 1,
+        "repos": [{ "id": "web", "path": wt }],
+        "snapshots": [{ "repoId": "web", "path": wt, "refName": "refs/intely/snapshots/r", "skipped": 0 }] });
+    l.write(dir.path(), Some(m));
+    let d = build(dir.path(), "wt", &ByRepo(vec![(wt, vec![change("src/a.ts", "modified")])]), 1).unwrap();
+    assert_eq!((d.file_count, d.repos[0].source.as_str()), (2, "git"), "the ignored build output the agent wrote is counted");
+    assert!(d.groups.iter().flat_map(|g| g.examples.iter()).all(|p| !p.starts_with('/')), "{:?}", d.groups);
 }

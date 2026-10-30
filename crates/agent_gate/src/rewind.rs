@@ -17,7 +17,9 @@ use std::ffi::OsStr;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use intely_core::{guard, GuardState};
 use serde::Serialize;
@@ -55,6 +57,8 @@ pub enum RewindError {
     UnknownCheckpoint(String, u32),
     #[error("the new and untracked files add up to {0} bytes, more than a checkpoint keeps")]
     TooLarge(u64),
+    #[error("git {0} took longer than allowed or was cancelled; the checkpoint was not taken")]
+    Cancelled(String),
     #[error("git {args} failed: {stderr}")]
     Git { args: String, stderr: String },
     #[error(transparent)]
@@ -122,11 +126,15 @@ pub struct RestoreReport {
 #[derive(Debug, Clone)]
 pub struct Rewind {
     git: PathBuf,
+    /// Set by [`Rewind::bounded`]: every git step after this moment is stopped and fails with [`RewindError::Cancelled`].
+    deadline: Option<Instant>,
+    /// Set by [`Rewind::bounded`]: when it turns true, the running git step is stopped.
+    cancel: Option<Arc<AtomicBool>>,
 }
 
 impl Default for Rewind {
     fn default() -> Self {
-        Self { git: intely_core::exec::pinned_git_path() }
+        Self::new(intely_core::exec::pinned_git_path())
     }
 }
 
@@ -134,8 +142,6 @@ struct WorkTree {
     tree: String,
     files: usize,
     skipped: Vec<Skipped>,
-    /// Bytes of the untracked files in the tree (the size guard of checkpoints).
-    untracked_bytes: u64,
 }
 
 /// A throwaway index file next to the real one; removed on drop.
@@ -156,7 +162,13 @@ impl Drop for TempIndex {
 
 impl Rewind {
     pub fn new(git: impl Into<PathBuf>) -> Self {
-        Self { git: git.into() }
+        Self { git: git.into(), deadline: None, cancel: None }
+    }
+
+    /// The same Rewind, with a wall-clock limit of `timeout` from now over all its git steps and an optional cancel switch: a
+    /// checkpoint of a huge or stuck working tree stops instead of holding up the run.
+    pub fn bounded(&self, timeout: Duration, cancel: Option<Arc<AtomicBool>>) -> Self {
+        Self { git: self.git.clone(), deadline: Some(Instant::now() + timeout), cancel }
     }
 
     /// Creates the snapshot ref for `run_id`; the user's index and working tree are not modified.
@@ -173,7 +185,7 @@ impl Rewind {
         let head = self.head(&top);
         let branch = self.git_text(&top, &["symbolic-ref", "-q", "--short", "HEAD"]).ok().filter(|b| !b.is_empty());
         let index_tree = self.index_tree(&top)?;
-        let work = self.work_tree(&top)?;
+        let work = self.work_tree(&top, None)?;
 
         let mut index_args = vec!["commit-tree".to_string(), index_tree.clone(), "-m".into(), format!("intely index {run_id}")];
         if let Some(h) = &head {
@@ -278,7 +290,7 @@ impl Rewind {
             return Err(RewindError::Unmerged);
         }
         let snap = self.info(top, run_id)?;
-        let now = self.work_tree(top)?;
+        let now = self.work_tree(top, None)?;
         let mut plan = RestorePlan { run_id: run_id.into(), protected: now.skipped.clone(), ..RestorePlan::default() };
         let diff = self.git(top, &["diff-tree", "-r", "-z", "--no-renames", "--name-status", &snap.tree, &now.tree], &[], None)?;
         let mut parts = diff.split(|b| *b == 0).filter(|p| !p.is_empty());
@@ -319,7 +331,10 @@ impl Rewind {
     /// as git's own check of a file (size, times, mode) can tell: what `git status` calls clean is taken as clean. A repository whose
     /// configuration weakens that check (`core.trustctime=false`, `core.checkStat=minimal`) gets the slow way, and so does any failure of
     /// the quick one: the tree is then built from an empty index.
-    fn work_tree(&self, top: &Path) -> Result<WorkTree, RewindError> {
+    ///
+    /// With `max_untracked`, the sizes of the untracked files are summed from the listing first, and the tree is refused with
+    /// [`RewindError::TooLarge`] before any file is hashed or written into the object store when they add up to more.
+    fn work_tree(&self, top: &Path, max_untracked: Option<u64>) -> Result<WorkTree, RewindError> {
         // `-v` is `-t` with a lowercase tag for a file marked assume-unchanged (git then trusts the index, not the file).
         let listing = self.git(top, &["ls-files", "-z", "-v", "--cached", "--others", "--exclude-standard"], &[], None)?;
         let mut skipped = Vec::new();
@@ -359,6 +374,9 @@ impl Rewind {
                     continue;
                 }
                 untracked_bytes += meta.len();
+                if max_untracked.is_some_and(|max| untracked_bytes > max) {
+                    return Err(RewindError::TooLarge(untracked_bytes));
+                }
             }
             paths.insert(path.to_vec());
         }
@@ -370,7 +388,7 @@ impl Rewind {
             None => self.tree_from_scratch(top, &git_dir, &paths)?,
         };
         skipped.sort_by(|a, b| a.path.cmp(&b.path));
-        Ok(WorkTree { tree, files: paths.len(), skipped, untracked_bytes })
+        Ok(WorkTree { tree, files: paths.len(), skipped })
     }
 
     /// Git's check of a file for a change is strict (size, mtime, ctime, inode and mode all count) unless the configuration loosens it.
@@ -496,7 +514,10 @@ impl Rewind {
     }
 
     fn toplevel(&self, repo: &Path) -> Result<PathBuf, RewindError> {
-        let out = self.git_text(repo, &["rev-parse", "--show-toplevel"]).map_err(|_| RewindError::NotARepo(repo.display().to_string()))?;
+        let out = self.git_text(repo, &["rev-parse", "--show-toplevel"]).map_err(|e| match e {
+            RewindError::Cancelled(_) => e,
+            _ => RewindError::NotARepo(repo.display().to_string()),
+        })?;
         if out.is_empty() {
             return Err(RewindError::NotARepo(repo.display().to_string()));
         }
@@ -523,6 +544,55 @@ impl Rewind {
         Ok(String::from_utf8_lossy(&self.git(dir, args, env, None)?).trim().to_string())
     }
 
+    /// [`Rewind::git`] under the deadline and the cancel switch: the output is read on threads of their own while this one checks the
+    /// clock; past the deadline, or once cancelled, git is killed and the step fails with [`RewindError::Cancelled`].
+    fn wait_bounded(&self, mut child: std::process::Child, args: &[&str], stdin: Option<&[u8]>) -> Result<Vec<u8>, RewindError> {
+        use std::io::Read;
+        let stopped = || RewindError::Cancelled(args.first().copied().unwrap_or("").to_owned());
+        let writer = stdin.map(|input| {
+            let mut pipe = child.stdin.take().expect("piped stdin");
+            let input = input.to_vec();
+            std::thread::spawn(move || pipe.write_all(&input))
+        });
+        let read = |pipe: Option<Box<dyn Read + Send>>| {
+            std::thread::spawn(move || {
+                let mut buf = Vec::new();
+                if let Some(mut p) = pipe {
+                    let _ = p.read_to_end(&mut buf);
+                }
+                buf
+            })
+        };
+        let out = read(child.stdout.take().map(|p| Box::new(p) as Box<dyn Read + Send>));
+        let err = read(child.stderr.take().map(|p| Box::new(p) as Box<dyn Read + Send>));
+        let status = loop {
+            if let Some(status) = child.try_wait()? {
+                break status;
+            }
+            let late = self.deadline.is_some_and(|d| Instant::now() >= d);
+            let cancelled = self.cancel.as_ref().is_some_and(|c| c.load(Ordering::Relaxed));
+            if late || cancelled {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(stopped());
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        };
+        let stdout = out.join().unwrap_or_default();
+        let stderr = err.join().unwrap_or_default();
+        if let Some(writer) = writer {
+            match writer.join() {
+                Ok(Err(e)) if e.kind() != std::io::ErrorKind::BrokenPipe => return Err(e.into()),
+                _ => {}
+            }
+        }
+        if status.success() {
+            Ok(stdout)
+        } else {
+            Err(RewindError::Git { args: args.join(" "), stderr: String::from_utf8_lossy(&stderr).trim().to_string() })
+        }
+    }
+
     fn git_ok(&self, dir: &Path, args: &[&str]) -> bool {
         self.git(dir, args, &[], None).is_ok()
     }
@@ -538,6 +608,9 @@ impl Rewind {
             cmd.env(k, v);
         }
         let mut child = cmd.spawn()?;
+        if self.deadline.is_some() || self.cancel.is_some() {
+            return self.wait_bounded(child, args, stdin);
+        }
         // The input goes in from a thread of its own while this one reads the output: `update-index --add --stdin` answers every path with a
         // line on stderr when it has something to say (a line-ending warning per file), and a parent that writes all of stdin first stops
         // when that pipe is full, with git stopped on its side of it.

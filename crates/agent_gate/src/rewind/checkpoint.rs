@@ -137,10 +137,8 @@ impl Rewind {
     pub fn stage_checkpoint(&self, repo: &Path, run_id: &str) -> Result<CheckpointStage, RewindError> {
         validate_run_id(run_id)?;
         let top = self.toplevel(repo)?;
-        let work = self.work_tree(&top)?;
-        if work.untracked_bytes > MAX_UNTRACKED_BYTES {
-            return Err(RewindError::TooLarge(work.untracked_bytes));
-        }
+        // the cap is checked on the sizes of the listing, before a single file is hashed into the object store
+        let work = self.work_tree(&top, Some(MAX_UNTRACKED_BYTES))?;
         let seqs = self.checkpoint_seqs(&top, run_id)?;
         let latest = match seqs.last() {
             Some(&seq) => Some((seq, self.git_text(&top, &["rev-parse", &format!("{}^{{tree}}", ref_of(run_id, seq))])?)),
@@ -157,6 +155,12 @@ impl Rewind {
     /// Writes the staged checkpoint as number `seq` (or the next free one, when another writer took `seq` meanwhile) and prunes the
     /// oldest ones beyond [`MAX_CHECKPOINTS`]. `kind` is `turn`, `end`, `save` or `restore`.
     pub fn commit_checkpoint(&self, stage: &CheckpointStage, run_id: &str, seq: u32, kind: &str, label: Option<&str>) -> Result<CheckpointInfo, RewindError> {
+        self.commit_checkpoint_keeping(stage, run_id, seq, kind, label, &[])
+    }
+
+    /// [`Rewind::commit_checkpoint`] that never prunes the checkpoints of `keep` (the one a restore is about to put back: the safety
+    /// checkpoint taken right before it must not delete it).
+    pub fn commit_checkpoint_keeping(&self, stage: &CheckpointStage, run_id: &str, seq: u32, kind: &str, label: Option<&str>, keep: &[u32]) -> Result<CheckpointInfo, RewindError> {
         validate_run_id(run_id)?;
         let kind = if valid_kind(kind) { kind } else { "turn" };
         let label = label.and_then(clean_label);
@@ -188,7 +192,7 @@ impl Rewind {
             Some((_, tree)) => self.diff_names(top, tree, &stage.work.tree)?.len(),
             None => stage.work.files,
         };
-        self.prune_checkpoints(top, run_id, MAX_CHECKPOINTS)?;
+        self.prune_checkpoints(top, run_id, MAX_CHECKPOINTS, keep)?;
         Ok(CheckpointInfo {
             run_id: run_id.into(),
             seq,
@@ -314,7 +318,7 @@ impl Rewind {
         let a = self.checkpoint_tree(&top, run_id, from)?;
         let b = match to {
             Some(seq) => self.checkpoint_tree(&top, run_id, seq)?,
-            None => self.work_tree(&top)?.tree,
+            None => self.work_tree(&top, None)?.tree,
         };
         let status = self.git(&top, &["diff-tree", "-r", "-z", "--no-renames", "--name-status", &a, &b], &[], None)?;
         let numstat = self.git(&top, &["diff-tree", "-r", "-z", "--no-renames", "--numstat", &a, &b], &[], None)?;
@@ -352,7 +356,7 @@ impl Rewind {
         let a = self.checkpoint_tree(&top, run_id, from)?;
         let b = match to {
             Some(seq) => self.checkpoint_tree(&top, run_id, seq)?,
-            None => self.work_tree(&top)?.tree,
+            None => self.work_tree(&top, None)?.tree,
         };
         let raw = self.git(&top, &["diff-tree", "-p", "--no-renames", "--no-color", "--no-ext-diff", "--no-textconv", &a, &b, "--", path], &[], None)?;
         let mut text = String::from_utf8_lossy(&raw[..raw.len().min(MAX_PATCH_BYTES)]).into_owned();
@@ -409,7 +413,7 @@ impl Rewind {
     fn checkpoint_plan(&self, top: &Path, run_id: &str, seq: u32) -> Result<CheckpointPlan, RewindError> {
         self.refuse_in_progress(top)?;
         let target = self.checkpoint_tree(top, run_id, seq)?;
-        let now = self.work_tree(top)?;
+        let now = self.work_tree(top, None)?;
         let mut plan = CheckpointPlan { run_id: run_id.into(), seq, protected: now.skipped.clone(), ..CheckpointPlan::default() };
         let diff = self.git(top, &["diff-tree", "-r", "-z", "--no-renames", "--name-status", &target, &now.tree], &[], None)?;
         let mut parts = diff.split(|b| *b == 0).filter(|p| !p.is_empty());
@@ -490,7 +494,7 @@ impl Rewind {
     }
 
     /// Deletes the oldest checkpoints beyond `max`: plain ones first, save points only when they alone exceed `max`.
-    fn prune_checkpoints(&self, top: &Path, run_id: &str, max: usize) -> Result<(), RewindError> {
+    fn prune_checkpoints(&self, top: &Path, run_id: &str, max: usize, keep: &[u32]) -> Result<(), RewindError> {
         let seqs = self.checkpoint_seqs(top, run_id)?;
         if seqs.len() <= max {
             return Ok(());
@@ -504,7 +508,7 @@ impl Rewind {
                 if excess == 0 {
                     return Ok(());
                 }
-                if save == pass_saves && seq != newest {
+                if save == pass_saves && seq != newest && !keep.contains(&seq) {
                     self.git(top, &["update-ref", "-d", &ref_of(run_id, seq)], &[], None)?;
                     excess -= 1;
                 }

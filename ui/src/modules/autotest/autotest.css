@@ -14,6 +14,7 @@
 .autotest-card__repo[data-status="timeout"] .autotest-card__icon, .autotest-card__repo[data-status="error"] .autotest-card__icon { color: var(--warn); }
 .autotest-card__name { font-weight: var(--weight-medium); }
 .autotest-card__runner { font-size: var(--text-xs); padding-left: calc(14px + var(--space-1)); overflow-wrap: anywhere; }
+.autotest-card__command { font-size: var(--text-xs); margin: var(--space-1) 0 0 calc(14px + var(--space-1)); padding: var(--space-1) var(--space-2); background: var(--bg-2); border-radius: var(--radius-sm); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 8em; overflow: auto; }
 .autotest-card__error { color: var(--warn); font-size: var(--text-xs); padding-left: calc(14px + var(--space-1)); overflow-wrap: anywhere; }
 .autotest-card__failures { padding-left: calc(14px + var(--space-1)); font-size: var(--text-xs); }
 .autotest-card__failures li { display: flex; flex-direction: column; gap: var(--space-half); padding-left: var(--space-2); box-shadow: inset 2px 0 0 var(--danger-border); min-width: 0; }

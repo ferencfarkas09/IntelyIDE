@@ -51,23 +51,40 @@ describe("the run card chip", () => {
 });
 
 describe("the cards at the top of the run", () => {
-  it("asks in Ask mode and passes the answer on", async () => {
+  it("asks for trust naming the exact command, and passes the answer on", async () => {
     const flow = fakeFlow();
     setAutotestFlow(flow);
-    setRunAsk("run1", ["shop"]);
+    setRunAsk("run1", [{ repoId: "shop", runner: "npm run test", command: "vitest run && node scripts/check.js", fingerprint: "0123456789abcdef" }]);
     render(() => <AutotestTop agent={agent()} />);
-    expect(screen.getByText("Run the unit tests after each run?")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Yes, run them" }));
+    expect(screen.getByText("Trust this repository's test command?")).toBeTruthy();
+    expect(screen.getByText("npm run test")).toBeTruthy();
+    expect(screen.getByText("vitest run && node scripts/check.js")).toBeTruthy();
+    expect(screen.getByText(/runs the repository's own scripts on this computer/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Trust and run" }));
     expect(flow.answer).toHaveBeenCalledWith("run1", "yes");
     fireEvent.click(screen.getByRole("button", { name: "No" }));
     expect(flow.answer).toHaveBeenCalledWith("run1", "no");
   });
 
-  it("does not ask when the mode is not Ask", () => {
-    resetAutotestStore({ mode: "always", repos: {} });
-    setRunAsk("run1", ["shop"]);
+  it("asks in Always mode too, never when Off", () => {
+    const item = { repoId: "shop", runner: "npm run test", command: "jest", fingerprint: "0123456789abcdef" };
+    resetAutotestStore({ mode: "always" });
+    setRunAsk("run1", [item]);
+    const { unmount } = render(() => <AutotestTop agent={agent()} />);
+    expect(screen.getByText("Trust this repository's test command?")).toBeTruthy();
+    unmount();
+    resetAutotestStore({ mode: "off" });
+    setRunAsk("run1", [item]);
     render(() => <AutotestTop agent={agent()} />);
-    expect(screen.queryByText("Run the unit tests after each run?")).toBeNull();
+    expect(screen.queryByText("Trust this repository's test command?")).toBeNull();
+  });
+
+  it("says a run on a server was not tested", () => {
+    setRepoResult("run1", { repoId: "shop", status: "notTested", skip: "server" });
+    render(() => <AutotestTop agent={agent()} />);
+    expect(screen.getByText("Not tested: this run worked on a server")).toBeTruthy();
+    expect(chipOf([{ repoId: "shop", status: "notTested", skip: "server" }])).toMatchObject({ tone: "neutral", text: "Not tested" });
+    expect(chipOf([{ repoId: "shop", status: "notTested" }, { repoId: "x", status: "passed" }])?.tone).toBe("ok");
   });
 
   it("shows the failures, re-runs, and asks the agent to fix them with a masked prompt", async () => {
@@ -108,11 +125,12 @@ describe("the header button and the Settings section", () => {
   });
 
   it("switches the mode and forgets the answers", async () => {
-    resetAutotestStore({ mode: "ask", repos: { shop: "yes" } });
+    resetAutotestStore({ mode: "ask", repos: { shop: "yes" }, trusted: { shop: "0123456789abcdef" } });
     render(() => <AutotestSection />);
     fireEvent.click(await screen.findByRole("radio", { name: "Always" }));
     expect(prefs().mode).toBe("always");
     fireEvent.click(screen.getByRole("button", { name: "Forget answers" }));
     expect(prefs().repos).toEqual({});
+    expect(prefs().trusted).toEqual({});
   });
 });
