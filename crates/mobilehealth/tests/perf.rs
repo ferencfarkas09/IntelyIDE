@@ -1,5 +1,5 @@
 //! Hostile shapes that are cheap to write and, in a careless reader, expensive to read: every one stays under the 4 MB read cap and
-//! must be handled in a moment. The bound is generous (a loaded CI machine) and far below what the quadratic versions needed.
+//! must be handled in a moment. The bound is generous (a loaded, cold CI machine took 4 s for a scan that takes a fraction of a second) and far below what the quadratic versions needed.
 
 use std::fs;
 use std::path::Path;
@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 
 use intely_mobilehealth::{scan_with, Env};
 
-const LIMIT: Duration = Duration::from_secs(4);
+const LIMIT: Duration = Duration::from_secs(20);
 const MANIFEST: &str = "android/app/src/main/AndroidManifest.xml";
 const PBX: &str = "ios/App.xcodeproj/project.pbxproj";
 
