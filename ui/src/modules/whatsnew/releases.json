@@ -1,5 +1,70 @@
 [
   {
+    "version": "1.14.1",
+    "date": "2026-10-30",
+    "headline": {
+      "en": "Safer auto-test and checkpoints, an honest run summary, and fixes found by a review of 1.14.0.",
+      "hu": "Biztonságosabb automatikus teszt és visszaállítási pontok, őszinte futtatás-összegzés, és az 1.14.0 átvizsgálásakor talált hibák javítása."
+    },
+    "notes": [
+      {
+        "kind": "fixed",
+        "title": {
+          "en": "Auto-test asks before it runs your tests",
+          "hu": "Az automatikus teszt futtatás előtt rákérdez"
+        },
+        "text": {
+          "en": "The first time a repository's tests would run after an agent run, a card now shows the exact command and says it runs the repository's own scripts. Nothing runs until you trust that repository, in every mode, and a run on a server is no longer \"tested\" against your local copy.",
+          "hu": "Amikor egy repó tesztjei először futnának le egy ügynök futtatása után, egy kártya megmutatja a pontos parancsot, és kiírja, hogy a repó saját szkriptjeit futtatja. Amíg nem bízol meg a repóban, semmi sem fut, minden módban, és a szerveren végzett futtatást már nem a helyi másolaton \"tesztelik\"."
+        }
+      },
+      {
+        "kind": "fixed",
+        "title": {
+          "en": "The run summary no longer says nothing changed when it could not look",
+          "hu": "A futtatás-összegzés nem mondja azt, hogy nem változott semmi, ha nem tudta megnézni"
+        },
+        "text": {
+          "en": "When the app cannot tell which files a run changed, it says so instead of \"No files were changed\", and edits made through the shell or to ignored files are included.",
+          "hu": "Ha az alkalmazás nem tudja megállapítani, mely fájlok változtak egy futtatás során, ezt írja ki a \"Nem változott fájl\" helyett, és a shellből vagy a figyelmen kívül hagyott fájlokban végzett módosítások is benne vannak."
+        }
+      },
+      {
+        "kind": "fixed",
+        "title": {
+          "en": "Checkpoints and Rewind snapshots are better protected",
+          "hu": "A visszaállítási pontok és a Rewind pillanatképek jobban védettek"
+        },
+        "text": {
+          "en": "An agent can no longer remove its own safety net with a git command, a checkpoint is refused on size before anything is copied, and the state of your .env files before the run is kept too.",
+          "hu": "Az ügynök már nem tudja git paranccsal eltávolítani a saját biztonsági hálóját, a túl nagy visszaállítási pontot a másolás előtt elutasítja, és a .env fájlok futtatás előtti állapota is megmarad."
+        }
+      },
+      {
+        "kind": "fixed",
+        "title": {
+          "en": "Agent mode, the radar and extras that are switched off",
+          "hu": "Ügynök mód, a radar és a kikapcsolt kiegészítők"
+        },
+        "text": {
+          "en": "New panels now open visibly in Agent mode (including from the Setup doctor card), the Needs-You radar lists every waiting request, quitting with unsaved files brings the window forward, and extras you switch off really stop their background work.",
+          "hu": "Az új panelek Ügynök módban is láthatóan megnyílnak (a Beállítás-ellenőrző kártyájáról is), a Needs-You radar minden várakozó kérést felsorol, mentetlen fájlokkal kilépéskor az ablak előtérbe kerül, és a kikapcsolt kiegészítők háttérmunkája tényleg leáll."
+        }
+      },
+      {
+        "kind": "fixed",
+        "title": {
+          "en": "Glass popups and masking",
+          "hu": "Glass felugró ablakok és maszkolás"
+        },
+        "text": {
+          "en": "Popups in Glass are frosted so text behind them does not show through, a Mac with Reduce transparency starts with the standard look, and a secret written with a space before the colon is now masked too.",
+          "hu": "A felugró ablakok Glass stílusban matt üvegesek, így nem látszik át mögöttük a szöveg, a Reduce transparency beállítású Mac a hagyományos kinézettel indul, és a kettőspont előtt szóközzel írt titkok is maszkolva lesznek."
+        }
+      }
+    ]
+  },
+  {
     "version": "1.14.0",
     "date": "2026-10-28",
     "headline": {

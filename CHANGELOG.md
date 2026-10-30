@@ -7,9 +7,14 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 ### Added
 
 - Work in progress, not released: the Windows 10 and 11 unsigned beta. The code for it is in place (window chrome and menu for Windows, the Windows environment variables the agent and the runner need, NSIS and MSI installer settings, a Windows CI job) but no Windows installer is published with 1.14.0. The agent safety is weaker than on macOS and the app says so. See `docs/install-windows.md`.
+- Work in progress, not released: the code compiles for Linux (x86_64, webkit2gtk 4.1), Windows 10/11 (x86_64, WebView2) and Apple Silicon Macs, in addition to Intel Macs. Linux passes its tests; on Windows the permission checks and many tests are not yet verified. No Linux or Windows package is published; see `docs/install-linux.md` and `docs/install-windows.md` for what works and what is different. Secrets use Windows Credential Manager and the Linux Secret Service (one vault entry, split over several Credential Manager entries when it is large), banners use a Windows toast and `notify-send`, files and links open with `explorer.exe` and `xdg-open`, the terminal starts PowerShell on Windows, and connections to servers are not shared on Windows (OpenSSH for Windows has no `ControlMaster`). Process groups, the process table and the disk-space check are macOS and Linux features; the update swap of the app bundle stays macOS only.
+
+## [1.14.1] - 2026-10-30
+
+### Added
+
 - Website: an MCP section on the IntelyIDE page, in English and Hungarian, with a screenshot of the catalog in light and dark and a test that keeps it in step with the catalog.
 - Website: a Versions section on the IntelyIDE page, in English and Hungarian, with two screenshots of the Versions panel (the version files of the demo repositories with a change pending, and the exact diff under "Will change") in light and dark, a highlight card for it, two new slots in the capture script (`versions`, `versions-diff`) and a test that keeps it in step with `docs/versions.md` and the panel.
-- Work in progress, not released: the code compiles for Linux (x86_64, webkit2gtk 4.1), Windows 10/11 (x86_64, WebView2) and Apple Silicon Macs, in addition to Intel Macs. Linux passes its tests; on Windows the permission checks and many tests are not yet verified. No Linux or Windows package is published; see `docs/install-linux.md` and `docs/install-windows.md` for what works and what is different. Secrets use Windows Credential Manager and the Linux Secret Service (one vault entry, split over several Credential Manager entries when it is large), banners use a Windows toast and `notify-send`, files and links open with `explorer.exe` and `xdg-open`, the terminal starts PowerShell on Windows, and connections to servers are not shared on Windows (OpenSSH for Windows has no `ControlMaster`). Process groups, the process table and the disk-space check are macOS and Linux features; the update swap of the app bundle stays macOS only.
 - Website: a bigger IntelyIDE hero with three headline figures (up to 7x faster startup, up to 6x faster agents, about 30% fewer tokens), a Speed section with an illustrative comparison graphic and an "Agents that start and finish sooner" section, in English and Hungarian. The figures carry the note that results vary with workspace, machine and task.
 - Website: every page hero (home, IntelyIDE, IntelyOpti; English and Hungarian) now uses one shared design: frosted feature cards with pointer parallax, hover tilt and glow, and thin turning arcs behind. Under reduced motion the hero keeps its hover, glow and breathing effects without movement, and a footer toggle ("Animations") lets visitors choose full animations.
 
@@ -351,7 +356,8 @@ First public release. This is alpha software.
 - Providers other than Claude, Happy, MongoDB Studio and Remote are proven only against mocks or on a local machine.
 - Version 0.1.0 still stores its state in the folder `IntelySwitchIDE` and uses Keychain services named after the earlier bundle identifier; a switch to `com.intelyhome.intelyide` with a migration is planned.
 
-[Unreleased]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.14.0...HEAD
+[Unreleased]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.14.1...HEAD
+[1.14.1]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.14.0...v1.14.1
 [1.14.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.13.0...v1.14.0
 [1.13.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.12.0...v1.13.0
 [1.12.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.11.0...v1.12.0
