@@ -9,7 +9,7 @@ use intely_agent_core::api::{AgentStartRequest, PermissionDecision};
 use intely_agent_core::events::types::EventKind;
 
 fn start(host: &intely_agent_host::AgentHost, role: &str, repo: &intely_agent_host::RepoRef) -> String {
-    host.start(AgentStartRequest { role: role.into(), repo_ids: vec![repo.id.clone()], prompt: "go".into(), mode: None, mcp_servers: None }, std::slice::from_ref(repo)).expect("start").agent_id
+    host.start(AgentStartRequest { role: role.into(), repo_ids: vec![repo.id.clone()], prompt: "go".into(), mode: None, mcp_servers: None, ..Default::default() }, std::slice::from_ref(repo)).expect("start").agent_id
 }
 
 fn read(repo: &intely_agent_host::RepoRef, rel: &str) -> String {
