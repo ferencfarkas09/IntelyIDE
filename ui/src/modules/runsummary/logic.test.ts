@@ -12,6 +12,8 @@ const empty = (over: Partial<RunDigest> = {}): RunDigest => ({
   decisions: [], checks: [], risks: [], failureCount: 0, failures: [], needsYou: 0, truncated: false, ...over,
 });
 
+const gitRepo = (repoId: string): RunDigest["repos"][number] => ({ repoId, source: "git", fileCount: 0, created: 0, modified: 0, deleted: 0, additions: 0, deletions: 0, purposes: [], ios: false, android: false });
+
 describe("plain-language bullets", () => {
   it("names the largest groups and folds the rest into one item (en)", () => {
     const b = bullets(fixtureDigest("r1"));
@@ -25,7 +27,7 @@ describe("plain-language bullets", () => {
   });
 
   it("uses singular forms for one", () => {
-    const d = empty({ fileCount: 1, created: 1, groups: [{ purpose: "ui", created: 1, modified: 0, deleted: 0, examples: [] }], commandCount: 1, commands: [{ text: "npm test", failed: false }], additions: 1, deletions: 1 });
+    const d = empty({ repos: [gitRepo("web")], fileCount: 1, created: 1, groups: [{ purpose: "ui", created: 1, modified: 0, deleted: 0, examples: [] }], commandCount: 1, commands: [{ text: "npm test", failed: false }], additions: 1, deletions: 1 });
     expect(bullets(d)).toEqual(["Changed 1 screen file.", "1 new file, none deleted.", "1 line added, 1 line removed.", "Ran 1 command."]);
   });
 
@@ -36,12 +38,13 @@ describe("plain-language bullets", () => {
     expect(b).toContain("1 új csomagot adott hozzá: react-native-maps.");
     expect(b).toContain("3 parancsot futtatott, ebből 1 nem sikerült.");
     expect(b).toContain("3 új fájl, törölt nincs.");
-    expect(bullets(empty())).toEqual(["Egyetlen fájl sem változott."]);
+    expect(bullets(empty({ repos: [gitRepo("web")] }))).toEqual(["A git nem talált változott fájlt. Egy git által figyelmen kívül hagyott fájl csak akkor számít, ha az ügynök saját eszközei írták."]);
+    expect(bullets(empty())[0]).toMatch(/^Nem sikerült ellenőrizni/);
   });
 
   it("keeps at most six, the most useful ones, in reading order", () => {
     const d = empty({
-      fileCount: 3, created: 1, deleted: 1, additions: 5, deletions: 2,
+      repos: [gitRepo("web")], fileCount: 3, created: 1, deleted: 1, additions: 5, deletions: 2,
       groups: [{ purpose: "code", created: 1, modified: 1, deleted: 1, examples: [] }],
       commandCount: 2, commands: [{ text: "a", failed: false }, { text: "b", failed: false }],
       risks: [{ code: "newDependencies", count: 1, evidence: ["axios"] }],
@@ -55,8 +58,37 @@ describe("plain-language bullets", () => {
     expect(b).toContain("2 requests are still waiting for you.");
   });
 
-  it("falls back to the plan when there is no final message, and says when nothing changed", () => {
-    expect(bullets(empty({ decisions: [{ kind: "plan", text: "Add a theme", done: false }] }))).toEqual(["No files were changed.", "The plan: “Add a theme”"]);
+  it("falls back to the plan when there is no final message, and says when git found nothing", () => {
+    expect(bullets(empty({ repos: [gitRepo("web")], decisions: [{ kind: "plan", text: "Add a theme", done: false }] }))).toEqual([
+      "Git found no changed files. A file git ignores is counted only when the agent's own tools wrote it.",
+      "The plan: “Add a theme”",
+    ]);
+  });
+
+  it("never says nothing changed when it could not check", () => {
+    const never = /No files were changed|Git found no changed files/;
+    const cases: RunDigest[] = [
+      empty(), // no repository at all
+      empty({ repos: [{ ...gitRepo("web"), source: "none" }] }), // no snapshot, no tool edits
+      empty({ repos: [gitRepo("web"), { ...gitRepo("api"), source: "none" }] }), // one of two repositories unchecked
+      empty({ status: "failed", repos: [{ ...gitRepo("web"), source: "log" }] }),
+    ];
+    for (const d of cases) {
+      const b = bullets(d);
+      expect(b[0]).toBe("Could not check which files changed: the repository had no snapshot from before the run, or git could not be read.");
+      expect(b.join(" ")).not.toMatch(never);
+      expect(chipText(d)).toBe("Not checked");
+    }
+    // counted from the tool log only: the count is shown, with the caveat right after it
+    const partly = bullets(empty({ fileCount: 1, modified: 1, repos: [{ ...gitRepo("web"), source: "log", fileCount: 1 }], groups: [{ purpose: "code", created: 0, modified: 1, deleted: 0, examples: [] }] }));
+    expect(partly.slice(0, 2)).toEqual(["Changed 1 code file.", "Not every file could be checked: where there was no snapshot, only the files the agent's own tools wrote are counted, not what its commands changed."]);
+    expect(chipText(empty({ repos: [gitRepo("web")] }))).toBe("0 files");
+  });
+
+  it("a run on a server says its changes are there, even when the local repository looks clean", () => {
+    const d = empty({ repos: [gitRepo("web")] });
+    expect(bullets(d, { remote: true })).toEqual(["This run worked on a server. Its changes are there, not in the repositories on this computer."]);
+    expect(chipText(d, { remote: true })).toBe("Not checked");
   });
 });
 

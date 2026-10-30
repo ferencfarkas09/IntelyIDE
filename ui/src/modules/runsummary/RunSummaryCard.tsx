@@ -78,7 +78,7 @@ export default function RunSummaryCard(props: { agent: AgentRow }) {
               <span id={titleId}>{t("runsummary.card.title")}</span>
             </Button>
             <Badge size="sm" numeric tone={d().risks.length ? "warn" : "neutral"}>
-              {chipText(d())}
+              {chipText(d(), { remote: !!props.agent.location })}
             </Badge>
             <span class="runsummary__grow" />
             <Button variant="secondary" size="sm" icon={Sparkles} title={t("runsummary.card.explainTip")} onClick={() => void explain()}>
@@ -88,7 +88,7 @@ export default function RunSummaryCard(props: { agent: AgentRow }) {
           <Show when={open()}>
             <div class="runsummary__body" id={bodyId}>
               <ul class="runsummary__list">
-                <For each={bullets(d())}>{(b) => <li>{b}</li>}</For>
+                <For each={bullets(d(), { remote: !!props.agent.location })}>{(b) => <li>{b}</li>}</For>
               </ul>
               <Show when={checkLines(d(), scripts() ?? {}).length}>
                 <h4 class="runsummary__sub">
