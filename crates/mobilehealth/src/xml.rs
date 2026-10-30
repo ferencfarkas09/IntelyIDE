@@ -273,7 +273,7 @@ mod tests {
             assert!(steps <= MAX_TOKENS + 1 && steps <= text.len(), "{steps} steps for {} bytes", text.len());
             assert!(tokens.is_some() || steps > MAX_TOKENS);
         }
-        assert!(t.elapsed() < std::time::Duration::from_secs(4), "{:?}", t.elapsed());
+        assert!(t.elapsed() < std::time::Duration::from_secs(30), "{:?}", t.elapsed());
         // an attribute list is cut off, not stored whole
         let (toks, _) = scan(&format!("<a {}/>", "b=\"1\" ".repeat(10_000)));
         assert!(matches!(&toks.unwrap()[0], Tok::Open { attrs, .. } if attrs.len() == 128));

@@ -129,7 +129,7 @@ describe("after a run finishes", () => {
   });
 
   it("after a switch off and on, does not test or ask about a run that finished while it was off", async () => {
-    usePrefs({ mode: "always" });
+    usePrefs({ mode: "always", trusted: TRUSTED });
     const h = harness();
     h.set([run("a", "running", ["r1"]), run("b", "running", ["r2"])]);
     await h.flow.runTests("b", ["r2"]);
