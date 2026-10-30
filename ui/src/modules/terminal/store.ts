@@ -5,7 +5,7 @@ import { execute } from "../../platform/commands";
 import { setToolWindow } from "../../platform/rail";
 import { errorText } from "../../store/snapshots";
 import { workspace } from "../../store/workspace";
-import { resolvedTheme, toast } from "../../ui-kit";
+import { appearanceLook, toast } from "../../ui-kit";
 import { resolveInRepo, type FileRef } from "./links";
 import type { TermView } from "./view";
 
@@ -141,8 +141,8 @@ export function cycleTerminal(step: 1 | -1): void {
 }
 
 createRoot(() => {
-  // The theme attribute changes before this effect, but the stylesheet needs a frame to settle.
-  createEffect(on(resolvedTheme, () => requestAnimationFrame(() => views.forEach((v) => v.setTheme())), { defer: true }));
+  // The theme and skin attributes change before this effect, but the stylesheet needs a frame to settle.
+  createEffect(on(appearanceLook, () => requestAnimationFrame(() => views.forEach((v) => v.setTheme())), { defer: true }));
 });
 
 /** Test hook: forget every terminal without closing anything. */

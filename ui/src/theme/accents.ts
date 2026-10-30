@@ -7,6 +7,7 @@
  * The brand violet (from the B2 logo) is the hand-tuned default and is NOT overridden: it lives in tokens.css.
  */
 import { defaultStorage, readStored } from "../ui-kit/storage";
+import { GLASS, ON_PANEL } from "./glassTokens";
 
 export type ResolvedThemeName = "dark" | "light";
 export type Ink = "light" | "dark";
@@ -41,8 +42,8 @@ export const ACCENTS: readonly AccentFamily[] = [
 
 export const ACCENT_IDS: readonly string[] = ACCENTS.map((a) => a.id);
 
-/** The surfaces the accent text has to read on (tokens.css, worst case = the lightest dark surface / the darkest light one). */
-export const SURFACES: Record<ResolvedThemeName, readonly string[]> = {
+/** The opaque surfaces of tokens.css (--surface-0..4). Index 2 is the raised surface the fill must stand out from. */
+export const STANDARD_SURFACES: Record<ResolvedThemeName, readonly string[]> = {
   dark: ["#0d0e10", "#131417", "#1a1b1f", "#202226", "#282a2f"],
   light: ["#e6e8ec", "#f8f9fa", "#ffffff", "#ffffff", "#f0f1f4"],
 };
@@ -118,6 +119,23 @@ export function over(fg: string, alpha: number, bg: string): string {
   const k = hexToRgb(bg);
   return rgbToHex(...(f.map((v, i) => v * alpha + k[i] * (1 - alpha)) as [number, number, number]));
 }
+
+/** Every glass surface (glass.css) composited over every stop of the backdrop gradient: what the Glass skin really shows. */
+export function glassComposites(theme: ResolvedThemeName): string[] {
+  const g = GLASS[theme];
+  const panel = g.surfaces[1];
+  // The bare stop too: --surface-1 is transparent in Glass, so text can sit right on the gradient.
+  return g.stops.flatMap((stop) => [stop, ...g.surfaces.map((s, i) => over(s.color, s.alpha, ON_PANEL.includes(i) ? over(panel.color, panel.alpha, stop) : stop))]);
+}
+
+/**
+ * The surfaces the accent text has to read on: the opaque ones of tokens.css first (same indices), then the glass
+ * composites. Worst case = the lightest dark surface / the darkest light one, whichever skin it comes from.
+ */
+export const SURFACES: Record<ResolvedThemeName, readonly string[]> = {
+  dark: [...STANDARD_SURFACES.dark, ...glassComposites("dark")],
+  light: [...STANDARD_SURFACES.light, ...glassComposites("light")],
+};
 
 const rgba = (hex: string, a: number) => `rgba(${hexToRgb(hex).join(", ")}, ${a})`;
 

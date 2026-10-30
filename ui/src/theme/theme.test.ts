@@ -97,6 +97,13 @@ describe("theme controller", () => {
     expect(f.hasListener()).toBe(false);
   });
 
+  it("only touches data-theme and data-theme-pref, so the skin axis (data-skin) stays independent", () => {
+    const f = fakeEnv({ systemDark: true });
+    const c = make(f.env);
+    c.setPreference("light");
+    expect(Object.keys(f.attrs).sort()).toEqual(["data-theme", "data-theme-pref"]);
+  });
+
   it("defaults to dark without a media query", () => {
     const f = fakeEnv();
     const c = make({ ...f.env, media: null });

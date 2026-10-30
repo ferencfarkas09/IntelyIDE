@@ -6,7 +6,7 @@ import type { DiffHandle } from "../../components/diff/cm";
 import { t } from "../../i18n";
 import { closeTab, type TabInstance } from "../../platform/tabs";
 import { repoConfig } from "../../store/workspace";
-import { Button, ChevronRight, EmptyState, FileLock, FileText, IconButton, LocateFixed, Menu, RepoBadge, resolvedTheme, Save, Skeleton, TriangleAlert, WrapText, Binary, Info } from "../../ui-kit";
+import { Button, ChevronRight, EmptyState, FileLock, FileText, IconButton, LocateFixed, Menu, RepoBadge, resolvedTheme, Save, Skeleton, TriangleAlert, WrapText, Binary, Info, appearanceLook } from "../../ui-kit";
 import { revealInProject } from "./actions";
 import { attachView, buffers, currentDoc, detachView, ensureBuffer, keepMine, noteEdited, overwrite, reloadFromDisk, reopenWithEncoding, revealSecret, saveBuffer, savedDoc, setIndent, stashedState, useDiskVersion } from "./buffers";
 import { createEditorState, setIndentEffect, setListenerEffect, setReadOnlyEffect, setThemeEffect, setWrapEffect } from "./cm";
@@ -146,7 +146,8 @@ function EditorPane(props: { tab: TabInstance; tabId: string; repoId: string; pa
     if (view) detachView(props.tabId, view);
   });
 
-  createEffect(on(dark, (d) => view?.dispatch({ effects: setThemeEffect(d) }), { defer: true }));
+  // Every look change (theme, skin, transparency) re-themes: the token values behind the theme change with all three.
+  createEffect(on(appearanceLook, () => view?.dispatch({ effects: setThemeEffect(dark()) }), { defer: true }));
   createEffect(on(wrap, (w) => view?.dispatch({ effects: setWrapEffect(w) }), { defer: true }));
   createEffect(on(() => b()?.indent, (i) => i && view?.dispatch({ effects: setIndentEffect(i) }), { defer: true }));
   createEffect(on(() => b()?.partial, (p) => view?.dispatch({ effects: setReadOnlyEffect(!!p) }), { defer: true }));

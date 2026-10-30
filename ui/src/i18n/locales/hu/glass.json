@@ -1,0 +1,12 @@
+{
+  "appearance.style": "Stílus",
+  "appearance.styleDesc": "Az Üveg stílusban áttetsző panelek és kártyák lebegnek egy lágy színátmenet fölött. A Normál a megszokott, tömör megjelenés.",
+  "appearance.standard": "Normál",
+  "appearance.glass": "Üveg",
+  "appearance.reduceTransparency": "Kevesebb átlátszóság",
+  "appearance.reduceTransparencyDesc": "Tömör panelek elmosás és színátmenet nélkül, élesebb kontraszttal.",
+  "appearance.systemReducedTransparency": "A rendszered kevesebb átlátszóságot vagy nagyobb kontrasztot kér, ezért a panelek így is tömörek maradnak.",
+  "kit.sparklineTrend": "Alakulás: {from} → {to}",
+  "kit.deltaUp": "{value} növekedés",
+  "kit.deltaDown": "{value} csökkenés"
+}

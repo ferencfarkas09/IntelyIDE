@@ -1,7 +1,8 @@
 import { createMemo, createSignal, For, Show } from "solid-js";
-import { Button, Check, FormGroup, FormRow, Input, Monitor, Moon, SegmentedControl, Select, Sun, resolvedTheme, themePreference, setThemePreference, type ThemePreference } from "../../ui-kit";
+import { Button, Check, FormGroup, FormRow, Input, Monitor, Moon, SegmentedControl, Select, Sun, Switch, resolvedTheme, themePreference, setThemePreference, type ThemePreference } from "../../ui-kit";
 import { t, type MessageKey } from "../../i18n";
 import { ACCENTS, CUSTOM_ACCENT, customFamily, accentTokens, normalizeHex, swatchColor, tokensFor } from "../../theme/accents";
+import { activeSkin, parseSkin, systemWantsOpaque, type Skin } from "../../theme/skin";
 import { applyAppearance, saveMirror } from "./appearance";
 import { FONT_LIMITS, normalizeAppearance, NS, type AppearanceSettings, type Density } from "./model";
 import { useNamespace } from "./namespace";
@@ -11,6 +12,9 @@ import "./appearance.css";
 const range = ({ min, max }: { min: number; max: number }) => Array.from({ length: max - min + 1 }, (_, i) => String(min + i));
 
 const ids = [...ACCENTS.map((a) => a.id), CUSTOM_ACCENT];
+
+/** A settings.json without a skin is still being judged at boot (new install or not): show what is on screen meanwhile. */
+const normalizeShown = (raw: Parameters<typeof normalizeAppearance>[0]): AppearanceSettings => ({ ...normalizeAppearance(raw), skin: parseSkin(raw.skin) ?? activeSkin() });
 
 /** Sample card: it reads the same variables as the rest of the UI, so it always shows what the accent really looks like. */
 function AccentSample() {
@@ -30,7 +34,7 @@ function AccentSample() {
 }
 
 export default function AppearanceSection() {
-  const appearance = useNamespace(NS.appearance, normalizeAppearance, (next: AppearanceSettings, raw) => {
+  const appearance = useNamespace(NS.appearance, normalizeShown, (next: AppearanceSettings, raw) => {
     applyAppearance(next);
     saveMirror(next);
     if (raw.theme !== undefined && themePreference() !== next.theme) setThemePreference(next.theme);
@@ -86,6 +90,21 @@ export default function AppearanceSection() {
               { value: "light", label: t("theme.light"), icon: Sun },
             ]}
           />
+        </FormRow>
+        <FormRow label={t("appearance.style")} description={t("appearance.styleDesc")}>
+          <SegmentedControl<Skin>
+            size="sm"
+            aria-label={t("appearance.style")}
+            value={appearance.value().skin}
+            onChange={(skin) => set({ skin })}
+            options={[
+              { value: "standard", label: t("appearance.standard") },
+              { value: "glass", label: t("appearance.glass") },
+            ]}
+          />
+        </FormRow>
+        <FormRow label={t("appearance.reduceTransparency")} description={systemWantsOpaque() ? t("appearance.systemReducedTransparency") : t("appearance.reduceTransparencyDesc")}>
+          <Switch size="sm" aria-label={t("appearance.reduceTransparency")} disabled={appearance.value().skin !== "glass"} checked={appearance.value().reduceTransparency} onChange={(reduceTransparency) => set({ reduceTransparency })} />
         </FormRow>
         <FormRow label={t("appearance.accent")} description={t("appearance.accentDesc")} stacked>
           <div class="sc-accentpick">
