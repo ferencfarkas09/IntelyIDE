@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ScriptInfo } from "../../ipc/run";
-import { appendLog, favoriteScripts, groupScripts, lastStarted, MAX_LOG_LINES, parseFavorites, searchLines, statusTone, toggleId } from "./logic";
+import { appendLog, favoriteScripts, groupScripts, lastStarted, MAX_LOG_LINES, parseFavorites, searchLines, serverErrorInput, statusTone, toggleId } from "./logic";
 
 const s = (name: string, group: ScriptInfo["group"]): ScriptInfo => ({ id: `npm:${name}`, name, source: "npm", group, safety: "normal", reasons: [], forbiddenToAgents: false, envNames: [], runner: `npm run ${name}` });
 
@@ -77,5 +77,17 @@ describe("searchLines and statusTone", () => {
     expect(statusTone({ status: "running" })).toBe("ok");
     expect(statusTone({ status: "exited", exitCode: 1 })).toBe("danger");
     expect(statusTone({ status: "exited", exitCode: 0 })).toBe("neutral");
+  });
+});
+
+describe("what Fix with agent sends from a log", () => {
+  const lines = (texts: string[]) => texts.map((text, seq) => ({ seq, text }));
+  it("sends the end of a failed script and the last error block of a running server", () => {
+    const failed = serverErrorInput({ repoId: "web", script: "build", runner: "pnpm run build", status: "exited", exitCode: 2 }, lines(["one", "two", "Error: x"]));
+    expect(failed).toMatchObject({ kind: "script", repoId: "web", text: "one\ntwo\nError: x" });
+    expect(failed.extra).toContain("Exit code: 2");
+    const live = serverErrorInput({ repoId: "web", script: "dev", runner: "vite", status: "running", exitCode: null }, lines(["ready in 300 ms", "", "[vite] Internal server error: Failed to resolve import", "  at x", "", "page reload"]));
+    expect(live.kind).toBe("devServer");
+    expect(live.text).toContain("Failed to resolve import");
   });
 });

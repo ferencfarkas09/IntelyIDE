@@ -21,6 +21,11 @@ Audiences: **users** run the app, **contributors** change the code, **maintainer
 | [Versions panel](versions.md) | Seeing and changing the version of every repository in the workspace: package.json, Xcode and Android builds, Cargo and more | users |
 | [Dashboard and widgets](dashboard.md) | The Dashboard tab and its cards, the plan usage in the menu bar and the Needs-You radar window | users, contributors |
 | [Run picker](run-picker.md) | Choosing the exact model and effort of a run, and switching on ultracode, in New run | users |
+| [Prompt library](prompt-library.md) | Saved prompts with placeholders, starter prompts for React, React Native, iOS, Android, Node and CSS, import and export | users |
+| [Send to agent](send-to-agent.md) | Fix with agent and Explain this error from the terminal, logs, failed checks and the preview, with secrets masked | users |
+| [Project notes](project-notes.md) | The CLAUDE.md of each repository and exactly what a run is told from it | users |
+| [Setup doctor](setup-doctor.md) | Checking Node 24, the Agent SDK, the Claude Code login, Git and the iOS and Android tools | users |
+| [Safety presets](safety-presets.md) | Careful, Balanced and Autonomous: plain names for the permission modes | users |
 | [Notifications](notifications.md) | Banners and the Dock count when a run needs you | users |
 | [Team](team.md) | Working with colleagues over your own relay: presence, shared runs, notes into a run, workspace snapshots, shared memory | users |
 | [Remote with Cloudflare](remote-cloudflare.md) | Setting up the relay with your own Cloudflare account | users |

@@ -35,6 +35,15 @@ const PREFIXED: [(&str, usize); 13] = [
     ("rk_live_", 16),
 ];
 
+const AWS_ID_PREFIXES: [&str; 9] = ["AKIA", "ASIA", "AGPA", "AIDA", "AROA", "ANPA", "ANVA", "AIPA", "ASCA"];
+
+/// Key names a `key: value` line is masked for. Narrower than [`SECRET_KEYS`]: a colon is common in prose and logs
+/// (`Author: ...`), so the bare `auth` does not count here.
+const COLON_KEYS: [&str; 11] = ["token", "secret", "password", "passwd", "pwd", "apikey", "api_key", "api-key", "credential", "private_key", "access_key"];
+
+/// Programs whose `-p` (or `-pVALUE`) option is a password.
+const PASSWORD_P_PROGRAMS: [&str; 5] = ["sshpass", "mysql", "mysqldump", "mysqladmin", "mariadb"];
+
 fn is_tok(b: u8) -> bool {
     b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-' | b'.')
 }
@@ -119,14 +128,19 @@ fn strip_decoration(text: &str, erase: bool) -> String {
 }
 
 fn mask_plain(text: &str) -> String {
-    let s = apply(text, header_values(text));
+    let s = apply(text, key_blocks(text));
+    let s = apply(&s, header_values(&s));
     let s = apply(&s, url_credentials(&s));
     let s = apply(&s, prefixed_tokens(&s));
     let s = apply(&s, jwts(&s));
     let s = apply(&s, bearer(&s));
     let s = apply(&s, assignments(&s));
+    let s = apply(&s, colon_assignments(&s));
+    let s = apply(&s, password_flags(&s));
     let s = apply(&s, base64_runs(&s));
-    apply(&s, hex_runs(&s))
+    let s = apply(&s, aws_secret_keys(&s));
+    let s = apply(&s, hex_runs(&s));
+    apply(&s, wrapped_continuations(&s))
 }
 
 /// Whether `text` still holds anything [`mask`] would change.
@@ -203,8 +217,8 @@ fn prefixed_tokens(s: &str) -> Vec<(usize, usize)> {
                 }
             }
         }
-        // AWS access key ids: AKIA / ASIA + 16 upper-case alphanumerics.
-        if hit.is_none() && (b[i..].starts_with(b"AKIA") || b[i..].starts_with(b"ASIA")) {
+        // AWS key ids (access keys, temporary keys, users, groups, roles, policies...): the prefix + 16 upper-case alphanumerics.
+        if hit.is_none() && AWS_ID_PREFIXES.iter().any(|p| b[i..].starts_with(p.as_bytes())) {
             let run = b[i + 4..].iter().take_while(|c| c.is_ascii_uppercase() || c.is_ascii_digit()).count();
             if run >= 16 {
                 hit = Some(i + 4 + run);
@@ -428,6 +442,148 @@ fn hex_runs(s: &str) -> Vec<(usize, usize)> {
         } else {
             i += 1;
         }
+    }
+    out
+}
+
+/// A private key block (PEM, PGP and OpenSSH keys: a BEGIN line naming a PRIVATE KEY): from the BEGIN line to the END
+/// line, or to the end of the text when the END line is missing (a cut log).
+fn key_blocks(s: &str) -> Vec<(usize, usize)> {
+    let mut out = Vec::new();
+    let mut i = 0;
+    while let Some(p) = s[i..].find("-----BEGIN ") {
+        let at = i + p;
+        let head_end = s[at + 11..].find("-----").map(|e| at + 11 + e + 5);
+        let Some(head_end) = head_end.filter(|e| s[at..*e].contains("PRIVATE KEY")) else {
+            i = at + 11;
+            continue;
+        };
+        let end = s[head_end..].find("-----END ").and_then(|e| s[head_end + e + 9..].find("-----").map(|f| head_end + e + 9 + f + 5)).unwrap_or(s.len());
+        out.push((at, end));
+        i = end;
+    }
+    out
+}
+
+fn colon_secret_key(key: &str) -> bool {
+    let k = key.to_ascii_lowercase();
+    COLON_KEYS.iter().any(|s| k.contains(s))
+}
+
+/// `password: value` (YAML, INI, logs) and `'password': 'value'` (single-quoted JSON-ish, Python reprs), where the key
+/// names a secret. An unquoted value needs a blank after the colon, so `host:port` and `scheme://` are left alone.
+fn colon_assignments(s: &str) -> Vec<(usize, usize)> {
+    let b = s.as_bytes();
+    let mut out = Vec::new();
+    for (i, &c) in b.iter().enumerate() {
+        if c != b':' || b.get(i + 1) == Some(&b'/') || b.get(i + 1) == Some(&b':') || (i > 0 && b[i - 1] == b':') {
+            continue;
+        }
+        let quoted = i > 0 && matches!(b[i - 1], b'\'' | b'"');
+        let kend = if quoted { i - 1 } else { i };
+        let kstart = if quoted {
+            b[..kend].iter().rposition(|c| *c == b[i - 1]).map_or(kend, |p| p + 1)
+        } else {
+            b[..kend].iter().rposition(|c| !is_tok(*c)).map_or(0, |p| p + 1)
+        };
+        if kstart >= kend || !colon_secret_key(&s[kstart..kend]) {
+            continue;
+        }
+        let blanks = b[i + 1..].iter().take_while(|c| **c == b' ' || **c == b'\t').count();
+        let v = i + 1 + blanks;
+        let quote_next = b.get(v).is_some_and(|c| matches!(c, b'"' | b'\''));
+        if blanks == 0 && !quote_next {
+            continue;
+        }
+        if let Some(r) = value_range(b, v) {
+            out.push(r);
+        }
+    }
+    out
+}
+
+/// `sshpass -p VALUE`, `mysql -pVALUE`, `mysql -p VALUE`: the password of the programs that take one after `-p`.
+fn password_flags(s: &str) -> Vec<(usize, usize)> {
+    let b = s.as_bytes();
+    let mut out = Vec::new();
+    for line_start in std::iter::once(0).chain(b.iter().enumerate().filter(|(_, c)| **c == b'\n').map(|(i, _)| i + 1)) {
+        let line_end = b[line_start..].iter().position(|c| *c == b'\n').map_or(b.len(), |p| line_start + p);
+        let line = &s[line_start..line_end];
+        let words: Vec<(usize, &str)> = line.split(' ').scan(0usize, |at, w| {
+            let start = *at;
+            *at += w.len() + 1;
+            Some((start, w))
+        }).filter(|(_, w)| !w.is_empty()).collect();
+        let mut armed = false;
+        for (k, &(at, w)) in words.iter().enumerate() {
+            let name = w.rsplit('/').next().unwrap_or(w);
+            if PASSWORD_P_PROGRAMS.contains(&name) {
+                armed = true;
+                continue;
+            }
+            if !armed {
+                continue;
+            }
+            if matches!(w, "|" | "&&" | ";" | "||") {
+                armed = false;
+            } else if w == "-p" {
+                if let Some(&(nat, next)) = words.get(k + 1) {
+                    if !next.starts_with('-') {
+                        if let Some(r) = value_range(b, line_start + nat) {
+                            out.push(r);
+                        }
+                    }
+                }
+            } else if w.len() > 2 && w.starts_with("-p") && !w.starts_with("-p=") {
+                if let Some(r) = value_range(b, line_start + at + 2) {
+                    out.push(r);
+                }
+            }
+        }
+    }
+    out
+}
+
+/// A bare AWS secret access key: exactly 40 characters of base64 (`A-Z a-z 0-9 / +`) as a whole word, with upper case,
+/// lower case and digits in it.
+fn aws_secret_keys(s: &str) -> Vec<(usize, usize)> {
+    let b = s.as_bytes();
+    let in_word = |c: u8| c.is_ascii_alphanumeric() || matches!(c, b'/' | b'+');
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < b.len() {
+        if in_word(b[i]) && (i == 0 || !(in_word(b[i - 1]) || matches!(b[i - 1], b'_' | b'-' | b'.' | b'='))) {
+            let run = b[i..].iter().take_while(|c| in_word(**c)).count();
+            let w = &b[i..i + run];
+            let after = b.get(i + run).copied();
+            if run == 40 && w.iter().any(u8::is_ascii_uppercase) && w.iter().any(u8::is_ascii_lowercase) && w.iter().any(u8::is_ascii_digit) && !after.is_some_and(|c| matches!(c, b'_' | b'-' | b'.' | b'=')) {
+                out.push((i, i + run));
+            }
+            i += run;
+        } else {
+            i += 1;
+        }
+    }
+    out
+}
+
+/// A token a terminal or a log wrapped onto the next line: a masked value at the end of a line followed by a line that is
+/// one long token-shaped word (16 or more characters, no blanks) is masked as the rest of it.
+fn wrapped_continuations(s: &str) -> Vec<(usize, usize)> {
+    let b = s.as_bytes();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while let Some(p) = s[i..].find(MASK) {
+        let end = i + p + MASK.len();
+        let nl = if b.get(end) == Some(&b'\n') { Some(end + 1) } else if b.get(end) == Some(&b'\r') && b.get(end + 1) == Some(&b'\n') { Some(end + 2) } else { None };
+        if let Some(next) = nl {
+            let line_end = b[next..].iter().position(|c| *c == b'\n' || *c == b'\r').map_or(b.len(), |q| next + q);
+            let line = &b[next..line_end];
+            if line.len() >= 16 && line.iter().all(|c| is_tok(*c) || matches!(c, b'+' | b'/' | b'=')) && line != MASK.as_bytes() {
+                out.push((next, line_end));
+            }
+        }
+        i = end;
     }
     out
 }

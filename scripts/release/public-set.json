@@ -13,6 +13,7 @@
     "docs/licensing.md", "docs/building.md", "docs/releasing.md", "docs/release-checklist.md", "docs/install-macos.md", "docs/faq.md", "docs/i18n.md",
     "docs/design-system.md", "docs/attachments.md", "docs/remote-cloudflare.md", "docs/remote-gateway.md", "docs/remote-servers.md", "docs/notifications.md",
     "docs/mongo-studio-guide.md", "docs/preview-inspect.md", "docs/l10n-release.md", "docs/versions.md", "docs/dashboard.md", "docs/run-picker.md",
+    "docs/prompt-library.md", "docs/send-to-agent.md", "docs/project-notes.md", "docs/setup-doctor.md", "docs/safety-presets.md",
     "docs/packaging.md", "docs/release-ci-checklist.md", "docs/team.md", "docs/peer-runs.md", "docs/install-linux.md", "docs/install-windows.md"
   ],
   "exclude": [

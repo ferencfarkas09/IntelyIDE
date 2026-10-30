@@ -6,6 +6,7 @@ import { setToolWindow } from "../../platform/rail";
 import { errorText } from "../../store/snapshots";
 import { workspace } from "../../store/workspace";
 import { appearanceLook, toast } from "../../ui-kit";
+import { lastErrorBlock } from "../../platform/sendToAgent";
 import { resolveInRepo, type FileRef } from "./links";
 import type { TermView } from "./view";
 
@@ -131,6 +132,25 @@ export const closeActive = (): void => void (activeId() && closeTerminal(activeI
 
 export function activateTerminal(id: string): void {
   if (terminals().some((t) => t.id === id)) setActiveId(id);
+}
+
+/** How many lines from the end of the scrollback "Fix with agent" looks through for the last error. */
+const ERROR_SCAN_LINES = 400;
+
+/** What "Fix with agent" sends from a terminal: the selection when there is one, else the last error block of its output. */
+export function terminalErrorInput(id = activeId()): { kind: "terminal"; text: string; repoId?: string; extra?: string } | undefined {
+  const info = terminals().find((t) => t.id === id);
+  const view = id ? views.get(id) : undefined;
+  if (!info || !view) return undefined;
+  const selected = view.term.getSelection();
+  let text = selected;
+  if (!selected.trim()) {
+    const buf = view.term.buffer.active;
+    const lines: string[] = [];
+    for (let y = Math.max(0, buf.length - ERROR_SCAN_LINES); y < buf.length; y++) lines.push(buf.getLine(y)?.translateToString(true) ?? "");
+    text = lastErrorBlock(lines);
+  }
+  return { kind: "terminal", text, repoId: info.repoId, extra: info.exit ? `The shell exited with code ${info.exit.code ?? "unknown"}.` : undefined };
 }
 
 /** Ctrl+Tab style cycling over the terminal tabs. */

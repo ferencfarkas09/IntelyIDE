@@ -6,6 +6,7 @@ import type { ProviderEnforcement, ProviderInfo } from "../../ipc/providers";
 import { BypassConfirmDialog } from "../../components/chat/BypassConfirmDialog";
 import { modelLabel } from "../../components/chat/format";
 import { ModeCards } from "../../components/chat/ModeCards";
+import { NewRunSlots } from "../../components/NewRunSlots";
 import { openDockTab } from "../../platform/dock";
 import { openSettings } from "../../platform/settings";
 import type { RoleGroup, RoleProviderCaps } from "../../ipc/roles";
@@ -25,6 +26,7 @@ import { AutoCard, type UntrustedRole } from "./AutoCard";
 import { PERMISSION_TITLES } from "../roles/rolesLogic";
 import { loadServers, servers } from "../servers/store";
 import { McpRunPicker, mcpStartIds } from "./mcpSeam";
+import { startMode } from "../presets/logic";
 import { autoReasonText, chosenProvider, claudeUnavailableReason, clampCounts, clampMode, defaultRepos, failureLines, MAC_MAX, initialMode, neutralRole, numberedPrompt, placementRows, placementSummary, planRuns, providerBlocker, providerChoices, startBlocker, startErrorText, startRequest, teamOf, teamPrompt, THIS_MAC, toggleRepo, totalRuns, type RunJob, type RunMode } from "./newRunLogic";
 import { roleColor } from "./roleColors";
 import { newRunOpen, setCentreView, setNewRunOpen } from "./state";
@@ -168,6 +170,7 @@ export function NewRunDialog() {
     if (prefill.repoIds?.length) setRepoIds(prefill.repoIds);
     if (prefill.error) setError(prefill.error);
     if (prefill.noSafetyNet) setNoNet(true);
+    if (prefill.permission && prefill.permission !== ("bypass" as string)) pickMode(prefill.permission);
   };
 
   const pick = (name: string | undefined) => {
@@ -240,6 +243,9 @@ export function NewRunDialog() {
     setPermission(m);
   };
 
+  // What the prompt picker and the safety presets may touch (ui/src/platform/newRunSlots.ts).
+  const slotCtx = { prompt, setPrompt, repoIds, permission, pickMode, supported, unavailable, disabled: busy };
+
   // Opening proposes the first role and its repos; the user can change both.
   createEffect(
     on(newRunOpen, (open) => {
@@ -267,7 +273,7 @@ export function NewRunDialog() {
       void ipc.settings.get("agents").then((v) => setMacMax(typeof v.maxRuns === "number" && Number.isInteger(v.maxRuns) ? Math.max(1, Math.min(MAC_MAX, v.maxRuns)) : MAC_MAX), () => setMacMax(MAC_MAX));
       void ipc.settings.get("roles").then((v) => setNoticeDone(v.derivationNoticeDone === true), () => {});
       // The mode used last is this dialog's default (Bypass never is); a read failure leaves the initial default.
-      void ipc.settings.get("runs").then((v) => (setLastMode(typeof v.lastMode === "string" ? (v.lastMode as PermissionMode) : undefined), setSavedPicks(v.lastPicks && typeof v.lastPicks === "object" ? (v.lastPicks as Record<string, { lastModel?: unknown; lastEffort?: unknown }>) : {})), () => {});
+      void ipc.settings.get("runs").then((v) => (setLastMode(startMode(v)), setSavedPicks(v.lastPicks && typeof v.lastPicks === "object" ? (v.lastPicks as Record<string, { lastModel?: unknown; lastEffort?: unknown }>) : {})), () => {});
       // From the backend's cache; nothing is started. A failure leaves the picker with the role's own provider.
       let live = false;
       void Promise.all([ipc.providers.list(), ipc.roles.capabilities(), ipc.providers.enforcement()]).then(
@@ -583,6 +589,7 @@ export function NewRunDialog() {
             <legend class="newrun__label" id={modesLegend}>
               {t("modes.picker.label")}
             </legend>
+            <NewRunSlots place="modes" ctx={slotCtx} />
             <div class="newrun__modes">
               <ModeCards modes={supported()} value={permission()} onChange={pickMode} labelledBy={modesLegend} unavailable={unavailable()} confirm={["bypass"]} disabled={busy()} />
             </div>
@@ -663,6 +670,7 @@ export function NewRunDialog() {
               onKeyDown={(e) => (e.metaKey || e.ctrlKey) && e.key === "Enter" && (e.preventDefault(), void start())}
             />
           </label>
+          <NewRunSlots place="prompt" ctx={slotCtx} />
           <AttachmentChips items={att.store.items()} provider={att.provider()} onRemove={(id) => void att.store.remove(id)} onConfirm={(id) => void att.store.confirm(id)} />
           <div class="newrun__attach"><AttachButton onFiles={att.pick} /></div>
           <NewRunShare checked={shareRun()} onChange={setShareRun} />

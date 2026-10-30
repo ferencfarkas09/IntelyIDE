@@ -334,6 +334,9 @@ pub fn run() {
             modules::versions::versions_scan,
             modules::versions::versions_plan,
             modules::versions::versions_apply,
+            modules::vibe::vibe_mask_text,
+            modules::vibe::vibe_setup_checks,
+            modules::vibe::vibe_project_notes,
             // ==== alpha attachments commands ====
             modules::attachments::attachment_import_bytes,
             modules::attachments::attachment_import_paths,

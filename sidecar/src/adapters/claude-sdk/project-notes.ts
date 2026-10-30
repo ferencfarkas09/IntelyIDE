@@ -53,20 +53,68 @@ export function claudeConfigDir(env: NotesOptions['env'] = process.env): string 
   return e.CLAUDE_CONFIG_DIR?.trim() || path.join(e.HOME?.trim() || os.homedir(), '.claude');
 }
 
+/** One file a run is told: the text as it goes into the prompt (before trimming), and whether a cap cut it. */
+export type NoteFile = { scope: 'user' | 'project'; dirIndex: number | null; rel: string; path: string; text: string; shortened: boolean };
+
+/** At most `room` UTF-16 units of `text`, never ending inside a surrogate pair (a lone half would be a broken character). */
+export function cutUnits(text: string, room: number): string {
+  if (text.length <= room) return text;
+  const cut = text.slice(0, room);
+  const last = cut.charCodeAt(cut.length - 1);
+  return last >= 0xd800 && last <= 0xdbff ? cut.slice(0, -1) : cut;
+}
+
+/** The user's own global CLAUDE.md as a file of the plan, or null (missing, empty, a symlink, unreadable). */
+function userFile(env?: NotesOptions['env']): NoteFile | null {
+  try {
+    const dir = fs.realpathSync(claudeConfigDir(env));
+    const got = readOne(dir, 'CLAUDE.md', USER_MEMORY_MAX_BYTES, true);
+    if (!got || !got.text.trim()) return null;
+    return { scope: 'user', dirIndex: null, rel: 'CLAUDE.md', path: path.join(dir, 'CLAUDE.md'), text: got.text, shortened: got.truncated };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The files a run in `runDirs` is told, in order: the user's global CLAUDE.md first (unless switched off), then the files of
+ * each directory, visited once, until [`PROJECT_TOTAL_MAX_BYTES`] (counted in UTF-16 units) is used up. The IDE's Project
+ * notes panel mirrors this in `crates/files/src/claude_notes.rs`; `fixtures/claude-notes/cases.json` is checked by both.
+ */
+export function instructionFiles(runDirs: readonly string[], opts: NotesOptions = {}): NoteFile[] {
+  const user = opts.includeUserMemory === false ? null : userFile(opts.env);
+  const out: NoteFile[] = user ? [user] : [];
+  const seen = new Set<string>();
+  let total = user ? user.text.length : 0;
+  runDirs.forEach((dir, dirIndex) => {
+    let root: string;
+    try { root = fs.realpathSync(dir); } catch { return; }
+    if (seen.has(root)) return;
+    seen.add(root);
+    for (const rel of FILES) {
+      if (total >= PROJECT_TOTAL_MAX_BYTES) break;
+      const got = readOne(root, rel);
+      if (!got) continue;
+      const text = cutUnits(got.text, PROJECT_TOTAL_MAX_BYTES - total);
+      total += text.length;
+      out.push({ scope: 'project', dirIndex, rel, path: path.join(root, rel), text, shortened: got.truncated || text.length < got.text.length });
+    }
+  });
+  return out;
+}
+
 /**
  * The user's own `CLAUDE.md` of the Claude config directory (what the Claude Code plugin always sees) as a prompt block, or ''. Read-only,
  * at most [`USER_MEMORY_MAX_BYTES`], a symlink is refused (also one that points out of the directory), `@imports` are not followed.
  */
 export function userMemory(env?: NotesOptions['env']): { block: string; bytes: number } {
-  try {
-    const dir = fs.realpathSync(claudeConfigDir(env));
-    const got = readOne(dir, 'CLAUDE.md', USER_MEMORY_MAX_BYTES, true);
-    if (!got || !got.text.trim()) return { block: '', bytes: 0 };
-    const head = "User instructions. This is the user's own global CLAUDE.md (their personal preferences, valid in every project); follow it like the user's own instructions. A project instruction below wins where the two disagree.";
-    return { block: `${head}\n\n--- ${path.join(dir, 'CLAUDE.md')}${got.truncated ? ' (shortened)' : ''} ---\n${got.text.trim()}`, bytes: got.text.length };
-  } catch {
-    return { block: '', bytes: 0 };
-  }
+  return userBlock(userFile(env));
+}
+
+function userBlock(f: NoteFile | null): { block: string; bytes: number } {
+  if (!f) return { block: '', bytes: 0 };
+  const head = "User instructions. This is the user's own global CLAUDE.md (their personal preferences, valid in every project); follow it like the user's own instructions. A project instruction below wins where the two disagree.";
+  return { block: `${head}\n\n--- ${f.path}${f.shortened ? ' (shortened)' : ''} ---\n${f.text.trim()}`, bytes: f.text.length };
 }
 
 /**
@@ -75,26 +123,9 @@ export function userMemory(env?: NotesOptions['env']): { block: string; bytes: n
  * path stays inside its directory.
  */
 export function projectInstructions(runDirs: readonly string[], opts: NotesOptions = {}): string {
-  const user = opts.includeUserMemory === false ? { block: '', bytes: 0 } : userMemory(opts.env);
-  const seen = new Set<string>();
-  const parts: string[] = [];
-  let total = user.bytes;
-  for (const dir of runDirs) {
-    let root: string;
-    try { root = fs.realpathSync(dir); } catch { continue; }
-    if (seen.has(root)) continue;
-    seen.add(root);
-    for (const rel of FILES) {
-      if (total >= PROJECT_TOTAL_MAX_BYTES) break;
-      const got = readOne(root, rel);
-      if (!got) continue;
-      const room = PROJECT_TOTAL_MAX_BYTES - total;
-      const text = got.text.length > room ? got.text.slice(0, room) : got.text;
-      const cut = got.truncated || text.length < got.text.length;
-      total += text.length;
-      parts.push(`--- ${path.join(root, rel)}${cut ? ' (shortened)' : ''} ---\n${text.trim()}`);
-    }
-  }
+  const files = instructionFiles(runDirs, opts);
+  const user = userBlock(files[0]?.scope === 'user' ? files[0] : null);
+  const parts = files.filter((f) => f.scope === 'project').map((f) => `--- ${f.path}${f.shortened ? ' (shortened)' : ''} ---\n${f.text.trim()}`);
   const project = parts.length
     ? `Project instructions. These are the CLAUDE.md files of this run's directories; follow them like the user's own instructions.\n\n${parts.join('\n\n')}`
     : '';

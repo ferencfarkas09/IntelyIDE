@@ -1,4 +1,5 @@
 import { createEffect, createMemo, createSignal, For, on, onCleanup, onMount, Show } from "solid-js";
+import { SendToAgentMenu } from "../../components/SendToAgentMenu";
 import { t } from "../../i18n";
 import { repoName } from "../../store/actions";
 import { checkedFiles } from "../../store/selection";
@@ -110,6 +111,9 @@ function RepoChecks(props: { target: Target; access: ProcessAccess | undefined }
                     <Show when={r().status !== "running" && r().durationMs}> <span class="ui-tnum">{formatDuration(r().durationMs)}</span></Show>
                   </button>
                 )}
+              </Show>
+              <Show when={run()?.status === "failed"}>
+                <SendToAgentMenu collect={() => ({ kind: "check", text: logOf(run()!.id).slice(-150).join("\n"), repoId: props.target.repoId, extra: `Check: ${c.label}\nCommand: ${c.runner}\nExit code: ${run()!.exitCode ?? "unknown"}\nFiles checked: ${props.target.paths.slice(0, 20).join(", ")}` })} />
               </Show>
               <Show
                 when={running()}

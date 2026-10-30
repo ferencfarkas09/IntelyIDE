@@ -1,0 +1,26 @@
+/* Project notes panel. Tokens only. */
+.pnotes { display: flex; flex-direction: column; gap: var(--space-3); height: 100%; padding: var(--space-3); overflow: auto; background: var(--surface-1); color: var(--text-1); box-sizing: border-box; }
+.pnotes__bar { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.pnotes__repos { display: flex; gap: 4px; flex-wrap: wrap; flex: 1 1 auto; min-width: 0; }
+.pnotes__repo { display: inline-flex; align-items: center; gap: 6px; max-width: 220px; height: var(--control-sm); padding: 0 var(--space-2); border: 0; border-radius: var(--radius-2); background: transparent; color: var(--text-2); font: inherit; font-size: var(--text-sm); cursor: pointer; transition: background var(--dur-fast) var(--ease); }
+.pnotes__repo:hover { background: var(--surface-hover); }
+.pnotes__repo[aria-selected="true"] { background: var(--surface-selected); color: var(--text-1); }
+.pnotes__repo:focus-visible, .pnotes__toldhead:focus-visible { outline: 2px solid var(--focus-color); outline-offset: 1px; }
+.pnotes__lead { margin: 0; color: var(--text-2); font-size: var(--text-sm); }
+.pnotes__card { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3); border-radius: var(--radius-3); background: var(--surface-0); box-shadow: inset 0 0 0 1px var(--border-subtle); }
+.pnotes__h { margin: 0; font-size: var(--text-md); font-weight: var(--weight-semibold); }
+.pnotes__hint { margin: 0; color: var(--text-3); font-size: var(--text-sm); }
+.pnotes__warn { display: flex; align-items: flex-start; gap: 6px; margin: 0; color: var(--warn); font-size: var(--text-sm); overflow-wrap: anywhere; }
+.pnotes__warnings { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.pnotes__row { display: flex; gap: var(--space-1); flex-wrap: wrap; }
+.pnotes__meter { display: grid; grid-template-columns: minmax(80px, 240px) auto auto; align-items: center; gap: var(--space-2); color: var(--text-2); font-size: var(--text-xs); }
+.pnotes__meter[data-level="large"] .pnotes__level { color: var(--warn); }
+.pnotes__meter[data-level="over"] .pnotes__level { color: var(--danger); }
+.pnotes__files { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.pnotes__toldhead { display: flex; align-items: center; gap: var(--space-1); width: 100%; padding: 4px var(--space-1); border: 0; border-radius: var(--radius-2); background: transparent; color: var(--text-1); font: inherit; text-align: start; cursor: pointer; }
+.pnotes__toldhead:hover { background: var(--surface-hover); }
+.pnotes__path { flex: 1 1 auto; min-width: 0; font-size: var(--text-xs); overflow-wrap: anywhere; }
+.pnotes__len { color: var(--text-3); font-size: var(--text-xs); }
+.pnotes__pre { margin: 4px 0 0; padding: var(--space-2); max-height: 320px; overflow: auto; border-radius: var(--radius-2); background: var(--surface-1); box-shadow: inset 0 0 0 1px var(--border-subtle); font-family: var(--font-mono); font-size: var(--text-xs); line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
+.pnotes__pending { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; padding: var(--space-1) var(--space-2); border-radius: var(--radius-2); background: var(--warn-subtle); box-shadow: inset 0 0 0 1px var(--warn-border); font-size: var(--text-sm); }
+.pnotes__pending > span { flex: 1 1 200px; }
