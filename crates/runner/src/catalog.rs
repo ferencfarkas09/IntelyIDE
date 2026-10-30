@@ -197,7 +197,27 @@ pub(crate) fn words(text: &str) -> Vec<String> {
     text.split(|c: char| !c.is_ascii_alphanumeric()).filter(|w| !w.is_empty()).map(str::to_ascii_lowercase).collect()
 }
 
-/// A script together with the scripts it runs through `npm run x` / `pnpm x` style references.
+/// The words of a command line: shell separators (`& | ; ( ) < > ` and `$(`) become spaces, so `npm run ios&&echo` is
+/// `npm run ios echo`; quotes are trimmed and each word is lower-cased.
+fn command_words(text: &str) -> Vec<String> {
+    let spaced: String = text.chars().map(|c| if matches!(c, '&' | '|' | ';' | '(' | ')' | '<' | '>' | '`' | '$' | '{' | '}') { ' ' } else { c }).collect();
+    spaced.split_whitespace().map(|t| t.trim_matches(|c| matches!(c, '"' | '\'' | ',')).to_ascii_lowercase()).filter(|t| !t.is_empty()).collect()
+}
+
+const PACKAGE_MANAGERS: [&str; 4] = ["npm", "pnpm", "yarn", "bun"];
+/// How far after a package manager a script name may stand (`pnpm --filter app ios`, `npm run --silent ios`).
+const REF_WINDOW: usize = 6;
+
+/// The script a word of `npm`'s lifecycle aliases stands for (`npm t` runs `test`).
+fn alias(word: &str) -> &str {
+    match word {
+        "t" | "tst" => "test",
+        other => other,
+    }
+}
+
+/// A script together with the scripts it runs: through `npm run x`, `pnpm x`, `yarn x`, the lifecycle commands (`npm start`,
+/// `npm test`), and the `pre` and `post` hooks that npm runs around any script.
 pub(crate) fn closure(name: &str, scripts: &Scripts) -> String {
     fn walk(name: &str, scripts: &Scripts, depth: usize, seen: &mut HashSet<String>, out: &mut String) {
         if depth > REF_DEPTH || !seen.insert(name.to_owned()) {
@@ -206,10 +226,21 @@ pub(crate) fn closure(name: &str, scripts: &Scripts) -> String {
         let Some(body) = scripts.get(name) else { return };
         out.push_str(body);
         out.push('\n');
+        // npm runs pre<name> and post<name> around the script, and restart is stop, start and their hooks.
+        let mut next: Vec<String> = vec![format!("pre{name}"), format!("post{name}")];
+        if name == "restart" {
+            next.extend(["stop", "start"].map(str::to_owned));
+        }
         for other in scripts.keys() {
             if other != name && references(body, other) {
-                walk(other, scripts, depth + 1, seen, out);
+                next.push(other.clone());
             }
+        }
+        if installs(body) {
+            next.extend(["preinstall", "install", "postinstall", "prepublish", "preprepare", "prepare", "postprepare"].map(str::to_owned));
+        }
+        for n in next {
+            walk(&n, scripts, depth + 1, seen, out);
         }
     }
     let mut out = String::new();
@@ -217,10 +248,22 @@ pub(crate) fn closure(name: &str, scripts: &Scripts) -> String {
     out
 }
 
-/// Whether `body` runs script `other`: `npm run other`, `pnpm run other`, `yarn other`.
+/// Whether `body` runs a package manager's install (which runs the install hooks).
+fn installs(body: &str) -> bool {
+    let toks = command_words(body);
+    toks.iter().enumerate().any(|(i, t)| PACKAGE_MANAGERS.contains(&t.as_str()) && toks[i + 1..].iter().take(REF_WINDOW).any(|w| matches!(w.as_str(), "install" | "i" | "ci" | "add")))
+}
+
+/// Whether `body` runs script `other`: `npm run other` (also with flags between), `pnpm --filter app other`, `yarn workspace app
+/// other`, `npm start`, `npm test`, `run other`.
 fn references(body: &str, other: &str) -> bool {
-    let toks: Vec<&str> = body.split_whitespace().map(|t| t.trim_matches(|c| matches!(c, '"' | '\'' | ';' | ')' | '('))).collect();
-    toks.windows(2).any(|w| matches!(w[0], "run" | "run-script" | "yarn" | "pnpm" | "bun") && w[1] == other)
+    let toks = command_words(body);
+    let other = other.to_ascii_lowercase();
+    toks.iter().enumerate().any(|(i, t)| {
+        let after = &toks[i + 1..];
+        (PACKAGE_MANAGERS.contains(&t.as_str()) && after.iter().take(REF_WINDOW).any(|w| alias(w) == other))
+            || (matches!(t.as_str(), "run" | "run-script") && after.iter().take(REF_WINDOW).find(|w| !w.starts_with('-')).is_some_and(|w| *w == other))
+    })
 }
 
 fn heap_mb(text: &str) -> Option<u32> {
@@ -266,6 +309,29 @@ const LINT_WORDS: [&str; 7] = ["lint", "eslint", "prettier", "format", "typechec
 const BUILD_WORDS: [&str; 17] = [
     "build", "builder", "compile", "bundle", "dist", "pack", "export", "publish", "deploy", "release", "ipa", "aab", "apk", "sign", "analyze", "clean", "rebuild",
 ];
+/// Words that build the native app, or install it on a simulator or device, when they stand alone (`run:ios`, `xcodebuild`).
+const NATIVE_WORDS: [&str; 8] = ["run:ios", "run-ios", "run:android", "run-android", "build-ios", "build-android", "xcodebuild", "fastlane"];
+/// A program followed, within a few words, by a subcommand that starts with one of these: `expo prebuild`, `eas build`, `pod
+/// install`, `gradlew assembleRelease`.
+const NATIVE_PAIRS: [(&[&str], &[&str]); 5] = [
+    (&["expo", "expo-cli"], &["prebuild"]),
+    (&["eas", "eas-cli"], &["build", "submit"]),
+    (&["pod"], &["install", "update"]),
+    (&["gradlew", "gradle", "gradlew.bat"], &["assemble", "bundle", "install", "build", "publish", "upload"]),
+    (&["react-native", "rnc-cli"], &["build-ios", "build-android", "run-ios", "run-android"]),
+];
+
+/// Whether `text` runs a command that builds the native app and installs it on a simulator or device. Such a script is a
+/// build whatever it is called (`ios`, `android`, `device`): it takes minutes, writes `ios/build` or `android/app/build` and
+/// starts an app. Whole words only, after the separators are taken out and a path is cut to its program name.
+fn native_run(text: &str) -> bool {
+    let toks: Vec<String> = command_words(text).into_iter().map(|t| t.rsplit('/').next().unwrap_or("").to_owned()).collect();
+    toks.iter().enumerate().any(|(i, t)| {
+        NATIVE_WORDS.contains(&t.as_str())
+            || NATIVE_PAIRS.iter().any(|(progs, subs)| progs.contains(&t.as_str()) && toks[i + 1..].iter().take(4).filter(|w| !w.starts_with('-')).take(1).any(|w| subs.iter().any(|s| w.starts_with(s))))
+    })
+}
+
 const DEV_WORDS: [&str; 6] = ["dev", "serve", "watch", "web", "local", "nodemon"];
 const DEV_BODY: [&str; 9] = ["expo start", "webpack serve", "webpack-dev-server", "srcwebserver", "srcserver", "next dev", "vite", "nodemon", "react-scripts start"];
 
@@ -287,10 +353,13 @@ fn group_of(name: &str, body: &str, scripts: &Scripts) -> ScriptGroup {
     if has(&BUILD_WORDS) {
         return ScriptGroup::Build;
     }
+    let body_lower = body.to_ascii_lowercase();
+    if native_run(&closure(name, scripts)) {
+        return ScriptGroup::Build;
+    }
     if lower.starts_with("start") {
         return ScriptGroup::Start;
     }
-    let body_lower = body.to_ascii_lowercase();
     if has(&DEV_WORDS) || DEV_BODY.iter().any(|h| body_lower.contains(h)) {
         return ScriptGroup::Dev;
     }
@@ -329,6 +398,9 @@ fn reasons_of(name: &str, group: &ScriptGroup, closure_text: &str) -> Vec<String
     }
     if lower_body.contains("npm install") || lower_body.contains("npm i ") || lower_body.contains("yarn install") || lower_body.contains("pnpm install") {
         r.push("installs packages".to_owned());
+    }
+    if native_run(closure_text) {
+        r.push("builds the native app and installs it on a simulator or device".to_owned());
     }
     if *group == ScriptGroup::Build && r.is_empty() {
         r.push("build: writes output and is heavy".to_owned());
@@ -387,6 +459,103 @@ mod tests {
 
     fn find<'a>(c: &'a Catalog, name: &str) -> &'a ScriptInfo {
         c.scripts.iter().find(|s| s.name == name).unwrap_or_else(|| panic!("no script {name}"))
+    }
+
+    #[test]
+    fn scripts_that_build_and_install_the_native_app_are_builds_that_need_a_confirmation() {
+        let pkg = r#"{"scripts":{
+            "start":"expo start","ios":"expo run:ios","android":"react-native run-android",
+            "device":"npm run ios","xcode":"xcodebuild -workspace ios/App.xcworkspace","web":"expo start --web","lint":"eslint . && expo run:ios"
+        }}"#;
+        let dir = repo(&[("package.json", pkg)]);
+        let c = catalog("r", dir.path()).unwrap();
+        for name in ["ios", "android", "device", "xcode"] {
+            let s = find(&c, name);
+            assert_eq!((s.group.clone(), s.safety.clone(), s.forbidden_to_agents), (ScriptGroup::Build, Safety::Confirm, true), "{name}");
+            assert!(s.reasons.iter().any(|r| r.contains("simulator or device")) || name == "device" || name == "xcode", "{name}: {:?}", s.reasons);
+        }
+        assert_eq!(find(&c, "start").safety, Safety::Normal);
+        assert_eq!(find(&c, "web").safety, Safety::Normal);
+        assert_eq!(find(&c, "lint").group, ScriptGroup::Lint, "the name still wins for lint and test scripts");
+    }
+
+    fn safety_of(scripts: &[(&str, &str)], name: &str) -> (ScriptGroup, Safety) {
+        let body: serde_json::Map<String, serde_json::Value> = scripts.iter().map(|(k, v)| ((*k).to_owned(), serde_json::Value::String((*v).to_owned()))).collect();
+        let pkg = serde_json::json!({ "scripts": body }).to_string();
+        let dir = repo(&[("package.json", pkg.as_str())]);
+        let c = catalog("r", dir.path()).unwrap();
+        let s = find(&c, name);
+        (s.group.clone(), s.safety.clone())
+    }
+
+    /// Everything that ends in a native build or install must need a confirmation, however the script reaches it.
+    #[test]
+    fn native_builds_need_a_confirmation_however_they_are_reached() {
+        let build = ("expo run:ios", "ios");
+        let cases: &[(&[(&str, &str)], &str)] = &[
+            (&[("go", "npm start"), ("start", "expo run:ios")], "go"),
+            (&[("go", "npm test"), ("test", "expo run:ios")], "go"),
+            (&[("go", "npm t"), ("test", "expo run:ios")], "go"),
+            (&[("go", "npm run -s ios"), ("ios", build.0)], "go"),
+            (&[("go", "npm run --silent ios"), ("ios", build.0)], "go"),
+            (&[("go", "npm run ios&&echo done"), ("ios", build.0)], "go"),
+            (&[("go", "npm run ios||true"), ("ios", build.0)], "go"),
+            (&[("go", "npm run ios|tee out.log"), ("ios", build.0)], "go"),
+            (&[("go", "echo `npm run ios`"), ("ios", build.0)], "go"),
+            (&[("go", "echo $(npm run ios)"), ("ios", build.0)], "go"),
+            (&[("go", "(npm run ios)"), ("ios", build.0)], "go"),
+            (&[("go", "pnpm --filter app ios"), ("ios", build.0)], "go"),
+            (&[("go", "yarn workspace app ios"), ("ios", build.0)], "go"),
+            (&[("go", "npm run ios -- --device"), ("ios", build.0)], "go"),
+            (&[("ios", "echo"), ("preios", "expo run:ios")], "ios"),
+            (&[("ios", "echo"), ("postios", "xcodebuild -scheme App")], "ios"),
+            (&[("test", "jest"), ("pretest", "expo run:ios")], "test"),
+            (&[("start", "node server.js"), ("prestart", "expo run:android")], "start"),
+            (&[("restart", "echo"), ("stop", "expo run:ios")], "restart"),
+            (&[("a", "expo  prebuild")], "a"),
+            (&[("a", "expo\tprebuild --clean")], "a"),
+            (&[("a", "expo-cli prebuild")], "a"),
+            (&[("a", "npx expo prebuild")], "a"),
+            (&[("a", "react-native build-android")], "a"),
+            (&[("a", "react-native build-ios")], "a"),
+            (&[("a", "cd ios && pod install")], "a"),
+            (&[("a", "cd android && ./gradlew assembleRelease")], "a"),
+            (&[("a", "./gradlew bundleRelease")], "a"),
+            (&[("a", "android/gradlew installDebug")], "a"),
+            (&[("a", "fastlane beta")], "a"),
+            (&[("a", "eas build -p ios")], "a"),
+            (&[("a", "eas submit")], "a"),
+            (&[("a", "./node_modules/.bin/xcodebuild -scheme App")], "a"),
+            (&[("a", "EXPO_DEBUG=1 expo run:ios")], "a"),
+        ];
+        for (scripts, name) in cases {
+            let (_, safety) = safety_of(scripts, name);
+            assert_eq!(safety, Safety::Confirm, "{scripts:?} -> {name}");
+        }
+    }
+
+    #[test]
+    fn ordinary_scripts_stay_normal() {
+        let cases: &[(&[(&str, &str)], &str)] = &[
+            (&[("test", "jest")], "test"),
+            (&[("test", "jest --testPathPattern=prerun:iosx")], "test"),
+            (&[("lint", "eslint . && tsc --noEmit")], "lint"),
+            (&[("start", "expo start")], "start"),
+            (&[("start", "react-native start --reset-cache")], "start"),
+            (&[("web", "expo start --web")], "web"),
+            (&[("dev", "vite")], "dev"),
+            (&[("go", "npm start"), ("start", "expo start")], "go"),
+            (&[("go", "npm run -s lint"), ("lint", "eslint .")], "go"),
+            (&[("check", "npm test && npm run lint"), ("test", "jest"), ("lint", "eslint .")], "check"),
+            (&[("a", "echo run:iosx")], "a"),
+            (&[("a", "cat ./gradlewrapper.md")], "a"),
+            (&[("a", "pod --version")], "a"),
+        ];
+        for (scripts, name) in cases {
+            let (group, safety) = safety_of(scripts, name);
+            assert_eq!(safety, Safety::Normal, "{scripts:?} -> {name}");
+            assert_ne!(group, ScriptGroup::Build, "{scripts:?} -> {name}");
+        }
     }
 
     #[test]

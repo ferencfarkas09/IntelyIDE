@@ -1,0 +1,7 @@
+List of devices attached
+; rm -rf /          device
+-s                  device
+emulator-5554
+          
+adb server version (41) doesn't match this client (40); killing...
+ok-serial device model:$(touch_x)

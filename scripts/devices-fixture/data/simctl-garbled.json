@@ -1,0 +1,1 @@
+{"devices": {"com.apple.CoreSimulator.SimRuntime.iOS-17-5": [{"udid": "not-a-udid; rm -rf ~", "name": "evil"}, {"udid": "6D0F0B7E-1A2B-4C3D-8E4F-5A6B7C8D9E01", "name": 42}, 7, null, {"udid": "6D0F0B7E-1A2B-4C3D-8E4F-5A6B7C8D9E09", "name": "ok\u001b[31m\u0007 name", "state": "Booted"}], "com.apple.CoreSimulator.SimRuntime.iOS-../../x": [], "x": 1}, "foo": 1}

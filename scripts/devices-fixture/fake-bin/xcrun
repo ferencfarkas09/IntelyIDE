@@ -1,0 +1,15 @@
+#!/bin/sh
+# Fake xcrun: `simctl list devices available -j`, `simctl boot|shutdown <udid>`, `simctl spawn <udid> log stream ...`.
+D=$(cd "$(dirname "$0")/.." && pwd)
+[ -n "$FAKE_DEVICES_LOG" ] && echo "xcrun $*" >> "$FAKE_DEVICES_LOG"
+MODE=${FAKE_MODE:-ok}
+[ "$MODE" = hang ] && exec sleep 600
+[ "$MODE" = fail ] && { echo "xcrun: error: unable to find utility \"simctl\"" >&2; exit 1; }
+[ "$1" = simctl ] || exit 64
+case "$2" in
+  list) case "$MODE" in empty) echo '{"devices":{}}' ;; garbled) cat "$D/data/simctl-garbled.json" ;; *) cat "$D/data/simctl.json" ;; esac ;;
+  boot) [ "$MODE" = booted ] && { echo "Unable to boot device in current state: Booted" >&2; exit 149; }; exit 0 ;;
+  shutdown) exit 0 ;;
+  spawn) sed "s/@@TOKEN@@/ghp_$(printf 'x%.0s' $(seq 1 36))/" "$D/data/ios-log.txt" ;;
+  *) exit 64 ;;
+esac

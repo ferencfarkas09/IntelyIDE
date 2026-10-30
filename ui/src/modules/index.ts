@@ -42,6 +42,7 @@ import { register as providers } from "./providers";
 import { register as release } from "./release";
 import { register as versions } from "./versions";
 import { register as runpicker } from "./runpicker";
+import { register as reactnative } from "./reactnative";
 import { register as remote } from "./remote";
 import { register as roles } from "./roles";
 import { register as run } from "./run";
@@ -89,6 +90,7 @@ export const MODULES: readonly FeatureModule[] = [
   { id: "release", register: release },
   { id: "versions", register: versions },
   { id: "runpicker", register: runpicker },
+  { id: "reactnative", register: reactnative },
   { id: "remote", register: remote },
   { id: "viewers", register: viewers },
   { id: "hud", register: hud },

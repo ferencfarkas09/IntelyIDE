@@ -447,6 +447,14 @@ impl RunManager {
         server.info(&live).url
     }
 
+    /// The listening ports that `lsof` found for the server's process tree. Unlike `ServerInfo.ports`, a port the script merely
+    /// printed never shows up here, so a caller that acts on a port (the Reload button) can trust it.
+    pub fn confirmed_ports(&self, id: &str) -> Vec<u16> {
+        let Ok(server) = self.find(id) else { return Vec::new() };
+        let live = lock(&server.live);
+        live.lsof_ports.clone()
+    }
+
     /// Lines with `seq >= from_seq`.
     pub fn logs(&self, id: &str, from_seq: u32) -> Result<LogChunk, EngineError> {
         let server = self.find(id)?;

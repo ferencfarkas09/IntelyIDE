@@ -1,0 +1,5 @@
+../../etc/passwd
+--help
+Pixel 7; reboot
+Good_One
+Good_One

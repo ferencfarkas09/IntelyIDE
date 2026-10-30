@@ -51,19 +51,20 @@ import enSafetyPresets from "./locales/en/safetyPresets.json";
 import enCheckpoints from "./locales/en/checkpoints.json";
 import enAutotest from "./locales/en/autotest.json";
 import enRunSummary from "./locales/en/runSummary.json";
+import enReactnative from "./locales/en/reactnative.json";
 import { compile, formatNodes, formatNumber, formatRelative, pseudoLocalize, type Params } from "./message";
 import { PSEUDO_LOCALE, detectLanguage, fallbackChain, isReviewed, isRtl, isSupported, languageName } from "./languages";
 
 export { LANGUAGES, PSEUDO_LOCALE, detectLanguage, fallbackChain, isReviewed, isRtl, isSupported, languageInfo, languageName, matchLanguage, pickerLanguages } from "./languages";
 export type { Params } from "./message";
 
-const en = { ...enPlatform, ...enShell, ...enSettings, ...enAbout, ...enComponents, ...enPanels, ...enWorkflow, ...enExtras, ...enPreview, ...enGitx, ...enAgentux, ...enProviders, ...enContract, ...enMongo, ...enMongoStudio, ...enMongoLoud, ...enMongoForm, ...enMongoDiag, ...enMongoManage, ...enLicenses, ...enWorkspace, ...enWorkspaceNew, ...enWorkspacePicker, ...enHappy, ...enModes, ...enMcp, ...enUpdates, ...enMemory, ...enNotes, ...enUsage, ...enSentry, ...enTeam, ...enServerview, ...enSlash, ...enGlass, ...enDashboard, ...enRunpicker, ...enPrompts, ...enSendToAgent, ...enProjectNotes, ...enSetupDoctor, ...enSafetyPresets, ...enCheckpoints, ...enAutotest, ...enRunSummary };
+const en = { ...enPlatform, ...enShell, ...enSettings, ...enAbout, ...enComponents, ...enPanels, ...enWorkflow, ...enExtras, ...enPreview, ...enGitx, ...enAgentux, ...enProviders, ...enContract, ...enMongo, ...enMongoStudio, ...enMongoLoud, ...enMongoForm, ...enMongoDiag, ...enMongoManage, ...enLicenses, ...enWorkspace, ...enWorkspaceNew, ...enWorkspacePicker, ...enHappy, ...enModes, ...enMcp, ...enUpdates, ...enMemory, ...enNotes, ...enUsage, ...enSentry, ...enTeam, ...enServerview, ...enSlash, ...enGlass, ...enDashboard, ...enRunpicker, ...enPrompts, ...enSendToAgent, ...enProjectNotes, ...enSetupDoctor, ...enSafetyPresets, ...enCheckpoints, ...enAutotest, ...enRunSummary, ...enReactnative };
 export type MessageKey = keyof typeof en;
 export type Locale = string;
 export type Catalog = Record<string, string>;
 
 /** Namespaces = catalog files. The checker and the extract script read this list, so a new module adds its name here. */
-export const NAMESPACES = ["platform", "shell", "settings", "about", "components", "panels", "workflow", "extras", "preview", "gitx", "agentux", "providers", "contract", "mongo", "mongoStudio", "mongoLoud", "mongoForm", "mongoDiag", "mongoManage", "licenses", "workspace", "workspaceNew", "workspacePicker", "happy", "modes", "mcp", "updates", "memory", "notes", "usage", "sentry", "team", "serverview", "slash", "glass", "dashboard", "runpicker", "prompts", "sendToAgent", "projectNotes", "setupDoctor", "safetyPresets", "checkpoints", "autotest", "runSummary"] as const;
+export const NAMESPACES = ["platform", "shell", "settings", "about", "components", "panels", "workflow", "extras", "preview", "gitx", "agentux", "providers", "contract", "mongo", "mongoStudio", "mongoLoud", "mongoForm", "mongoDiag", "mongoManage", "licenses", "workspace", "workspaceNew", "workspacePicker", "happy", "modes", "mcp", "updates", "memory", "notes", "usage", "sentry", "team", "serverview", "slash", "glass", "dashboard", "runpicker", "prompts", "sendToAgent", "projectNotes", "setupDoctor", "safetyPresets", "checkpoints", "autotest", "runSummary", "reactnative"] as const;
 
 export const LOCALE_STORAGE_KEY = "intely.locale";
 

@@ -1,0 +1,6 @@
+--------- beginning of main
+05-01 10:00:00.100  1234  5678 I ReactNativeJS: Running "MyApp" with {"rootTag":1}
+05-01 10:00:01.200  1234  5678 W ReactNativeJS: Require cycle: a.js -> b.js
+05-01 10:00:02.300  1234  5678 E ReactNativeJS: TypeError: undefined is not a function
+05-01 10:00:03.400  1234  1234 E AndroidRuntime: FATAL EXCEPTION: mqt_native_modules
+05-01 10:00:04.500  1234  1234 F libc    : Fatal signal 11 (SIGSEGV), code 1 (SEGV_MAPERR), fault addr 0x0 in tid 1234 (mqt_js)
