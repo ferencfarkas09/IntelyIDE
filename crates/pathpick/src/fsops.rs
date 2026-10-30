@@ -175,8 +175,43 @@ impl FsOps for FakeFs {
     }
 }
 
-/// The mount a path lives on, as far as the guard cares: `/Volumes/<name>` or the boot volume.
+/// The mount a path lives on, as far as the guard cares: `/Volumes/<name>` or the boot volume. On Windows the drive (`C:`) or
+/// the share (`\\server\share`), so one dead share or mapped drive breaks only itself, never `C:`.
 pub fn mount_key(path: &Path) -> String {
+    if cfg!(windows) {
+        return windows_mount_key(&path.to_string_lossy());
+    }
+    unix_mount_key(path)
+}
+
+/// [`mount_key`] for a Windows path, from its text so it is tested on every platform: the drive letter in upper case, or
+/// `\\server\share` in lower case (also behind the `\\?\` and `\\?\UNC\` prefixes and with `/` separators).
+pub fn windows_mount_key(path: &str) -> String {
+    let p = path.replace('/', "\\");
+    let rest = if let Some(r) = p.strip_prefix(r"\\?\UNC\").or_else(|| p.strip_prefix(r"\\.\UNC\")) {
+        format!(r"\\{r}")
+    } else if let Some(r) = p.strip_prefix(r"\\?\").or_else(|| p.strip_prefix(r"\\.\")) {
+        r.to_owned()
+    } else {
+        p
+    };
+    let b = rest.as_bytes();
+    if b.len() >= 2 && b[0].is_ascii_alphabetic() && b[1] == b':' {
+        return format!("{}:", (b[0] as char).to_ascii_uppercase());
+    }
+    if let Some(unc) = rest.strip_prefix(r"\\") {
+        let mut parts = unc.split('\\').filter(|s| !s.is_empty());
+        if let (Some(server), Some(share)) = (parts.next(), parts.next()) {
+            return format!(r"\\{}\{}", server.to_lowercase(), share.to_lowercase());
+        }
+        if let Some(server) = unc.split('\\').find(|s| !s.is_empty()) {
+            return format!(r"\\{}", server.to_lowercase());
+        }
+    }
+    "\\".to_owned()
+}
+
+fn unix_mount_key(path: &Path) -> String {
     let mut comps = path.components();
     let _root = comps.next();
     match (comps.next().and_then(|c| c.as_os_str().to_str()), comps.next().and_then(|c| c.as_os_str().to_str())) {

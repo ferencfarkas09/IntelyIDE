@@ -329,6 +329,20 @@ button.ui-pill:active { background: var(--surface-4); }
 }
 .ui-titlebar__spacer { flex: none; width: var(--traffic-lights-w); height: 100%; }
 .ui-titlebar[data-fullscreen] .ui-titlebar__spacer { width: var(--space-3); }
+/* Only macOS has traffic lights in the bar: elsewhere the gap is the same small margin as in full screen. */
+:root[data-platform="windows"] .ui-titlebar__spacer,
+:root[data-platform="linux"] .ui-titlebar__spacer { width: var(--space-3); }
+/* Windows: the bar is the window's only title bar (no native frame), so it ends in the system buttons. */
+:root[data-platform="windows"] .ui-titlebar { padding-inline-end: 0; }
+.ui-window-controls { display: flex; align-self: stretch; flex: none; margin-inline-start: 8px; }
+.ui-window-controls__btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 46px; height: 100%; padding: 0; border: 0; border-radius: 0;
+  background: transparent; color: var(--text-2); cursor: default;
+}
+.ui-window-controls__btn:hover { background: var(--surface-hover); color: var(--text-1); }
+.ui-window-controls__btn[data-kind="close"]:hover { background: var(--danger-solid); color: var(--text-on-accent); }
+.ui-window-controls__btn:focus-visible { outline: var(--focus-width) solid var(--focus-color); outline-offset: -2px; }
 .ui-titlebar__slot { display: flex; align-items: center; gap: 8px; min-width: 0; height: 100%; }
 .ui-titlebar__slot[data-slot="left"] { flex: 0 1 auto; }
 .ui-titlebar__slot[data-slot="center"] { flex: 1 1 auto; overflow: hidden; }

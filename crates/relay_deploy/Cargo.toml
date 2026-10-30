@@ -11,6 +11,7 @@ publish = false
 name = "intely_relay_deploy"
 
 [dependencies]
+getrandom = "0.4.3"
 hex = "0.4.3"
 intely-core = { version = "0.0.0", path = "../core" }
 intely-relay-bundle = { version = "0.0.0", path = "../relay_bundle" }

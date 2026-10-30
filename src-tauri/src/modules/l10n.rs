@@ -103,6 +103,7 @@ pub(crate) fn run_claude_at(bin: Option<PathBuf>, path: Option<&str>, model: &st
     // a folder of its own that did not exist before (never someone else's), private to this user
     let nonce = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_nanos());
     let dir = std::env::temp_dir().join(format!("intely-claude-{}-{}-{nonce:x}", std::process::id(), CALLS.fetch_add(1, Ordering::Relaxed)));
+    #[cfg_attr(not(unix), allow(unused_mut))]
     let mut builder = std::fs::DirBuilder::new();
     #[cfg(unix)]
     std::os::unix::fs::DirBuilderExt::mode(&mut builder, 0o700);

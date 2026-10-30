@@ -1779,7 +1779,7 @@ impl Inner {
                 weakest = Some(chip);
             }
         }
-        weakest.unwrap_or(EnforcementChip { tier: Tier::Weak, run: None })
+        capped_for_platform(weakest.unwrap_or(EnforcementChip { tier: Tier::Weak, run: None }), cfg!(windows))
     }
 
     /// The tier a role of this mode earns on its provider, computed from recorded suites only (unknown = weak).
@@ -2244,7 +2244,13 @@ impl Inner {
             Some(env) => self.upload_remote_shim(env, agent_id)?,
             None => {
                 let shim_dir = self.cfg.data_dir.join("shims").join(agent_id);
-                shim::generate(&shim_dir, &self.cfg.git).map_err(|e| err("shim", format!("cannot prepare the git guard: {e}")))?.dir.to_string_lossy().into_owned()
+                let guard = shim::generate(&shim_dir, &self.cfg.git).map_err(|e| err("shim", format!("cannot prepare the git guard: {e}")))?;
+                // Windows: without git.cmd (no Git Bash next to git.exe, or a path a batch file cannot quote) cmd and PowerShell reach
+                // the real git; said in the log of every such run and in the enforcement chip (docs/install-windows.md)
+                if cfg!(windows) && guard.cmd.is_none() {
+                    eprintln!("agent host: no git.cmd for {agent_id}: the git guard does not cover cmd and PowerShell in this run (no Git Bash found next to {})", self.cfg.git.display());
+                }
+                guard.dir.to_string_lossy().into_owned()
             }
         };
         let (cwd, add_dirs) = match &remote_target {
@@ -3221,4 +3227,34 @@ pub fn repo_files(git: &Path, repo: &Path, query: &str, limit: usize) -> Vec<Str
         .collect();
     hits.sort();
     hits.into_iter().take(limit).map(|(_, _, p)| p).collect()
+}
+
+/// The highest tier a chip may show on Windows (mirrors `WINDOWS_MAX_TIER` in ui/src/modules/providers/enforcement.ts). The git
+/// guard there is a Git Bash script that git.exe by its full path or a direct CreateProcess bypasses, and no sandbox or
+/// process-tree watch backs a run up (docs/install-windows.md). Applied where every chip is computed, so the run header,
+/// Settings and the provider gate (`check_provider_gate`) all see the capped tier, not only the New run dialog.
+pub(crate) const WINDOWS_MAX_TIER: Tier = Tier::BestEffort;
+
+/// `chip` with its tier lowered to [`WINDOWS_MAX_TIER`] when `windows`; the recorded run stays attached as evidence.
+pub(crate) fn capped_for_platform(mut chip: EnforcementChip, windows: bool) -> EnforcementChip {
+    if windows && chip.tier > WINDOWS_MAX_TIER {
+        chip.tier = WINDOWS_MAX_TIER;
+    }
+    chip
+}
+
+#[cfg(test)]
+mod platform_cap_tests {
+    use super::*;
+
+    #[test]
+    fn on_windows_no_chip_reads_above_best_effort_and_elsewhere_nothing_changes() {
+        for tier in [Tier::Weak, Tier::BestEffort, Tier::Strong, Tier::Structural] {
+            let chip = || EnforcementChip { tier, run: None };
+            assert_eq!(capped_for_platform(chip(), false).tier, tier, "macOS and Linux keep {tier:?}");
+            assert_eq!(capped_for_platform(chip(), true).tier, tier.min(Tier::BestEffort), "Windows caps {tier:?}");
+        }
+        // the gate's rule: a non-Claude write role needs Strong, which a capped Windows chip never reaches
+        assert!(capped_for_platform(EnforcementChip { tier: Tier::Structural, run: None }, true).tier < Tier::Strong);
+    }
 }

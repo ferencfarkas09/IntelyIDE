@@ -8,7 +8,7 @@ import { LocationChip } from "../../modules/servers/LocationChip";
 import { ProviderMark } from "../../modules/providers/ProviderMark";
 import { Badge, FileSearch, IconButton, RepoBadge, Rewind, ShieldCheck, Square, StatusDot, Tooltip } from "../../ui-kit";
 import { t, type MessageKey } from "../../i18n";
-import { costLabel, effortChip, fmtTokens, modelLabel, TIER_LABEL, TIER_TITLE, TIER_TONE } from "./format";
+import { costLabel, effortChip, fmtTokens, modelLabel, platformTier, TIER_LABEL, TIER_TITLE, TIER_TONE } from "./format";
 import { McpChip } from "./McpChip";
 import { ModeChip } from "./ModeChip";
 import { HeaderShare } from "../../modules/team/RunShare";
@@ -28,9 +28,11 @@ export function RunHeader(props: { agent: AgentRow; stopping: boolean; onInterru
   const a = () => props.agent;
   const effort = () => effortChip(a());
   const cost = () => costLabel(a().usage, a().caps.usage);
+  // the backend already caps the tier on Windows; the UI does too, so an older backend cannot show more than it may
+  const tier = () => platformTier(a().enforcement);
   const tierTitle = () => {
     const sandbox = a().caps.sandbox;
-    return sandbox.cap !== "yes" && sandbox.note ? t("chat.header.sandbox", { title: TIER_TITLE[a().enforcement], note: sandbox.note }) : TIER_TITLE[a().enforcement];
+    return sandbox.cap !== "yes" && sandbox.note ? t("chat.header.sandbox", { title: TIER_TITLE[tier()], note: sandbox.note }) : TIER_TITLE[tier()];
   };
   const active = () => a().status === "running" || a().status === "needsYou";
   // A run of another workspace is read-only: Rewind would overwrite folders this workspace does not hold.
@@ -103,9 +105,9 @@ export function RunHeader(props: { agent: AgentRow; stopping: boolean; onInterru
         <ModeChip agent={a()} />
         <McpChip agent={a()} />
         <Tooltip label={tierTitle()}>
-          <span class="run-header__tier" tabindex="0" role="note" aria-label={t("chat.header.enforcementAria", { tier: TIER_LABEL[a().enforcement], title: tierTitle() })}>
-            <Badge tone={TIER_TONE[a().enforcement]} icon={ShieldCheck} variant="outline">
-              {t("chat.header.enforcement", { tier: TIER_LABEL[a().enforcement] })}
+          <span class="run-header__tier" tabindex="0" role="note" aria-label={t("chat.header.enforcementAria", { tier: TIER_LABEL[tier()], title: tierTitle() })}>
+            <Badge tone={TIER_TONE[tier()]} icon={ShieldCheck} variant="outline">
+              {t("chat.header.enforcement", { tier: TIER_LABEL[tier()] })}
             </Badge>
           </span>
         </Tooltip>

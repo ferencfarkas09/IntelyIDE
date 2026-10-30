@@ -268,14 +268,37 @@ impl HostConfig {
 const ALLOWED_ENV: &[&str] =
     &["PATH", "HOME", "USER", "LOGNAME", "SHELL", "TERM", "TMPDIR", "LANG", "NVM_DIR", "GNUPGHOME", "CLAUDE_CONFIG_DIR", "NODE_EXTRA_CA_CERTS", "SSL_CERT_FILE", "SSL_CERT_DIR"];
 
-fn allowed(name: &str) -> bool {
-    ALLOWED_ENV.contains(&name) || name.starts_with("LC_")
+/// The name under which `name` survives, or `None`. On Windows the platform list ([`intely_core::env::WINDOWS_ENV`])
+/// is added and names match without case (`Path` arrives as `PATH`); a parameter so both rules are tested everywhere.
+fn allowed_as(name: &str, windows: bool) -> Option<String> {
+    if windows {
+        if let Some(n) = intely_core::env::windows_env_name(name) {
+            return Some(n.to_owned());
+        }
+    }
+    (ALLOWED_ENV.contains(&name) || name.starts_with("LC_")).then(|| name.to_owned())
 }
 
 /// The environment of the sidecar process and the base of the agents' environment: nothing from the IDE process,
 /// only the allow-listed login-shell variables.
 pub fn scrub_env(vars: &HashMap<String, String>) -> BTreeMap<String, String> {
-    vars.iter().filter(|(k, _)| allowed(k)).map(|(k, v)| (k.clone(), v.clone())).collect()
+    scrub_env_for(vars, cfg!(windows), |k| std::env::var(k).ok())
+}
+
+/// On Windows the system variables of [`intely_core::env::WINDOWS_ENV`] that `vars` lacks are taken from `fallback` (the IDE
+/// process): Node exits at once without `SystemRoot`, and none of them is a secret. Never `PATH` or anything else.
+fn scrub_env_for(vars: &HashMap<String, String>, windows: bool, fallback: impl Fn(&str) -> Option<String>) -> BTreeMap<String, String> {
+    let mut out = intely_core::env::fold_env(vars.iter().map(|(k, v)| (k.as_str(), v.as_str())), |k| allowed_as(k, windows));
+    if windows {
+        for name in intely_core::env::WINDOWS_ENV {
+            if !out.contains_key(*name) {
+                if let Some(v) = fallback(name).filter(|v| intely_core::env::windows_env_value_ok(name, v)) {
+                    out.insert((*name).to_owned(), v);
+                }
+            }
+        }
+    }
+    out
 }
 
 /// First executable called `name` on the `PATH` of `vars` (falls back to the process `PATH`).
@@ -351,7 +374,7 @@ mod tests {
         .into_iter()
         .map(|(k, v)| (k.to_string(), v.to_string()))
         .collect();
-        let kept: Vec<String> = scrub_env(&vars).into_keys().collect();
+        let kept: Vec<String> = scrub_env_for(&vars, false, |_| None).into_keys().collect();
         assert_eq!(kept, ["CLAUDE_CONFIG_DIR", "HOME", "LANG", "PATH"]);
     }
 
@@ -363,8 +386,45 @@ mod tests {
         ];
         let mut vars: HashMap<String, String> = canaries.iter().map(|k| (k.to_string(), "CANARY".to_string())).collect();
         vars.extend([("PATH", "/usr/bin"), ("LC_ALL", "C"), ("USER", "u")].map(|(k, v)| (k.to_string(), v.to_string())));
-        let kept = scrub_env(&vars);
+        let kept = scrub_env_for(&vars, false, |_| None);
         assert!(kept.values().all(|v| v != "CANARY"), "{kept:?}");
         assert_eq!(kept.len(), 3);
+    }
+
+    #[test]
+    fn on_windows_the_variables_node_needs_survive_under_their_canonical_names() {
+        let vars: HashMap<String, String> = [
+            ("Path", "C:\\Windows\\system32"),
+            ("SYSTEMROOT", "C:\\Windows"),
+            ("ComSpec", "C:\\Windows\\system32\\cmd.exe"),
+            ("PATHEXT", ".COM;.EXE;.BAT;.CMD"),
+            ("USERPROFILE", "C:\\Users\\u"),
+            ("APPDATA", "C:\\Users\\u\\AppData\\Roaming"),
+            ("LOCALAPPDATA", "C:\\Users\\u\\AppData\\Local"),
+            ("TEMP", "C:\\t"),
+            ("GITHUB_TOKEN", "CANARY"),
+            ("COMPUTERNAME", "CANARY"),
+        ]
+        .into_iter()
+        .map(|(k, v)| (k.to_string(), v.to_string()))
+        .collect();
+        let kept = scrub_env_for(&vars, true, |_| None);
+        assert_eq!(kept.keys().map(String::as_str).collect::<Vec<_>>(), ["APPDATA", "ComSpec", "LOCALAPPDATA", "PATH", "PATHEXT", "SystemRoot", "TEMP", "USERPROFILE"]);
+        assert!(kept.values().all(|v| v != "CANARY"));
+        let mac = scrub_env_for(&vars, false, |_| Some("PROCESS".into()));
+        assert!(mac.is_empty(), "the macOS list keeps none of them and takes nothing from the process: {mac:?}");
+    }
+
+    #[test]
+    fn on_windows_missing_system_variables_come_from_the_ide_process_and_nothing_else_does() {
+        let vars: HashMap<String, String> = [("PATH", "C:\\bin"), ("SystemRoot", "C:\\FromLogin")].into_iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
+        let kept = scrub_env_for(&vars, true, |k| Some(format!("process:{k}")));
+        assert_eq!(kept["SystemRoot"], "C:\\FromLogin", "the login value wins");
+        assert_eq!(kept["ComSpec"], "process:ComSpec");
+        assert_eq!(kept["PATH"], "C:\\bin", "PATH is never taken from the process");
+        assert!(!kept.contains_key("GITHUB_TOKEN") && !kept.contains_key("HOME"));
+        // every Windows name but SystemRoot (from the login env) comes from the process, except a git bash path that is no bash.exe
+        assert!(!kept.contains_key("CLAUDE_CODE_GIT_BASH_PATH"), "process:CLAUDE_CODE_GIT_BASH_PATH is not an absolute bash.exe");
+        assert_eq!(kept.len(), 2 + intely_core::env::WINDOWS_ENV.len() - 2);
     }
 }

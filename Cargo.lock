@@ -2990,6 +2990,7 @@ dependencies = [
 name = "intely-relay-deploy"
 version = "0.0.0"
 dependencies = [
+ "getrandom 0.4.3",
  "hex",
  "intely-core",
  "intely-relay-bundle",
@@ -3127,6 +3128,7 @@ name = "intely-switch-ide"
 version = "1.14.0"
 dependencies = [
  "block2",
+ "getrandom 0.4.3",
  "intely-agent-core",
  "intely-agent-host",
  "intely-attachments",

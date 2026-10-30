@@ -252,6 +252,7 @@ fn too_broad_matrix() {
     assert!(v2.too_broad(std::path::Path::new("/Volumes/Backup")));
     assert!(!v2.too_broad(&fx2.home.join("Projects/ok")));
     assert!(v2.too_broad(&fx2.home.join("Library/Application Support/x")));
+    assert!(v2.too_broad(&fx2.home.join("AppData/Roaming/x")), "the Windows counterpart of Library");
     // A plain non-git home folder is only "not git" (init has its own refusal).
     let fx3 = Fx::new();
     assert_eq!(fx3.validator().validate(&s(&fx3.home), &root_purpose()).unwrap().kind, PathKind::NotGit);

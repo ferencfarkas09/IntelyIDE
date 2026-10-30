@@ -738,9 +738,18 @@ pub fn run() {
                 intely_core::termination_signal().await;
                 handle.exit(0);
             });
+            // Windows: one title bar. The native frame goes and the app's own bar carries minimize, maximize and close
+            // (ui-kit/WindowControls, capabilities/windows.json); Windows keeps the resize borders and the shadow.
+            #[cfg(windows)]
+            {
+                window = window.decorations(false);
+            }
             perf::line("window_building");
             window.build()?;
             perf::line("window_built");
+            // The menu is a macOS app menu (Hide, Hide Others, Quit in the app menu). On Windows it would be a second bar of
+            // File-less menus under the title bar: there the window buttons, Alt+F4 and the webview's own Edit shortcuts serve.
+            #[cfg(not(windows))]
             app.set_menu(menu::build(app.handle())?)?;
             perf::line(&format!("setup_done mode={mode:?}"));
             Ok(())

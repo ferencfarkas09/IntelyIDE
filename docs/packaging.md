@@ -56,6 +56,17 @@ The installers are paused for now: `pnpm release -- --mac-only` ships only the d
 
 `.github/workflows/release-build.yml` (`workflow_dispatch`, inputs `version` and the full `commit` SHA) checks the commit out, installs the Linux packages (`libwebkit2gtk-4.1-dev`, `libayatana-appindicator3-dev`, `librsvg2-dev`, `libsecret-1-dev`, `patchelf`, and a few more), builds the relay kit and the sidecar, runs `pnpm exec tauri build --bundles appimage,deb` (Linux) or `--bundles nsis,msi` (Windows), renames the results with `scripts/release/stage-artifacts.mjs` and uploads them as the artifacts `release-linux` and `release-windows`. It has no secret, a read-only token and publishes nothing. `pnpm release:collect` (also the last part of `pnpm release:build`) starts it for the commit of the disk image, waits, downloads the artifacts into `dist-release/<version>/` and checks their names and sizes. The commit must be on `origin/main` first, and the workflow file must exist on `main`.
 
+### Windows installer settings
+
+The Windows bundle settings live in `src-tauri/tauri.windows.conf.json`, which Tauri merges into `tauri.conf.json` only when it builds on Windows; the macOS build (`--bundles app`, step 1) never reads it, so its config is unchanged. The file sets:
+
+- `bundle.targets`: `nsis` and `msi` (the workflow names them with `--bundles` too).
+- `webviewInstallMode`: `embedBootstrapper` (silent). The installer carries Microsoft's small WebView2 bootstrapper (about 1.8 MB), which downloads the runtime only where it is missing. The offline installer (about 130 MB) was not chosen: Windows 11 and current Windows 10 have the runtime already.
+- NSIS: `installMode: currentUser` (no administrator rights), the languages English and Hungarian with a language selector at the start.
+- MSI: English only. WiX would build one MSI per language, and `stage-artifacts.mjs` takes exactly one file per kind.
+
+The MSI format takes numeric versions only (`major.minor.patch`, each part small): `1.14.0` builds, a pre-release such as `1.15.0-beta.1` does not; build such a version with `--bundles nsis`. The `intely-team://` invite links are registered on macOS only (`Info.plist`); on Windows the invite code is pasted in Settings > Team. The Windows window has no native frame (`src-tauri/src/lib.rs`, `capabilities/windows.json`): the app's title bar carries the window buttons.
+
 ## 5. Checksums
 
 `pack-release.mjs finalize` writes `SHA256SUMS` over the disk image, the four installers and the SBOM, and `shasum -a 256 -c SHA256SUMS` checks them. The checksum file detects corruption only. It comes from the same page as the download and proves nothing about its origin.

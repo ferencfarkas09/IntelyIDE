@@ -56,10 +56,21 @@ fn sidecar_js() -> PathBuf {
     if let Some(p) = std::env::var_os("INTELY_SIDECAR") {
         return PathBuf::from(p);
     }
-    let bundled = std::env::current_exe().ok().and_then(|exe| exe.parent().map(|d| d.join("../Resources/sidecar/index.js")));
+    let bundled = std::env::current_exe().ok().and_then(|exe| exe.parent().map(|d| bundled_sidecar(d, cfg!(windows))));
     match bundled {
         Some(p) if p.is_file() => p,
         _ => PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../sidecar/dist/index.js")),
+    }
+}
+
+/// The sidecar of an installed app, from the folder of its executable: `IntelyIDE.app/Contents/MacOS/../Resources/sidecar` on
+/// macOS; on Windows Tauri installs the resources next to IntelyIDE.exe, so `<install dir>\sidecar` (sidecar/src/sdk.ts
+/// `isPackagedPath` recognises the same layout).
+fn bundled_sidecar(exe_dir: &std::path::Path, windows: bool) -> PathBuf {
+    if windows {
+        exe_dir.join("sidecar").join("index.js")
+    } else {
+        exe_dir.join("../Resources/sidecar/index.js")
     }
 }
 
@@ -558,6 +569,16 @@ mod tests {
     use std::sync::Mutex;
 
     use super::*;
+
+    #[test]
+    fn the_installed_sidecar_is_found_next_to_the_exe_on_windows_and_in_resources_on_macos() {
+        let win = bundled_sidecar(std::path::Path::new(r"C:\Program Files\IntelyIDE"), true);
+        assert!(win.ends_with("sidecar/index.js") || win.ends_with(r"sidecar\index.js"));
+        assert!(win.starts_with(r"C:\Program Files\IntelyIDE"), "{}", win.display());
+        assert!(!win.to_string_lossy().contains("Resources"));
+        let mac = bundled_sidecar(std::path::Path::new("/Applications/IntelyIDE.app/Contents/MacOS"), false);
+        assert_eq!(mac, std::path::Path::new("/Applications/IntelyIDE.app/Contents/MacOS/../Resources/sidecar/index.js"));
+    }
 
     /// A scripted supervisor: `stop` ends a run unless it is listed in `stubborn`.
     #[derive(Default)]

@@ -8,6 +8,52 @@ import type { AuthMode, SessionEnv } from './types.js';
 const ALLOWED = new Set(['PATH', 'HOME', 'USER', 'LOGNAME', 'SHELL', 'TERM', 'TMPDIR', 'LANG', 'NVM_DIR', 'GNUPGHOME', 'CLAUDE_CONFIG_DIR', 'NODE_EXTRA_CA_CERTS', 'SSL_CERT_FILE', 'SSL_CERT_DIR']);
 const allowed = (k: string) => ALLOWED.has(k) || k.startsWith('LC_');
 
+/** Kept on Windows only, in addition to the portable list (mirrors `WINDOWS_ENV` in crates/core/src/env.rs): Node and its
+ * crypto read SystemRoot, `.cmd` shims need ComSpec and PATHEXT, the CLIs keep their data under USERPROFILE and APPDATA.
+ * None of them carries a credential. */
+export const WINDOWS_ENV = [
+  'SystemRoot', 'SystemDrive', 'windir', 'ComSpec', 'PATHEXT', 'USERPROFILE', 'USERNAME', 'HOMEDRIVE', 'HOMEPATH', 'APPDATA', 'LOCALAPPDATA',
+  'TEMP', 'TMP', 'ProgramFiles', 'ProgramFiles(x86)', 'ProgramW6432', 'ProgramData', 'CommonProgramFiles', 'OS', 'PROCESSOR_ARCHITECTURE',
+  'NUMBER_OF_PROCESSORS', 'CLAUDE_CODE_GIT_BASH_PATH',
+] as const;
+/** ASCII-only upper case, as Rust's `eq_ignore_ascii_case`: `ſystemRoot` or `ProgramFıles` never fold into a kept name. */
+const asciiUpper = (s: string) => s.replace(/[a-z]/g, (c) => c.toUpperCase());
+const WINDOWS_BY_UPPER = new Map<string, string>([['PATH', 'PATH'], ...WINDOWS_ENV.map((n) => [asciiUpper(n), n] as [string, string])]);
+
+/** The name under which `k` survives an allow-list, or null. On Windows names match without (ASCII) case (`Path` arrives as
+ * `PATH`) and the platform list is added. `isAllowed` is the portable list of the caller. */
+export function allowedName(k: string, isAllowed: (k: string) => boolean, windows = process.platform === 'win32'): string | null {
+  if (windows) {
+    const n = WINDOWS_BY_UPPER.get(asciiUpper(k));
+    if (n) return n;
+  }
+  return isAllowed(k) ? k : null;
+}
+
+/** Mirrors `windows_env_value_ok` (crates/core/src/env.rs): CLAUDE_CODE_GIT_BASH_PATH only as an absolute local path to a bash.exe. */
+export function windowsEnvValueOk(name: string, value: string): boolean {
+  if (name !== 'CLAUDE_CODE_GIT_BASH_PATH') return true;
+  const drive = /^[A-Za-z]:[\\/]/.test(value);
+  const file = value.split(/[\\/]/).pop() ?? '';
+  return drive && asciiUpper(file) === 'BASH.EXE' && !value.includes('..') && !value.slice(2).includes(':');
+}
+
+/** Mirrors `fold_env` (crates/core/src/env.rs): the kept name of each variable, decided the same way on every run (the exact
+ * spelling wins over another, `PATH` over `Path`, else the first in sorted key order); refused values are dropped. */
+export function foldEnv(vars: Iterable<[string, string]>, nameOf: (k: string) => string | null): { env: Record<string, string>; scrubbed: string[] } {
+  const env: Record<string, string> = {};
+  const exact = new Set<string>();
+  const scrubbed: string[] = [];
+  for (const [k, v] of [...vars].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
+    const name = nameOf(k);
+    if (!name || !windowsEnvValueOk(name, v)) { scrubbed.push(k); continue; }
+    if (name in env && (exact.has(name) || k !== name)) continue;
+    env[name] = v;
+    if (k === name) exact.add(name);
+  }
+  return { env, scrubbed };
+}
+
 export interface BuiltEnv {
   env: Record<string, string>;
   /** Names that were removed (never values). */
@@ -19,16 +65,11 @@ export interface BuiltEnv {
 export function buildChildEnv(
   spec: SessionEnv,
   auth: { mode: AuthMode; key: string | null },
-  opts: { addDirs: boolean; base?: NodeJS.ProcessEnv } = { addDirs: false },
+  opts: { addDirs: boolean; base?: NodeJS.ProcessEnv; windows?: boolean } = { addDirs: false },
 ): BuiltEnv {
   const base = spec.vars ?? opts.base ?? process.env;
-  const env: Record<string, string> = {};
-  const scrubbed: string[] = [];
-  for (const [k, v] of Object.entries(base)) {
-    if (typeof v !== 'string') continue;
-    if (!allowed(k)) { scrubbed.push(k); continue; }
-    env[k] = v;
-  }
+  const strings = Object.entries(base).filter((e): e is [string, string] => typeof e[1] === 'string');
+  const { env, scrubbed } = foldEnv(strings, (k) => allowedName(k, allowed, opts.windows));
   const added: string[] = [];
   const add = (k: string, v: string) => { env[k] = v; added.push(k); };
   // Only the chosen credential survives: a stray ANTHROPIC_API_KEY must not flip a subscription session to API billing.

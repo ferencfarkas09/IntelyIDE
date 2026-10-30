@@ -26,6 +26,14 @@ describe("shownTier", () => {
     expect(shownTier({ tier: "strong", run: run({ s0: "fail", s1: "notRun" }) })).toMatchObject({ tier: "weak", downgraded: true });
   });
 
+  it("shows no more than best-effort on Windows, where the git shim and the process watch do not hold", () => {
+    const strong = { tier: "strong" as const, run: run({ s0: "pass", s1: "pass", s2: "pass", s3: "pass" }) };
+    expect(shownTier(strong, "mac")).toMatchObject({ tier: "strong", capped: false });
+    expect(shownTier(strong, "windows")).toMatchObject({ tier: "bestEffort", capped: true });
+    expect(shownTier({ tier: "structural", run: run({ t0: "pass" }) }, "windows")).toMatchObject({ tier: "bestEffort", capped: true });
+    expect(shownTier({ tier: "weak" }, "windows")).toMatchObject({ tier: "weak", capped: false });
+  });
+
   it("lists suites in suite order with their results", () => {
     const s = shownTier({ tier: "bestEffort", run: run({ s2: "fail", s0: "pass" }) });
     expect(s.results.map((r) => [r.suite, r.result])).toEqual([["s0", "pass"], ["s2", "fail"]]);

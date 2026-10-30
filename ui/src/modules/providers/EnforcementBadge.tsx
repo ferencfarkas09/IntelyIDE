@@ -42,6 +42,9 @@ export function EnforcementBadge(props: { provider: string; name: string; list: 
             <p class="enf__text">{t("providers.enf.claudeWeak")}</p>
           </Show>
         </Show>
+        <Show when={shown().capped}>
+          <p class="enf__text">{t("windowsSafety.capped", { tier: TIER_LABEL[shown().tier] })}</p>
+        </Show>
         <Show when={stale()}>
           <p class="enf__text">{t("providers.enf.stale", { recorded: recorded() ?? "", installed: props.installed ?? "" })}</p>
         </Show>

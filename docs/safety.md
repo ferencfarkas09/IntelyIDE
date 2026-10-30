@@ -127,6 +127,17 @@ Record the result yourself in the pull request or issue; nothing writes it down 
 - Hooks (repository scripts) run freely inside a fixture; in read-only mode the engine does not start hooks.
 - Native (not through the engine) `scripts/e2e/*.js` scenarios that push to a live branch must fill in the push dialog's new field as well (for example scenario `h`: `input[aria-label^="Type main to push"]`).
 
+## Windows (unsigned beta): where the layers are thinner
+
+The layers above are built and tested on macOS. On Windows ([install-windows.md](install-windows.md)):
+
+- The enforcement chip shows **best effort at most**, whatever the suites recorded, in every place it is computed (the host's `chip_for` and the provider gate included), because the rest of this list holds.
+- The git shim (7b) is a Git Bash script; `cmd` and PowerShell reach it through `git.cmd`, which is written only next to a recognisable Git for Windows install. A full-path `git.exe` and programs that start `git.exe` without a shell bypass it; the policy hook and the deny rules remain.
+- There is no sandbox and no process-group, memory or process-tree watch of a run; a stop ends the tree with `taskkill /T`.
+- The Agent SDK folder is checked file by file against the shipped hashes, but not for owner and permission bits (Windows has neither); the per-user ACL of `%APPDATA%` is what keeps other accounts out.
+- The agents' environment keeps the Windows system variables programs need to start (`SystemRoot`, `ComSpec`, `PATHEXT`, `APPDATA`, ...; none carries a credential); missing ones are taken from the IDE process.
+- The folder picker refuses network shares, the device namespace, reserved device names and alternate data streams before opening anything, and a `.git` file pointing at another host is not followed.
+
 ## What is not proven
 
 - The real macOS Keychain behaviour (the `#[ignore]`d test and the manual plan above have not been run for every build type), and any Keychain behaviour of a packaged, signed build.
