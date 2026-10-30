@@ -115,6 +115,29 @@ describe("after a run finishes", () => {
     expect(runResults("b")).toEqual([]);
   });
 
+  it("after a switch off and on, does not test or ask about a run that finished while it was off", async () => {
+    usePrefs({ mode: "always" });
+    const h = harness();
+    h.set([run("a", "running", ["r1"]), run("b", "running", ["r2"])]);
+    await h.flow.runTests("b", ["r2"]);
+    expect(runResults("b")).toEqual([expect.objectContaining({ repoId: "r2", status: "waiting" })]);
+    // switched off: what was seen and the held test are forgotten
+    h.flow.reset();
+    expect(runResults("b")).toEqual([]);
+    // switched back on after both finished: taken in, not acted on
+    const now = [run("a", "done", ["r1"]), run("b", "done", ["r2"])];
+    h.flow.prime(now);
+    h.set(now);
+    await h.flow.idle();
+    expect(h.api.start).not.toHaveBeenCalled();
+    expect([runAsk("a"), runResults("a")]).toEqual([[], []]);
+    // a run that finishes after that is tested as usual
+    h.set([...now, run("c", "running", ["r1"])]);
+    h.set([...now, run("c", "done", ["r1"])]);
+    await h.flow.idle();
+    expect(runResults("c")[0].status).toBe("passed");
+  });
+
   it("tests only the repositories the run touched", async () => {
     usePrefs({ mode: "always" });
     const h = harness();

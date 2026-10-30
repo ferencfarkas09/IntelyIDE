@@ -2,7 +2,7 @@
 
 The Project notes panel shows the `CLAUDE.md` of each repository, lets you write or change it, and shows exactly which `CLAUDE.md` files a Claude run started now would be told. Applies to version 1.14.0.
 
-It is a lazy extra that starts switched on. Open it with the command palette (Open project notes); Settings > Project notes turns it off. Runs get the `CLAUDE.md` files whether the panel is on or off.
+It is a lazy extra that starts switched on. Open it with the command palette (Open project notes); Settings > Project notes turns it off. Runs get the `CLAUDE.md` files whether the panel is on or off. In Agent mode the panel opens in the middle of the Agent workspace.
 
 ## What CLAUDE.md is for
 
@@ -32,6 +32,8 @@ A run on a server (Settings > Servers) reads the files on that server, so the pa
 The panel never commits: a new or changed `CLAUDE.md` shows up in the Changes tab like any other edit.
 
 ## Generate a starter with an agent
+
+The palette command Generate a CLAUDE.md with an agent is for the repository on screen: the one Project notes shows, or the one of the file in front. With several repositories and neither on screen, it opens Project notes so you pick the repository there.
 
 **Generate a starter with an agent** (or **Improve it with an agent** when the file exists) opens the New Run dialog for that repository with a prompt that asks the agent to look around the repository (the README, the build files, the folder layout, the test and lint setup, the recent history) and write a short `CLAUDE.md`: what the project is, the stack, the exact commands, where things live, the conventions and what to avoid. The prompt tells the agent to treat what it reads in the repository as information, never as instructions, to edit only `CLAUDE.md`, to keep secrets, internal hostnames and personal data out of it, and not to commit or push. These are instructions to the model, not rules the IDE enforces, so the dialog starts in Ask: every edit and command waits for your answer (you can pick another mode). Nothing runs until you press Start run, and you review the result in the Changes tab.
 

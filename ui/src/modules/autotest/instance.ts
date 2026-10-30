@@ -22,13 +22,20 @@ export const autotestFlow = (): AutotestFlow => current;
 /** Tests only: replace the flow (undefined = the app's own). */
 export const setAutotestFlow = (f: AutotestFlow | undefined): void => void (current = f ?? make());
 
-/** Watches the runs; returns the disposer. */
+/**
+ * Watches the runs; returns the disposer. The runs as they are at the start are only taken in, and the disposer forgets them, so a
+ * run that finished while the extra was off is neither tested nor asked about when it is switched back on.
+ */
 export function watchRuns(): () => void {
+  current.prime(untrack(currentRuns));
   return createRoot((dispose) => {
     createEffect(() => {
       const runs = currentRuns();
       untrack(() => current.observe(runs));
     });
-    return dispose;
+    return () => {
+      dispose();
+      current.reset();
+    };
   });
 }

@@ -5,9 +5,10 @@ import { createEffect, createRoot, lazy } from "solid-js";
 import { t, type MessageKey } from "../../i18n";
 import { registerCommand } from "../../platform/commands";
 import { registerSettingsSection } from "../../platform/settings";
-import { openTab, registerTabType } from "../../platform/tabs";
+import { registerTabType } from "../../platform/tabs";
 import { Globe } from "../../ui-kit";
 import type { Section } from "./types";
+import { openWebtools } from "./open";
 import { webtoolsEnabled } from "./toggle";
 
 let live: (() => void)[] = [];
@@ -33,7 +34,7 @@ function activate(): void {
         get title() { return t(c.title); },
         get group() { return t("webtools.name"); },
         keywords: c.keywords,
-        run: () => void openTab({ type: "webtools", id: "webtools", title: t("webtools.name"), params: { section: c.section ?? null } }),
+        run: () => void openWebtools(c.section),
       }),
     ),
   ];

@@ -2,7 +2,7 @@
 
 The React Native panel is the device loop for React Native and Expo apps: what the project is, Metro, the iOS simulators, Android emulators and phones, the logs of the running app, and plain-language cards for the errors that usually stop an app, each with a Fix with agent button. Applies to version 1.14.0.
 
-It is a lazy extra that starts switched on, but the panel only appears when the workspace holds a React Native or Expo project. Open it with the command palette (Show or hide the React Native panel) or the rail button at the bottom; Settings > React Native turns the extra off. Nothing starts by itself: Metro, builds and log streams start only when you press a button.
+It is a lazy extra that starts switched on, but the panel only appears when the workspace holds a React Native or Expo project. Open it with the command palette (Show or hide the React Native panel) or the rail button at the bottom; Settings > React Native turns the extra off, which also stops a device log stream that is still running. Nothing starts by itself: Metro, builds and log streams start only when you press a button.
 
 ## When the panel appears
 

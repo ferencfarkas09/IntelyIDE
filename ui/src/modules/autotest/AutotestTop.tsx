@@ -1,10 +1,10 @@
-import { For, Show } from "solid-js";
+import { createSignal, createUniqueId, For, Show } from "solid-js";
 import { locale, t } from "../../i18n";
 import { requestNewRun } from "../../platform/newRun";
 import { openSettings } from "../../platform/settings";
 import type { AgentRow } from "../../store/agents";
 import { repoConfig } from "../../store/workspace";
-import { Button, CircleCheck, CircleX, Clock, Icon, ListChecks, RotateCw, Spinner, toast, TriangleAlert, Wrench } from "../../ui-kit";
+import { Button, ChevronDown, ChevronRight, CircleCheck, CircleX, Clock, Icon, ListChecks, readStored, RotateCw, Spinner, toast, TriangleAlert, Wrench, writeStored } from "../../ui-kit";
 import { buildFixPrompt, canRunTests } from "./flow";
 import { autotestFlow, currentRuns } from "./instance";
 import { MAX_FAILURES } from "./logic";
@@ -13,6 +13,9 @@ import type { RepoTest } from "./types";
 import "./autotest.css";
 
 const nameOf = (repoId: string): string => repoConfig(repoId)?.name ?? repoId;
+
+/** The results card's fold, remembered like the run summary's; the actions stay on screen when it is folded. */
+const COLLAPSED_KEY = "intely.autotest.collapsed";
 
 function formatDuration(ms: number): string {
   if (ms < 1000) return t("autotest.unit.ms", { n: Math.max(0, Math.round(ms)) });
@@ -126,15 +129,25 @@ function ResultCard(props: { agent: AgentRow; results: RepoTest[] }) {
     const opened = await requestNewRun({ prompt, repoIds: tests.map((r) => r.repoId) });
     if (!opened) toast.error(t("autotest.toast.fixFailed"));
   };
+  const [open, setOpen] = createSignal(readStored(COLLAPSED_KEY) !== "1");
+  const toggle = () => {
+    const next = !open();
+    setOpen(next);
+    writeStored(COLLAPSED_KEY, next ? "0" : "1");
+  };
+  const listId = createUniqueId();
   return (
     <section class="autotest-card" aria-label={t("autotest.card.title")} aria-live="polite">
       <div class="autotest-card__head">
-        <Icon icon={ListChecks} size={14} class="autotest-card__icon" />
-        <strong>{t("autotest.card.title")}</strong>
+        <Button class="autotest-card__toggle" variant="ghost" size="sm" icon={open() ? ChevronDown : ChevronRight} aria-expanded={open()} aria-controls={listId} onClick={toggle}>
+          {t("autotest.card.title")}
+        </Button>
       </div>
-      <ul class="autotest-card__repos">
-        <For each={props.results}>{(r) => <RepoResult test={r} many={props.agent.repoIds.length > 1} />}</For>
-      </ul>
+      <Show when={open()}>
+        <ul class="autotest-card__repos" id={listId}>
+          <For each={props.results}>{(r) => <RepoResult test={r} many={props.agent.repoIds.length > 1} />}</For>
+        </ul>
+      </Show>
       <div class="autotest-card__actions">
         <Show when={failed().length > 0}>
           <Button size="sm" variant="primary" icon={Wrench} onClick={() => void fix()} title={t("autotest.card.fixTip")}>

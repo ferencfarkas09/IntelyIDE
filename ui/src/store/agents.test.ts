@@ -1,5 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMockIpc } from "../ipc/mock";
+import { collectInbox } from "../modules/runs/inboxLogic";
 import type { AgentEvent } from "./agent-types";
 import { agentAnnouncement, agentRow, agentRows, agentView, answerPermission, bannerDismissed, dismissBanner, interruptRun, isInterrupting, needsYouCount, resetAgents, selectAgent, selectedAgentId, setRunMode, startAgentStore, startRun } from "./agents";
 
@@ -59,6 +60,26 @@ describe("agent store", () => {
     expect(view.items.map((i) => i.type)).toEqual(["user", "tool", "text"]);
     const last = (await ipc.agentHistory(old.agentId)).at(-1) as AgentEvent;
     expect(agentView(old.agentId)!.lastSeq).toBe(last.seq);
+  });
+
+  it("builds the view of a run that was idle at load and asks for permission later, so the inbox agrees with the tray count", async () => {
+    const ipc = createMockIpc("agent-normal", { delayScale: 0 });
+    let push: ((events: AgentEvent[]) => void) | undefined;
+    const history = vi.fn(ipc.agentHistory.bind(ipc));
+    startAgentStore({ ...ipc, agentHistory: history, onAgentEvents: (cb) => ((push = cb), ipc.onAgentEvents(cb)) } as typeof ipc);
+    await until(() => agentRows().length === 3, "list");
+    const idle = agentRows().find((r) => r.title.startsWith("Which routes"))!;
+    expect(agentView(idle.agentId)).toBeUndefined();
+    const last = (await ipc.agentHistory(idle.agentId)).at(-1) as AgentEvent;
+    const ev = (n: number, payload: object) => ({ agentId: idle.agentId, seq: last.seq + n, ts: last.ts + n, provider: "claude", ...payload }) as AgentEvent;
+    history.mockClear();
+    push!([ev(1, { kind: "status", state: "running" })]);
+    push!([ev(2, { kind: "permission.request", reqId: "late", toolId: "t9", intent: { class: "exec", rawCommand: "ls", summary: "ls" }, options: ["allowOnce", "deny"] })]);
+    await until(() => !!agentView(idle.agentId), "view built");
+    expect(history).toHaveBeenCalledTimes(1);
+    const inbox = collectInbox(agentRows(), agentView);
+    expect(inbox.map((e) => [e.agentId, e.kind, e.item.reqId])).toEqual([[idle.agentId, "permission", "late"]]);
+    expect(needsYouCount()).toBe(inbox.length);
   });
 
   it("keeps a throttled turn running but flags it on the row, and announces the request once", async () => {
