@@ -47,5 +47,7 @@
   "pnotes.discard": "Discard changes",
   "pnotes.keepEditing": "Keep editing",
   "pnotes.readOnly.mixed": "This file mixes Windows and Unix line endings, which a text box cannot keep. Edit it in the editor.",
-  "pnotes.readOnly.encoding": "This file is not saved as UTF-8, and runs read CLAUDE.md as UTF-8, so its text reaches them garbled. Open it in the editor and save it as UTF-8."
+  "pnotes.readOnly.encoding": "This file is not saved as UTF-8, and runs read CLAUDE.md as UTF-8, so its text reaches them garbled. Open it in the editor and save it as UTF-8.",
+  "pnotes.habitsTitle": "Token-saving habits (Settings > Token saver)",
+  "pnotes.habitsOn": "Switched on: a Claude run started now gets this text after the CLAUDE.md files."
 }

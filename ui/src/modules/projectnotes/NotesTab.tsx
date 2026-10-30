@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal, For, on, onCleanup, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, For, on, onCleanup, onMount, Show } from "solid-js";
 import { t, type MessageKey } from "../../i18n";
 import { ipc } from "../../ipc";
 import type { Encoding, Eol } from "../../ipc/files";
@@ -9,6 +9,8 @@ import type { TabInstance } from "../../platform/tabs";
 import { errorText } from "../../store/snapshots";
 import { repoConfig, repos } from "../../store/workspace";
 import { Badge, Button, EmptyState, ExternalLink, FilePlus, FileText, ProgressBar, RefreshCw, RepoBadge, Save, Skeleton, Sparkles, TextArea, toast, TriangleAlert } from "../../ui-kit";
+import { TOKEN_HABITS_TEXT } from "../tokensaver/habits";
+import { syncPrefs, tokenHabits } from "../tokensaver/prefs";
 import { byteLength, editableReason, FILE_MAX, fromDisk, planWarnings, SECRET_CHECK_MAX, sizeLevel, SKELETON, starterPrompt, toDiskText, type Warning } from "./logic";
 import "./projectnotes.css";
 
@@ -31,6 +33,9 @@ function warningText(w: Warning): string {
   return t("pnotes.warn.secret");
 }
 
+/** The `open` key of the token-saving habits entry (never a file path). */
+const HABITS = "\u0000habits";
+
 /** Project notes: the repository's CLAUDE.md, edited in place, and exactly what a Claude run started now would be told. */
 export default function NotesTab(props: { tab?: TabInstance }) {
   const [repoId, setRepoId] = createSignal<string | undefined>((props.tab?.params?.repoId as string | undefined) ?? repos()[0]?.id);
@@ -44,6 +49,8 @@ export default function NotesTab(props: { tab?: TabInstance }) {
   /** A repository switch or a refresh that waits for "discard the unsaved changes?". */
   const [pending, setPending] = createSignal<{ to: string | undefined } | undefined>();
   createEffect(() => !repoId() && repos()[0] && setRepoId(repos()[0].id));
+  // the token-saving habits ride after the CLAUDE.md files when Settings > Token saver switched them on
+  onMount(() => void syncPrefs());
   // every load is numbered: an answer for a repository that is no longer shown is dropped
   let seq = 0;
 
@@ -263,6 +270,17 @@ export default function NotesTab(props: { tab?: TabInstance }) {
                       )}
                     </For>
                   </ol>
+                </Show>
+                <Show when={tokenHabits()}>
+                  <div class="pnotes__told" data-testid="pnotes-habits">
+                    <button type="button" class="pnotes__toldhead" aria-expanded={open() === HABITS} onClick={() => setOpen(open() === HABITS ? undefined : HABITS)}>
+                      <Badge size="sm" tone="neutral">{t("pnotes.habitsTitle")}</Badge>
+                      <span class="pnotes__hint">{t("pnotes.habitsOn")}</span>
+                    </button>
+                    <Show when={open() === HABITS}>
+                      <pre class="pnotes__pre" tabIndex={0}>{TOKEN_HABITS_TEXT}</pre>
+                    </Show>
+                  </div>
                 </Show>
                 <p class="pnotes__hint">{t("pnotes.toldFoot")}</p>
               </>

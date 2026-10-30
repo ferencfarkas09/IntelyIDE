@@ -20,6 +20,14 @@ pub fn include_user_memory(store: &SettingsStore) -> Result<bool> {
     Ok(include_user_memory_in(&store.get(NAMESPACE)?))
 }
 
+/// `agents.tokenHabits`: append the token-saving habits to the prompt of a Claude run (default off; docs/token-saver.md).
+pub const TOKEN_HABITS_KEY: &str = "tokenHabits";
+
+/// The switch as stored in an `agents` object; absent or not a boolean means off.
+pub fn token_habits_in(ns: &Object) -> bool {
+    ns.get(TOKEN_HABITS_KEY).and_then(Value::as_bool).unwrap_or(false)
+}
+
 pub fn set_include_user_memory(store: &SettingsStore, on: bool) -> Result<bool> {
     Ok(include_user_memory_in(&store.set(NAMESPACE, Object::from_iter([(INCLUDE_USER_MEMORY_KEY.to_owned(), json!(on))]))?))
 }
@@ -40,6 +48,17 @@ mod tests {
         assert!(include_user_memory(&s).unwrap());
         s.set(NAMESPACE, Object::from_iter([(INCLUDE_USER_MEMORY_KEY.to_owned(), json!("no"))])).unwrap();
         assert!(include_user_memory(&s).unwrap(), "a non-boolean value is ignored");
+    }
+
+    #[test]
+    fn token_habits_are_off_by_default_and_only_a_true_switches_them_on() {
+        let (_d, s) = store();
+        assert!(!token_habits_in(&s.get(NAMESPACE).unwrap()));
+        s.set(NAMESPACE, Object::from_iter([(TOKEN_HABITS_KEY.to_owned(), json!("yes"))])).unwrap();
+        assert!(!token_habits_in(&s.get(NAMESPACE).unwrap()), "a non-boolean value is ignored");
+        s.set(NAMESPACE, Object::from_iter([(TOKEN_HABITS_KEY.to_owned(), json!(true))])).unwrap();
+        assert!(token_habits_in(&s.get(NAMESPACE).unwrap()));
+        assert!(include_user_memory(&s).unwrap(), "the other switch is untouched");
     }
 
     #[test]

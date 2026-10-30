@@ -167,7 +167,17 @@ export function NewRunDialog() {
     const prefill = takeNewRunPrefill();
     if (!prefill) return;
     setPrompt(prefill.prompt);
+    // the role first: picking it proposes its repositories, which the prefill's own list then replaces
+    if (prefill.role && agentRoles().some((r) => r.name === prefill.role)) {
+      setMode("role");
+      setAutoProvider("claude");
+      pick(prefill.role);
+    }
     if (prefill.repoIds?.length) setRepoIds(prefill.repoIds);
+    if (prefill.model && runPickerEnabled()) {
+      setPickTouched(true);
+      setRunPick({ model: prefill.model });
+    }
     if (prefill.error) setError(prefill.error);
     if (prefill.noSafetyNet) setNoNet(true);
     if (prefill.permission && prefill.permission !== ("bypass" as string)) pickMode(prefill.permission);

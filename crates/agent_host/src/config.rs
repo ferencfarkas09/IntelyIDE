@@ -38,11 +38,13 @@ pub struct AgentDefaults {
     pub delegation_enabled: bool,
     /// `agents.peerMessages` (default `ask`): whether the runs of one person may message each other (docs/peer-runs.md).
     pub peer_messages: PeerMode,
+    /// `agents.tokenHabits` (default off): a Claude run gets the token-saving habits in its prompt (docs/token-saver.md).
+    pub token_habits: bool,
 }
 
 impl Default for AgentDefaults {
     fn default() -> Self {
-        Self { model: "claude-sonnet-5-5".into(), effort: Some(Effort::Medium), delegation_cap: 12, max_budget_usd: None, auto_enabled: true, delegation_enabled: true, peer_messages: PeerMode::Ask }
+        Self { model: "claude-sonnet-5-5".into(), effort: Some(Effort::Medium), delegation_cap: 12, max_budget_usd: None, auto_enabled: true, delegation_enabled: true, peer_messages: PeerMode::Ask, token_habits: false }
     }
 }
 

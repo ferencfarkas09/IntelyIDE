@@ -47,5 +47,7 @@
   "pnotes.discard": "Módosítások elvetése",
   "pnotes.keepEditing": "Szerkesztés folytatása",
   "pnotes.readOnly.mixed": "Ebben a fájlban vegyesen vannak Windows- és Unix-sorvégek, ezeket egy szövegmező nem tudja megtartani. Szerkeszd a szerkesztőben.",
-  "pnotes.readOnly.encoding": "Ez a fájl nem UTF-8 kódolású, a futások viszont UTF-8-ként olvassák a CLAUDE.md-t, így a szövege torzulva jut el hozzájuk. Nyisd meg a szerkesztőben, és mentsd UTF-8-ként."
+  "pnotes.readOnly.encoding": "Ez a fájl nem UTF-8 kódolású, a futások viszont UTF-8-ként olvassák a CLAUDE.md-t, így a szövege torzulva jut el hozzájuk. Nyisd meg a szerkesztőben, és mentsd UTF-8-ként.",
+  "pnotes.habitsTitle": "Tokenspóroló szokások (Beállítások > Tokenspórolás)",
+  "pnotes.habitsOn": "Bekapcsolva: egy most indított Claude futás ezt a szöveget kapja a CLAUDE.md fájlok után."
 }

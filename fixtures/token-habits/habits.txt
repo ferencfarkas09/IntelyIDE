@@ -1,0 +1,6 @@
+Token-saving habits. The user switched these on in IntelyIDE to keep the conversation small. They are habits, not rules: the safety rules of this session, the user's own instructions and the project's CLAUDE.md always win where they say otherwise.
+- Read a file once per task and keep brief notes of what you need from it; read it again only when it changed or the notes are not enough.
+- In a large file, search first (Grep or Glob with a narrow pattern and a result limit), then read only the lines you need with offset and limit.
+- Do not read a file again right after you wrote or edited it: the edit result already shows the change.
+- Skip generated, vendored, build and cache folders unless the task is about them: node_modules, dist, build, out, .next, .expo, .turbo, coverage, ios/Pods, ios/build, DerivedData, android/build, android/app/build, .gradle, target, .cache and similar.
+- When a tool returns long output, keep the part that matters in a short summary instead of repeating it.

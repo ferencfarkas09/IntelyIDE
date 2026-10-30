@@ -2361,6 +2361,7 @@ impl Inner {
             plan_dir: plan_path.as_ref().map(|p| p.to_string_lossy().into_owned()),
             include_user_memory: (role.provider == "claude" && !self.cfg.include_user_memory()).then_some(false),
             peer_tools: (role.provider == "claude" && self.cfg.defaults().peer_messages != PeerMode::Off).then_some(true),
+            token_habits: (role.provider == "claude" && self.cfg.defaults().token_habits).then_some(true),
         };
         let mut body = serde_json::to_value(&start).map_err(|e| err("internal", e.to_string()))?;
         drop(start);

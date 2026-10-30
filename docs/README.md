@@ -31,6 +31,7 @@ Audiences: **users** run the app, **contributors** change the code, **maintainer
 | [Checkpoints](checkpoints.md) | Save points during a run, Undo last step, comparing and restoring checkpoints, protecting ignored config files | users |
 | [Auto-test after a run](auto-test.md) | Running the project's own unit tests when a run finishes, the result chip and asking the agent to fix failures | users |
 | [Run summary](run-summary.md) | A plain-language digest of what a run did, what to check and what is risky | users |
+| [Token saver](token-saver.md) | Keeping long runs cheaper: telling the agent about repeated reads, continuing in a fresh run, the cost of re-reading the conversation, token-saving habits | users |
 | [React Native panel](react-native.md) | The device loop for React Native and Expo apps: Metro, simulators and emulators, device logs and error cards with a Fix with agent button | users |
 | [Mobile health](mobile-health.md) | A read-only check of the iOS and Android parts of a project: signing, versions, permissions, Gradle and Pods, store readiness | users |
 | [Notifications](notifications.md) | Banners and the Dock count when a run needs you | users |
