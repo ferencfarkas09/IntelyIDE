@@ -103,6 +103,9 @@ describe("module registration", () => {
     expect(getCommand("dashboard.open")).toBeUndefined();
     expect(widgets()).toEqual([]);
     expect(tabs().some((t) => t.id === DASHBOARD_TAB_ID)).toBe(false);
+    // The tray opens the radar with the extra off too: its Open still shows the run.
+    radar.emit(agentRows()[0].agentId);
+    await waitFor(() => expect(selectedAgentId()).toBe(agentRows()[0].agentId));
     closeTab(DASHBOARD_TAB_ID);
     dispose();
   });

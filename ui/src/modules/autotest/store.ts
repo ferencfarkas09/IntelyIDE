@@ -23,6 +23,17 @@ export function setRepoResult(runId: string, test: RepoTest): void {
   state.setResults((all) => ({ ...all, [runId]: { ...all[runId], [test.repoId]: test } }));
 }
 
+/** Forgets one repository's result of a run (a held test dropped when the extra is switched off). */
+export function dropRepoResult(runId: string, repoId: string): void {
+  state.setResults((all) => {
+    if (!all[runId]?.[repoId]) return all;
+    const { [repoId]: _gone, ...rest } = all[runId];
+    const next = { ...all, [runId]: rest };
+    if (!Object.keys(rest).length) delete next[runId];
+    return next;
+  });
+}
+
 /** The repositories of a run whose answer is still open (the trust card), with the command each would run. */
 export const runAsk = (runId: string): AskItem[] => state.asks()[runId] ?? [];
 

@@ -2,7 +2,7 @@
 
 When an agent run finishes, IntelyIDE can run the unit tests of the repositories the run worked in and show the result on the run. You see right away whether the change broke something, without reading the diff. Applies to version 1.14.0.
 
-It is a lazy extra that starts switched on. Settings > Auto-test turns it off and sets when the tests run. The tests run on your Mac as a Run panel process: the same jail, read-only mode and log masking as a script you start by hand, but with a smaller environment (see "Trust and environment").
+It is a lazy extra that starts switched on. Settings > Auto-test turns it off and sets when the tests run. A run that finishes while it is off is not tested or asked about when you turn it back on. The tests run on your Mac as a Run panel process: the same jail, read-only mode and log masking as a script you start by hand, but with a smaller environment (see "Trust and environment").
 
 A test command is the repository's own code: a `test` script in `package.json`, a `build.rs` of `cargo test` or a `conftest.py` can do anything your user can do on this computer. That is why nothing runs by itself before you trusted the repository.
 
@@ -63,7 +63,7 @@ To run the tests by hand, press Run tests (the checklist icon) in the run header
 
 A chip on the run card says "Testing…", "10 passed", "2 failed" or "Tests did not finish". It is green, red or yellow, and the words carry the meaning too.
 
-The card at the top of the run's page shows, for each repository: the result, the passed, failed and skipped counts, how long it took, the command that ran, and the first five failing tests with the first line of their message. IntelyIDE reads the summary of Vitest, Jest, `cargo test` and pytest. For other runners it shows passed or failed from the exit code only.
+The card at the top of the run's page folds with a click on its title (the app remembers that choice; its buttons stay visible). Unfolded, it shows, for each repository: the result, the passed, failed and skipped counts, how long it took, the command that ran, and the first five failing tests with the first line of their message. IntelyIDE reads the summary of Vitest, Jest, `cargo test` and pytest. For other runners it shows passed or failed from the exit code only.
 
 The full output is in the Run panel, like any other script.
 

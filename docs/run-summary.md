@@ -6,7 +6,7 @@ It is a lazy extra that starts switched on. Settings > Run summary turns it off;
 
 ## Where you see it
 
-- **What this run did**: a card at the top of a finished run's page (a run that is done, or that stopped with an error). Click its title to fold it; the app remembers that choice.
+- **What this run did**: a card at the top of a finished run's page (a run that is done, or that stopped with an error). Click its title to fold it; the app remembers that choice. Until you choose, it starts folded when the window is less than 700 pixels high. Together with the Auto-test card it takes at most about 40% of the run's height; beyond that the cards scroll and the conversation keeps its room.
 - **A chip on the run card** in the sessions list, for example `5 files · 2 risks`. It takes the warning colour when the run has at least one risk.
 - **Show run summary** in the command palette scrolls to the card of the selected run and unfolds it.
 

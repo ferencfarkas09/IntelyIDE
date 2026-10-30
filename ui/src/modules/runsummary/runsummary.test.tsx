@@ -13,7 +13,7 @@ import type { AgentRow } from "../../store/agents";
 import { installDomStubs } from "../../store/testing-u2";
 import { createMockRunSummary, fixtureDigest, setRunSummaryApi } from "./api";
 import { register } from "./index";
-import RunSummaryCard from "./RunSummaryCard";
+import RunSummaryCard, { startsOpen } from "./RunSummaryCard";
 import RunSummaryChip from "./RunSummaryChip";
 import { requestShow, resetRunSummary } from "./store";
 import { setRunSummaryEnabled } from "./toggle";
@@ -44,6 +44,13 @@ describe("the card", () => {
     expect(screen.getByText("Risks")).toBeTruthy();
     expect(screen.getByText("Added 1 new package: react-native-maps.")).toBeTruthy();
     expect(screen.getByText("Installed 1 new package from the internet: react-native-maps.")).toBeTruthy();
+  });
+
+  it("starts folded on a short window unless the person unfolded it before", () => {
+    expect(startsOpen(null, 900)).toBe(true);
+    expect(startsOpen(null, 600)).toBe(false);
+    expect(startsOpen("0", 600)).toBe(true);
+    expect(startsOpen("1", 900)).toBe(false);
   });
 
   it("collapses and remembers it", async () => {

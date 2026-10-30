@@ -3,6 +3,7 @@
 .autotest-card--ask { box-shadow: inset 0 0 0 1px var(--accent-border); }
 .autotest-card__head { display: flex; align-items: center; gap: var(--space-1); }
 .autotest-card__head strong { font-weight: var(--weight-semibold); }
+.autotest-card__toggle { margin-left: calc(-1 * var(--space-2)); font-weight: var(--weight-semibold); }
 .autotest-card__icon { color: var(--text-2); flex: none; }
 .autotest-card__body, .autotest-card__note { margin: 0; overflow-wrap: anywhere; }
 .autotest-card__note { font-size: var(--text-xs); }

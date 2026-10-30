@@ -26,6 +26,16 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 - Glass: macOS "Reduce transparency" is now detected (the system browser engine does not report it), so Glass draws opaque on such a Mac and a new install there starts with the Standard look. The setting is read at launch.
 - Masking: a secret is now masked when a space sits before the colon (`"password" : "x"`, `Password : x`), both in the app and in the fallback in the interface.
 - Tests: the real-app scenarios for Agent mode, the mock agents and the permission modes wait for the finished transcript and for the window to have focus, instead of reading the page before the transcript is drawn.
+- In Agent mode, the palette commands for Prompts, Project notes, Setup doctor, Mobile health, Web & Node tools and Dashboard now show their tab in the middle of the Agent workspace instead of opening it behind it. The Setup doctor card of the New Run dialog closes the dialog and shows the doctor.
+- Turning the Dashboard off removes the plan usage percentage from the menu bar. The radar's Open run works again while the Dashboard is off (the menu bar opens the radar either way).
+- Turning the React Native extra off stops a device log stream that is still running, and its polling.
+- Auto-test no longer tests or asks about runs that finished while it was turned off, once it is turned back on.
+- Dashboard cards that call a backend (Burn-down, CI & PRs, Sentry triage, Morning brief) no longer refresh while the Dashboard is hidden behind another tab or under Agent mode; a refresh that fell due meanwhile happens once when it is back.
+- The radar and the Needs-You inbox now list the requests of a run that was idle when the app loaded and is working again, so they agree with the count in the menu bar.
+- Quitting with unsaved files (from the menu bar or the app menu) now brings the main window forward, restored and focused, so the Save all / Don't save / Cancel question can be seen.
+- The New Run dialog no longer shows the inactive Templates box next to Saved prompts.
+- The palette command Generate a CLAUDE.md with an agent is now for the repository on screen (the one Project notes shows, or the active file's) and starts in Ask, like the panel's button; with several repositories and none on screen it opens Project notes to pick one.
+- On a short window the cards at the top of a run (What this run did, Unit tests) no longer squeeze the conversation: together they take at most about 40% of the run's height and scroll, the summary starts folded below 700 pixels of window height, and the Unit tests card folds (remembered).
 
 ## [1.14.0] - 2026-10-28
 

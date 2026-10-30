@@ -8,7 +8,7 @@ import { t } from "../../i18n";
 import type { ServerInfo } from "../../ipc/run";
 import type { AutotestApi } from "./api";
 import { blockedBy, finishedBetween, linesOfLastStart, maskSecrets, outcomeOf, parseTestOutput, type RunLike } from "./logic";
-import { prefs, rememberAnswer, repoResult, runAsk, runResults, setRepoResult, setRunAsk } from "./store";
+import { dropRepoResult, prefs, rememberAnswer, repoResult, runAsk, runResults, setRepoResult, setRunAsk } from "./store";
 import type { AskItem, RepoAnswer, RepoTest, TestPick } from "./types";
 
 export const DEFAULT_TIMEOUT_MS = 5 * 60_000;
@@ -38,6 +38,10 @@ export interface AutotestFlow {
   answer(runId: string, answer: RepoAnswer): Promise<void>;
   /** Waits for what was started so far (tests). */
   idle(): Promise<void>;
+  /** Takes the runs as they are now without acting on them, so only a run that finishes after this is tested. */
+  prime(runs: RunLike[]): void;
+  /** Switched off: forgets the runs seen and drops the tests held back (a run that finishes while off is never tested). */
+  reset(): void;
 }
 
 const errorText = (e: unknown): string => (e && typeof e === "object" && "message" in e ? String((e as { message: unknown }).message) : String(e));
@@ -220,6 +224,14 @@ export function createAutotestFlow(deps: FlowDeps): AutotestFlow {
     },
     async idle() {
       while (work.size) await Promise.allSettled([...work]);
+    },
+    prime(runs) {
+      seen = new Map(runs.map((r) => [r.agentId, r.status]));
+    },
+    reset() {
+      seen = new Map();
+      for (const { runId, repoId } of pending.values()) if (repoResult(runId, repoId)?.status === "waiting") dropRepoResult(runId, repoId);
+      pending.clear();
     },
   };
 }

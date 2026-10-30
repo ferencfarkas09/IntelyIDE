@@ -14,16 +14,21 @@ export const TRAY_POLL_MS = 5 * 60_000;
 export const fiveHourPercent = (l: PlanLimits | undefined): number | null => (l && l.available && l.fiveHour ? l.fiveHour.utilization : null);
 
 let lastRead = 0;
+/** Bumped by each start and stop, so a reading that lands after the poll was stopped is dropped. */
+let generation = 0;
 
 async function poll(): Promise<void> {
   // The dashboard or the Usage tab read the limits recently: their value is already mirrored.
   if (Date.now() - lastRead < TRAY_POLL_MS - 1_000) return;
   lastRead = Date.now();
-  setTrayPlanPercent(fiveHourPercent(await usageApi().limits()));
+  const mine = generation;
+  const value = fiveHourPercent(await usageApi().limits());
+  if (mine === generation && trayPlanEnabled()) setTrayPlanPercent(value);
 }
 
-/** Starts the mirror and the poll while `trayPlanEnabled()`; returns the disposer. */
+/** Starts the mirror and the poll while `trayPlanEnabled()`; returns the disposer, which also clears the menu bar reading. */
 export function startPlanPoll(): () => void {
+  generation += 1;
   return createRoot((dispose) => {
     createEffect(() => {
       if (!trayPlanEnabled()) return setTrayPlanPercent(null);
@@ -38,7 +43,11 @@ export function startPlanPoll(): () => void {
       void poll().catch(() => {});
       onCleanup(ecoInterval(() => void poll().catch(() => {}), TRAY_POLL_MS));
     });
-    return dispose;
+    return () => {
+      generation += 1;
+      dispose();
+      setTrayPlanPercent(null);
+    };
   });
 }
 

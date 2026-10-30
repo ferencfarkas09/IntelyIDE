@@ -2,6 +2,7 @@ import { createEffect, createMemo, createSignal, For, on, onCleanup, onMount, Sh
 import { Dynamic } from "solid-js/web";
 import { t } from "../../i18n";
 import { ecoInterval } from "../../platform/eco";
+import { visibleTab } from "../../platform/mode";
 import {
   arrange,
   availableWidgets,
@@ -33,7 +34,10 @@ interface DragState {
   over: string | null;
 }
 
-/** One card in the grid: its own refresh clock (only while the dashboard is on screen and the app is not in Eco mode). */
+/**
+ * One card in the grid: its own refresh clock (only while the dashboard is on screen and the app is not in Eco mode). A refresh
+ * that fell due while the tab was hidden (another tab in front, or Agent mode over the editor area) happens once when it is back.
+ */
 function Cell(props: {
   placed: PlacedWidget;
   index: number;
@@ -41,6 +45,7 @@ function Cell(props: {
   editing: boolean;
   drag: DragState | null;
   refreshAll: () => number;
+  onScreen: () => boolean;
   onMove: (id: string, delta: number | "first" | "last") => void;
   onSize: (id: string, size: WidgetSize) => void;
   onHide: (id: string) => void;
@@ -51,11 +56,14 @@ function Cell(props: {
   const w = () => props.placed.widget;
   const [tick, setTick] = createSignal(0);
   createEffect(on(props.refreshAll, () => setTick((n) => n + 1), { defer: true }));
+  let missed = false;
+  createEffect(on(props.onScreen, (shown) => shown && missed && ((missed = false), setTick((n) => n + 1)), { defer: true }));
   onMount(() => {
     const every = w().refresh?.everyMs;
     if (!every) return;
     const stop = ecoInterval(() => {
-      if (globalThis.document?.visibilityState !== "hidden") setTick((n) => n + 1);
+      if (globalThis.document?.visibilityState !== "hidden" && props.onScreen()) setTick((n) => n + 1);
+      else missed = true;
     }, every);
     onCleanup(stop);
   });
@@ -122,6 +130,8 @@ export default function Dashboard() {
   const [editing, setEditing] = createSignal(false);
   const [drag, setDrag] = createSignal<DragState | null>(null);
   const [refreshAll, setRefreshAll] = createSignal(0);
+  // The editor area stays mounted under Agent mode: the cards refresh only while this tab is the one on screen.
+  const onScreen = () => visibleTab()?.type === "dashboard";
   onMount(() => {
     void syncWidgetLayout();
     // Whether Sentry is set up is a local read (no request): it decides whether the triage card is there.
@@ -226,6 +236,7 @@ export default function Dashboard() {
                   editing={editing()}
                   drag={drag()}
                   refreshAll={refreshAll}
+                  onScreen={onScreen}
                   onMove={move}
                   onSize={size}
                   onHide={hide}

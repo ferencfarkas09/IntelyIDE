@@ -17,6 +17,8 @@ export interface NewRunSlotContext {
   supported(): readonly PermissionMode[];
   unavailable(): Partial<Record<PermissionMode, string>>;
   disabled(): boolean;
+  /** Closes the dialog, for a control that opens something the dialog would cover. */
+  close?(): void;
 }
 
 export interface NewRunSlot {

@@ -11,7 +11,7 @@ import { createMockDevices, MOCK_PROJECT, setDevicesApi, type DevicesApi } from 
 import { detectProjects, resetDetection } from "./detection";
 import { register } from "./index";
 import ReactNativePanel from "./ReactNativePanel";
-import { refreshDevices, resetStore } from "./store";
+import { deviceLog, refreshDevices, resetStore } from "./store";
 import { reactNativeEnabled, setReactNativeEnabled } from "./toggle";
 import type { DeviceList, ProjectInfo } from "./types";
 
@@ -295,8 +295,17 @@ describe("module", () => {
     await detectProjects([REPO]);
     expect(visible()).toHaveLength(1);
     expect(availableCommands().map((c) => c.id)).toContain("reactnative.show");
+    // a running device log stream stops with the switch, and its poll loop with it
+    api = spyApi(createMockDevices(MOCK_PROJECT));
+    setDevicesApi(api);
+    render(() => <ReactNativePanel />);
+    const logs = await screen.findByLabelText("Device logs", { selector: "section" });
+    fireEvent.click(within(logs).getByRole("button", { name: "Start" }));
+    await waitFor(() => expect(deviceLog("ios").running).toBe(true));
     setReactNativeEnabled(false);
     await waitFor(() => expect(getRailItem("reactnative")).toBeUndefined());
+    await waitFor(() => expect(calls.some((c) => c.fn === "logStop" && c.args[0] === "ios")).toBe(true));
+    await waitFor(() => expect([deviceLog("ios").wanted, deviceLog("ios").running]).toEqual([false, false]));
     expect(reactNativeEnabled()).toBe(false);
     setReactNativeEnabled(true);
   });

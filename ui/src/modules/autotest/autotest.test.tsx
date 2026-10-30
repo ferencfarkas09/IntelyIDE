@@ -18,7 +18,7 @@ installDomStubs();
 
 const agent = (repoIds = ["shop"], status: AgentRow["status"] = "done"): AgentRow => ({ agentId: "run1", status, repoIds, needs: 0, title: "Fix cart", role: "auto", provider: "claude", model: "m" }) as unknown as AgentRow;
 
-const fakeFlow = (): AutotestFlow & { runTests: ReturnType<typeof vi.fn>; answer: ReturnType<typeof vi.fn> } => ({ observe: vi.fn(), runTests: vi.fn(async () => {}), answer: vi.fn(async () => {}), idle: async () => {} });
+const fakeFlow = (): AutotestFlow & { runTests: ReturnType<typeof vi.fn>; answer: ReturnType<typeof vi.fn> } => ({ observe: vi.fn(), runTests: vi.fn(async () => {}), answer: vi.fn(async () => {}), idle: async () => {}, prime: vi.fn(), reset: vi.fn() });
 
 const VITEST_FAIL = [" FAIL  src/price.test.ts > price > adds VAT", `AssertionError: expected 127 to be 127.5 // ${["password", "hunter2x"].join("=")}`, "", "      Tests  1 failed | 9 passed (10)", "   Duration  1.31s"];
 
@@ -112,6 +112,23 @@ describe("the cards at the top of the run", () => {
     render(() => <AutotestTop agent={agent()} />);
     expect(screen.getByText("All 10 tests passed")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Ask the agent to fix the failing tests" })).toBeNull();
+  });
+
+  it("folds the results and remembers it, keeping the actions on screen", () => {
+    localStorage.removeItem("intely.autotest.collapsed");
+    setRepoResult("run1", { repoId: "shop", status: "failed", runner: "npm run test", kind: "vitest", summary: parseTestOutput(VITEST_FAIL, "vitest") });
+    render(() => <AutotestTop agent={agent()} />);
+    const toggle = screen.getByRole("button", { name: "Unit tests" });
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByText("npm run test")).toBeNull();
+    expect(screen.getByRole("button", { name: "Ask the agent to fix the failing tests" })).toBeTruthy();
+    expect(localStorage.getItem("intely.autotest.collapsed")).toBe("1");
+    cleanup();
+    render(() => <AutotestTop agent={agent()} />);
+    expect(screen.getByRole("button", { name: "Unit tests" }).getAttribute("aria-expanded")).toBe("false");
+    localStorage.removeItem("intely.autotest.collapsed");
   });
 });
 
