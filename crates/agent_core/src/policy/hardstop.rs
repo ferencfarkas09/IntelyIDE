@@ -97,6 +97,11 @@ pub fn analyze(raw: &str, jail: &Jail) -> Analysis {
     if raw.contains("INTELY_HUMAN_TOKEN") || raw.contains("token.sha256") {
         w.stop("shim.token", "references the human-only IDE token");
     }
+    // A command line that runs git and names refs/intely anywhere (also through a variable or a pipe): the Rewind
+    // snapshot and the checkpoints are the human's safety net, in every mode.
+    if mentions_intely_refs(raw) && raw.to_ascii_lowercase().contains("git") {
+        w.stop("git.intely-refs", "git command line names refs/intely, where the Rewind snapshot and the checkpoints live");
+    }
     if raw.len() > MAX_COMMAND_LEN {
         // Too long to parse in bounded time: a visible git write still stops, anything else is unjudged.
         if mentions_git_write(raw) {
@@ -824,6 +829,11 @@ impl<'a> Walker<'a> {
     }
 
     fn git(&mut self, words: &[Word], ctx: &Ctx) {
+        // The Rewind snapshot and the checkpoints live under refs/intely: the safety net is the human's, in every mode.
+        if words[1..].iter().any(|w| mentions_intely_refs(&w.text)) {
+            self.stop("git.intely-refs", "git command names refs/intely, where the Rewind snapshot and the checkpoints live");
+            return;
+        }
         let mut i = 1;
         let mut sub_at = None;
         while let Some(w) = words.get(i) {
@@ -932,8 +942,14 @@ impl<'a> Walker<'a> {
                 let first = args.iter().find(|a| !a.text.starts_with('-')).map(|a| a.text.as_str());
                 if matches!(first, Some("add" | "set-url" | "remove" | "rm" | "rename" | "set-head" | "set-branches" | "prune")) {
                     self.stop("git.remote", "git remote changes where pushes go");
+                } else if first == Some("update") {
+                    let rest: Vec<&str> = args.iter().map(|a| a.text.as_str()).skip_while(|t| *t != "update").skip(1).filter(|t| !t.starts_with('-')).collect();
+                    if rest.iter().any(|t| self.local_source(t)) {
+                        self.stop("git.fetch-local", "git remote update from a local repository writes refs of this one");
+                    }
                 }
             }
+            "fetch" => self.git_fetch(args),
             "reflog" => {
                 if matches!(args.first().map(|a| a.text.as_str()), Some("expire" | "delete")) {
                     self.stop("git.reflog", "git reflog expire/delete destroys recovery points");
@@ -954,6 +970,69 @@ impl<'a> Walker<'a> {
             "bisect" if args.first().is_some_and(|a| a.text == "run") => self.exec(&args[1..], 1, &Ctx::default()),
             _ => {}
         }
+    }
+
+    /// `git fetch` writes refs: from a local source (a path, `.`, `file://`), or into a destination outside
+    /// `refs/remotes/` (`git fetch origin +main:refs/heads/main`, `--refmap=...`), it can delete or move any ref of this
+    /// repository, the snapshot and the checkpoints among them (`git fetch --prune . ...`). Only a plain fetch from a
+    /// named remote into its remote-tracking refs passes.
+    fn git_fetch(&mut self, args: &[Word]) {
+        const TAKES_VALUE: &[&str] = &["--depth", "--deepen", "--shallow-since", "--shallow-exclude", "--negotiation-tip", "--refmap", "-o", "--server-option", "-j", "--jobs", "--filter", "--recurse-submodules-default", "--submodule-prefix"];
+        let mut positional: Vec<&str> = Vec::new();
+        let mut refmaps: Vec<&str> = Vec::new();
+        let mut i = 0;
+        while let Some(w) = args.get(i) {
+            let t = w.text.as_str();
+            if t == "--" {
+                positional.extend(args[i + 1..].iter().map(|a| a.text.as_str()));
+                break;
+            }
+            if let Some(v) = t.strip_prefix("--refmap=") {
+                refmaps.push(v);
+            } else if t == "--refmap" {
+                refmaps.extend(args.get(i + 1).map(|a| a.text.as_str()));
+                i += 1;
+            } else if TAKES_VALUE.contains(&t) {
+                i += 1;
+            } else if !t.starts_with('-') {
+                positional.push(t);
+            }
+            i += 1;
+        }
+        if args.iter().any(|a| a.dynamic) {
+            self.issue("git fetch source or refspec is not known statically");
+        }
+        if positional.first().is_some_and(|src| self.local_source(src)) {
+            self.stop("git.fetch-local", "git fetch from a local repository writes refs of this one");
+            return;
+        }
+        // `git fetch --multiple a b` names remotes only; otherwise everything after the source is a refspec.
+        let multiple = args.iter().any(|a| a.text == "--multiple");
+        let specs = if multiple { &[][..] } else { positional.get(1..).unwrap_or(&[]) };
+        if specs.iter().chain(refmaps.iter()).any(|spec| refspec_writes_local_ref(spec)) {
+            self.stop("git.fetch-refspec", "git fetch into a ref outside refs/remotes moves or deletes local refs");
+        }
+        if multiple && positional.iter().any(|r| self.local_source(r)) {
+            self.stop("git.fetch-local", "git fetch from a local repository writes refs of this one");
+        }
+    }
+
+    /// A fetch source on this machine: `.`, a path, `file://`, or a folder that exists where the command runs.
+    fn local_source(&self, src: &str) -> bool {
+        let lower = src.to_ascii_lowercase();
+        if lower.starts_with("file:") || src == "." || src == ".." || src.starts_with('/') || src.starts_with("./") || src.starts_with("../") || src.starts_with('~') || src.starts_with('\\') {
+            return true;
+        }
+        // `C:\x`, `C:/x`
+        let b = src.as_bytes();
+        if b.len() >= 3 && b[0].is_ascii_alphabetic() && b[1] == b':' && (b[2] == b'/' || b[2] == b'\\') {
+            return true;
+        }
+        if src.contains("://") || src.contains('@') || src.contains(':') {
+            return false;
+        }
+        // `git fetch other-checkout`: a path without a slash is a folder when one of that name exists (a remote name is not).
+        src.contains('/') || src.contains('\\') || (self.cwd_known && self.cwd.join(src).is_dir())
     }
 
     /// Options that run a program or write a file wherever they appear.
@@ -1414,6 +1493,23 @@ fn is_listing(sub: &str, args: &[Word]) -> bool {
 }
 
 /// `--name` or an unambiguous-looking abbreviation of it (git accepts `--ha` for `--hard`).
+/// The word names the refs of the Rewind snapshot and the checkpoints (`refs/intely/...`, also inside a refspec, a
+/// `--refmap`, a `.git/refs/intely` path or written with backslashes).
+fn mentions_intely_refs(text: &str) -> bool {
+    text.to_ascii_lowercase().replace('\\', "/").contains("refs/intely")
+}
+
+/// A fetch refspec (`[+]<src>:<dst>`) whose destination is a local ref outside `refs/remotes/` (an empty destination
+/// only updates FETCH_HEAD; `^<src>` excludes).
+fn refspec_writes_local_ref(spec: &str) -> bool {
+    let spec = spec.trim_start_matches('+');
+    if spec.starts_with('^') {
+        return false;
+    }
+    let Some((_, dst)) = spec.split_once(':') else { return false };
+    !dst.is_empty() && !dst.starts_with("refs/remotes/")
+}
+
 pub(super) fn long_opt(arg: &str, full: &str, min: usize) -> bool {
     let Some(name) = arg.strip_prefix("--") else { return false };
     let name = name.split('=').next().unwrap_or("");
