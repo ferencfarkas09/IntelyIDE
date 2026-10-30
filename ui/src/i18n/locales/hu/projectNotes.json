@@ -8,6 +8,7 @@
   "pnotes.generate": "Első változat írása ügynökkel",
   "pnotes.improve": "Javítás ügynökkel",
   "pnotes.noDialog": "Az Új futás ablakot nem sikerült megnyitni.",
+  "pnotes.pickRepo": "Válaszd ki itt a tárolót, majd az Első változat írását.",
   "pnotes.lead": "A CLAUDE.md a repó szabályait tartalmazza a kódoló ügynököknek: hogyan kell futtatni, mit kell kerülni, milyen konvenciókat kell követni. Minden Claude-futás, amelyet az IntelyIDE-ben indítasz, megkapja ezeket a fájlokat.",
   "pnotes.fileTitle": "A repó CLAUDE.md fájlja",
   "pnotes.missing": "Ennek a repónak még nincs CLAUDE.md fájlja. Létrehozhatod itt, vagy egy ügynök megírhatja az első változatot abból, amit a repóban talál.",

@@ -757,6 +757,9 @@ impl AgentHost {
             }
             return Err(err(NO_SAFETY_NET, format!("no Rewind snapshot could be taken for {repo_id} ({e}); the run would have no way back. Start it with \"run without safety net\" only if you accept that")));
         }
+        // the opt-in copy of ignored config files gets its step 0 here, next to the snapshot: the state before the run
+        let at_start: Vec<(String, PathBuf)> = snapshots.iter().map(|s| (s.repo_id.clone(), s.path.clone())).collect();
+        inner.save_config_at_start(&agent_id, &at_start);
         meta.snapshots.extend(snapshots);
         let (ctx, remote_fs) = inner.context_for_run(&meta, role_deny.to_vec());
         let resume = meta.native_id.clone();
@@ -1394,6 +1397,7 @@ impl AgentHost {
         let (sc, remote): (Option<Arc<Sidecar>>, Vec<Arc<Sidecar>>) = {
             let mut st = lock(&inner.state);
             st.shutting_down = true;
+            inner.checkpoints.cancel.store(true, std::sync::atomic::Ordering::Relaxed);
             (st.sidecar.clone(), lock(&inner.remote).values().map(|r| r.sc.clone()).collect())
         };
         // the sidecars on servers stop in parallel (each ends with its ssh pipe); this Mac's one first

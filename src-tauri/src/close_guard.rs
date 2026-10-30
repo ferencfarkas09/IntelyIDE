@@ -95,6 +95,33 @@ pub fn close_guard_exit(app: AppHandle, state: State<'_, CloseGuard>) {
     app.exit(0);
 }
 
+/// What bringing a window forward needs, so the order can be tested without a real window.
+pub trait Raise {
+    fn show(&self);
+    fn unminimize(&self);
+    fn focus(&self);
+}
+
+impl<R: tauri::Runtime> Raise for tauri::WebviewWindow<R> {
+    fn show(&self) {
+        let _ = tauri::WebviewWindow::show(self);
+    }
+    fn unminimize(&self) {
+        let _ = tauri::WebviewWindow::unminimize(self);
+    }
+    fn focus(&self) {
+        let _ = self.set_focus();
+    }
+}
+
+/// Shows, restores and focuses the window that is about to ask (a Quit from the tray or the menu may come while the main
+/// window is hidden, minimised or behind another app, and the Save all / Don't save / Cancel dialog would go unseen).
+pub fn raise(window: &impl Raise) {
+    window.show();
+    window.unminimize();
+    window.focus();
+}
+
 /// Called for a close of the main window or a Quit; returns true when it was held back.
 pub fn intercept(app: &AppHandle) -> bool {
     let Some(guard) = app.try_state::<CloseGuard>() else { return false };
@@ -105,6 +132,10 @@ pub fn intercept(app: &AppHandle) -> bool {
     match guard.on_close_request_with(Instant::now(), tunnel_up) {
         Verdict::Allow => false,
         Verdict::Block { ask } => {
+            // the dialog is (or is about to be) open in the main window: bring it where the person can answer it
+            if let Some(main) = app.get_webview_window("main") {
+                raise(&main);
+            }
             if ask {
                 if tunnel_up {
                     // tells the UI why the dialog is shown (it may add a line); the generic request below does the asking
@@ -159,6 +190,27 @@ mod tests {
         assert_eq!(g.on_close_request_with(t0, true), Verdict::Block { ask: true });
         assert_eq!(g.on_close_request_with(t0 + Duration::from_secs(1), true), Verdict::Block { ask: false });
         assert_eq!(g.on_close_request_with(t0 + ANSWER_WITHIN + Duration::from_secs(1), true), Verdict::Allow);
+    }
+
+    #[test]
+    fn raising_shows_restores_and_focuses_the_window_in_that_order() {
+        use std::cell::RefCell;
+        #[derive(Default)]
+        struct Fake(RefCell<Vec<&'static str>>);
+        impl Raise for Fake {
+            fn show(&self) {
+                self.0.borrow_mut().push("show");
+            }
+            fn unminimize(&self) {
+                self.0.borrow_mut().push("unminimize");
+            }
+            fn focus(&self) {
+                self.0.borrow_mut().push("focus");
+            }
+        }
+        let w = Fake::default();
+        raise(&w);
+        assert_eq!(*w.0.borrow(), ["show", "unminimize", "focus"]);
     }
 
     #[test]

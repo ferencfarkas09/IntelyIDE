@@ -116,6 +116,31 @@ impl ConfigVault {
         Ok(out)
     }
 
+    /// Whether the protected files of `repo` now differ from the copy kept with step `seq`: a file added, gone or changed. A step
+    /// whose git tree did not change is still taken for that (an edit of `.env` alone changes nothing git sees).
+    pub fn differs(&self, rewind: &Rewind, repo: &Path, run_id: &str, seq: u32) -> Result<bool, RewindError> {
+        validate_run_id(run_id)?;
+        let top = rewind.toplevel(repo)?;
+        let names: Vec<String> = rewind.protected_candidates(&top)?.into_iter().take(MAX_FILES).collect();
+        let dir = self.dir(&top, run_id, seq);
+        let manifest = read_manifest(&dir);
+        let mut copied: Vec<&str> = manifest.files.iter().map(|e| e.path.as_str()).chain(manifest.skipped.iter().map(String::as_str)).collect();
+        copied.sort_unstable();
+        let mut now: Vec<&str> = names.iter().map(String::as_str).collect();
+        now.sort_unstable();
+        if copied != now {
+            return Ok(true);
+        }
+        for e in &manifest.files {
+            let saved = safe_join(&dir.join("files"), &e.path).and_then(|p| fs::read(p).ok());
+            let current = safe_join(&top, &e.path).and_then(|p| read_regular(&p).ok());
+            if saved.is_none() || saved != current {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
     /// Writes the copies of `paths` back into the repository. Refuses without `consent`; a name that is not in the copy's manifest,
     /// a file that is a link, or a path through a linked directory is refused as a whole before anything is written.
     pub fn restore(&self, rewind: &Rewind, repo: &Path, run_id: &str, seq: u32, paths: &[String], consent: bool) -> Result<Vec<String>, RewindError> {

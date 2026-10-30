@@ -1,15 +1,16 @@
-// State of "Auto-test after a run": the test results and the open "run tests?" questions, keyed by run id, and the
-// preferences (settings.json namespace "autotest": `mode` and the remembered answer of each repository).
+// State of "Auto-test after a run": the test results and the open trust questions, keyed by run id, and the preferences
+// (settings.json namespace "autotest": `mode`, the remembered answer of each repository and the fingerprint of the test
+// command each repository was trusted with).
 import { createRoot, createSignal } from "solid-js";
 import { ipc } from "../../ipc";
-import type { AutotestMode, AutotestPrefs, RepoAnswer, RepoTest } from "./types";
+import type { AskItem, AutotestMode, AutotestPrefs, RepoAnswer, RepoTest } from "./types";
 
 export const AUTOTEST_NS = "autotest";
-export const DEFAULT_PREFS: AutotestPrefs = { mode: "ask", repos: {} };
+export const DEFAULT_PREFS: AutotestPrefs = { mode: "ask", repos: {}, trusted: {} };
 
 const state = createRoot(() => {
   const [results, setResults] = createSignal<Record<string, Record<string, RepoTest>>>({});
-  const [asks, setAsks] = createSignal<Record<string, string[]>>({});
+  const [asks, setAsks] = createSignal<Record<string, AskItem[]>>({});
   const [prefs, setPrefs] = createSignal<AutotestPrefs>(DEFAULT_PREFS);
   return { results, setResults, asks, setAsks, prefs, setPrefs };
 });
@@ -22,13 +23,24 @@ export function setRepoResult(runId: string, test: RepoTest): void {
   state.setResults((all) => ({ ...all, [runId]: { ...all[runId], [test.repoId]: test } }));
 }
 
-/** The repositories of a run whose answer is still open (the "run tests?" card). */
-export const runAsk = (runId: string): string[] => state.asks()[runId] ?? [];
+/** Forgets one repository's result of a run (a held test dropped when the extra is switched off). */
+export function dropRepoResult(runId: string, repoId: string): void {
+  state.setResults((all) => {
+    if (!all[runId]?.[repoId]) return all;
+    const { [repoId]: _gone, ...rest } = all[runId];
+    const next = { ...all, [runId]: rest };
+    if (!Object.keys(rest).length) delete next[runId];
+    return next;
+  });
+}
 
-export function setRunAsk(runId: string, repoIds: string[]): void {
+/** The repositories of a run whose answer is still open (the trust card), with the command each would run. */
+export const runAsk = (runId: string): AskItem[] => state.asks()[runId] ?? [];
+
+export function setRunAsk(runId: string, items: AskItem[]): void {
   state.setAsks((all) => {
     const next = { ...all };
-    if (repoIds.length) next[runId] = repoIds;
+    if (items.length) next[runId] = items;
     else delete next[runId];
     return next;
   });
@@ -41,7 +53,11 @@ export function parsePrefs(raw: Record<string, unknown> | undefined): AutotestPr
   const repos: Record<string, RepoAnswer> = {};
   const src = raw?.repos;
   if (src && typeof src === "object") for (const [k, v] of Object.entries(src as Record<string, unknown>)) if (v === "yes" || v === "no") repos[k] = v;
-  return { mode, repos };
+  // Trust is never implied: only a fingerprint stored by the trust question counts (a "yes" of 1.14.0 does not).
+  const trusted: Record<string, string> = {};
+  const tr = raw?.trusted;
+  if (tr && typeof tr === "object") for (const [k, v] of Object.entries(tr as Record<string, unknown>)) if (typeof v === "string" && /^[0-9a-f]{16}$/.test(v)) trusted[k] = v;
+  return { mode, repos, trusted };
 }
 
 /** Reads settings.json once; a failure keeps the defaults. */
@@ -61,21 +77,28 @@ export function setMode(mode: AutotestMode): void {
   save({ mode });
 }
 
-export function rememberAnswer(repoIds: string[], answer: RepoAnswer): void {
+/** The answer of the trust question: Yes trusts each repository with the command it showed, No removes any trust. */
+export function rememberAnswer(items: AskItem[], answer: RepoAnswer): void {
   const repos = { ...state.prefs().repos };
-  for (const id of repoIds) repos[id] = answer;
-  state.setPrefs((p) => ({ ...p, repos }));
-  save({ repos });
+  const trusted = { ...state.prefs().trusted };
+  for (const it of items) {
+    repos[it.repoId] = answer;
+    if (answer === "yes") trusted[it.repoId] = it.fingerprint;
+    else delete trusted[it.repoId];
+  }
+  state.setPrefs((p) => ({ ...p, repos, trusted }));
+  save({ repos, trusted });
 }
 
+/** Forgets every answer and every trust: the next run asks again. */
 export function forgetAnswers(): void {
-  state.setPrefs((p) => ({ ...p, repos: {} }));
-  save({ repos: null });
+  state.setPrefs((p) => ({ ...p, repos: {}, trusted: {} }));
+  save({ repos: null, trusted: null });
 }
 
 /** Tests only. */
-export function resetAutotestStore(p: AutotestPrefs = DEFAULT_PREFS): void {
+export function resetAutotestStore(p: Partial<AutotestPrefs> = DEFAULT_PREFS): void {
   state.setResults({});
   state.setAsks({});
-  state.setPrefs(p);
+  state.setPrefs({ ...DEFAULT_PREFS, ...p });
 }

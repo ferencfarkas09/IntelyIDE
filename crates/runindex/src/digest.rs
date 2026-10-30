@@ -20,7 +20,7 @@ use crate::brief::{brief_run, DiffSource};
 use crate::doc::{input_paths, parse_log, scrub, MetaFile};
 
 /// Format of the cached file; a different number rebuilds it.
-pub const VERSION: u32 = 1;
+pub const VERSION: u32 = 2;
 /// The serialized digest stays below this size (examples are dropped first).
 pub const MAX_BYTES: usize = 64 * 1024;
 const MAX_EXAMPLES: usize = 3;
@@ -59,7 +59,9 @@ pub struct Group {
 #[serde(rename_all = "camelCase")]
 pub struct RepoDigest {
     pub repo_id: String,
-    /// `git` (snapshot against the tree), `log` (the files the agent's tools touched; no line numbers) or `none`.
+    /// `git` (snapshot against the tree, plus the files the agent's tools wrote that git does not show), `log` (no
+    /// snapshot or no git: only the files the agent's tools touched, no line numbers, shell edits missing) or `none`
+    /// (no snapshot and no tool edits: nothing could be checked). Only `git` may be read as "nothing changed".
     pub source: String,
     pub file_count: u32,
     pub created: u32,
@@ -642,6 +644,20 @@ pub fn digest_run(id: &str, events: &[AgentEvent], meta: Option<&MetaFile>, git:
             }
             // Beyond the brief's listed files only the count is known: they count as modified.
             rd.modified += r.file_count.saturating_sub(r.files.len() as u32);
+            // Files the agent's tools wrote that git does not show (ignored by git, or outside what the diff sees) are
+            // still changes of this run. With a full list a path that is not on it is new; a capped list is left as is.
+            if r.files.len() as u32 == r.file_count {
+                let base = repo_paths.iter().find(|(rid, _)| rid == &r.repo_id).map(|(_, p)| p.as_str()).unwrap_or("");
+                let listed: BTreeSet<String> = r.files.iter().map(|f| scrub(&f.path)).collect();
+                for (p, lf) in &log.files {
+                    let Some(rel) = rel_path(p, base).map(str::to_owned).or_else(|| (single && !p.starts_with('/')).then(|| p.clone())) else { continue };
+                    if listed.contains(&rel) {
+                        continue;
+                    }
+                    rd.file_count += 1;
+                    changed.push(Changed { repo: r.repo_id.clone(), path: rel, change: lf.change.into() });
+                }
+            }
         } else {
             // No snapshot or no git: the files the agent's tools touched in this repo.
             let base = repo_paths.iter().find(|(rid, _)| rid == &r.repo_id).map(|(_, p)| p.as_str()).unwrap_or("");

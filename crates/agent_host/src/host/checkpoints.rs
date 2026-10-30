@@ -10,7 +10,8 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use intely_agent_gate::rewind::vault::{ConfigVault, PROTECTED_NAMES};
 use intely_agent_gate::rewind::{CheckpointPlan, CheckpointRestore, FileDiff, MAX_CHECKPOINT_RUNS};
@@ -23,6 +24,9 @@ use crate::run::RepoRef;
 
 const SETTINGS_FILE: &str = "checkpoints.json";
 const VAULT_DIR: &str = "checkpoint-files";
+/// Longest a checkpoint step (all repositories of the run) may take; past it the git work is stopped and the step skipped, so a
+/// huge or stuck working tree never holds up a prompt or the end of a turn.
+pub(super) const CHECKPOINT_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// The host's part of checkpoints: the vault, its switch, and a lock so two checkpoints of the host never interleave.
 pub(super) struct Checkpoints {
@@ -30,6 +34,8 @@ pub(super) struct Checkpoints {
     protect_config: AtomicBool,
     settings: PathBuf,
     busy: Mutex<()>,
+    /// Turned on when the host shuts down: a checkpoint in progress stops its git work.
+    pub(super) cancel: Arc<AtomicBool>,
 }
 
 #[derive(Default, Serialize, Deserialize)]
@@ -43,7 +49,7 @@ impl Checkpoints {
     pub(super) fn new(data_dir: &std::path::Path) -> Self {
         let settings = data_dir.join(SETTINGS_FILE);
         let saved: Settings = std::fs::read(&settings).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
-        Self { vault: ConfigVault::new(data_dir.join(VAULT_DIR)), protect_config: AtomicBool::new(saved.protect_config), settings, busy: Mutex::new(()) }
+        Self { vault: ConfigVault::new(data_dir.join(VAULT_DIR)), protect_config: AtomicBool::new(saved.protect_config), settings, busy: Mutex::new(()), cancel: Arc::new(AtomicBool::new(false)) }
     }
 }
 
@@ -121,35 +127,49 @@ impl Inner {
     /// Takes one checkpoint of every repository of the run as one numbered step. `None` when nothing changed anywhere since the
     /// newest step and `force` is off. Errors of single repositories are logged and skipped: a checkpoint never blocks a run.
     pub(super) fn checkpoint_step(&self, agent_id: &str, kind: &str, label: Option<&str>, force: bool) -> Result<Option<u32>, EngineError> {
+        self.checkpoint_step_keeping(agent_id, kind, label, force, &[])
+    }
+
+    /// [`Inner::checkpoint_step`] that never prunes the steps of `keep` (the step a restore is about to put back).
+    /// With the protection of config files on, a change of those files alone (git sees none) is a change too, so their copy follows
+    /// every step. All git work of the step shares one deadline ([`CHECKPOINT_TIMEOUT`]) and stops when the host shuts down.
+    pub(super) fn checkpoint_step_keeping(&self, agent_id: &str, kind: &str, label: Option<&str>, force: bool, keep: &[u32]) -> Result<Option<u32>, EngineError> {
         let repos = self.checkpoint_repos(agent_id)?;
         if repos.is_empty() {
             return Ok(None);
         }
         let _one_at_a_time = lock(&self.checkpoints.busy);
+        let rewind = self.rewind.bounded(CHECKPOINT_TIMEOUT, Some(self.checkpoints.cancel.clone()));
+        let protect = self.checkpoints.protect_config.load(Ordering::Relaxed);
         let mut stages = Vec::new();
         for repo in &repos {
-            match self.rewind.stage_checkpoint(&repo.path, agent_id) {
+            match rewind.stage_checkpoint(&repo.path, agent_id) {
                 Ok(stage) => stages.push((repo, stage)),
                 Err(e) => eprintln!("agent host: no checkpoint of {} for {agent_id}: {e}", repo.id),
             }
         }
-        if stages.is_empty() || (!force && !stages.iter().any(|(_, s)| s.changed)) {
+        let config_changed = || {
+            stages.iter().any(|(repo, s)| {
+                let latest = s.latest.as_ref().map_or(0, |(seq, _)| *seq);
+                self.checkpoints.vault.differs(&rewind, &repo.path, agent_id, latest).unwrap_or(false)
+            })
+        };
+        if stages.is_empty() || (!force && !stages.iter().any(|(_, s)| s.changed) && !(protect && config_changed())) {
             return Ok(None);
         }
         let seq = stages.iter().map(|(_, s)| s.next_seq).max().unwrap_or(1);
-        let protect = self.checkpoints.protect_config.load(Ordering::Relaxed);
         let mut taken = None;
         for (repo, stage) in &stages {
-            match self.rewind.commit_checkpoint(stage, agent_id, seq, kind, label) {
+            match rewind.commit_checkpoint_keeping(stage, agent_id, seq, kind, label, keep) {
                 Ok(info) => {
                     taken = Some(taken.map_or(info.seq, |t: u32| t.max(info.seq)));
                     if info.seq == 1 {
                         // the run's first step: the checkpoints of older runs of this repository beyond the limit go
-                        let _ = self.rewind.prune_checkpoint_runs(&repo.path, agent_id, MAX_CHECKPOINT_RUNS);
+                        let _ = rewind.prune_checkpoint_runs(&repo.path, agent_id, MAX_CHECKPOINT_RUNS);
                     }
                     if protect {
                         // names only in the log, never content
-                        if let Err(e) = self.checkpoints.vault.save(&self.rewind, &repo.path, agent_id, info.seq) {
+                        if let Err(e) = self.checkpoints.vault.save(&rewind, &repo.path, agent_id, info.seq) {
                             eprintln!("agent host: config files of {} not copied: {e}", repo.id);
                         }
                     }
@@ -163,6 +183,20 @@ impl Inner {
             }
         }
         Ok(taken)
+    }
+
+    /// Step 0 of the opt-in config copy: the state of the protected files before the run, saved right after its Rewind snapshot
+    /// (owner-only, like every copy). Off unless the protection is on; a failure is logged, the run still starts.
+    pub(super) fn save_config_at_start(&self, agent_id: &str, repos: &[(String, PathBuf)]) {
+        if !self.checkpoints.protect_config.load(Ordering::Relaxed) {
+            return;
+        }
+        let rewind = self.rewind.bounded(CHECKPOINT_TIMEOUT, Some(self.checkpoints.cancel.clone()));
+        for (repo_id, path) in repos {
+            if let Err(e) = self.checkpoints.vault.save(&rewind, path, agent_id, 0) {
+                eprintln!("agent host: config files of {repo_id} not copied at the start: {e}");
+            }
+        }
     }
 
     /// Refuses while this run works, or while another run works in one of its repositories (a restore would overwrite its files).
@@ -249,7 +283,8 @@ impl AgentHost {
         // judged before the safety checkpoint: that one must not turn the person's later edits into "known" ones
         let plans = self.checkpoint_plan(agent_id, seq)?;
         let before = format!("before restoring step {seq}");
-        if let Err(e) = inner.checkpoint_step(agent_id, "restore", Some(&before), false) {
+        // the step being restored is never pruned by this checkpoint, however full the run is
+        if let Err(e) = inner.checkpoint_step_keeping(agent_id, "restore", Some(&before), false, &[seq]) {
             eprintln!("agent host: no checkpoint before the restore of {agent_id}: {e}");
         }
         let mut out = Vec::new();
@@ -266,7 +301,7 @@ impl AgentHost {
         }
         // the state after the restore is the new reference point: edits made from here on are the ones a later restore keeps
         let after = format!("after restoring step {seq}");
-        if let Err(e) = inner.checkpoint_step(agent_id, "restore", Some(&after), false) {
+        if let Err(e) = inner.checkpoint_step_keeping(agent_id, "restore", Some(&after), false, &[seq]) {
             eprintln!("agent host: no checkpoint after the restore of {agent_id}: {e}");
         }
         if failures.is_empty() {

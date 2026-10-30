@@ -49,6 +49,16 @@ export const hasImports = (text: string): boolean => /^\s*@[\w./~-]+\s*$/m.test(
 /** The files of one directory of the plan (the user's own file has none). */
 export const filesOfDir = (plan: NotesPlan, index: number): NoteFile[] => plan.files.filter((f) => f.dirIndex === index);
 
+/**
+ * Which repository the palette's "Generate a CLAUDE.md" is for: the one Project notes shows when that tab is on screen, the
+ * active file's, or the only one of the workspace; undefined when the person has to pick.
+ */
+export function starterTarget(shown: { type: string; params?: Record<string, unknown> } | undefined, notesRepo: string | undefined, repoIds: readonly string[]): string | undefined {
+  const fromTab = shown?.type === "projectnotes" ? notesRepo : shown?.type === "file" ? shown.params?.repoId : undefined;
+  if (typeof fromTab === "string" && repoIds.includes(fromTab)) return fromTab;
+  return repoIds.length === 1 ? repoIds[0] : undefined;
+}
+
 /** The prompt of "Generate a starter with an agent". The run writes CLAUDE.md only; the person reviews and commits it. */
 export function starterPrompt(repoName: string, exists: boolean): string {
   return [

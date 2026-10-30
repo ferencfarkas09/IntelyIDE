@@ -1,18 +1,21 @@
-import { For, Show } from "solid-js";
+import { createSignal, createUniqueId, For, Show } from "solid-js";
 import { locale, t } from "../../i18n";
 import { requestNewRun } from "../../platform/newRun";
 import { openSettings } from "../../platform/settings";
 import type { AgentRow } from "../../store/agents";
 import { repoConfig } from "../../store/workspace";
-import { Button, CircleCheck, CircleX, Clock, Icon, ListChecks, RotateCw, Spinner, toast, TriangleAlert, Wrench } from "../../ui-kit";
+import { Button, ChevronDown, ChevronRight, CircleCheck, CircleX, Clock, Icon, ListChecks, readStored, RotateCw, ShieldAlert, Spinner, toast, TriangleAlert, Wrench, writeStored } from "../../ui-kit";
 import { buildFixPrompt, canRunTests } from "./flow";
 import { autotestFlow, currentRuns } from "./instance";
 import { MAX_FAILURES } from "./logic";
 import { prefs, runAsk, runResults } from "./store";
-import type { RepoTest } from "./types";
+import type { AskItem, RepoTest } from "./types";
 import "./autotest.css";
 
 const nameOf = (repoId: string): string => repoConfig(repoId)?.name ?? repoId;
+
+/** The results card's fold, remembered like the run summary's; the actions stay on screen when it is folded. */
+const COLLAPSED_KEY = "intely.autotest.collapsed";
 
 function formatDuration(ms: number): string {
   if (ms < 1000) return t("autotest.unit.ms", { n: Math.max(0, Math.round(ms)) });
@@ -29,6 +32,8 @@ function statusLine(r: RepoTest): string {
       return t("autotest.status.running", { runner: r.runner ?? "" });
     case "noTests":
       return t("autotest.status.noTests");
+    case "notTested":
+      return t("autotest.status.notTestedServer");
     case "timeout":
       return t("autotest.status.timeout", { min: 5 });
     case "error":
@@ -40,7 +45,7 @@ function statusLine(r: RepoTest): string {
   }
 }
 
-const ICON = { waiting: Clock, running: Clock, noTests: ListChecks, timeout: TriangleAlert, error: TriangleAlert, passed: CircleCheck, failed: CircleX } as const;
+const ICON = { waiting: Clock, running: Clock, noTests: ListChecks, notTested: ListChecks, timeout: TriangleAlert, error: TriangleAlert, passed: CircleCheck, failed: CircleX } as const;
 
 function RepoResult(props: { test: RepoTest; many: boolean }) {
   const r = () => props.test;
@@ -63,7 +68,7 @@ function RepoResult(props: { test: RepoTest; many: boolean }) {
           <span class="ui-text-3 ui-tnum">{formatDuration(s()!.durationMs!)}</span>
         </Show>
       </div>
-      <Show when={r().runner && r().status !== "noTests"}>
+      <Show when={r().runner && r().status !== "noTests" && r().status !== "notTested"}>
         <div class="autotest-card__runner ui-mono ui-text-3">{r().runner}</div>
       </Show>
       <Show when={r().error}>
@@ -90,16 +95,37 @@ function RepoResult(props: { test: RepoTest; many: boolean }) {
   );
 }
 
-/** "Run the unit tests after each run?": shown once per repository in Ask mode; the answer is remembered. */
-function AskCard(props: { agent: AgentRow; repoIds: string[] }) {
-  const names = () => props.repoIds.map(nameOf).join(", ");
+/**
+ * The trust question: shown before a repository's own test command first runs by itself (in every mode), and again when
+ * the command changed. It names the exact command; Yes trusts the repository with that command and is remembered.
+ */
+function AskCard(props: { agent: AgentRow; items: AskItem[] }) {
+  const many = () => props.items.length > 1;
   return (
     <section class="autotest-card autotest-card--ask" aria-label={t("autotest.ask.title")}>
       <div class="autotest-card__head">
-        <Icon icon={ListChecks} size={14} class="autotest-card__icon" />
+        <Icon icon={ShieldAlert} size={14} class="autotest-card__icon" />
         <strong>{t("autotest.ask.title")}</strong>
       </div>
-      <p class="autotest-card__body">{t("autotest.ask.body", { repos: names(), n: props.repoIds.length })}</p>
+      <p class="autotest-card__body">{t("autotest.ask.body", { n: props.items.length })}</p>
+      <ul class="autotest-card__repos">
+        <For each={props.items}>
+          {(it) => (
+            <li class="autotest-card__repo">
+              <Show when={many()}>
+                <div class="autotest-card__name">{nameOf(it.repoId)}</div>
+              </Show>
+              <div class="autotest-card__runner ui-mono">{it.runner}</div>
+              <Show when={it.command && it.command !== it.runner}>
+                <pre class="autotest-card__command ui-mono ui-selectable" aria-label={t("autotest.ask.commandLabel", { repo: nameOf(it.repoId) })}>
+                  {it.command}
+                </pre>
+              </Show>
+            </li>
+          )}
+        </For>
+      </ul>
+      <p class="autotest-card__body">{t("autotest.ask.warning")}</p>
       <div class="autotest-card__actions">
         <Button size="sm" variant="primary" onClick={() => void autotestFlow().answer(props.agent.agentId, "yes")}>
           {t("autotest.ask.yes")}
@@ -126,15 +152,25 @@ function ResultCard(props: { agent: AgentRow; results: RepoTest[] }) {
     const opened = await requestNewRun({ prompt, repoIds: tests.map((r) => r.repoId) });
     if (!opened) toast.error(t("autotest.toast.fixFailed"));
   };
+  const [open, setOpen] = createSignal(readStored(COLLAPSED_KEY) !== "1");
+  const toggle = () => {
+    const next = !open();
+    setOpen(next);
+    writeStored(COLLAPSED_KEY, next ? "0" : "1");
+  };
+  const listId = createUniqueId();
   return (
     <section class="autotest-card" aria-label={t("autotest.card.title")} aria-live="polite">
       <div class="autotest-card__head">
-        <Icon icon={ListChecks} size={14} class="autotest-card__icon" />
-        <strong>{t("autotest.card.title")}</strong>
+        <Button class="autotest-card__toggle" variant="ghost" size="sm" icon={open() ? ChevronDown : ChevronRight} aria-expanded={open()} aria-controls={listId} onClick={toggle}>
+          {t("autotest.card.title")}
+        </Button>
       </div>
-      <ul class="autotest-card__repos">
-        <For each={props.results}>{(r) => <RepoResult test={r} many={props.agent.repoIds.length > 1} />}</For>
-      </ul>
+      <Show when={open()}>
+        <ul class="autotest-card__repos" id={listId}>
+          <For each={props.results}>{(r) => <RepoResult test={r} many={props.agent.repoIds.length > 1} />}</For>
+        </ul>
+      </Show>
       <div class="autotest-card__actions">
         <Show when={failed().length > 0}>
           <Button size="sm" variant="primary" icon={Wrench} onClick={() => void fix()} title={t("autotest.card.fixTip")}>
@@ -151,7 +187,7 @@ function ResultCard(props: { agent: AgentRow; results: RepoTest[] }) {
 
 /** The cards at the top of a run's page: the open question, then the results. */
 export default function AutotestTop(props: { agent: AgentRow }) {
-  const ask = () => (prefs().mode === "ask" ? runAsk(props.agent.agentId) : []);
+  const ask = () => (prefs().mode !== "off" ? runAsk(props.agent.agentId) : []);
   const order = (id: string) => {
     const i = props.agent.repoIds.indexOf(id);
     return i < 0 ? Number.MAX_SAFE_INTEGER : i;
@@ -160,7 +196,7 @@ export default function AutotestTop(props: { agent: AgentRow }) {
   return (
     <>
       <Show when={ask().length > 0}>
-        <AskCard agent={props.agent} repoIds={ask()} />
+        <AskCard agent={props.agent} items={ask()} />
       </Show>
       <Show when={results().length > 0}>
         <ResultCard agent={props.agent} results={results()} />

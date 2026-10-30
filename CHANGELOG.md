@@ -7,18 +7,40 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 ### Added
 
 - Work in progress, not released: the Windows 10 and 11 unsigned beta. The code for it is in place (window chrome and menu for Windows, the Windows environment variables the agent and the runner need, NSIS and MSI installer settings, a Windows CI job) but no Windows installer is published with 1.14.0. The agent safety is weaker than on macOS and the app says so. See `docs/install-windows.md`.
+- Work in progress, not released: the code compiles for Linux (x86_64, webkit2gtk 4.1), Windows 10/11 (x86_64, WebView2) and Apple Silicon Macs, in addition to Intel Macs. Linux passes its tests; on Windows the permission checks and many tests are not yet verified. No Linux or Windows package is published; see `docs/install-linux.md` and `docs/install-windows.md` for what works and what is different. Secrets use Windows Credential Manager and the Linux Secret Service (one vault entry, split over several Credential Manager entries when it is large), banners use a Windows toast and `notify-send`, files and links open with `explorer.exe` and `xdg-open`, the terminal starts PowerShell on Windows, and connections to servers are not shared on Windows (OpenSSH for Windows has no `ControlMaster`). Process groups, the process table and the disk-space check are macOS and Linux features; the update swap of the app bundle stays macOS only.
+
+## [1.14.1] - 2026-10-30
+
+### Added
+
 - Website: an MCP section on the IntelyIDE page, in English and Hungarian, with a screenshot of the catalog in light and dark and a test that keeps it in step with the catalog.
 - Website: a Versions section on the IntelyIDE page, in English and Hungarian, with two screenshots of the Versions panel (the version files of the demo repositories with a change pending, and the exact diff under "Will change") in light and dark, a highlight card for it, two new slots in the capture script (`versions`, `versions-diff`) and a test that keeps it in step with `docs/versions.md` and the panel.
-- Work in progress, not released: the code compiles for Linux (x86_64, webkit2gtk 4.1), Windows 10/11 (x86_64, WebView2) and Apple Silicon Macs, in addition to Intel Macs. Linux passes its tests; on Windows the permission checks and many tests are not yet verified. No Linux or Windows package is published; see `docs/install-linux.md` and `docs/install-windows.md` for what works and what is different. Secrets use Windows Credential Manager and the Linux Secret Service (one vault entry, split over several Credential Manager entries when it is large), banners use a Windows toast and `notify-send`, files and links open with `explorer.exe` and `xdg-open`, the terminal starts PowerShell on Windows, and connections to servers are not shared on Windows (OpenSSH for Windows has no `ControlMaster`). Process groups, the process table and the disk-space check are macOS and Linux features; the update swap of the app bundle stays macOS only.
 - Website: a bigger IntelyIDE hero with three headline figures (up to 7x faster startup, up to 6x faster agents, about 30% fewer tokens), a Speed section with an illustrative comparison graphic and an "Agents that start and finish sooner" section, in English and Hungarian. The figures carry the note that results vary with workspace, machine and task.
 - Website: every page hero (home, IntelyIDE, IntelyOpti; English and Hungarian) now uses one shared design: frosted feature cards with pointer parallax, hover tilt and glow, and thin turning arcs behind. Under reduced motion the hero keeps its hover, glow and breathing effects without movement, and a footer toggle ("Animations") lets visitors choose full animations.
 
+### Security
+
+- Auto-test no longer runs a repository's own test command by itself before you trusted it: a card names the exact command and says it runs the repository's scripts, in every mode including Always, and asks again when the command changes (the backend refuses a changed command). The test process gets only an allow-listed environment (no `SSH_AUTH_SOCK`, no tokens), scripts that shell out (`curl`, `wget`, `sh -c`, `node -e`, `npx`, `pnpm dlx`, `ssh`, `git push`, Docker, ...) are never picked, and nothing is tested for a read-only run, a run on a server ("Not tested: this run worked on a server") or a repository the run did not change. See `docs/auto-test.md`.
+- The agent policy now stops, in every mode, any git command line that names `refs/intely` (the Rewind snapshots and checkpoints), `git fetch` or `git remote update` from a local source, and fetch refspecs that write outside `refs/remotes/`, so `git fetch --prune .` cannot delete the safety net.
+
 ### Fixed
 
+- The run summary no longer says "No files were changed." when it could not look: without a snapshot or Git it says "Could not check which files changed", a run on a server says its changes are on the server, and files the agent's tools wrote that Git ignores are counted. `docs/run-summary.md` lists what is and is not covered.
+- Checkpoints: the 256 MB limit is checked on file sizes before anything is hashed into the repository's Git data, a checkpoint step stops after 60 seconds or when the app quits, the checkpoint taken before a restore never prunes the step being restored, and the opt-in copy of ignored config files now holds the state before the run (step 0) and follows a change of those files alone.
 - Glass: the message input popups (slash menu, mentions), the results sheet, the copy button on a message, the follow button of the run log, the preview style panel and the attachment overlays are now frosted like the other popups, so text behind them no longer shows through.
 - Glass: macOS "Reduce transparency" is now detected (the system browser engine does not report it), so Glass draws opaque on such a Mac and a new install there starts with the Standard look. The setting is read at launch.
 - Masking: a secret is now masked when a space sits before the colon (`"password" : "x"`, `Password : x`), both in the app and in the fallback in the interface.
 - Tests: the real-app scenarios for Agent mode, the mock agents and the permission modes wait for the finished transcript and for the window to have focus, instead of reading the page before the transcript is drawn.
+- In Agent mode, the palette commands for Prompts, Project notes, Setup doctor, Mobile health, Web & Node tools and Dashboard now show their tab in the middle of the Agent workspace instead of opening it behind it. The Setup doctor card of the New Run dialog closes the dialog and shows the doctor.
+- Turning the Dashboard off removes the plan usage percentage from the menu bar. The radar's Open run works again while the Dashboard is off (the menu bar opens the radar either way).
+- Turning the React Native extra off stops a device log stream that is still running, and its polling.
+- Auto-test no longer tests or asks about runs that finished while it was turned off, once it is turned back on.
+- Dashboard cards that call a backend (Burn-down, CI & PRs, Sentry triage, Morning brief) no longer refresh while the Dashboard is hidden behind another tab or under Agent mode; a refresh that fell due meanwhile happens once when it is back.
+- The radar and the Needs-You inbox now list the requests of a run that was idle when the app loaded and is working again, so they agree with the count in the menu bar.
+- Quitting with unsaved files (from the menu bar or the app menu) now brings the main window forward, restored and focused, so the Save all / Don't save / Cancel question can be seen.
+- The New Run dialog no longer shows the inactive Templates box next to Saved prompts.
+- The palette command Generate a CLAUDE.md with an agent is now for the repository on screen (the one Project notes shows, or the active file's) and starts in Ask, like the panel's button; with several repositories and none on screen it opens Project notes to pick one.
+- On a short window the cards at the top of a run (What this run did, Unit tests) no longer squeeze the conversation: together they take at most about 40% of the run's height and scroll, the summary starts folded below 700 pixels of window height, and the Unit tests card folds (remembered).
 
 ## [1.14.0] - 2026-10-28
 
@@ -334,7 +356,8 @@ First public release. This is alpha software.
 - Providers other than Claude, Happy, MongoDB Studio and Remote are proven only against mocks or on a local machine.
 - Version 0.1.0 still stores its state in the folder `IntelySwitchIDE` and uses Keychain services named after the earlier bundle identifier; a switch to `com.intelyhome.intelyide` with a migration is planned.
 
-[Unreleased]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.14.0...HEAD
+[Unreleased]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.14.1...HEAD
+[1.14.1]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.14.0...v1.14.1
 [1.14.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.13.0...v1.14.0
 [1.13.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.12.0...v1.13.0
 [1.12.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.11.0...v1.12.0

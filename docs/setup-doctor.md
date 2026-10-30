@@ -2,7 +2,7 @@
 
 The Setup doctor checks whether the tools the agent and the usual mobile and web stacks need are installed, says why each one matters and gives the command that fixes it. Applies to version 1.14.0.
 
-It is a lazy extra that starts switched on. Open it with the command palette (Open the setup doctor) or from Settings > Setup doctor. While the agent cannot start, the New Run dialog shows a card that leads here.
+It is a lazy extra that starts switched on. Open it with the command palette (Open the setup doctor) or from Settings > Setup doctor. While the agent cannot start, the New Run dialog shows a card that leads here: it closes the dialog and opens the Setup doctor (in Agent mode in the middle of the Agent workspace).
 
 ## What it checks
 

@@ -28,7 +28,10 @@ export function RunView(props: { agentId: string }) {
       {(a) => (
         <>
           <RunHeader agent={a()} stopping={isInterrupting(a().agentId)} onInterrupt={() => void interruptRun(a().agentId).catch(fail("chat.fail.interrupt"))} onRewind={() => void rewindRun(a().agentId).catch(fail("chat.fail.rewind"))} />
-          <RunSlots place="top" agent={a()} />
+          {/* the summary and the test cards together never take more than about 40% of the run: they scroll, the transcript keeps its room */}
+          <div class="chat__top">
+            <RunSlots place="top" agent={a()} />
+          </div>
           <Show when={view()} fallback={<div class="chat__loading"><Skeleton height={48} /><Skeleton height={96} /></div>}>
             {(v) => (
               <>

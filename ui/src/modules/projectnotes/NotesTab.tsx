@@ -10,6 +10,7 @@ import { errorText } from "../../store/snapshots";
 import { repoConfig, repos } from "../../store/workspace";
 import { Badge, Button, EmptyState, ExternalLink, FilePlus, FileText, ProgressBar, RefreshCw, RepoBadge, Save, Skeleton, Sparkles, TextArea, toast, TriangleAlert } from "../../ui-kit";
 import { byteLength, editableReason, FILE_MAX, fromDisk, planWarnings, SECRET_CHECK_MAX, sizeLevel, SKELETON, starterPrompt, toDiskText, type Warning } from "./logic";
+import { setNotesRepo } from "./open";
 import "./projectnotes.css";
 
 const FILE = "CLAUDE.md";
@@ -44,6 +45,9 @@ export default function NotesTab(props: { tab?: TabInstance }) {
   /** A repository switch or a refresh that waits for "discard the unsaved changes?". */
   const [pending, setPending] = createSignal<{ to: string | undefined } | undefined>();
   createEffect(() => !repoId() && repos()[0] && setRepoId(repos()[0].id));
+  // the palette's "Generate a CLAUDE.md" is for the repository shown here
+  createEffect(() => setNotesRepo(repoId()));
+  onCleanup(() => setNotesRepo(undefined));
   // every load is numbered: an answer for a repository that is no longer shown is dropped
   let seq = 0;
 

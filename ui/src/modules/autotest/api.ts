@@ -12,8 +12,12 @@ type Off = () => void;
 export interface AutotestApi {
   /** The repository's unit-test command, or null when it has none the IDE may start by itself. */
   pick(repoId: string): Promise<TestPick | null>;
-  /** Starts it (picked again on the backend, with `CI=1`). Rejects with `noTests`, `readOnly`, `alreadyRunning`, ... */
-  start(repoId: string): Promise<ServerInfo>;
+  /**
+   * Starts it (picked again on the backend, with `CI=1` and only the allow-listed environment). `fingerprint` is the
+   * pick the person trusted or asked for; the backend refuses with `changed` when the repository now runs something
+   * else. Rejects with `noTests`, `readOnly`, `alreadyRunning`, ...
+   */
+  start(repoId: string, fingerprint: string): Promise<ServerInfo>;
   stop(serverId: string): Promise<void>;
   logs(serverId: string, fromSeq: number): Promise<LogChunk>;
   list(): Promise<ServerInfo[]>;
@@ -22,7 +26,7 @@ export interface AutotestApi {
 
 const tauriApi: AutotestApi = {
   pick: (repoId) => call("autotest_pick", { repoId }),
-  start: (repoId) => call("autotest_start", { repoId }),
+  start: (repoId, fingerprint) => call("autotest_start", { repoId, fingerprint }),
   stop: (serverId) => ipc.run.stop(serverId),
   logs: (serverId, fromSeq) => ipc.run.logs(serverId, fromSeq),
   list: () => ipc.run.list(),
@@ -50,6 +54,9 @@ export interface MockOptions {
 
 const PASSING = [" RUN  v2.1.8 /repo", "", " ✓ src/cart.test.ts (6 tests) 12ms", " ✓ src/price.test.ts (4 tests) 4ms", "", " Test Files  2 passed (2)", "      Tests  10 passed (10)", "   Start at  10:02:11", "   Duration  1.31s (transform 90ms, setup 0ms, collect 120ms, tests 16ms)"];
 
+/** The fingerprint of the mock's default pick. */
+export const MOCK_FINGERPRINT = "0123456789abcdef";
+
 /** An in-memory test runner: every start prints the configured output and exits after `durationMs`. */
 export function createMockAutotest(opts: MockOptions = {}): AutotestApi {
   interface Sim {
@@ -61,12 +68,13 @@ export function createMockAutotest(opts: MockOptions = {}): AutotestApi {
   const servers = new Map<string, Sim>();
   const cbs = new Set<(s: ServerInfo) => void>();
   const emit = (info: ServerInfo) => cbs.forEach((cb) => cb(structuredClone(info)));
-  const pickOf = (repoId: string): TestPick | null => (opts.picks && repoId in opts.picks ? opts.picks[repoId] : { script: "npm:test", runner: "npm run test", kind: "vitest" });
+  const pickOf = (repoId: string): TestPick | null => (opts.picks && repoId in opts.picks ? opts.picks[repoId] : { script: "npm:test", runner: "npm run test", kind: "vitest", command: "vitest run", fingerprint: MOCK_FINGERPRINT });
   return {
     pick: async (repoId) => pickOf(repoId),
-    async start(repoId) {
+    async start(repoId, fingerprint) {
       const p = pickOf(repoId);
       if (!p) throw { code: "noTests", message: `no unit-test command found in ${repoId}` };
+      if (p.fingerprint !== fingerprint) throw { code: "changed", message: `the test command of ${repoId} changed since it was trusted: ${p.runner}` };
       const id = `${repoId}:${p.script}`;
       const prev = servers.get(id);
       if (prev && (prev.info.status === "starting" || prev.info.status === "running")) throw { code: "alreadyRunning", message: `${p.runner} is already running` };

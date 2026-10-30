@@ -6,10 +6,11 @@ import { createEffect, createRoot, lazy, on } from "solid-js";
 import { t } from "../../i18n";
 import { registerCommand } from "../../platform/commands";
 import { registerSettingsSection } from "../../platform/settings";
-import { openTab, registerTabType } from "../../platform/tabs";
+import { registerTabType } from "../../platform/tabs";
 import { repos } from "../../store/workspace";
 import { Smartphone } from "../../ui-kit";
 import { mobileRepos, refreshDetected } from "./api";
+import { openMobileHealth } from "./open";
 import { mobilehealthEnabled } from "./toggle";
 
 let live: (() => void)[] = [];
@@ -24,7 +25,7 @@ function activate(): void {
       get group() { return t("mobilehealth.name"); },
       keywords: ["mobile", "ios", "android", "xcode", "gradle", "signing", "bundle id", "permissions", "store", "app store", "play store", "react native", "expo", "pods"],
       when: () => mobileRepos().length > 0,
-      run: () => void openTab({ type: "mobilehealth", id: "mobilehealth", title: t("mobilehealth.name") }),
+      run: () => void openMobileHealth(),
     }),
   ];
 }

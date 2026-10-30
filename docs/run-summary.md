@@ -6,7 +6,7 @@ It is a lazy extra that starts switched on. Settings > Run summary turns it off;
 
 ## Where you see it
 
-- **What this run did**: a card at the top of a finished run's page (a run that is done, or that stopped with an error). Click its title to fold it; the app remembers that choice.
+- **What this run did**: a card at the top of a finished run's page (a run that is done, or that stopped with an error). Click its title to fold it; the app remembers that choice. Until you choose, it starts folded when the window is less than 700 pixels high. Together with the Auto-test card it takes at most about 40% of the run's height; beyond that the cards scroll and the conversation keeps its room.
 - **A chip on the run card** in the sessions list, for example `5 files · 2 risks`. It takes the warning colour when the run has at least one risk.
 - **Show run summary** in the command palette scrolls to the card of the selected run and unfolds it.
 
@@ -49,6 +49,16 @@ The card is fetched again when the run's status changes, for example when you se
 
 The summary is built on your computer from the run's event log, the run's meta file and read-only Git (the same comparison with the safety snapshot taken before the run that the Morning brief uses). No AI model is involved and nothing is sent anywhere. When a repository has no snapshot, the summary falls back to the files the agent's tools wrote or deleted, without line counts.
 
+## What the file count covers
+
+| Repository state | What is counted | What the summary says when the count is 0 |
+|---|---|---|
+| Snapshot and Git readable | Every file Git sees as changed against the snapshot (tracked files, and new files that are not ignored), whoever changed it, including shell commands such as `sed -i`; plus the files the agent's own tools (Edit, Write, Delete) wrote that Git does not show, such as a `.env.local` or build output Git ignores | "Git found no changed files. A file git ignores is counted only when the agent's own tools wrote it." |
+| No snapshot, or Git not readable | Only the files the agent's own tools wrote or deleted, without line counts. Files a command changed (`sed -i`, a script, a code generator) are missing | "Could not check which files changed", never "nothing changed". When some files were found, a second line says that not every file could be checked. |
+| A run on a server | Nothing: the changes are in the server's copy | "This run worked on a server. Its changes are there, not in the repositories on this computer." |
+
+Not covered at all: an ignored file changed by a command (not by the agent's Edit or Write tool), files outside the run's repositories, and a run without any repository. The chip on the run card says "Not checked" instead of "0 files" whenever the count could not be checked. A run that ended with an error is summarised the same way.
+
 Commands are listed with their first line only, at most ten, each shown once, and marked when they failed (with the exit code when the output names one). The plan the agent proposed, its task list and the first line of its last message are kept as short decisions.
 
 ## Explain in plain words
@@ -63,6 +73,7 @@ The summary of a finished run is kept as a small JSON file next to the run's log
 
 - Files are grouped by their names and folders, not by what is inside them, so an unusual layout can land in the wrong group.
 - The Git comparison is made when the summary is first built after the run finished, against the working tree at that moment: changes you made by hand before that count as well.
+- A file the agent's tools wrote and later put back the way it was is still counted as changed.
 - Packages, hosts and Git commands are recognised in the usual command forms only; a script that installs packages or calls the internet on its own is not seen.
 - Permission changes inside `Info.plist` and `AndroidManifest.xml` are recognised from the agent's edits in the log; when the log does not show the edit, the file is listed as a settings change.
 - The summary of a deleted run log is removed the next time it is asked for.

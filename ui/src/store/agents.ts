@@ -95,6 +95,7 @@ function onEvents(events: AgentEvent[]): void {
   const byAgent = new Map<string, AgentEvent[]>();
   for (const ev of events) byAgent.set(ev.agentId, [...(byAgent.get(ev.agentId) ?? []), ev]);
   let unknown = false;
+  const resumed: string[] = [];
   const say = events.map(announcement).filter((t): t is string => t !== undefined).pop();
   batch(() => {
     if (say) setSpoken(say);
@@ -106,7 +107,10 @@ function onEvents(events: AgentEvent[]): void {
         if (next !== view) putView(next);
         if (list.some((e) => e.kind === "turn.end")) setInterrupting(({ [id]: _drop, ...rest }) => rest);
       } else if (known) {
+        // A run that was idle when the list loaded and is working again: its view is built now (history, then these events),
+        // so its requests reach the inbox and the radar, which read views, and its status there agrees with the tray count.
         pending.set(id, [...(pending.get(id) ?? []), ...list]);
+        resumed.push(id);
       } else {
         unknown = true;
         putView(reduceEvents(emptyView(id), list));
@@ -114,19 +118,29 @@ function onEvents(events: AgentEvent[]): void {
     }
   });
   if (unknown) void refreshList();
+  for (const id of resumed) void loadHistory(id).catch(() => {});
 }
 
 async function refreshList(): Promise<void> {
   setSummaries(await client.agentList());
 }
 
-async function loadHistory(agentId: string): Promise<void> {
-  if (views()[agentId]) return;
-  const history = await client.agentHistory(agentId);
-  if (views()[agentId]) return;
-  const queued = pending.get(agentId) ?? [];
-  pending.delete(agentId);
-  putView(reduceEvents(emptyView(agentId), [...history, ...queued]));
+/** History loads in flight, so a burst of live events of a resumed run asks for its history once. */
+const loading = new Map<string, Promise<void>>();
+
+function loadHistory(agentId: string): Promise<void> {
+  if (views()[agentId]) return Promise.resolve();
+  const running = loading.get(agentId);
+  if (running) return running;
+  const load = (async () => {
+    const history = await client.agentHistory(agentId);
+    if (views()[agentId]) return;
+    const queued = pending.get(agentId) ?? [];
+    pending.delete(agentId);
+    putView(reduceEvents(emptyView(agentId), [...history, ...queued]));
+  })().finally(() => loading.delete(agentId));
+  loading.set(agentId, load);
+  return load;
 }
 
 let unsubscribe: (() => void) | undefined;
@@ -273,5 +287,6 @@ export function resetAgents(): void {
     resetStarting();
   });
   pending = new Map();
+  loading.clear();
   rowCache.clear();
 }
