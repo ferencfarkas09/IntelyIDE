@@ -174,6 +174,16 @@ fn cases() -> Vec<Case> {
         ("dev", ("deny", H, "read.never-read")),
         ("writer", ("deny", H, "read.never-read")),
     ]);
+    // a property access that ends in `.key` in inline code is no secret file when no such file is there (the fixture has none)
+    per(&mut out, "inline code reading line.key", "Bash", json!({"command": "node -e \"console.log(line.key)\""}), &[
+        ("ro", ("deny", R, "role.read-only")),
+        ("dev", ("ask", D, "exec.ask")),
+    ]);
+    // a name with a folder stays judged by its spelling
+    per(&mut out, "inline code naming certs/server.pem", "Bash", json!({"command": "node -e \"require('fs').readFileSync('certs/server.pem')\""}), &[
+        ("ro", ("deny", H, "read.never-read")),
+        ("dev", ("deny", H, "read.never-read")),
+    ]);
     per(&mut out, "Read inside", "Read", json!({"file_path": "src/a.ts"}), &[
         ("ro", ("allow", D, "read.inside")),
         ("researcher", ("allow", D, "read.inside")),

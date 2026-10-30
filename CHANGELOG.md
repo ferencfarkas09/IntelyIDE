@@ -15,6 +15,7 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 
 ### Fixed
 
+- Agents: a property access such as `line.key`, `event.key` or `props.key` in inline code or in a script a command runs is no longer refused as a secret file. A bare name that is secret only by its extension (`*.key`, `*.pem`, `*.p8`, `*.p12`, `*.jks`, `*.keystore`, `*.pfx`) now counts only when a file of that name is in the folder the command runs in; `.env`, `id_rsa`, names with a folder and home paths are judged as before, in every mode.
 - Glass: the message input popups (slash menu, mentions), the results sheet, the copy button on a message, the follow button of the run log, the preview style panel and the attachment overlays are now frosted like the other popups, so text behind them no longer shows through.
 - Glass: macOS "Reduce transparency" is now detected (the system browser engine does not report it), so Glass draws opaque on such a Mac and a new install there starts with the Standard look. The setting is read at launch.
 - Masking: a secret is now masked when a space sits before the colon (`"password" : "x"`, `Password : x`), both in the app and in the fallback in the interface.

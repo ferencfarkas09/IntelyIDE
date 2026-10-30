@@ -196,6 +196,14 @@ fn spaced_path(t: &str) -> bool {
     t.contains(char::is_whitespace) && !t.trim().is_empty() && !t.contains(['\n', ';', '|', '&', '<', '>', '(', ')', '{', '}', '"', '\'', '`', '$'])
 }
 
+/// Distinct bare names of program text, secret only by their extension, looked up on the disk per command; the rest count as found.
+pub(super) const MAX_EXT_CHECKS: usize = 64;
+
+/// A plain file name: no separator, not `~`, `.`/`..`-relative or absolute (`line.key`, `server.key`; not `./certs/server.pem`).
+fn bare_name(t: &str) -> bool {
+    !t.is_empty() && !t.contains(['/', '\\']) && !t.starts_with('~') && t != "." && t != ".."
+}
+
 /// A token of program text names something that exists, or sits in a directory that does (a URL route such as `/api/users`
 /// does not): only those count as a path the program could open.
 fn plausible(p: &Path) -> bool {
@@ -309,7 +317,16 @@ impl<'a> Walker<'a> {
                 // operand the program opens is resolved, symlinks included.
                 let p = if program_text { self.lexical_path(lit) } else { paths::resolve(&self.cwd, lit, self.jail.home.as_deref()) };
                 if let Some(why) = self.jail.never_read_reason(&p) {
-                    self.stop("read.never-read", &format!("{} is a secret or IDE-state path and is never read by an agent ({why})", p.display()));
+                    // ...except a bare name that is secret only by its extension (`line.key`, `event.key`: a property access in
+                    // code), which counts only when a file of that name is where the command runs (one look per name, capped)
+                    if program_text && why == "secret file" && !cand.starts_with("file://") && bare_name(lit) && paths::secret_by_extension_only(lit) && !self.ext_name_exists(&p) {
+                        return;
+                    }
+                    if program_text {
+                        self.stop("read.never-read", &format!("the script or inline code mentions {lit}, which names a secret file ({}); a secret or IDE-state path is never read by an agent ({why})", p.display()));
+                    } else {
+                        self.stop("read.never-read", &format!("{} is a secret or IDE-state path and is never read by an agent ({why})", p.display()));
+                    }
                     return;
                 }
             }
@@ -332,6 +349,21 @@ impl<'a> Walker<'a> {
                 self.a.paths.push(text);
             }
         }
+    }
+
+    /// Is there a file (a symbolic link too, even a dangling one) at `p`, the lexical path of a bare name of program text in the
+    /// directory the command runs in? Each path is looked up once per command; past [`MAX_EXT_CHECKS`] distinct names the answer is
+    /// yes without a look (fail closed). A look the file system view could not answer marks the decision failed (`fsview::mark_failed`).
+    fn ext_name_exists(&mut self, p: &Path) -> bool {
+        if let Some((_, found)) = self.ext_checks.iter().find(|(q, _)| q == p) {
+            return *found;
+        }
+        if self.ext_checks.len() >= MAX_EXT_CHECKS {
+            return true;
+        }
+        let found = fsview::symlink_metadata(p).is_some() || fsview::exists(p);
+        self.ext_checks.push((p.to_path_buf(), found));
+        found
     }
 
     /// `~` expanded, joined to the working directory and normalised, without touching the filesystem.
