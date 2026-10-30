@@ -177,16 +177,15 @@ fn the_config_copy_holds_the_state_before_the_run_and_follows_an_env_only_change
     }
     assert!(files >= 2, "the copy and its manifest");
 
-    // nothing changed during the turn (the copy at the start matches): no step of its own
-    std::thread::sleep(std::time::Duration::from_millis(300));
-    assert_eq!(host.checkpoints(&id).unwrap().len(), 1);
-    // only the ignored file changes: git sees nothing, the next prompt still takes a step with the new copy
+    // only the ignored file changes: git sees nothing, the next step still happens and holds the new copy (the first turn's end step,
+    // when it runs after this write on a slow machine, or the step before the next prompt)
     std::fs::write(repo.path.join(".env.local"), "TOKEN=during\n").unwrap();
     let last = sink.of(&id).last().unwrap().seq;
     host.send(&id, "again").expect("send");
     sink.wait(&id, "second turn end", 20, |e| e.seq > last && matches!(e.kind, EventKind::TurnEnd { .. }));
     let steps = wait_steps(&host, &id, 2);
-    assert_eq!((steps[1].kind.as_str(), steps[1].changed), ("turn", 0), "{steps:?}");
+    assert_eq!(steps.len(), 2, "one step for the change, none for nothing: {steps:?}");
+    assert!(matches!(steps[1].kind.as_str(), "turn" | "end") && steps[1].changed == 0, "{steps:?}");
     assert_eq!(host.checkpoint_config(&id, steps[1].seq).unwrap()[0].state, "same");
     assert_eq!(host.checkpoint_config(&id, 0).unwrap()[0].state, "differs");
     // the state before the run comes back from step 0
