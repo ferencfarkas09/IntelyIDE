@@ -12,6 +12,7 @@ import { costLabel, effortChip, fmtTokens, modelLabel, TIER_LABEL, TIER_TITLE, T
 import { McpChip } from "./McpChip";
 import { ModeChip } from "./ModeChip";
 import { HeaderShare } from "../../modules/team/RunShare";
+import { RunSlots } from "../RunSlots";
 import { effectiveMode } from "./modes";
 
 const STATUS_TEXT = { running: "chat.group.running", needsYou: "chat.group.needsYou", done: "chat.group.done", error: "chat.group.failed" } as const satisfies Record<AgentRow["status"], MessageKey>;
@@ -71,6 +72,7 @@ export function RunHeader(props: { agent: AgentRow; stopping: boolean; onInterru
           <span class="run-header__cost">{cost().text}</span>
         </span>
         <HeaderShare runId={a().agentId} />
+        <RunSlots place="header" agent={a()} />
         <IconButton icon={FileSearch} label={t("chat.header.inspect")} tooltip={t("chat.header.inspectTip")} size="sm" onClick={() => void execute("inspector.open")} />
         <IconButton
           icon={Rewind}

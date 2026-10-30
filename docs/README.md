@@ -26,6 +26,9 @@ Audiences: **users** run the app, **contributors** change the code, **maintainer
 | [Project notes](project-notes.md) | The CLAUDE.md of each repository and exactly what a run is told from it | users |
 | [Setup doctor](setup-doctor.md) | Checking Node 24, the Agent SDK, the Claude Code login, Git and the iOS and Android tools | users |
 | [Safety presets](safety-presets.md) | Careful, Balanced and Autonomous: plain names for the permission modes | users |
+| [Checkpoints](checkpoints.md) | Save points during a run, Undo last step, comparing and restoring checkpoints, protecting ignored config files | users |
+| [Auto-test after a run](auto-test.md) | Running the project's own unit tests when a run finishes, the result chip and asking the agent to fix failures | users |
+| [Run summary](run-summary.md) | A plain-language digest of what a run did, what to check and what is risky | users |
 | [Notifications](notifications.md) | Banners and the Dock count when a run needs you | users |
 | [Team](team.md) | Working with colleagues over your own relay: presence, shared runs, notes into a run, workspace snapshots, shared memory | users |
 | [Remote with Cloudflare](remote-cloudflare.md) | Setting up the relay with your own Cloudflare account | users |

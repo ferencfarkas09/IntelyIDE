@@ -1,0 +1,24 @@
+/* Auto-test after a run: the result and question cards at the top of a run's page, and the chip on the run card. */
+.autotest-card { display: flex; flex-direction: column; gap: var(--space-1); margin: var(--space-2) var(--space-3) 0; padding: var(--space-2) var(--space-3); border-radius: var(--radius-3); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--border-subtle); color: var(--text-1); font-size: var(--text-sm); min-width: 0; }
+.autotest-card--ask { box-shadow: inset 0 0 0 1px var(--accent-border); }
+.autotest-card__head { display: flex; align-items: center; gap: var(--space-1); }
+.autotest-card__head strong { font-weight: var(--weight-semibold); }
+.autotest-card__icon { color: var(--text-2); flex: none; }
+.autotest-card__body, .autotest-card__note { margin: 0; overflow-wrap: anywhere; }
+.autotest-card__note { font-size: var(--text-xs); }
+.autotest-card__repos, .autotest-card__failures { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+.autotest-card__repo { display: flex; flex-direction: column; gap: var(--space-half); min-width: 0; }
+.autotest-card__line { display: flex; align-items: center; gap: var(--space-1); flex-wrap: wrap; min-width: 0; }
+.autotest-card__repo[data-status="passed"] .autotest-card__icon { color: var(--ok); }
+.autotest-card__repo[data-status="failed"] .autotest-card__icon { color: var(--danger); }
+.autotest-card__repo[data-status="timeout"] .autotest-card__icon, .autotest-card__repo[data-status="error"] .autotest-card__icon { color: var(--warn); }
+.autotest-card__name { font-weight: var(--weight-medium); }
+.autotest-card__runner { font-size: var(--text-xs); padding-left: calc(14px + var(--space-1)); overflow-wrap: anywhere; }
+.autotest-card__error { color: var(--warn); font-size: var(--text-xs); padding-left: calc(14px + var(--space-1)); overflow-wrap: anywhere; }
+.autotest-card__failures { padding-left: calc(14px + var(--space-1)); font-size: var(--text-xs); }
+.autotest-card__failures li { display: flex; flex-direction: column; gap: var(--space-half); padding-left: var(--space-2); box-shadow: inset 2px 0 0 var(--danger-border); min-width: 0; }
+.autotest-card__test { color: var(--text-1); overflow-wrap: anywhere; }
+.autotest-card__msg { color: var(--text-2); overflow-wrap: anywhere; }
+.autotest-card__actions { display: flex; align-items: center; gap: var(--space-1); flex-wrap: wrap; margin-top: var(--space-half); }
+.autotest-card__settings { margin-left: auto; }
+.autotest-chip { flex: none; }

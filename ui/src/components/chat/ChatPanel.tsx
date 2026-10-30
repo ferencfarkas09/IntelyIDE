@@ -13,6 +13,7 @@ import { TeamChatStrip } from "../../modules/team/TeamChatStrip";
 import { TeamNoteCards } from "../../modules/team/TeamNotes";
 import { noteFailure } from "./Notes";
 import { RunHeader } from "./RunHeader";
+import { RunSlots } from "../RunSlots";
 import { StartingRunView } from "./Starting";
 import { Transcript } from "./Transcript";
 import "./chat.css";
@@ -27,6 +28,7 @@ export function RunView(props: { agentId: string }) {
       {(a) => (
         <>
           <RunHeader agent={a()} stopping={isInterrupting(a().agentId)} onInterrupt={() => void interruptRun(a().agentId).catch(fail("chat.fail.interrupt"))} onRewind={() => void rewindRun(a().agentId).catch(fail("chat.fail.rewind"))} />
+          <RunSlots place="top" agent={a()} />
           <Show when={view()} fallback={<div class="chat__loading"><Skeleton height={48} /><Skeleton height={96} /></div>}>
             {(v) => (
               <>

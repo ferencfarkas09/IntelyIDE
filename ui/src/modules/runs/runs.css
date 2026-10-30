@@ -181,6 +181,8 @@
 .run-row__ago { flex: none; color: var(--text-3); font-size: var(--text-xs); }
 .run-row__activity { display: block; padding-left: 23px; color: var(--text-3); font-size: var(--text-xs); }
 .run-row__foreign { display: block; padding-left: 23px; color: var(--warn); font-size: var(--text-xs); line-height: var(--leading-base); }
+.run-row__slots { display: flex; gap: 4px; padding-left: 23px; }
+.run-row__slots:empty { display: none; }
 .run-row__close { margin-right: 4px; opacity: 0; transition: opacity var(--dur-fast) var(--ease); }
 .run-row:hover .run-row__close, .run-row:focus-within .run-row__close, .run-row[data-selected] .run-row__close, .run-row__close:focus-visible { opacity: 1; }
 @media (hover: none) { .run-row__close, .sessions__group-close { opacity: 0.7; } }

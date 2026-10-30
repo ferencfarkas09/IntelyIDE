@@ -208,6 +208,16 @@ pub fn run() {
             modules::roles::runs_usage,
             modules::roles::runs_rewind_snapshots,
             modules::roles::runs_rewind_restore,
+            modules::checkpoints::checkpoints_list,
+            modules::checkpoints::checkpoints_save,
+            modules::checkpoints::checkpoints_plan,
+            modules::checkpoints::checkpoints_restore,
+            modules::checkpoints::checkpoints_compare,
+            modules::checkpoints::checkpoints_patch,
+            modules::checkpoints::checkpoints_settings,
+            modules::checkpoints::checkpoints_set_protect_config,
+            modules::checkpoints::checkpoints_config,
+            modules::checkpoints::checkpoints_restore_config,
             // ==== track F commands (settings, happy) ====
             modules::settings::settings_get,
             modules::settings::settings_set,
@@ -361,6 +371,9 @@ pub fn run() {
             modules::runner::run_open,
             modules::runner::run_access,
             modules::runner::run_allow_processes,
+            // ==== auto-test after a run ====
+            modules::autotest::autotest_pick,
+            modules::autotest::autotest_start,
             // ==== track P commands (preview) ====
             modules::preview::preview_check_url,
             modules::preview::preview_probe,
@@ -407,6 +420,7 @@ pub fn run() {
             modules::agentux::agentux_night_clear,
             modules::agentux::agentux_brief,
             modules::agentux::agentux_brief_summarise,
+            modules::agentux::agentux_run_digest,
             // ==== wave4 contract commands ====
             modules::contract::contract_analyze,
             modules::contract::contract_detail,

@@ -2,6 +2,8 @@
 
 pub mod agentux;
 pub mod attachments;
+pub mod autotest;
+pub mod checkpoints;
 pub mod checks;
 pub mod contract;
 pub mod deeppattern;
