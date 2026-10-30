@@ -2,6 +2,7 @@
 // in Sessions, answer its permission request from the Needs-you inbox, finish, and check the run appears under review.
 // Needs INTELY_MOCK_PROVIDER=1 (run.sh sets it). Nothing is written to the fixtures.
 await waitForTree();
+await window.__e2e.focus(); // another app may be frontmost; the focus checks need this window active
 const modeRadio = (label) => qa('[role="radiogroup"][aria-label="Mode"] [role="radio"]').find((r) => text(r).startsWith(label));
 check("Agent mode is available", modeRadio("Agent")?.getAttribute("aria-disabled") !== "true" && !modeRadio("Agent")?.disabled);
 modeRadio("Agent").click();
@@ -44,11 +45,15 @@ const inbox = () => q('section.inbox');
 await waitFor(() => inbox() && q('section[aria-label="Permission request"]', inbox()), { what: "the Needs-you inbox with the request" });
 check("the inbox shows the request with a button to open the run", /1 request/.test(text(inbox())) && qa("button", inbox()).some((b) => /Open run/.test(text(b))), text(inbox()).slice(0, 200));
 await clickButton("Allow once", q('section[aria-label="Permission request"]', inbox()));
-await waitFor(() => /Done|Ready/.test(text(sessions())), { what: "the run to finish", timeout: 60000 });
+// The run cards of Sessions carry the status; the "What this run did" summary card also says Done/Ready, so never match the whole panel text.
+const runCards = () => qa(".run-card", sessions());
+await waitFor(() => runCards().some((c) => /Done|Ready/.test(text(c))), { what: "the run card in Sessions to say Done or Ready", timeout: 60000 });
 inboxButton().click(); // back to the run
-await waitFor(() => /notes\.txt written/.test(text(ws)), { what: "the finished transcript", timeout: 30000 });
-check("Allow once let the call through and the run finished", /Allowed once by you/.test(text(ws)) && /notes\.txt written/.test(text(ws)), text(ws).slice(0, 300));
-check("the finished run is listed under Ready for review or Done", /Ready for review|Done|Finished/.test(text(sessions())), text(sessions()).slice(0, 300));
+// The summary cards sit above the transcript: wait for the transcript itself (the Allow once note and the final reply), not for any text in the workspace.
+const transcript = () => q('[data-testid="transcript"]', ws);
+await waitFor(() => /Allowed once by you/.test(text(transcript())) && /notes\.txt written/.test(text(transcript())), { what: "the finished transcript with the Allow once note and 'notes.txt written'", timeout: 30000 });
+check("Allow once let the call through and the run finished", /Allowed once by you/.test(text(transcript())) && /notes\.txt written/.test(text(transcript())), text(transcript()).slice(0, 300));
+check("the finished run is listed under Ready for review or Done", runCards().some((c) => /Ready for review|Done|Finished/.test(text(c))) || /Ready for review|Done|Finished/.test(text(sessions())), text(sessions()).slice(0, 300));
 await shot("agent-mode-finished");
 modeRadio("Editor").click();
 await waitFor(() => !q('[data-testid="agent-workspace"]') || q('[data-testid="agent-workspace"]').offsetParent === null, { what: "Editor mode to hide the Agent workspace" });

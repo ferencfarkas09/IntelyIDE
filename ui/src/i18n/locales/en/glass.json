@@ -4,7 +4,7 @@
   "appearance.standard": "Standard",
   "appearance.glass": "Glass",
   "appearance.reduceTransparency": "Reduce transparency",
-  "appearance.reduceTransparencyDesc": "Solid panels without blur or gradient, for sharper contrast.",
+  "appearance.reduceTransparencyDesc": "Solid panels without blur or gradient, for sharper contrast. The system's Reduce transparency (macOS, read at launch), Increase contrast and forced colours (Windows) turn it on by themselves.",
   "appearance.systemReducedTransparency": "Your system asks for less transparency or more contrast, so panels stay solid anyway.",
   "kit.sparklineTrend": "Trend: {from} to {to}",
   "kit.deltaUp": "up {value}",

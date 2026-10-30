@@ -4,7 +4,7 @@
   "appearance.standard": "Normál",
   "appearance.glass": "Üveg",
   "appearance.reduceTransparency": "Kevesebb átlátszóság",
-  "appearance.reduceTransparencyDesc": "Tömör panelek elmosás és színátmenet nélkül, élesebb kontraszttal.",
+  "appearance.reduceTransparencyDesc": "Tömör panelek elmosás és színátmenet nélkül, élesebb kontraszttal. A rendszer Átlátszóság csökkentése (macOS, indításkor olvassuk), Nagyobb kontraszt és kényszerített színek (Windows) beállítása magától bekapcsolja.",
   "appearance.systemReducedTransparency": "A rendszered kevesebb átlátszóságot vagy nagyobb kontrasztot kér, ezért a panelek így is tömörek maradnak.",
   "kit.sparklineTrend": "Alakulás: {from} → {to}",
   "kit.deltaUp": "{value} növekedés",

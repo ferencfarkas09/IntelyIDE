@@ -1,6 +1,6 @@
 import { createRoot, createEffect } from "solid-js";
 import { afterEach, describe, expect, it } from "vitest";
-import { appearanceLook, applySkin, defaultSkin, hasLocalHistory, parseSkin, pinSkinFromUrl, resetSkinForTests, activeSkin, transparencyReduced } from "./skin";
+import { loadHostTransparency, systemWantsOpaque, appearanceLook, applySkin, defaultSkin, hasLocalHistory, parseSkin, pinSkinFromUrl, resetSkinForTests, activeSkin, transparencyReduced } from "./skin";
 
 function fakeRoot() {
   const attrs: Record<string, string> = {};
@@ -49,6 +49,25 @@ describe("skin", () => {
     dispose();
     expect(new Set(seen).size).toBe(3);
     expect(seen[seen.length - 1]).toMatch(/\|glass\|opaque$/);
+  });
+
+  it("the host's macOS Reduce transparency flag makes Glass opaque, and a failing host changes nothing", async () => {
+    const f = fakeRoot();
+    applySkin("glass", false, f.root);
+    expect(systemWantsOpaque()).toBe(false);
+    expect(f.attrs["data-transparency"]).toBeUndefined();
+    await expect(loadHostTransparency(async () => true)).resolves.toBe(true);
+    expect(systemWantsOpaque()).toBe(true);
+    expect(f.attrs["data-transparency"]).toBe("reduced");
+    expect(transparencyReduced()).toBe(true);
+    resetSkinForTests();
+    await expect(loadHostTransparency(() => Promise.reject(new Error("no host")))).resolves.toBe(false);
+    expect(systemWantsOpaque()).toBe(false);
+  });
+
+  it("a new install whose system asks for opaque surfaces is Standard", () => {
+    expect(defaultSkin({ localHistory: false, appearanceKeys: 0, workspaces: 0, systemOpaque: true })).toBe("standard");
+    expect(defaultSkin({ localHistory: false, appearanceKeys: 0, workspaces: 0, systemOpaque: false })).toBe("glass");
   });
 
   it("Glass by default only for a new install", () => {

@@ -478,7 +478,7 @@ fn colon_secret_key(key: &str) -> bool {
 }
 
 /// `password: value` (YAML, INI, logs) and `'password': 'value'` (single-quoted JSON-ish, Python reprs), where the key
-/// names a secret. An unquoted value needs a blank after the colon, so `host:port` and `scheme://` are left alone.
+/// names a secret; blanks before the colon are fine (`"password" : "x"`). An unquoted value needs a blank after the colon, so `host:port` and `scheme://` are left alone.
 fn colon_assignments(s: &str) -> Vec<(usize, usize)> {
     let b = s.as_bytes();
     let mut out = Vec::new();
@@ -486,10 +486,12 @@ fn colon_assignments(s: &str) -> Vec<(usize, usize)> {
         if c != b':' || b.get(i + 1) == Some(&b'/') || b.get(i + 1) == Some(&b':') || (i > 0 && b[i - 1] == b':') {
             continue;
         }
-        let quoted = i > 0 && matches!(b[i - 1], b'\'' | b'"');
-        let kend = if quoted { i - 1 } else { i };
+        // Blanks before the colon are allowed (`"password" : "x"`, `Password : x`): the key ends where they start.
+        let key_end = b[..i].iter().rposition(|c| *c != b' ' && *c != b'\t').map_or(0, |p| p + 1);
+        let quoted = key_end > 0 && matches!(b[key_end - 1], b'\'' | b'"');
+        let kend = if quoted { key_end - 1 } else { key_end };
         let kstart = if quoted {
-            b[..kend].iter().rposition(|c| *c == b[i - 1]).map_or(kend, |p| p + 1)
+            b[..kend].iter().rposition(|c| *c == b[key_end - 1]).map_or(kend, |p| p + 1)
         } else {
             b[..kend].iter().rposition(|c| !is_tok(*c)).map_or(0, |p| p + 1)
         };

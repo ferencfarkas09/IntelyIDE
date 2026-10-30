@@ -5,6 +5,7 @@
 // Needs INTELY_MOCK_PROVIDER=1 and the built-in mock roles of the host: mock-interrupt, mock-plan-approval, mock-bash-twice
 // (the host adds the last two to MOCK_SCENARIOS; bash-twice runs the same `Bash` command twice through the real broker).
 await waitForTree();
+await window.__e2e.focus(); // another app may be frontmost; the focus checks below need this window active
 await openAgents();
 const ws = await invoke("workspace_get");
 const nameOf = (id) => ws.repos.find((r) => r.id === id).name;
@@ -266,7 +267,12 @@ if (PHASE === 2) {
   // ---- the stored runs ---------------------------------------------------------------------------------------------------------------------------
   const list = await invoke("agent_list");
   for (const a of list) {
-    const h = await historyOf(a.agentId);
+    // The UI says Done a moment before the host appends the last turn.end: poll until the turn is closed (10 s at most), then judge.
+    let h = await historyOf(a.agentId);
+    for (let i = 0; i < 40 && h.problems.includes("turn never ended"); i++) {
+      await sleep(250);
+      h = await historyOf(a.agentId);
+    }
     check(`log of ${a.role}: gap-free, tools and turns paired`, h.problems.length === 0, h.problems.join("; "));
   }
   await finish();

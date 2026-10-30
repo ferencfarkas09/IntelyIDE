@@ -13,6 +13,13 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 - Website: a bigger IntelyIDE hero with three headline figures (up to 7x faster startup, up to 6x faster agents, about 30% fewer tokens), a Speed section with an illustrative comparison graphic and an "Agents that start and finish sooner" section, in English and Hungarian. The figures carry the note that results vary with workspace, machine and task.
 - Website: every page hero (home, IntelyIDE, IntelyOpti; English and Hungarian) now uses one shared design: frosted feature cards with pointer parallax, hover tilt and glow, and thin turning arcs behind. Under reduced motion the hero keeps its hover, glow and breathing effects without movement, and a footer toggle ("Animations") lets visitors choose full animations.
 
+### Fixed
+
+- Glass: the message input popups (slash menu, mentions), the results sheet, the copy button on a message, the follow button of the run log, the preview style panel and the attachment overlays are now frosted like the other popups, so text behind them no longer shows through.
+- Glass: macOS "Reduce transparency" is now detected (the system browser engine does not report it), so Glass draws opaque on such a Mac and a new install there starts with the Standard look. The setting is read at launch.
+- Masking: a secret is now masked when a space sits before the colon (`"password" : "x"`, `Password : x`), both in the app and in the fallback in the interface.
+- Tests: the real-app scenarios for Agent mode, the mock agents and the permission modes wait for the finished transcript and for the window to have focus, instead of reading the page before the transcript is drawn.
+
 ## [1.14.0] - 2026-10-28
 
 ### Added
