@@ -76,17 +76,6 @@
       {
         "kind": "new",
         "title": {
-          "en": "Windows 10 and 11, unsigned beta",
-          "hu": "Windows 10 és 11, aláíratlan béta"
-        },
-        "text": {
-          "en": "IntelyIDE now installs on Windows (no code signing yet, so SmartScreen warns). Agent safety is weaker there than on macOS; the install guide says where.",
-          "hu": "Az IntelyIDE mostantól Windowsra is telepíthető (még nincs kódaláírás, ezért a SmartScreen figyelmeztet). Az ügynök biztonsága ott gyengébb, mint macOS-en; a telepítési útmutató megmondja, hol."
-        }
-      },
-      {
-        "kind": "new",
-        "title": {
           "en": "Versions: see and change the version of every repository",
           "hu": "Verziók: minden repó verziója egy helyen, együtt módosítható"
         },
