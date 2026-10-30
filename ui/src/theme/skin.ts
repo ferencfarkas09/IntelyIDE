@@ -33,8 +33,34 @@ function systemMedias(): Media[] {
   return medias;
 }
 
-/** True while the OS asks for less transparency or more contrast. */
-export const systemWantsOpaque = (): boolean => systemMedias().some((m) => m.matches);
+/**
+ * macOS "Reduce transparency", asked from the host: WKWebView has no `prefers-reduced-transparency`, so the media queries
+ * above stay false there. Unknown (not asked yet, the browser mock, another OS) is false.
+ */
+let hostReduced = false;
+let hostAsked: Promise<boolean> | null = null;
+
+/** Asks the host once (it answers false off macOS) and repaints if the answer changes anything. Never rejects. */
+export function loadHostTransparency(ask: () => Promise<boolean> = askHost): Promise<boolean> {
+  hostAsked ??= ask().then(
+    (v) => {
+      hostReduced = v === true;
+      if (hostReduced) paint(lastRoot);
+      return hostReduced;
+    },
+    () => false,
+  );
+  return hostAsked;
+}
+
+async function askHost(): Promise<boolean> {
+  if (typeof window === "undefined" || !(window as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__) return false;
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<boolean>("os_reduce_transparency");
+}
+
+/** True while the OS asks for less transparency or more contrast (media queries, plus the host's macOS flag). */
+export const systemWantsOpaque = (): boolean => hostReduced || systemMedias().some((m) => m.matches);
 
 export const activeSkin = skin;
 /** True while Glass is drawn opaque (the switch in Settings or the OS asks for it). */
@@ -81,6 +107,8 @@ export function resetSkinForTests(): void {
   manualReduced = false;
   lastRoot = null;
   medias = null;
+  hostReduced = false;
+  hostAsked = null;
   setSkin("standard");
   setReduced(false);
 }
@@ -106,8 +134,9 @@ export const localHistoryAtBoot = (): boolean => bootHistory;
 
 /**
  * The skin for an install whose settings have no `skin` yet. Owner decision: Glass is the default for new installs only;
- * anything that shows earlier use (local history, other appearance choices, a known workspace) keeps Standard.
+ * anything that shows earlier use (local history, other appearance choices, a known workspace) keeps Standard, and so does an
+ * OS that asks for less transparency or more contrast (Glass would only be its opaque variant there).
  */
-export function defaultSkin(signals: { localHistory: boolean; appearanceKeys: number; workspaces: number }): Skin {
-  return signals.localHistory || signals.appearanceKeys > 0 || signals.workspaces > 0 ? "standard" : "glass";
+export function defaultSkin(signals: { localHistory: boolean; appearanceKeys: number; workspaces: number; systemOpaque?: boolean }): Skin {
+  return signals.localHistory || signals.appearanceKeys > 0 || signals.workspaces > 0 || signals.systemOpaque ? "standard" : "glass";
 }

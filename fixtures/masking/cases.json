@@ -1,5 +1,5 @@
 {
-  "_doc": "Shared masking cases: crates/runindex/tests/masking_fixture.rs (the app's masker, intely_runindex::doc::scrub) and ui/src/ipc/mock/vibe.test.ts (the interface's fallback masker) both read this file. Each input is the concatenation of `parts`; the masked output must not contain the concatenation of `secret`. Secret-shaped strings are split into parts so no line of the repository holds one.",
+  "_doc": "Shared masking cases: crates/runindex/tests/masking_fixture.rs (the app's masker, intely_runindex::doc::scrub) and ui/src/ipc/vibeMask.test.ts (the interface's fallback masker) both read this file. Each input is the concatenation of `parts`; the masked output must not contain the concatenation of `secret`. Secret-shaped strings are split into parts so no line of the repository holds one.",
   "masked": [
     {
       "name": "pem key block",
@@ -64,6 +64,36 @@
       ],
       "secret": [
         "hunter3"
+      ]
+    },
+    {
+      "name": "json password with a blank before the colon",
+      "parts": [
+        "{\"pass",
+        "word\" : \"x9spaced-value\", \"user\" : \"bob\"}"
+      ],
+      "secret": [
+        "x9spaced-value"
+      ]
+    },
+    {
+      "name": "key with a blank before the colon",
+      "parts": [
+        "Pass",
+        "word : hunter2spaced\nUser : bob"
+      ],
+      "secret": [
+        "hunter2spaced"
+      ]
+    },
+    {
+      "name": "quoted value with a blank before the colon",
+      "parts": [
+        "API_TO",
+        "KEN \t: 'tab spaced1' next"
+      ],
+      "secret": [
+        "tab spaced1"
       ]
     },
     {
@@ -247,6 +277,8 @@
   "plain": [
     "Compiled successfully in 4.2s. Local: http://localhost:8082/",
     "Author: Jane Doe",
+    "Status : done",
+    "{\"user\" : \"bob\", \"count\" : 3}",
     "ssh -p 2222 deploy@host",
     "error TS2304: Cannot find name 'x'.",
     "at render (App.tsx:12:5)",

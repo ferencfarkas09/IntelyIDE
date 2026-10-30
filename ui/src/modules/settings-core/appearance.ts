@@ -1,6 +1,6 @@
 import { readStored, writeStored } from "../../ui-kit/storage";
 import { APPEARANCE_MIRROR_KEY, applyAccent } from "../../theme/accents";
-import { applySkin, defaultSkin, hasLocalHistory, localHistoryAtBoot, parseSkin, type Skin } from "../../theme/skin";
+import { applySkin, defaultSkin, hasLocalHistory, loadHostTransparency, localHistoryAtBoot, parseSkin, systemWantsOpaque, type Skin } from "../../theme/skin";
 import type { SettingsValue } from "../../ipc/settings";
 import { DEFAULT_APPEARANCE, normalizeAppearance, type AppearanceSettings } from "./model";
 import "./appearance.css";
@@ -61,7 +61,7 @@ const history = (): boolean => (localHistory ??= liveHistory ? hasLocalHistory()
 export function applyStoredAppearance(): void {
   const raw = rawMirror();
   const a = normalizeAppearance(raw);
-  if (!parseSkin(raw.skin)) a.skin = defaultSkin({ localHistory: history(), appearanceKeys: Object.keys(raw).length, workspaces: 0 });
+  if (!parseSkin(raw.skin)) a.skin = defaultSkin({ localHistory: history(), appearanceKeys: Object.keys(raw).length, workspaces: 0, systemOpaque: systemWantsOpaque() });
   applyAppearance(a);
 }
 
@@ -79,6 +79,7 @@ export interface SettleDeps {
  */
 export async function settleSkin(deps: SettleDeps): Promise<Skin> {
   let raw: SettingsValue = {};
+  void loadHostTransparency();
   try {
     raw = await deps.read();
   } catch {
@@ -91,7 +92,8 @@ export async function settleSkin(deps: SettleDeps): Promise<Skin> {
     raw = await deps.read().catch(() => raw);
     skin = parseSkin(raw.skin);
     if (!skin) {
-      skin = defaultSkin({ localHistory: history(), appearanceKeys: Object.keys(raw).length, workspaces });
+      await loadHostTransparency();
+      skin = defaultSkin({ localHistory: history(), appearanceKeys: Object.keys(raw).length, workspaces, systemOpaque: systemWantsOpaque() });
       await deps.write({ skin }).catch(() => {});
     }
   }

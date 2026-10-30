@@ -232,10 +232,13 @@ function colonAssignments(s: string): Range[] {
   const out: Range[] = [];
   for (let i = 0; i < s.length; i++) {
     if (s[i] !== ":" || s[i + 1] === "/" || s[i + 1] === ":" || s[i - 1] === ":") continue;
-    const quoted = s[i - 1] === "'" || s[i - 1] === '"';
-    const kend = quoted ? i - 1 : i;
+    // Blanks before the colon are allowed (`"password" : "x"`, `Password : x`): the key ends where they start.
+    let keyEnd = i;
+    while (keyEnd > 0 && (s[keyEnd - 1] === " " || s[keyEnd - 1] === "\t")) keyEnd--;
+    const quoted = s[keyEnd - 1] === "'" || s[keyEnd - 1] === '"';
+    const kend = quoted ? keyEnd - 1 : keyEnd;
     let kstart = kend;
-    if (quoted) kstart = s.lastIndexOf(s[i - 1], kend - 1) + 1;
+    if (quoted) kstart = s.lastIndexOf(s[keyEnd - 1], kend - 1) + 1;
     else while (kstart > 0 && isTok(s[kstart - 1])) kstart--;
     if (kstart >= kend || !colonSecretKey(s.slice(kstart, kend))) continue;
     let v = i + 1;

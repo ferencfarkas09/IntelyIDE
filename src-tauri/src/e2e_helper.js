@@ -12,6 +12,14 @@ window.__e2e = {
     const stem = `${this.scenario}-${name}-${this.theme()}`;
     return window.__TAURI_INTERNALS__.invoke("e2e_screenshot", { stem, scale });
   },
+  /** Brings the window to the front and focuses it (another app may be frontmost); then waits until the page has focus. */
+  async focus() {
+    try { await window.__TAURI_INTERNALS__.invoke("e2e_focus"); } catch { /* harness without the command: carry on */ }
+    const t0 = performance.now();
+    while (!document.hasFocus() && performance.now() - t0 < 3000) await new Promise((r) => setTimeout(r, 50));
+    window.focus();
+    return document.hasFocus();
+  },
   /** Sets the window's inner size in logical pixels and waits until the page reports it. */
   async resize(width, height) {
     await window.__TAURI_INTERNALS__.invoke("e2e_resize", { width, height });

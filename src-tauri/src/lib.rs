@@ -7,6 +7,7 @@ mod menu;
 mod modules;
 mod perf;
 mod sink;
+mod sysprefs;
 
 use std::sync::Arc;
 
@@ -49,6 +50,7 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            sysprefs::os_reduce_transparency,
             perf::heartbeat,
             perf::first_paint,
             close_guard::close_guard_arm,
@@ -59,6 +61,7 @@ pub fn run() {
             e2e::e2e_pid_alive,
             e2e_shot::e2e_screenshot,
             e2e_shot::e2e_resize,
+            e2e_shot::e2e_focus,
             commands::workspace_get,
             // ==== wave6 workspaces (registry, hardened save) ====
             modules::workspaces::workspace_save,

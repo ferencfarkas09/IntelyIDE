@@ -1,5 +1,5 @@
 //! E2E-only window tools: `e2e_screenshot` renders the REAL WKWebView content to a PNG with `takeSnapshot` (no screen
-//! recording permission, works while the window is covered) and `e2e_resize` sets the window's inner size.
+//! recording permission, works while the window is covered) `e2e_resize` sets the window's inner size and `e2e_focus` brings the window to the front.
 //! Both refuse to run unless the e2e harness is active (see `e2e.rs`: `INTELY_E2E_SCRIPT` and `INTELY_E2E=1`/debug build).
 
 use std::path::PathBuf;
@@ -55,6 +55,16 @@ pub fn e2e_resize(window: WebviewWindow, e2e: State<'_, E2e>, width: f64, height
         return Err("e2e harness is not enabled".to_owned());
     }
     window.set_size(LogicalSize::new(width, height)).map_err(|e| e.to_string())
+}
+
+/// Brings the window to the front and focuses it, so a scenario that checks focus does not depend on which app is frontmost.
+#[tauri::command]
+pub fn e2e_focus(window: WebviewWindow, e2e: State<'_, E2e>) -> Result<(), String> {
+    if !e2e.enabled() {
+        return Err("e2e harness is not enabled".to_owned());
+    }
+    window.show().map_err(|e| e.to_string())?;
+    window.set_focus().map_err(|e| e.to_string())
 }
 
 #[cfg(target_os = "macos")]

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { loadHostTransparency, resetSkinForTests } from "../../theme/skin";
 import { applyAppearance, applyStoredAppearance, fontVars, readMirror, resetLocalHistoryForTests, saveMirror, settleSkin, APPEARANCE_STORAGE_KEY, type SettleDeps } from "./appearance";
-import { resetSkinForTests } from "../../theme/skin";
 import type { SettingsValue } from "../../ipc/settings";
 import { DEFAULT_APPEARANCE, DEFAULT_EDITOR, DEFAULT_GENERAL, normalizeAppearance, normalizeEditor, normalizeGeneral } from "./model";
 
@@ -95,6 +95,19 @@ describe("settleSkin (the one-time default)", () => {
     expect(writes).toEqual([{ skin: "glass" }]);
     expect(document.documentElement.dataset.skin).toBe("glass");
     expect(readMirror().skin).toBe("glass");
+  });
+
+  it("a new install on a Mac with Reduce transparency (host flag) is judged Standard and opaque", async () => {
+    resetSkinForTests();
+    await loadHostTransparency(async () => true);
+    const { d, writes } = deps({}, 0);
+    try {
+      expect(await settleSkin(d)).toBe("standard");
+      expect(writes).toEqual([{ skin: "standard" }]);
+      expect(document.documentElement.dataset.transparency).toBe("reduced");
+    } finally {
+      resetSkinForTests();
+    }
   });
 
   it("an existing install keeps Standard: a workspace, another appearance choice or local history is enough", async () => {

@@ -1,6 +1,7 @@
 // (i) The mock provider through the real chain: sidecar process, protocol, policy broker, event log, dock UI.
 // Six runs: streamed reply, Allow once, Deny, Interrupt, provider error, hard stop. Needs INTELY_MOCK_PROVIDER=1.
 await waitForTree();
+await window.__e2e.focus(); // another app may be frontmost; the focus checks below need this window active
 await openAgents();
 const ws = await invoke("workspace_get");
 const nameOf = (id) => ws.repos.find((r) => r.id === id).name;

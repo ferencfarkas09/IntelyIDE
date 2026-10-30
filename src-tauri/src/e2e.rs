@@ -1,7 +1,7 @@
 //! End-to-end harness: `INTELY_E2E_SCRIPT=<file.js>` is evaluated in the webview after load and drives the real UI
 //! through the DOM; it reports with the `e2e_report` command, after which the app exits (0 = ok, 1 = failed, 3 = timeout).
 //! Inert unless `INTELY_E2E=1` and a script is given (in any build profile): without both nothing is read or injected,
-//! and `e2e_report`/`e2e_screenshot`/`e2e_resize` refuse to run.
+//! and `e2e_report`/`e2e_screenshot`/`e2e_resize`/`e2e_focus` refuse to run.
 
 use std::ffi::{OsStr, OsString};
 use std::path::PathBuf;
