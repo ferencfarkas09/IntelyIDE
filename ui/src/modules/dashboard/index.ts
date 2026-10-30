@@ -71,7 +71,7 @@ function openAtStart(): void {
 }
 
 export function register(): void {
-  registerSettingsSection({ id: "dashboard", get title() { return t("dash.section.name"); }, order: 105, icon: LayoutGrid, searchTerms: ["dashboard", "widgets", "cards", "start", "menu bar", "tray", "plan", "radar"], component: lazy(() => import("./DashboardSection")) });
+  registerSettingsSection({ id: "dashboard", get title() { return t("dash.section.name"); }, order: 120, icon: LayoutGrid, searchTerms: ["dashboard", "widgets", "cards", "start", "menu bar", "tray", "plan", "radar"], component: lazy(() => import("./DashboardSection")) });
   createRoot(() => createEffect(() => (dashboardEnabled() ? activate() : deactivate())));
   openAtStart();
 }

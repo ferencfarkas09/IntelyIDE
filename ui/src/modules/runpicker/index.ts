@@ -24,6 +24,6 @@ function deactivate(): void {
 }
 
 export function register(): void {
-  registerSettingsSection({ id: "runpicker", get title() { return t("runpicker.section.name"); }, order: 105, icon: Gauge, searchTerms: ["model", "effort", "ultracode", "workflow", "opus", "sonnet"], component: lazy(() => import("./RunPickerSection")) });
+  registerSettingsSection({ id: "runpicker", get title() { return t("runpicker.section.name"); }, order: 121, icon: Gauge, searchTerms: ["model", "effort", "ultracode", "workflow", "opus", "sonnet"], component: lazy(() => import("./RunPickerSection")) });
   createRoot(() => createEffect(() => (runPickerEnabled() ? activate() : deactivate())));
 }

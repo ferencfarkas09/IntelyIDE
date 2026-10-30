@@ -50,6 +50,6 @@ function deactivate(): void {
 }
 
 export function register(): void {
-  registerSettingsSection({ id: "runsummary", get title() { return t("runsummary.section.name"); }, order: 106, icon: FileText, searchTerms: ["summary", "run summary", "what changed", "risks", "explain"], component: lazy(() => import("./RunSummarySection")) });
+  registerSettingsSection({ id: "runsummary", get title() { return t("runsummary.section.name"); }, order: 109, icon: FileText, searchTerms: ["summary", "run summary", "what changed", "risks", "explain"], component: lazy(() => import("./RunSummarySection")) });
   createRoot(() => createEffect(() => (runSummaryEnabled() ? activate() : deactivate())));
 }

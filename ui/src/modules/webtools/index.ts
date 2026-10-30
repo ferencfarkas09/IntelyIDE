@@ -45,6 +45,6 @@ function deactivate(): void {
 }
 
 export function register(): void {
-  registerSettingsSection({ id: "webtools", get title() { return t("webtools.section.name"); }, order: 105, icon: Globe, searchTerms: ["web", "node", "css", "scss", "react", "express", "env", "npm"], component: lazy(() => import("./WebtoolsSection")) });
+  registerSettingsSection({ id: "webtools", get title() { return t("webtools.section.name"); }, order: 124, icon: Globe, searchTerms: ["web", "node", "css", "scss", "react", "express", "env", "npm"], component: lazy(() => import("./WebtoolsSection")) });
   createRoot(() => createEffect(() => (webtoolsEnabled() ? activate() : deactivate())));
 }

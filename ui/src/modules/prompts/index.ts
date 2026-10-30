@@ -31,6 +31,6 @@ function deactivate(): void {
 }
 
 export function register(): void {
-  registerSettingsSection({ id: "prompts", get title() { return t("prompts.section.name"); }, order: 105, icon: ListChecks, searchTerms: ["prompt", "template", "library", "snippet", "starter"], component: lazy(() => import("./PromptsSection")) });
+  registerSettingsSection({ id: "prompts", get title() { return t("prompts.section.name"); }, order: 122, icon: ListChecks, searchTerms: ["prompt", "template", "library", "snippet", "starter"], component: lazy(() => import("./PromptsSection")) });
   createRoot(() => createEffect(() => (promptsEnabled() ? activate() : deactivate())));
 }

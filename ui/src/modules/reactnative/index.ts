@@ -44,7 +44,7 @@ function deactivate(): void {
 }
 
 export function register(): void {
-  registerSettingsSection({ id: "reactnative", get title() { return t("reactnative.section.name"); }, order: 105, icon: Smartphone, searchTerms: ["react native", "expo", "metro", "simulator", "emulator"], component: lazy(() => import("./ReactNativeSection")) });
+  registerSettingsSection({ id: "reactnative", get title() { return t("reactnative.section.name"); }, order: 123, icon: Smartphone, searchTerms: ["react native", "expo", "metro", "simulator", "emulator"], component: lazy(() => import("./ReactNativeSection")) });
   createRoot(() =>
     createEffect(() => {
       if (!reactNativeEnabled()) return deactivate();
