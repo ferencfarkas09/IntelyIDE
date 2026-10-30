@@ -18,6 +18,8 @@ Audiences: **users** run the app, **contributors** change the code, **maintainer
 | [Preview and inspect](preview-inspect.md) | The embedded preview and element inspector | users |
 | [Attachments](attachments.md) | Dropping and pasting files into a prompt, and the secret guard | users |
 | [Runs on servers](remote-servers.md) | Running agents on your own servers over ssh: set up, repositories, where to run, limits | users |
+| [Web tools](web-tools.md) | Design tokens, unused styles and React checks for CSS/SCSS and React projects, plus the element style panel of the preview | users |
+| [Node tools](node-tools.md) | A route map of Node backends with a loopback-only Try it, .env comparison and an opt-in dependency check | users |
 | [Versions panel](versions.md) | Seeing and changing the version of every repository in the workspace: package.json, Xcode and Android builds, Cargo and more | users |
 | [Dashboard and widgets](dashboard.md) | The Dashboard tab and its cards, the plan usage in the menu bar and the Needs-You radar window | users, contributors |
 | [Run picker](run-picker.md) | Choosing the exact model and effort of a run, and switching on ultracode, in New run | users |

@@ -69,3 +69,89 @@ export function parseInspectMessage(data: unknown): SourceHint | undefined {
 }
 
 export const modeMessage = (on: boolean) => ({ intely: MODE_MESSAGE, on });
+
+// ---- the second message: the clicked element's tag, classes and a few computed styles ------------------------------------------------
+
+export const STYLE_CHANNEL = "inspect.style/1";
+/** The only computed styles the panel shows; anything else the page sends is refused. */
+export const STYLE_KEYS = ["display", "position", "width", "height", "margin", "padding", "color", "background-color", "font-family", "font-size", "font-weight", "line-height", "border-radius", "gap"] as const;
+export type StyleKey = (typeof STYLE_KEYS)[number];
+
+export interface StyleHint {
+  tag: string;
+  id: string;
+  classes: string[];
+  styles: Partial<Record<StyleKey, string>>;
+  width: number;
+  height: number;
+}
+
+const STYLE_MSG_KEYS = ["classes", "height", "id", "intely", "styles", "tag", "width"];
+const TAG_OK = /^[a-z][a-z0-9-]{0,31}$/;
+const CLASS_OK = /^[A-Za-z0-9_-]{1,64}$/;
+const ID_OK = /^[A-Za-z0-9_:.-]{0,64}$/;
+export const MAX_STYLE_VALUE = 100;
+const LENGTHS = /^(?:(?:-?\d{1,6}(?:\.\d{1,4})?(?:px|%|em|rem|vh|vw|ch)?|auto|normal|none)(?: |$)){1,8}$/;
+const COLOR = /^(?:#[0-9a-f]{3,8}|(?:rgb|hsl)a?\([0-9., %/]{1,50}\)|transparent|currentcolor|[a-z]{3,20})$/i;
+/** What each shown property may look like: a length list, a colour, a keyword from a short list, a font list. Nothing else is shown. */
+const VALUE_OK: Record<(typeof STYLE_KEYS)[number], RegExp> = {
+  display: /^(?:block|inline|inline-block|flex|inline-flex|grid|inline-grid|contents|none|table|table-cell|table-row|flow-root|list-item)$/,
+  position: /^(?:static|relative|absolute|fixed|sticky)$/,
+  width: LENGTHS,
+  height: LENGTHS,
+  margin: LENGTHS,
+  padding: LENGTHS,
+  color: COLOR,
+  "background-color": COLOR,
+  "font-family": /^[A-Za-z0-9 _"',.-]{1,100}$/,
+  "font-size": LENGTHS,
+  "font-weight": /^(?:\d{3}|normal|bold|bolder|lighter)$/,
+  "line-height": LENGTHS,
+  "border-radius": LENGTHS,
+  gap: LENGTHS,
+};
+export const MAX_CLASSES = 12;
+
+function plainData(o: object, keys: readonly string[]): Record<string, unknown> | undefined {
+  const proto = Object.getPrototypeOf(o);
+  if (proto !== Object.prototype && proto !== null) return undefined;
+  if (Object.getOwnPropertySymbols(o).length > 0) return undefined;
+  const names = Object.getOwnPropertyNames(o).sort();
+  if (keys.length && (names.length !== keys.length || names.some((n, i) => n !== keys[i]))) return undefined;
+  const out: Record<string, unknown> = {};
+  for (const n of names) {
+    const d = Object.getOwnPropertyDescriptor(o, n)!;
+    if (!("value" in d)) return undefined; // accessors can run page code or change between reads
+    out[n] = d.value;
+  }
+  return out;
+}
+
+/** The style hint inside a `message` event's data, or undefined for anything that is not exactly the inspector's second message. */
+export function parseStyleMessage(data: unknown): StyleHint | undefined {
+  if (typeof data !== "object" || data === null || Array.isArray(data)) return undefined;
+  const d = plainData(data, STYLE_MSG_KEYS);
+  if (!d || d.intely !== STYLE_CHANNEL) return undefined;
+  const { tag, id, classes, styles, width, height } = d;
+  if (typeof tag !== "string" || !TAG_OK.test(tag) || typeof id !== "string" || !ID_OK.test(id)) return undefined;
+  if (typeof width !== "number" || typeof height !== "number" || !Number.isFinite(width) || !Number.isFinite(height) || width < 0 || height < 0 || width > 1e6 || height > 1e6) return undefined;
+  if (!Array.isArray(classes) || classes.length > MAX_CLASSES || typeof styles !== "object" || styles === null || Array.isArray(styles)) return undefined;
+  const cls: string[] = [];
+  for (let i = 0; i < classes.length; i++) {
+    const c = Object.getOwnPropertyDescriptor(classes, String(i));
+    if (!c || !("value" in c) || typeof c.value !== "string") return undefined;
+    if (CLASS_OK.test(c.value)) cls.push(c.value); // a class with odd characters is dropped, not trusted
+  }
+  const raw = plainData(styles, []);
+  if (!raw) return undefined;
+  const out: Partial<Record<StyleKey, string>> = {};
+  for (const key of STYLE_KEYS) {
+    if (!(key in raw)) continue;
+    const v = raw[key];
+    if (typeof v !== "string" || v.length > MAX_STYLE_VALUE) return undefined;
+    // a value that does not fit its property's grammar is dropped (the page may send anything)
+    if (v && VALUE_OK[key].test(v)) out[key] = v;
+  }
+  if (Object.keys(raw).some((k) => !(STYLE_KEYS as readonly string[]).includes(k))) return undefined;
+  return { tag, id, classes: cls, styles: out, width: Math.round(width), height: Math.round(height) };
+}

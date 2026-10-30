@@ -1,7 +1,10 @@
 /* IntelySwitchIDE click-to-source inspector. Injected into the dev-server's HTML by crates/preview-proxy, dev only.
- * Alt/Cmd+click (or the IDE's Inspect toggle) maps the clicked element to its React source and posts ONE message to
- * the parent window: { intely: "inspect/1", file, line, col, componentName }. Nothing else leaves the page: no DOM,
- * props, state, storage, cookies or network data. The IDE treats the message as an untrusted hint and validates it.
+ * Alt/Cmd+click (or the IDE's Inspect toggle) maps the clicked element to its React source and posts to the parent window:
+ *   { intely: "inspect/1", file, line, col, componentName }            where the element comes from, and
+ *   { intely: "inspect.style/1", tag, id, classes, styles, width, height }   the clicked element's tag, id, class names and 14
+ *                                                                        computed style values, for the IDE's small style panel.
+ * Nothing else leaves the page: no DOM, props, state, storage, cookies or network data. The IDE treats both messages as
+ * untrusted hints and validates them strictly.
  * Ladder: fiber._debugSource (React <= 18 with a jsx-source plugin) -> fiber._debugStack (React 19, source-mapped when
  * the bundle has a map) -> data-loc attribute -> component name only (file ""). */
 (function (root) {
@@ -9,6 +12,9 @@
 
   var CHANNEL = "inspect/1";
   var MODE_MSG = "inspect.mode/1";
+  var STYLE_CHANNEL = "inspect.style/1";
+  /* The few computed styles the IDE's small panel shows (never the whole style, never attributes or text). */
+  var STYLE_KEYS = ["display", "position", "width", "height", "margin", "padding", "color", "background-color", "font-family", "font-size", "font-weight", "line-height", "border-radius", "gap"];
 
   /* ---------- pure helpers (unit-tested from node through module.exports) ---------- */
 
@@ -258,8 +264,27 @@
     return step();
   }
 
+  /** The tag, id, classes and a handful of computed styles of an element, bounded: the second thing the page may send. */
+  function styleSnapshot(el, cs, rect) {
+    var styles = {};
+    for (var i = 0; i < STYLE_KEYS.length; i++) {
+      var v = cs && typeof cs.getPropertyValue === "function" ? cs.getPropertyValue(STYLE_KEYS[i]) : "";
+      styles[STYLE_KEYS[i]] = String(v == null ? "" : v).slice(0, 100);
+    }
+    var classes = String((el.getAttribute && el.getAttribute("class")) || "").split(/\s+/).filter(Boolean).slice(0, 12).map(function (c) { return c.slice(0, 64); });
+    return {
+      intely: STYLE_CHANNEL,
+      tag: String(el.tagName || "").toLowerCase().slice(0, 32),
+      id: String(el.id || "").slice(0, 64),
+      classes: classes,
+      styles: styles,
+      width: Math.round((rect && rect.width) || 0),
+      height: Math.round((rect && rect.height) || 0),
+    };
+  }
+
   var api = {
-    CHANNEL: CHANNEL, MODE_MSG: MODE_MSG, normalizeFile: normalizeFile, isThirdParty: isThirdParty, parseDataLoc: parseDataLoc,
+    CHANNEL: CHANNEL, MODE_MSG: MODE_MSG, STYLE_CHANNEL: STYLE_CHANNEL, STYLE_KEYS: STYLE_KEYS, styleSnapshot: styleSnapshot, normalizeFile: normalizeFile, isThirdParty: isThirdParty, parseDataLoc: parseDataLoc,
     parseStack: parseStack, callerFrame: callerFrame, componentNameOf: componentNameOf, nearestComponentName: nearestComponentName,
     decodeMappings: decodeMappings, originalPosition: originalPosition, resolveFiber: resolveFiber, resolveElement: resolveElement,
   };
@@ -303,6 +328,13 @@
     root.parent.postMessage({ intely: CHANNEL, file: r.file, line: r.line, col: r.col, componentName: r.componentName }, "*");
   }
 
+  function sendStyle(el) {
+    if (root.parent === root) return;
+    try {
+      root.parent.postMessage(styleSnapshot(el, root.getComputedStyle(el), el.getBoundingClientRect()), "*");
+    } catch (err) { /* a detached or exotic node: no panel */ }
+  }
+
   doc.addEventListener("mousemove", function (e) {
     if (!active(e)) return hide();
     var t = e.target;
@@ -314,7 +346,10 @@
     e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
     var t = e.target;
     hide();
-    if (t && t.nodeType === 1) resolveElement(t).then(send, function () {});
+    if (t && t.nodeType === 1) {
+      sendStyle(t);
+      resolveElement(t).then(send, function () {});
+    }
   }, true);
 
   // Block the page's own handlers for the press that starts the gesture too (links, buttons that act on mousedown).

@@ -106,6 +106,7 @@ The sidecar itself is not a crate; it is the Node package in `sidecar/`.
 | `contract` | API contract drift detection and the API explorer logic. |
 | `l10n` | The localisation checker and release assistant. |
 | `versions` | The version files of a repository (`package.json` and its lock file, Xcode and Android build numbers, `Cargo.toml`, `tauri.conf.json`, Expo, `pyproject.toml`, `pubspec.yaml`): finds them, previews the exact diff and writes the changes together, editing only the value. No network. |
+| `webtools` | Static helpers for web and Node projects (design tokens and unused styles in CSS/SCSS, heuristic React checks, a bundle size report, a route map, a `.env` name comparison, the parsing of `npm outdated` and `npm audit`) and the loopback-only Try it request. Reads files without following links, with size caps; the only network it touches is `127.0.0.1` / `::1`. |
 | `attachments` | The attachment store: dropped, pasted and picked files are copied into the state directory. |
 | `hud` | The resource HUD, the menu-bar logic and the notification gate (which banners may show, how often). |
 | `updater` | Verified in-app updates, planned for a later version. Built so far: the signed feed and signature check, the hardened download and the guarded unpack and stage; the atomic swap, rollback, check scheduler and Settings page are not wired in yet. |

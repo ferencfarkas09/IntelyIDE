@@ -308,9 +308,19 @@ describe("(7) Rust sources and the dependency graph", () => {
     "let s = UdpSocket::bind(a);",
     'Command::new("curl")',
     "use ureq::get;",
+    'let c = Command::new(intely_core::sys::program("npm"));',
+    'Command::new("npm").arg("outdated")',
   ]) {
     it(`fails ${code}`, () => assert.equal(checkRustSources(rs(code)).length, 1));
   }
+  it("only the dependency check may start npm by name, and only the loopback sender may open a socket, by exact file", () => {
+    assert.deepEqual(checkRustSources(rs('Command::new(intely_core::sys::program("npm"))', "crates/webtools/src/npmrun.rs")), []);
+    assert.deepEqual(checkRustSources(rs("TcpStream::connect_timeout(a, t)", "crates/webtools/src/tryit.rs")), []);
+    // the exemption is for those files, not for the crate
+    assert.equal(checkRustSources(rs("TcpStream::connect(a)", "crates/webtools/src/routes.rs")).length, 1);
+    assert.equal(checkRustSources(rs('Command::new("npm")', "crates/webtools/src/deps.rs")).length, 1);
+    assert.equal(checkRustSources(rs('Command::new("npm")', "src-tauri/src/modules/webtools.rs")).length, 1);
+  });
   it("the team crate (relay transport, like remote) is an allowed crate", () => {
     assert.ok(ALLOWED_CRATES.includes("team"));
     assert.deepEqual(checkRustSources(rs("TcpStream::connect(a)", "crates/team/src/client.rs")), []);

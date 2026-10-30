@@ -42,6 +42,7 @@ pub mod updates;
 pub mod devices;
 pub mod versions;
 pub mod vibe;
+pub mod webtools;
 pub mod viewers;
 pub mod workspaces;
 pub mod workspaces_switch;

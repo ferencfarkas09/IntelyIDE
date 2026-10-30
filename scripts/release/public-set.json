@@ -17,6 +17,7 @@
     "docs/checkpoints.md", "docs/auto-test.md", "docs/run-summary.md",
     "docs/react-native.md",
     "docs/mobile-health.md",
+    "docs/web-tools.md", "docs/node-tools.md",
     "docs/packaging.md", "docs/release-ci-checklist.md", "docs/team.md", "docs/peer-runs.md", "docs/install-linux.md", "docs/install-windows.md"
   ],
   "exclude": [

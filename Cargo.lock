@@ -3160,6 +3160,7 @@ dependencies = [
  "intely-term",
  "intely-updater",
  "intely-versions",
+ "intely-webtools",
  "objc2",
  "objc2-app-kit",
  "objc2-foundation",
@@ -3240,6 +3241,17 @@ version = "0.0.0"
 dependencies = [
  "rustix",
  "serde",
+ "tempfile",
+]
+
+[[package]]
+name = "intely-webtools"
+version = "0.0.0"
+dependencies = [
+ "intely-core",
+ "rustix",
+ "serde",
+ "serde_json",
  "tempfile",
 ]
 

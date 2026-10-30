@@ -6,11 +6,14 @@ import { repos } from "../../store/workspace";
 import { Button, Dialog, FileText, Icon, toast } from "../../ui-kit";
 import { frameOf, postMode, previewFrames } from "./frames";
 import { handleHint, openCandidate, type OpenDeps, type Outcome } from "./open";
-import { parseInspectMessage } from "./protocol";
-import { inspecting, picker, setPicker } from "./state";
+import { parseInspectMessage, parseStyleMessage } from "./protocol";
+import { inspecting, picker, setPicker, setStyleInfo } from "./state";
+import StylePanel from "./StylePanel";
 import "./preview-inspect.css";
 
 const MIN_GAP_MS = 150;
+/** The style panel opens at most this often: a page that posts the message in a loop gets one panel, not a flood. */
+const MIN_STYLE_GAP_MS = 500;
 
 function depsFor(repoId: string | undefined): OpenDeps {
   return { repos: () => repos().map((r) => ({ id: r.id, path: r.path })), repoId, search: ipc.search, execute };
@@ -27,12 +30,24 @@ export function report(o: Outcome): void {
 /** Mounted once under the shell. Listens for the inspector's one message, only from preview frames, and shows the picker. */
 export default function PickerAndWatcher() {
   let last = 0;
+  let lastStyle = 0;
 
   const onMessage = (e: MessageEvent) => {
     const frame = frameOf(e);
     if (!frame) return;
     const hint = parseInspectMessage(e.data);
-    if (!hint) return;
+    if (!hint) {
+      // the second message of the same click: the element's tag, classes and a few computed styles
+      // Only while the person is picking: inspect mode is on, or the preview frame has the focus (an Alt-click was just made in it).
+      // A page cannot be told apart from its own script, so this limits when the panel can open, not who asks.
+      const style = inspecting() || document.activeElement === frame ? parseStyleMessage(e.data) : undefined;
+      const now = Date.now();
+      if (style && now - lastStyle >= MIN_STYLE_GAP_MS) {
+        lastStyle = now;
+        setStyleInfo({ hint: style, repoId: frame.dataset.repoId });
+      }
+      return;
+    }
     const now = Date.now();
     if (now - last < MIN_GAP_MS) return;
     last = now;
@@ -68,6 +83,8 @@ export default function PickerAndWatcher() {
   };
 
   return (
+    <>
+    <StylePanel />
     <Dialog open={!!picker()} onClose={() => setPicker(undefined)} title={t("pvi.picker.title", { name: picker()?.name ?? "" })} description={picker()?.note ?? t("pvi.picker.desc")} size="md">
       <Show when={picker()}>
         {(p) => (
@@ -91,5 +108,6 @@ export default function PickerAndWatcher() {
         <Button variant="ghost" onClick={() => setPicker(undefined)}>{t("pvi.cancel")}</Button>
       </div>
     </Dialog>
+    </>
   );
 }
