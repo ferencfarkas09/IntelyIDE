@@ -4,6 +4,7 @@ import { execute } from "../../platform/commands";
 import { setAppMode } from "../../platform/mode";
 import { agentRows, interruptRun, selectAgent } from "../../store/agents";
 import { timerView } from "../../store/happy";
+import { trayPlanPercent } from "../../store/planUsage";
 
 // Feeds the menu-bar item: counts and timer go out as they change, and the menu's actions come back. Created inside a root by the
 // watcher while the tray is enabled; `stopTrayBridge` ends the actions. (Banners for runs are the notify module's.)
@@ -13,7 +14,8 @@ export function startTrayBridge(): void {
   createEffect(() => {
     const rows = agentRows();
     const timer = timerView();
-    void ipc.tray.update({ running: rows.filter((r) => r.status === "running").length, needsYou: rows.filter((r) => r.status === "needsYou").length, timer: timer.phase === "idle" ? "" : timer.phase, timerLabel: timer.title }).catch(() => undefined);
+    const plan = trayPlanPercent();
+    void ipc.tray.update({ running: rows.filter((r) => r.status === "running").length, needsYou: rows.filter((r) => r.status === "needsYou").length, timer: timer.phase === "idle" ? "" : timer.phase, timerLabel: timer.title, planPercent: plan }).catch(() => undefined);
   });
   offAction?.();
   offAction = ipc.tray.onAction((id) => {

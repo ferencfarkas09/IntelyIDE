@@ -39,7 +39,10 @@ pub fn run() {
             } else if event.id() == menu::CHECK_UPDATES {
                 let _ = app.emit(menu::CHECK_UPDATES_EVENT, ());
             } else if event.id() == menu::CLOSE_WINDOW {
-                // Closing goes through CloseRequested, which the guard sees.
+                // The focused radar closes itself; the main window's close goes through CloseRequested, which the guard sees.
+                if modules::radar::close_if_focused(app) {
+                    return;
+                }
                 if let Some(window) = app.get_webview_window("main") {
                     let _ = window.close();
                 }
@@ -491,6 +494,9 @@ pub fn run() {
             modules::hud::hud_eco_active,
             modules::tray::tray_configure,
             modules::tray::tray_update,
+            modules::radar::radar_open,
+            modules::radar::radar_close,
+            modules::radar::radar_open_run,
             modules::notify::notify_configure,
             modules::notify::notify_badge,
             modules::notify::notify_show,
@@ -701,9 +707,18 @@ pub fn run() {
         .expect("error while building IntelySwitchIDE");
 
     app.run(|handle, event| {
-        if let RunEvent::WindowEvent { event: tauri::WindowEvent::Focused(focused), .. } = &event {
-            modules::happy::set_focus(handle, *focused);
-            modules::updates::set_focus(handle, *focused);
+        // Only the main window's focus counts: the always-on-top radar must not pause or wake the focus-gated work.
+        if let RunEvent::WindowEvent { label, event: tauri::WindowEvent::Focused(focused), .. } = &event {
+            if label == "main" {
+                modules::happy::set_focus(handle, *focused);
+                modules::updates::set_focus(handle, *focused);
+            }
+        }
+        // The radar has no life of its own: it goes with the main window (else it would keep the app from quitting).
+        if let RunEvent::WindowEvent { label, event: WindowEvent::Destroyed, .. } = &event {
+            if label == "main" {
+                modules::radar::close(handle);
+            }
         }
         // An invite link (`intely-team://join#...`) opened the app or was clicked while it runs: the window comes forward and the page
         // opens Settings > Team with the code. Only macOS delivers links this way.

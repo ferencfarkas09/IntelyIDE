@@ -22,6 +22,7 @@ pub mod notify;
 pub mod picker;
 pub mod preview;
 pub mod providers;
+pub mod radar;
 pub mod registry;
 pub mod relay_cloud;
 pub mod remote;

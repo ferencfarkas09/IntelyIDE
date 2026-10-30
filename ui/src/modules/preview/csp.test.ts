@@ -51,13 +51,16 @@ describe("content security policy", () => {
 });
 
 describe("no Tauri IPC for the frame's origin", () => {
-  it("has capabilities for the main window only, with no remote URL entry", () => {
+  it("has capabilities for the app's own windows only (main, and the Needs-You radar with less), with no remote URL entry", () => {
     const files = Object.entries(capabilities);
     expect(files.length).toBeGreaterThan(0);
+    const main = files.map(([, text]) => JSON.parse(text) as { windows?: string[]; permissions?: unknown[] }).find((c) => c.windows?.[0] === "main");
     for (const [file, text] of files) {
       const cap = JSON.parse(text) as { windows?: string[]; webviews?: string[]; remote?: unknown; permissions?: unknown[] };
       expect(cap.remote, `${file} must not grant a remote origin`).toBeUndefined();
-      expect(cap.windows, file).toEqual(["main"]);
+      expect([["main"], ["radar"]], file).toContainEqual(cap.windows);
+      // the radar loads the same local bundle and may hold no permission the main window lacks
+      if (cap.windows?.[0] === "radar") for (const p of cap.permissions ?? []) expect(main?.permissions, `${file}: ${String(p)}`).toContain(p);
       expect(cap.webviews, file).toBeUndefined();
       expect(JSON.stringify(cap.permissions), file).not.toMatch(/webview|window:allow-create|allow-eval|shell|fs:|http:|opener/i);
     }

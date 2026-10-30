@@ -7,6 +7,7 @@ import { register as branches } from "./branches";
 import { register as brief } from "./brief";
 import { register as checks } from "./checks";
 import { register as contract } from "./contract";
+import { register as dashboard } from "./dashboard";
 import { register as deepPattern } from "./deeppattern";
 import { register as editor } from "./editor";
 import { register as graph } from "./graph";
@@ -98,6 +99,7 @@ export const MODULES: readonly FeatureModule[] = [
   { id: "intelyfix", register: intelyfix },
   { id: "account", register: account },
   { id: "deeppattern", register: deepPattern },
+  { id: "dashboard", register: dashboard },
 ];
 
 /** Runs every module's `register()`. A module that throws is logged and skipped: the app and the other modules start anyway. */
