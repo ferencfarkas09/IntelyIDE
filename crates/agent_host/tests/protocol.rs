@@ -13,7 +13,7 @@ use serde_json::Value;
 
 fn run_fake(cfg: intely_agent_host::HostConfig, repo: &intely_agent_host::RepoRef, out: &Path) -> intely_agent_host::AgentHost {
     let (host, _sink) = host_with(cfg);
-    host.start(AgentStartRequest { role: "mock-plain-reply".into(), repo_ids: vec![repo.id.clone()], prompt: out.to_string_lossy().into_owned(), mode: None, mcp_servers: None }, std::slice::from_ref(repo)).expect("start");
+    host.start(AgentStartRequest { role: "mock-plain-reply".into(), repo_ids: vec![repo.id.clone()], prompt: out.to_string_lossy().into_owned(), mode: None, mcp_servers: None, ..Default::default() }, std::slice::from_ref(repo)).expect("start");
     host
 }
 
@@ -68,7 +68,7 @@ fn a_closed_policy_pipe_ends_the_sidecar_and_the_run() {
     let mut cfg = config(&dir.path().join("data"), fake_sidecar_js());
     cfg.policy_fault = Some(PolicyFault::ClosePipe);
     let (host, sink) = host_with(cfg);
-    let summary = host.start(AgentStartRequest { role: "mock-plain-reply".into(), repo_ids: vec![repo.id.clone()], prompt: out.to_string_lossy().into_owned(), mode: None, mcp_servers: None }, std::slice::from_ref(&repo)).expect("start");
+    let summary = host.start(AgentStartRequest { role: "mock-plain-reply".into(), repo_ids: vec![repo.id.clone()], prompt: out.to_string_lossy().into_owned(), mode: None, mcp_servers: None, ..Default::default() }, std::slice::from_ref(&repo)).expect("start");
     // the fake exits on stdin EOF: the host notices and nothing keeps running
     let deadline = Instant::now() + Duration::from_secs(10);
     while host.sidecar_pid().is_some() {

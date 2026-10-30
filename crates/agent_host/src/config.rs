@@ -53,9 +53,6 @@ impl AgentDefaults {
         if self.model.trim().is_empty() {
             self.model = d.model;
         }
-        if self.effort == Some(Effort::Max) {
-            self.effort = d.effort;
-        }
         self.delegation_cap = self.delegation_cap.clamp(1, 40);
         self.max_budget_usd = self.max_budget_usd.filter(|b| b.is_finite() && *b > 0.0);
         self

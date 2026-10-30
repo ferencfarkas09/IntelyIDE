@@ -49,7 +49,7 @@ fn rig_with(tweak: impl FnOnce(&mut intely_agent_host::HostConfig)) -> Rig {
 }
 
 fn start(sup: &Supervisor, role: &str, repo: &RepoRef, repos: &[RepoRef]) -> RunRecord {
-    sup.start(RunsStartRequest { role_id: role.into(), repo_ids: vec![repo.id.clone()], prompt: "go".into(), mode: None }, repos).expect("start")
+    sup.start(RunsStartRequest { role_id: role.into(), repo_ids: vec![repo.id.clone()], prompt: "go".into(), mode: None, ..Default::default() }, repos).expect("start")
 }
 
 fn wait_until(what: &str, secs: u64, mut f: impl FnMut() -> bool) {
@@ -144,9 +144,9 @@ fn a_role_outside_its_repo_scope_is_refused_and_file_roles_run_with_their_overla
     role.provider = "mock".into();
     role.repo_scope = vec!["repo".into()];
     store.save(intely_roles::types::RoleDraft::from(&role).confirmed(), &repos).unwrap();
-    let denied = r.sup.start(RunsStartRequest { role_id: "researcher".into(), repo_ids: vec!["other".into()], prompt: "x".into(), mode: None }, &repos).unwrap_err();
+    let denied = r.sup.start(RunsStartRequest { role_id: "researcher".into(), repo_ids: vec!["other".into()], prompt: "x".into(), mode: None, ..Default::default() }, &repos).unwrap_err();
     assert_eq!(denied.code, "outOfScope");
-    let unknown = r.sup.start(RunsStartRequest { role_id: "nobody".into(), repo_ids: vec!["repo".into()], prompt: "x".into(), mode: None }, &repos).unwrap_err();
+    let unknown = r.sup.start(RunsStartRequest { role_id: "nobody".into(), repo_ids: vec!["repo".into()], prompt: "x".into(), mode: None, ..Default::default() }, &repos).unwrap_err();
     assert_eq!(unknown.code, "unknownRole");
     r.sup.host().shutdown();
 }
@@ -168,9 +168,9 @@ fn the_chat_ui_start_resolves_file_roles_and_the_dialog_lists_them() {
     assert_eq!(infos.iter().filter(|i| i.name == "researcher").count(), 1, "a file role replaces, never duplicates");
     assert!(infos.iter().any(|i| i.name == "developer" && i.provider == "claude"), "the preset roles are listed: {infos:?}");
 
-    let denied = r.sup.start_now(AgentStartRequest { role: "researcher".into(), repo_ids: vec!["other".into()], prompt: "x".into(), mode: None, mcp_servers: None }, &repos).unwrap_err();
+    let denied = r.sup.start_now(AgentStartRequest { role: "researcher".into(), repo_ids: vec!["other".into()], prompt: "x".into(), mode: None, mcp_servers: None, ..Default::default() }, &repos).unwrap_err();
     assert_eq!(denied.code, "outOfScope");
-    let run = r.sup.start_now(AgentStartRequest { role: "researcher".into(), repo_ids: vec!["repo".into()], prompt: "x".into(), mode: None, mcp_servers: None }, &repos).expect("start");
+    let run = r.sup.start_now(AgentStartRequest { role: "researcher".into(), repo_ids: vec!["repo".into()], prompt: "x".into(), mode: None, mcp_servers: None, ..Default::default() }, &repos).expect("start");
     r.sink.wait_turn_end(&run.agent_id);
     assert!(r.sup.list().iter().any(|x| x.agent_id == run.agent_id), "the run shows in the supervisor's list");
     r.sup.host().shutdown();
@@ -340,7 +340,7 @@ fn a_hidden_role_is_refused_for_a_new_run_but_still_resolves_for_the_host() {
     std::fs::create_dir_all(&global).unwrap();
     std::fs::write(global.join("secret-one.md"), "---\nname: secret-one\ndescription: Hidden\ntools: Read\n---\nHidden.\n").unwrap();
     r.roles.set_hidden("secret-one", true, &repos).unwrap();
-    let refused = r.sup.start(RunsStartRequest { role_id: "secret-one".into(), repo_ids: vec!["repo".into()], prompt: "x".into(), mode: None }, &repos).unwrap_err();
+    let refused = r.sup.start(RunsStartRequest { role_id: "secret-one".into(), repo_ids: vec!["repo".into()], prompt: "x".into(), mode: None, ..Default::default() }, &repos).unwrap_err();
     assert_eq!(refused.code, "unknownRole", "{refused:?}");
     assert!(r.sup.host().find_role("secret-one", &repos).is_some(), "the host still resolves it by name (resume, reload)");
     r.sup.host().shutdown();
@@ -385,9 +385,9 @@ fn auto_resolves_to_the_lead_and_never_to_a_file_named_auto() {
     std::fs::create_dir_all(&global).unwrap();
     std::fs::write(global.join("auto.md"), "---\nname: auto\ndescription: A file called auto\ntools: Read\n---\nx\n").unwrap();
     // no claude in this rig: the start is refused by the provider, but only AFTER role resolution picked the lead (not the file)
-    let e = r.sup.start_now(AgentStartRequest { role: "auto".into(), repo_ids: vec!["repo".into()], prompt: "x".into(), mode: None, mcp_servers: None }, &repos).unwrap_err();
+    let e = r.sup.start_now(AgentStartRequest { role: "auto".into(), repo_ids: vec!["repo".into()], prompt: "x".into(), mode: None, mcp_servers: None, ..Default::default() }, &repos).unwrap_err();
     assert_ne!(e.code, "unknownRole", "{e:?}");
-    let q = r.sup.start(RunsStartRequest { role_id: "auto".into(), repo_ids: vec!["repo".into()], prompt: "x".into(), mode: None }, &repos);
+    let q = r.sup.start(RunsStartRequest { role_id: "auto".into(), repo_ids: vec!["repo".into()], prompt: "x".into(), mode: None, ..Default::default() }, &repos);
     assert!(q.is_err() || q.as_ref().is_ok_and(|rec| rec.role == "auto"));
     r.sup.host().shutdown();
 }
@@ -429,7 +429,7 @@ fn a_queued_mock_lead_recomputes_its_delegates_when_it_leaves_the_queue_and_the_
 }
 
 fn mode_request(repo: &RepoRef, role: &str, mode: intely_agent_core::providers::PermissionMode) -> RunsStartRequest {
-    RunsStartRequest { role_id: role.into(), repo_ids: vec![repo.id.clone()], prompt: "go".into(), mode: Some(mode) }
+    RunsStartRequest { role_id: role.into(), repo_ids: vec![repo.id.clone()], prompt: "go".into(), mode: Some(mode), ..Default::default() }
 }
 
 fn permission_of(r: &Rig, agent: &str) -> intely_agent_core::providers::PermissionMode {

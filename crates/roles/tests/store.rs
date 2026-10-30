@@ -81,12 +81,14 @@ fn saving_changes_the_editor_keys_and_keeps_everything_else() {
 }
 
 #[test]
-fn effort_max_is_refused_and_bad_names_cannot_escape_the_directory() {
+fn effort_max_is_saved_and_bad_names_cannot_escape_the_directory() {
     let r = rig();
     let repos = [r.repo.clone()];
     let mut role = r.store.preset_happy_tiering(&repos, true).unwrap().remove(0);
     role.effort = Some(RoleEffort::Max);
-    assert_eq!(r.store.save(RoleDraft::from(&role).confirmed(), &repos).unwrap_err().code, "effortMax");
+    let saved = r.store.save(RoleDraft::from(&role).confirmed(), &repos).expect("max is on the ladder like every other level");
+    assert_eq!(saved.effort, Some(RoleEffort::Max));
+    assert!(saved.warnings.iter().any(|w| w == "effortMax"), "a cost warning, not a refusal");
     role.effort = Some(RoleEffort::Low);
     role.id = "../../evil".into();
     role.name = "../../evil".into();
@@ -110,6 +112,12 @@ fn effort_is_not_available_when_the_model_or_provider_has_none() {
     assert!(effort_available("claude", "sonnet") && effort_available("claude", "opus"));
     assert!(!effort_available("claude", "haiku") && !effort_available("claude", "claude-haiku-4-5-20251001"));
     assert!(!effort_available("mock", "mock-1"), "the provider's caps say no");
+    // no name test: a model id this build does not know keeps its effort (the CLI reports what it takes at session start)
+    assert!(effort_available("claude", "claude-fable-5-1") && effort_available("claude", "claude-opus-9"));
+    // a Haiku id that is not the built-in one (another date, a cloud prefix) is still known to have no effort control
+    for id in ["claude-haiku-4-5", "us.anthropic.claude-haiku-4-5-20251001-v1:0", "claude-haiku-4-5-20260101", "claude-haiku-9"] {
+        assert!(!effort_available("claude", id), "{id}");
+    }
     let r = rig();
     write(&r.global, "researcher.md", "---\nname: researcher\nmodel: haiku\neffort: low\n---\nFind.\n");
     let role = r.store.list(&[]).remove(0);
@@ -612,4 +620,30 @@ fn a_repo_role_is_never_written_through_a_symlinked_agents_directory() {
     std::fs::remove_file(r.repo.path.join(".claude")).unwrap();
     assert_eq!(r.store.save(RoleDraft::from(&role).confirmed(), &repos).map(|x| x.id), Ok("planted@r1".to_string()));
     assert!(r.repo.path.join(".claude/agents/planted.md").is_file());
+}
+
+#[test]
+fn the_built_in_models_offer_the_whole_ladder_and_the_live_list_comes_first() {
+    use intely_roles::store::{claude_caps, merge_live_models, model_caps_of};
+    use RoleEffort::*;
+    let caps = claude_caps();
+    let levels = |id: &str| caps.models.iter().find(|m| m.id == id).map(|m| m.effort_levels.clone()).unwrap();
+    assert_eq!(levels(MODEL_HAIKU), Vec::<RoleEffort>::new());
+    assert_eq!(levels(MODEL_OPUS), vec![Low, Medium, High, Xhigh, Max]);
+    assert!(levels(MODEL_SONNET).contains(&Max));
+    // the live list: ladder order, unknown levels dropped, a label falls back to the id
+    let live = model_caps_of("claude-fable-5-1", "", &["max".into(), "low".into(), "turbo".into(), "low".into()]);
+    assert_eq!((live.label.as_str(), live.effort_levels.clone()), ("claude-fable-5-1", vec![Low, Max]));
+    let mut merged = claude_caps();
+    merge_live_models(&mut merged, &[live, model_caps_of(MODEL_OPUS, "Opus 5.5 (live)", &["low".into()])], &[]);
+    let ids: Vec<&str> = merged.models.iter().map(|m| m.id.as_str()).collect();
+    assert_eq!(ids, ["claude-fable-5-1", MODEL_OPUS, MODEL_HAIKU, MODEL_SONNET], "live first, then the built-ins it did not list");
+    assert_eq!(merged.models[1].effort_levels, vec![Low], "the live answer wins for a model both know");
+    let mut untouched = claude_caps();
+    merge_live_models(&mut untouched, &[], &[]);
+    // a built-in the CLI lists under an alias only (`sonnet` resolving to the built-in id) is not listed twice
+    let mut aliased = claude_caps();
+    merge_live_models(&mut aliased, &[model_caps_of("sonnet", "Sonnet (alias)", &["low".into()])], &[MODEL_SONNET.to_string()]);
+    assert_eq!(aliased.models.iter().map(|m| m.id.as_str()).collect::<Vec<_>>(), ["sonnet", MODEL_HAIKU, MODEL_OPUS]);
+    assert_eq!(untouched.models.len(), 3, "no live list: the built-in models stay");
 }

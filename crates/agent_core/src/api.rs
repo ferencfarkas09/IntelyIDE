@@ -39,6 +39,10 @@ wire_types! {
         #[cfg_attr(feature = "specta", specta(optional))]
         pub effort: Option<Effort>,
         pub permission: PermissionMode,
+        /// The run was started with ultracode on (the New run picker); absent = off.
+        #[serde(default)]
+        #[cfg_attr(feature = "specta", specta(optional))]
+        pub ultracode: Option<bool>,
     }
 
     #[serde(rename_all = "camelCase")]
@@ -147,6 +151,7 @@ wire_types! {
         pub default_repo_ids: Vec<String>,
     }
 
+    #[derive(Default)]
     #[serde(rename_all = "camelCase")]
     pub struct AgentStartRequest {
         pub role: String,
@@ -161,6 +166,19 @@ wire_types! {
         #[serde(default)]
         #[cfg_attr(feature = "specta", specta(optional))]
         pub mcp_servers: Option<Vec<String>>,
+        /// The model of this run (the New run picker). Absent = the role's own (or the Auto settings'); any id passes through unchanged,
+        /// so a model newer than this build can be used.
+        #[serde(default)]
+        #[cfg_attr(feature = "specta", specta(optional))]
+        pub model: Option<String>,
+        /// The effort of this run. Absent = the role's own.
+        #[serde(default)]
+        #[cfg_attr(feature = "specta", specta(optional))]
+        pub effort: Option<Effort>,
+        /// Ultracode: the lead may start the Workflow tool (helper agents). Absent or false = off, the Workflow tool stays denied.
+        #[serde(default)]
+        #[cfg_attr(feature = "specta", specta(optional))]
+        pub ultracode: Option<bool>,
     }
 
     /// An `@file` mention of the composer.

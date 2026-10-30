@@ -581,6 +581,11 @@ export type ToolIntent = {
 	isolation?: string | null,
 	/**  Facts of an `Agent` input the broker judges (it never sees the input itself). */
 	subagentFlags?: SubagentFlags | null,
+	/**
+	 *  `Workflow` only: the first thing about its input the broker refuses (see [`workflow_check`]); `None` = an inline script that
+	 *  passed every check.
+	 */
+	workflowCheck?: WorkflowCheck | null,
 	summary: string,
 };
 
@@ -601,4 +606,15 @@ export type UsageRecord = {
 	contextSize?: number | null,
 	/**  Cumulative per model, from the provider's per-model usage (Claude `modelUsage`). Empty = not reported. */
 	perModel?: ModelTokens[],
+};
+
+/**
+ *  Why a `Workflow` input is refused: `kind` is `input` (anything but an inline `script` with optional `args`: a `scriptPath`, a
+ *  named workflow, a resume, an unknown key), `isolation` (the words isolation, worktree or remote anywhere in the script: a hard
+ *  stop), `evasion` (code that builds keys or code at run time, which a text check cannot see through) or `override` (a script that
+ *  picks the model, effort or agent type of its helpers). `detail` names what was found.
+ */
+export type WorkflowCheck = {
+	kind: string,
+	detail: string,
 };

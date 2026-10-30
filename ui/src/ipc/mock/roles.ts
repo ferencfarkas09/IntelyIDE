@@ -11,7 +11,7 @@ const CAPS: RoleProviderCaps[] = [
     label: "Claude",
     models: [
       { id: HAIKU, label: "Haiku 4.5", effortLevels: [] },
-      { id: SONNET, label: "Sonnet 5.5", effortLevels: ["low", "medium", "high"] },
+      { id: SONNET, label: "Sonnet 5.5", effortLevels: ["low", "medium", "high", "max"] },
       { id: OPUS, label: "Opus 5.5", effortLevels: ["low", "medium", "high", "xhigh", "max"] },
     ],
     permissionModes: ["readOnly", "edit", "ask"],
@@ -46,6 +46,9 @@ const CAPS: RoleProviderCaps[] = [
     tools: ["Read", "Grep", "Glob", "Edit", "Write", "Bash"],
   },
 ];
+
+/** What the installed CLI would report on top (`roles_models_live`): a model this build does not know, listed first, as the backend merges. */
+const LIVE_MODELS: RoleProviderCaps["models"] = [{ id: "claude-fable-5-1", label: "Fable 5.1", effortLevels: ["low", "medium", "high", "xhigh", "max"] }];
 
 const READ_TOOLS = new Set(["Read", "Grep", "Glob", "WebSearch", "WebFetch", "TodoWrite"]);
 const OVERLAY_DIR = "~/Library/Application Support/IntelySwitchIDE";
@@ -217,6 +220,7 @@ export function createMockRoles(options: MockRolesOptions = {}): RolesIpc {
     list: async () => [...globals.map((r) => derive(r, false, true)), ...Object.entries(repoCopies).map(([key, e]) => ({ ...derive(e.role, true, false), id: key, repoId: e.repoId }))].map((r) => structuredClone(r)),
     groups: async () => names().map(build).map((g) => structuredClone(g)),
     capabilities: async () => structuredClone(CAPS),
+    modelsLive: async () => structuredClone(CAPS.map((c) => (c.provider === "claude" ? { ...c, models: [...LIVE_MODELS, ...c.models.filter((m) => !LIVE_MODELS.some((l) => l.id === m.id))] } : c))),
     async setHidden(name, value) {
       if (value) hidden.add(name);
       else hidden.delete(name);

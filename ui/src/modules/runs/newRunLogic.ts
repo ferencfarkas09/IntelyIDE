@@ -1,4 +1,4 @@
-import type { Tier } from "@intely/protocol";
+import type { Effort, Tier } from "@intely/protocol";
 import { t, type MessageKey } from "../../i18n";
 import type { ProviderEnforcement, ProviderInfo } from "../../ipc/providers";
 import { modeErrorText } from "../../components/chat/modes";
@@ -24,6 +24,8 @@ export interface NewRunDraft {
   permission?: PermissionMode;
   /** The MCP servers picked for the run. Absent (no picker): the request names none, which means no MCP. */
   mcpServers?: string[];
+  /** The run picker's choice (model, effort, ultracode), already reduced to what was picked. Absent fields: the role's own. */
+  pick?: { model?: string; effort?: Effort; ultracode?: boolean };
 }
 
 /**
@@ -101,12 +103,19 @@ export function providerChoices(
 export const chosenProvider = (picked: string | undefined, role: Pick<RoleInfo, "provider"> | undefined, choices: readonly ProviderChoice[]): string | undefined =>
   picked && choices.some((c) => c.id === picked && c.ok) ? picked : role?.provider;
 
-/** The request for `agent_start`: `provider` is sent only when it differs from the role's, so a plain run is byte-identical to before. `location` (a server id) is sent only for a run on a server. */
+/** The request for `agent_start`: `provider` is sent only when it differs from the role's, so a plain run is byte-identical to before. `location` (a server id) is sent only for a run on a server; model, effort and ultracode only when the run picker chose them. */
 export function startRequest(draft: NewRunDraft, role: Pick<RoleInfo, "provider"> | undefined, provider: string | undefined, location?: string): StartRunRequest {
-  const chosen = { ...(draft.permission ? { mode: draft.permission } : {}), ...(draft.mcpServers ? { mcpServers: draft.mcpServers } : {}), ...(location ? { location } : {}) };
-  // Auto on Claude names no provider: the host knows the lead is a Claude agent.
+  const pick = draft.pick ?? {};
+  const chosen = {
+    ...(draft.permission ? { mode: draft.permission } : {}),
+    ...(draft.mcpServers ? { mcpServers: draft.mcpServers } : {}),
+    ...(location ? { location } : {}),
+    ...(pick.model ? { model: pick.model } : {}),
+    ...(pick.effort ? { effort: pick.effort } : {}),
+  };
+  // Auto on Claude names no provider: the host knows the lead is a Claude agent. Ultracode is for a run of one role (the host refuses it for Auto).
   if (draft.mode === "auto") return { role: AUTO_ROLE, repoIds: draft.repoIds, prompt: draft.prompt, ...chosen };
-  return { role: draft.role!, repoIds: draft.repoIds, prompt: draft.prompt, ...chosen, ...(provider && provider !== role?.provider ? { provider } : {}) };
+  return { role: draft.role!, repoIds: draft.repoIds, prompt: draft.prompt, ...chosen, ...(pick.ultracode ? { ultracode: true } : {}), ...(provider && provider !== role?.provider ? { provider } : {}) };
 }
 
 /** Codes of the host's start refusals that speak about the mode; the supplier's MCP codes use the MCP catalog. */

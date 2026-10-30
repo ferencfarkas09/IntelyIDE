@@ -184,7 +184,7 @@ fn defaults_from(ns: &serde_json::Map<String, serde_json::Value>) -> AgentDefaul
     let fallback = AgentDefaults::default();
     let model = ns.get("defaultModel").and_then(Value::as_str).map(intely_roles::store::resolve_model).filter(|m| !m.is_empty()).unwrap_or(fallback.model.clone());
     let effort = match ns.get("defaultEffort").and_then(Value::as_str) {
-        Some(e) => Effort::parse(e).filter(|e| *e != Effort::Max).or(fallback.effort),
+        Some(e) => Effort::parse(e).or(fallback.effort),
         None => fallback.effort,
     }
     .filter(|_| intely_roles::store::effort_available("claude", &model));
@@ -640,7 +640,11 @@ mod tests {
         // Haiku has no effort control; max is refused; the cap is clamped; garbage is ignored
         let haiku = defaults_from(&ns(serde_json::json!({"defaultModel": "haiku", "defaultEffort": "high"})));
         assert_eq!(haiku.effort, None);
-        assert_eq!(defaults_from(&ns(serde_json::json!({"defaultEffort": "max"}))).effort, Some(Effort::Medium));
+        // the whole ladder: max is a choice like any other level (Settings > Roles "Auto run" offers it)
+        assert_eq!(defaults_from(&ns(serde_json::json!({"defaultEffort": "max"}))).effort, Some(Effort::Max));
+        assert_eq!(defaults_from(&ns(serde_json::json!({"defaultModel": "opus", "defaultEffort": "xhigh"}))).effort, Some(Effort::Xhigh));
+        // a model this build does not know keeps its effort (no name test)
+        assert_eq!(defaults_from(&ns(serde_json::json!({"defaultModel": "claude-fable-5-1", "defaultEffort": "low"}))).effort, Some(Effort::Low));
         let nested = defaults_from(&ns(serde_json::json!({"auto": {"enabled": false}, "delegation": {"enabled": false}, "autoEnabled": true})));
         assert!(!nested.auto_enabled && !nested.delegation_enabled, "the nested switches the UI writes win over the flat keys");
         assert_eq!(defaults_from(&ns(serde_json::json!({"delegationCap": 500}))).delegation_cap, 40);

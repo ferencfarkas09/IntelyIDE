@@ -71,6 +71,12 @@ describe("effort", () => {
     expect(clampEffort("low", ["medium", "high"])).toBe("medium");
     expect(clampEffort("high", [])).toBeNull();
   });
+
+  it("keeps max and xhigh where the model takes them (the whole ladder is offered)", () => {
+    expect(clampEffort("max", ["low", "medium", "high", "xhigh", "max"])).toBe("max");
+    expect(clampEffort("max", ["low", "medium", "high", "max"])).toBe("max");
+    expect(clampEffort("xhigh", ["low", "medium", "high", "max"])).toBe("high");
+  });
 });
 
 describe("reconcile", () => {

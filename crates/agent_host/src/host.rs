@@ -40,7 +40,7 @@ use serde_json::{json, Value};
 use crate::config::{find_on_path, scrub_env, HostConfig, PolicyFault, ProviderLaunch};
 use crate::roles::{self, RoleDef};
 use crate::remote::{self, NotReady, RemoteFs, SidecarFs, FS_QUERY_TIMEOUT, REMOTE_POLICY_TIMEOUT_MS};
-use crate::run::{context_for, context_for_remote, meta_path, plan_dir, Live, Meta, RemoteDirs, RepoRef, Run, RunState, SnapshotRef, TeamRun};
+use crate::run::{context_for, context_for_remote, meta_path, plan_dir, Live, Meta, RemoteDirs, RepoRef, Run, RunState, RunPicks, SnapshotRef, TeamRun};
 use crate::sidecar::{Handler, Incoming, Sidecar};
 
 /// Where committed events go. Called only after the durable append, in `seq` order per agent.
@@ -281,6 +281,28 @@ impl std::fmt::Debug for CreatedHook {
     }
 }
 
+/// The picks of a start request, checked: a model id that is not one, an empty effort... are refused before anything starts. Ultracode
+/// is for a single Claude role: Auto's lead already hands work to the roles (a workflow's helper agents are no role of its team, so the
+/// broker would refuse every call they make), and other providers have no Workflow tool.
+fn run_picks(req: &AgentStartRequest, role: &RoleDef) -> Result<RunPicks, EngineError> {
+    let model = req.model.as_deref().map(str::trim).filter(|m| !m.is_empty()).map(str::to_string);
+    if let Some(m) = &model {
+        if !roles::valid_model_id(m) {
+            return Err(err("invalidModel", format!("\"{}\" is not a model id", roles::shown_model_id(m))));
+        }
+    }
+    let ultracode = req.ultracode == Some(true);
+    if ultracode {
+        if role.is_delegating() {
+            return Err(err("ultracodeAuto", "ultracode is for a run of one role; Auto already hands the work to your roles"));
+        }
+        if !matches!(role.provider.as_str(), "claude" | "mock") {
+            return Err(err("ultracodeProvider", "ultracode needs Claude"));
+        }
+    }
+    Ok(RunPicks { model, effort: req.effort, ultracode })
+}
+
 /// Per-run start options.
 #[derive(Debug, Clone, Default)]
 pub struct StartOptions {
@@ -461,6 +483,7 @@ impl AgentHost {
             location: None,
             remote: None,
             team: None,
+            picks: Default::default(),
         };
         let ctx = context_for(&meta, std::env::var_os("HOME").map(PathBuf::from), role.disallowed_tools.clone(), &inner.cfg.data_dir);
         lock(&inner.state).agents.insert(agent_id.clone(), Run::new(meta, RunState::default(), ctx, true));
@@ -583,6 +606,10 @@ impl AgentHost {
             }
             None => role,
         };
+        // The New run picker: model, effort and ultracode of this run, over the role's own (absent = the role's, exactly as before).
+        let picks = run_picks(&req, role)?;
+        let picked = role.with_picks(&picks);
+        let role = &picked;
         // The run mode (D9): the request's choice wins over the role for the lead and for a single role; the role's own permission is the
         // default and, for a delegate, a ceiling. A request without a mode keeps the role's permission, exactly as before.
         let mode = req.mode.unwrap_or(role.permission);
@@ -634,6 +661,7 @@ impl AgentHost {
             location,
             remote: None,
             team,
+            picks,
         };
         self.launch(run_role, meta, &resolved.disallowed_tools, Some(&prompt), opts)
     }
@@ -666,6 +694,7 @@ impl AgentHost {
             location: None,
             remote: None,
             team: None,
+            picks: Default::default(),
         };
         self.launch(role, meta, &resolved.disallowed_tools, None, StartOptions::default())
     }
@@ -883,6 +912,23 @@ impl AgentHost {
         let sc = self.inner.ensure_sidecar(None)?;
         let body = json!({"env": {"claudeBin": bin.to_string_lossy(), "vars": env_vars}, "cwd": self.inner.cfg.data_dir});
         sc.request("usage/limits", body, Duration::from_secs(40)).map_err(|e| err("usageLimits", e.to_string()))
+    }
+
+    /// The models the installed Claude CLI offers right now, each with the effort levels it takes (`models/list`): the sidecar starts the
+    /// CLI for a moment and reads its model catalog; nothing goes to a model. Like [`Self::usage_limits`], a missing CLI and the sidecar's own
+    /// failures are answers with an `error` field. `timeout` bounds the whole ask.
+    ///
+    /// No `Jail::check_op`, like [`Self::usage_limits`]: the CLI starts in the IDE's own state folder with no repository, no tools and no
+    /// session (the sidecar passes `settingSources: []`, no MCP servers and the deny-rule overlay), and only answers `initialize`.
+    pub fn models_live(&self, timeout: Duration) -> Result<Value, EngineError> {
+        let env_vars = scrub_env(&(self.inner.cfg.env)());
+        let all: HashMap<String, String> = env_vars.clone().into_iter().collect();
+        let Some(bin) = self.inner.cfg.claude_bin.clone().or_else(|| find_on_path("claude", &all)) else {
+            return Ok(json!({"error": "claudeNotFound"}));
+        };
+        let sc = self.inner.ensure_sidecar(None)?;
+        let body = json!({"env": {"claudeBin": bin.to_string_lossy(), "vars": env_vars}, "cwd": self.inner.cfg.data_dir, "timeoutMs": timeout.as_millis() as u64});
+        sc.request("models/list", body, timeout + Duration::from_secs(2)).map_err(|e| err("modelsLive", e.to_string()))
     }
 
     /// Switches the permission mode of a run, live when it has a session (permission-modes spec 5.1). Rust is the authority; the SDK follows:
@@ -1557,6 +1603,8 @@ impl Inner {
             // the run was started on another provider than its role's own (the New run picker); it stays there
             role = role.on_provider(&provider);
         }
+        // and with the model, effort and ultracode it was started with
+        role = role.with_picks(&meta.picks);
         // The mode the run recorded decides, except that Bypass never resumes and a role that changed under the run narrows it
         // (permission-modes spec 5.5). The delegates of a team lead are rebuilt from the files.
         let (resumed, reason) = self.resume_mode_for(&role, &meta);
@@ -2203,6 +2251,9 @@ impl Inner {
         };
         let mut resolved = role.resolved(&self.cfg);
         resolved.permission = meta.permission;
+        if meta.picks.ultracode {
+            resolved.ultracode = Some(true);
+        }
         if let Some(team) = &meta.team {
             roles::apply_team(&mut resolved, team);
         }
@@ -2930,7 +2981,7 @@ impl Inner {
             events.iter().for_each(|e| state.apply(e));
             // The run keeps the mode it recorded, so a listed Bypass run still shows Bypass; a resume re-derives what it may continue in
             // from the role as it resolves then (`resume_mode_for`), and nothing a stopped run holds is ever consulted for a decision.
-            let role_deny = self.role_named(&meta.role, &meta.repos).map(|r| r.disallowed_tools).unwrap_or_default();
+            let role_deny = self.role_named(&meta.role, &meta.repos).map(|r| r.with_picks(&meta.picks).disallowed_tools).unwrap_or_default();
             let (ctx, remote_fs) = self.context_for_run(&meta, role_deny);
             let mut run = Run::new(meta, state, ctx, false);
             run.remote_fs = remote_fs;

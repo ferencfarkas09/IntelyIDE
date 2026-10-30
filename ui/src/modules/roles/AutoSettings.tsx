@@ -97,7 +97,7 @@ export function AutoSettings(props: { caps: RoleProviderCaps[]; /** Bumped when 
             disabled={levels().length === 0}
             title={levels().length === 0 ? t("roles.err.noEffortControl") : undefined}
             value={effort() as string}
-            options={levels().length === 0 ? [{ value: "", label: t("roles.na") }] : levels().filter((l) => l !== "max").map((l) => ({ value: l, label: l }))}
+            options={levels().length === 0 ? [{ value: "", label: t("roles.na") }] : levels().map((l) => ({ value: l, label: l }))}
             onChange={(e) => void save({ defaultEffort: e })}
           />
         </label>

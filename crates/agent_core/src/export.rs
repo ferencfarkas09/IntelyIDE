@@ -32,7 +32,7 @@ const FILES: &[(&str, &[&str])] = &[
         ],
     ),
     ("api", &["RunStatus", "PermissionDecision", "Requested", "AgentEffective", "AgentSummary", "AutoQueue", "AutoInfo", "RoleInfo", "AgentStartRequest", "AgentAttachment", "QuestionAnswer"]),
-    ("policy", &["ToolClass", "ToolIntent", "Actor", "SubagentFlags", "PolicyRequest", "Decision", "PolicyDecision", "SessionAllowKind", "SessionAllowOffer"]),
+    ("policy", &["ToolClass", "ToolIntent", "Actor", "SubagentFlags", "WorkflowCheck", "PolicyRequest", "Decision", "PolicyDecision", "SessionAllowKind", "SessionAllowOffer"]),
     ("mcp", &["McpPolicy", "McpExposure"]),
     ("delegates", &["DelegateScope", "ExcludeReason", "DelegateSpec", "DelegateInfo", "ExcludedDelegate"]),
     (

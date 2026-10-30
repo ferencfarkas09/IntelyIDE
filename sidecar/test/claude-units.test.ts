@@ -2,9 +2,9 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { capsFor, staticCaps } from '../src/adapters/claude-sdk/caps.js';
 import { assertInit, checkCredential, type CliModel, isUnattended, isWriterMode, isolationLeak, expectedMcpServers, modelMatches, permissionModeFor } from '../src/adapters/claude-sdk/facts.js';
-import { intentFor, toolKind } from '../src/adapters/claude-sdk/intent.js';
+import { intentFor, toolKind, workflowCheck } from '../src/adapters/claude-sdk/intent.js';
 import { DENY_RULES, settingsOverlay } from '../src/adapters/claude-sdk/settings.js';
-import { ClaudeSession } from '../src/adapters/claude-sdk/session.js';
+import { ClaudeSession, DEFAULT_TOOLS, sessionTools } from '../src/adapters/claude-sdk/session.js';
 import type { ResolvedRole } from '../src/types.js';
 
 // Shape of initializationResult().models[] as recorded in spikes/sdk/WIRE.md.
@@ -143,7 +143,7 @@ describe('intent parity with the Rust mapping (fixtures/intent-cases.json)', () 
   const norm = (v: unknown) => (v === null || v === '' ? undefined : v);
   it.each(cases.map((c) => [`${c.tool} ${JSON.stringify(c.input).slice(0, 50)}`, c] as const))('%s', (_n, c) => {
     const got = intentFor(c.tool, c.input) as Record<string, unknown>;
-    for (const k of ['class', 'rawCommand', 'url', 'server', 'subagentType', 'isolation']) expect(norm(got[k]), k).toEqual(norm(c.intent[k]));
+    for (const k of ['class', 'rawCommand', 'url', 'server', 'subagentType', 'isolation', 'workflowCheck']) expect(norm(got[k]), k).toEqual(norm(c.intent[k]));
     const flags = (v: unknown) => (v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).filter(([, x]) => x !== null)) : v);
     expect(flags(got.subagentFlags), 'subagentFlags').toEqual(flags(c.intent.subagentFlags));
     expect(got.paths ?? [], 'paths').toEqual(c.intent.paths ?? []);
@@ -228,5 +228,45 @@ describe('plansDirectory (where the CLI keeps its plan notes)', () => {
   it('is set from planDir and absent without one (the CLI would write into the real ~/.claude/plans)', () => {
     expect(settingsOverlay({ shimDir: '/shim' }, true, false, [], '/ide/state/plans/a1')).toMatchObject({ plansDirectory: '/ide/state/plans/a1' });
     expect(settingsOverlay({ shimDir: '/shim' })).not.toHaveProperty('plansDirectory');
+  });
+});
+
+describe('ultracode (the New run picker, one run only)', () => {
+  const role = (o: Partial<ResolvedRole> = {}): ResolvedRole => ({ name: 'developer', model: 'claude-opus-5-5', permission: 'automatic', ...o });
+
+  it('puts ultracode and the Workflows feature into the inline settings only for a run that has it', () => {
+    expect(settingsOverlay({ shimDir: '/shim' }, true, false, [], undefined, true)).toMatchObject({ ultracode: true, enableWorkflows: true });
+    expect(settingsOverlay({ shimDir: '/shim' }, true, false, [], undefined, true)).not.toHaveProperty('disableWorkflows');
+    // defence in depth: a run without it has Workflows switched off, and the word "ultracode" in a prompt does not opt a turn into them
+    const plain = settingsOverlay({ shimDir: '/shim' }) as Record<string, unknown>;
+    expect(plain).toMatchObject({ disableWorkflows: true, workflowKeywordTriggerEnabled: false });
+    expect('ultracode' in plain || 'enableWorkflows' in plain).toBe(false);
+  });
+
+  it('adds the Workflow tool to the default tools of an ultracode run, never to another run', () => {
+    expect(sessionTools(role({ ultracode: true }), undefined, false)).toContain('Workflow');
+    expect(sessionTools(role(), undefined, false)).not.toContain('Workflow');
+    expect(DEFAULT_TOOLS).not.toContain('Workflow');
+    // a role's own list is what Rust sent (Rust adds Workflow to it for an ultracode run)
+    expect(sessionTools(role({ ultracode: true, tools: ['Read', 'Workflow'] }), undefined, false)).toEqual(['Read', 'Workflow']);
+  });
+
+  it('an effort change keeps ultracode on (the SDK switches it off for an effortLevel sent without the key)', async () => {
+    const applied: unknown[] = [];
+    const s = Object.create(ClaudeSession.prototype) as ClaudeSession & Record<string, unknown>;
+    Object.assign(s, { spec: { role: role({ ultracode: true }) }, q: { applyFlagSettings: async (x: unknown) => { applied.push(x); } }, sink: { emit: () => undefined }, nativeId: 'n' });
+    await s.setEffort('high');
+    Object.assign(s, { spec: { role: role() } });
+    await s.setEffort('low');
+    expect(applied).toEqual([{ effortLevel: 'high', ultracode: true }, { effortLevel: 'low' }]);
+  });
+
+  it('a workflow carries the first thing the broker refuses about it; an inline script that passes carries nothing', () => {
+    expect(intentFor('Workflow', { script: "export const meta = { name: 'x' }\nawait agent('fix')", args: { q: 1 } }).workflowCheck).toBeUndefined();
+    expect(intentFor('Workflow', { scriptPath: '/tmp/wf.js', script: "await agent('decoy')" }).workflowCheck).toEqual({ kind: 'input', detail: 'scriptPath' });
+    expect(intentFor('Workflow', { name: 'spec' }).workflowCheck).toEqual({ kind: 'input', detail: 'name' });
+    for (const s of ["agent('x', {isolation:'worktree'})", "agent('x', { remote: !0 })", "agent('x', { remote /*c*/ : 1 })", "// a WORKTREE\nagent('x')"]) expect(workflowCheck({ script: s })?.kind, s).toBe('isolation');
+    for (const s of ["agent('x', { ['re' + 'mote']: true })", "eval('x')", "new Function('x')", "agent('x', { 're\\u006dote': 1 })", "String.fromCharCode(1)"]) expect(workflowCheck({ script: s })?.kind, s).toBe('evasion');
+    expect(workflowCheck({ script: "agent('x', { model: 'opus' })" })).toEqual({ kind: 'override', detail: 'model:' });
   });
 });

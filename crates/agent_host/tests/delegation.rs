@@ -93,7 +93,7 @@ fn job(out: &Path, asks: Vec<Value>, events: Vec<Value>) -> String {
 }
 
 fn start(host: &AgentHost, role: &str, repo: &RepoRef, prompt: String) -> intely_agent_core::api::AgentSummary {
-    host.start(AgentStartRequest { role: role.into(), repo_ids: vec![repo.id.clone()], prompt, mode: None, mcp_servers: None }, std::slice::from_ref(repo)).expect("start")
+    host.start(AgentStartRequest { role: role.into(), repo_ids: vec![repo.id.clone()], prompt, mode: None, mcp_servers: None, ..Default::default() }, std::slice::from_ref(repo)).expect("start")
 }
 
 fn keys(v: &Value) -> Vec<String> {
@@ -210,7 +210,7 @@ fn the_auto_kill_switch_refuses_an_auto_start() {
     let r = rig(&dir.path().join("data"));
     r.defaults.lock().unwrap().auto_enabled = false;
     let (host, _sink) = host_with(r.cfg);
-    let e = host.start(AgentStartRequest { role: "auto".into(), repo_ids: vec![repo.id.clone()], prompt: "x".into(), mode: None, mcp_servers: None }, std::slice::from_ref(&repo)).expect_err("refused");
+    let e = host.start(AgentStartRequest { role: "auto".into(), repo_ids: vec![repo.id.clone()], prompt: "x".into(), mode: None, mcp_servers: None, ..Default::default() }, std::slice::from_ref(&repo)).expect_err("refused");
     assert_eq!(e.code, "autoDisabled");
     let info = host.auto_info(std::slice::from_ref(&repo), None);
     assert!(!info.available && info.reason.as_deref() == Some("autoDisabled"));
@@ -334,7 +334,7 @@ fn a_single_role_resume_keeps_the_recorded_permission_as_a_ceiling() {
     let mut def: RoleDef = intely_agent_host::roles::builtin(&cfg_for_def).into_iter().find(|r| r.name == "reviewer").unwrap();
     def.name = "reviewer-file".into();
     def.permission = PermissionMode::ReadOnly;
-    let a = host.start_role(&def, AgentStartRequest { role: "reviewer-file".into(), repo_ids: vec![repo.id.clone()], prompt: job(&out, vec![], vec![json!({"kind":"turn.end","stopReason":"endTurn"})]), mode: None, mcp_servers: None }, std::slice::from_ref(&repo)).expect("start");
+    let a = host.start_role(&def, AgentStartRequest { role: "reviewer-file".into(), repo_ids: vec![repo.id.clone()], prompt: job(&out, vec![], vec![json!({"kind":"turn.end","stopReason":"endTurn"})]), mode: None, mcp_servers: None, ..Default::default() }, std::slice::from_ref(&repo)).expect("start");
     wait_file(&out, 20);
     sink.wait_turn_end(&a.agent_id);
     *read_only.lock().unwrap() = false;

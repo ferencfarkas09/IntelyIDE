@@ -10,7 +10,7 @@ use intely_agent_core::events::types::{EventKind, NoteState, PermissionOutcome, 
 use intely_agent_core::events::log::{EventLog, JsonlEventLog};
 
 fn start(host: &intely_agent_host::AgentHost, role: &str, repo: &intely_agent_host::RepoRef) -> Result<intely_agent_core::api::AgentSummary, intely_core::EngineError> {
-    host.start(AgentStartRequest { role: role.into(), repo_ids: vec![repo.id.clone()], prompt: "go".into(), mode: None, mcp_servers: None }, std::slice::from_ref(repo))
+    host.start(AgentStartRequest { role: role.into(), repo_ids: vec![repo.id.clone()], prompt: "go".into(), mode: None, mcp_servers: None, ..Default::default() }, std::slice::from_ref(repo))
 }
 
 fn assert_invariants(events: &[intely_agent_core::events::types::AgentEvent]) {
@@ -225,7 +225,7 @@ fn a_run_without_a_rewind_snapshot_is_refused_unless_the_user_opts_out_for_that_
     assert!(host.list().is_empty(), "a refused run leaves nothing behind");
 
     let role = intely_agent_host::roles::builtin(&config(&dir.path().join("data"), sidecar_js())).into_iter().find(|r| r.name == "mock-plain-reply").unwrap();
-    let req = AgentStartRequest { role: role.name.clone(), repo_ids: vec![repo.id.clone()], prompt: "go".into(), mode: None, mcp_servers: None };
+    let req = AgentStartRequest { role: role.name.clone(), repo_ids: vec![repo.id.clone()], prompt: "go".into(), mode: None, mcp_servers: None, ..Default::default() };
     let id = host.start_role_with(&role, req, std::slice::from_ref(&repo), StartOptions { run_without_safety_net: true, ..Default::default() }).expect("opt-out starts").agent_id;
     sink.wait_turn_end(&id);
     assert!(host.rewind(&id).is_err(), "there is nothing to rewind to");
@@ -254,7 +254,7 @@ fn a_refusal_among_many_repositories_names_the_first_one_and_leaves_nothing_behi
     let (host, _sink) = host_with(config(&dir.path().join("data"), fake_sidecar_js()));
     let objects = |i: usize| git(&repos[i].path, &["count-objects", "-v"]);
     let before = objects(4);
-    let req = AgentStartRequest { role: "mock-plain-reply".into(), repo_ids: repos.iter().map(|r| r.id.clone()).collect(), prompt: "go".into(), mode: None, mcp_servers: None };
+    let req = AgentStartRequest { role: "mock-plain-reply".into(), repo_ids: repos.iter().map(|r| r.id.clone()).collect(), prompt: "go".into(), mode: None, mcp_servers: None, ..Default::default() };
     let err = host.start(req, &repos).unwrap_err();
     assert_eq!(err.code, NO_SAFETY_NET, "{err:?}");
     assert!(err.message.contains("repo2"), "the first repository in the list that cannot be snapshotted is the one named: {}", err.message);
@@ -284,7 +284,7 @@ fn a_run_on_several_repositories_snapshots_each_and_a_rewind_restores_each() {
         repos.push(RepoRef { id: format!("repo{i}"), path: path.canonicalize().unwrap() });
     }
     let (host, sink) = host_with(config(&dir.path().join("data"), sidecar_js()));
-    let req = AgentStartRequest { role: "mock-plain-reply".into(), repo_ids: repos.iter().map(|r| r.id.clone()).collect(), prompt: "go".into(), mode: None, mcp_servers: None };
+    let req = AgentStartRequest { role: "mock-plain-reply".into(), repo_ids: repos.iter().map(|r| r.id.clone()).collect(), prompt: "go".into(), mode: None, mcp_servers: None, ..Default::default() };
     let id = host.start(req, &repos).expect("start").agent_id;
     sink.wait_turn_end(&id);
     for r in &repos {
@@ -313,7 +313,7 @@ fn a_repository_and_its_linked_worktree_in_one_run_never_get_a_foreign_snapshot(
     std::fs::write(wt.path.join("only-wt.txt"), "uncommitted work in the worktree\n").unwrap();
     let repos = vec![main.clone(), wt.clone()];
     let (host, sink) = host_with(config(&dir.path().join("data"), sidecar_js()));
-    let ask = || AgentStartRequest { role: "mock-plain-reply".into(), repo_ids: vec![main.id.clone(), wt.id.clone()], prompt: "go".into(), mode: None, mcp_servers: None };
+    let ask = || AgentStartRequest { role: "mock-plain-reply".into(), repo_ids: vec![main.id.clone(), wt.id.clone()], prompt: "go".into(), mode: None, mcp_servers: None, ..Default::default() };
 
     // the race has no fixed winner: it is refused every time, and leaves no ref behind
     for round in 0..8 {
@@ -345,7 +345,7 @@ fn the_created_hook_gets_the_run_id_once_and_before_the_run_returns() {
     let repo = RepoRef { id: "plain".into(), path: plain.canonicalize().unwrap() };
     let (host, sink) = host_with(config(&dir.path().join("data"), sidecar_js()));
     let role = intely_agent_host::roles::builtin(&config(&dir.path().join("data"), sidecar_js())).into_iter().find(|r| r.name == "mock-plain-reply").unwrap();
-    let req = AgentStartRequest { role: role.name.clone(), repo_ids: vec![repo.id.clone()], prompt: "go".into(), mode: None, mcp_servers: None };
+    let req = AgentStartRequest { role: role.name.clone(), repo_ids: vec![repo.id.clone()], prompt: "go".into(), mode: None, mcp_servers: None, ..Default::default() };
     let seen: Arc<Mutex<Vec<String>>> = Arc::default();
     let s2 = seen.clone();
     let hook = CreatedHook(Arc::new(move |id: &str| s2.lock().unwrap().push(id.to_string())));
@@ -385,6 +385,7 @@ fn the_policy_context_of_a_run_is_path_jailed_to_its_repos_plus_the_read_only_at
         location: None,
         remote: None,
         team: None,
+        picks: Default::default(),
     };
     let ctx = context_for(&meta, None, Vec::new(), &state);
     assert!(ctx.strict_jail);
@@ -609,7 +610,7 @@ fn a_message_to_a_run_that_may_do_more_is_asked_about_every_time_and_cannot_be_s
     let mut other = fixture_repo(&dir.path().join("two"));
     other.id = "repo-two".into();
     let req = |role: &str, mode, repo: &intely_agent_host::RepoRef| {
-        host.start(AgentStartRequest { role: role.into(), repo_ids: vec![repo.id.clone()], prompt: "go".into(), mode, mcp_servers: None }, std::slice::from_ref(repo)).unwrap().agent_id
+        host.start(AgentStartRequest { role: role.into(), repo_ids: vec![repo.id.clone()], prompt: "go".into(), mode, mcp_servers: None, ..Default::default() }, std::slice::from_ref(repo)).unwrap().agent_id
     };
     let strict = req("mock-notes", Some(intely_agent_core::providers::PermissionMode::Ask), &repo);
     let loose = req("mock-notes", Some(intely_agent_core::providers::PermissionMode::Edit), &other);

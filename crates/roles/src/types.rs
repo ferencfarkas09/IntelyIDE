@@ -534,6 +534,7 @@ ipc_types! {
         pub up_to_message_id: Option<String>,
     }
 
+    #[derive(Default)]
     #[serde(rename_all = "camelCase")]
     pub struct RunsStartRequest {
         pub role_id: String,
@@ -544,6 +545,18 @@ ipc_types! {
         #[serde(default)]
         #[cfg_attr(feature = "specta", specta(optional))]
         pub mode: Option<intely_agent_core::providers::PermissionMode>,
+        /// The model of this run (absent = the role's own); any id passes through unchanged.
+        #[serde(default)]
+        #[cfg_attr(feature = "specta", specta(optional))]
+        pub model: Option<String>,
+        /// The effort of this run (absent = the role's own).
+        #[serde(default)]
+        #[cfg_attr(feature = "specta", specta(optional))]
+        pub effort: Option<intely_agent_core::providers::Effort>,
+        /// Ultracode: the lead may start the Workflow tool. Absent or false = off.
+        #[serde(default)]
+        #[cfg_attr(feature = "specta", specta(optional))]
+        pub ultracode: Option<bool>,
     }
 
     /// Token counts and the cost estimate of a run or of everything.
