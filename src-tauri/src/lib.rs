@@ -357,6 +357,8 @@ pub fn run() {
             modules::devices::devices_log_clear,
             modules::devices::devices_logs,
             modules::devices::devices_reload,
+            modules::mobilehealth::mobilehealth_detect,
+            modules::mobilehealth::mobilehealth_scan_repo,
             // ==== alpha attachments commands ====
             modules::attachments::attachment_import_bytes,
             modules::attachments::attachment_import_paths,

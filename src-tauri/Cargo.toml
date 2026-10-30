@@ -30,6 +30,7 @@ intely-sentry = { version = "0.0.0", path = "../crates/sentry" }
 intely-registry = { version = "0.0.0", path = "../crates/registry" }
 intely-versions = { version = "0.0.0", path = "../crates/versions" }
 intely-devices = { version = "0.0.0", path = "../crates/devices" }
+intely-mobilehealth = { version = "0.0.0", path = "../crates/mobilehealth" }
 intely-deeppattern = { version = "0.0.0", path = "../crates/deeppattern" }
 intely-attachments = { version = "0.0.0", path = "../crates/attachments" }
 intely-l10n = { version = "0.0.0", path = "../crates/l10n" }

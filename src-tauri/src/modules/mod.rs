@@ -16,6 +16,7 @@ pub mod happy_inbox;
 pub mod hud;
 pub mod l10n;
 pub mod mcp;
+pub mod mobilehealth;
 #[cfg(feature = "mongo-studio")]
 pub mod mongo;
 #[cfg(test)]
