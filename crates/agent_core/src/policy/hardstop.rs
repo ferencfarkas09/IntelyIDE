@@ -270,12 +270,15 @@ struct Walker<'a> {
     glob_untrusted: bool,
     /// Commands walked for loop iterations so far: the work a loop may cost is bounded.
     loop_work: usize,
+    /// Bare names of program text that are secret only by their extension (`line.key`), with whether a file of that name was found
+    /// where the command runs: each is looked up once, and at most [`facts::MAX_EXT_CHECKS`] of them (see `Walker::note_candidate`).
+    ext_checks: Vec<(PathBuf, bool)>,
     a: Analysis,
 }
 
 impl<'a> Walker<'a> {
     fn new(jail: &'a Jail) -> Self {
-        Self { jail, cwd: jail.cwd.clone(), cwd_known: true, alias_depth: 0, shell_aliases: Default::default(), repl: None, src: String::new(), script_stack: Vec::new(), script_dir: None, vars: Default::default(), vars_off: false, made_dirs: Vec::new(), cwd_pending: Vec::new(), cwd_alts: Vec::new(), cwd_stack: Vec::new(), cdpath: false, made_links: false, cd_unreliable: false, glob_untrusted: false, loop_work: 0, a: Analysis::default() }
+        Self { jail, cwd: jail.cwd.clone(), cwd_known: true, alias_depth: 0, shell_aliases: Default::default(), repl: None, src: String::new(), script_stack: Vec::new(), script_dir: None, vars: Default::default(), vars_off: false, made_dirs: Vec::new(), cwd_pending: Vec::new(), cwd_alts: Vec::new(), cwd_stack: Vec::new(), cdpath: false, made_links: false, cd_unreliable: false, glob_untrusted: false, loop_work: 0, ext_checks: Vec::new(), a: Analysis::default() }
     }
 
     fn stop(&mut self, rule: &str, reason: &str) {
