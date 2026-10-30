@@ -145,3 +145,52 @@ fn the_config_protection_is_off_by_default_persisted_and_copies_outside_the_repo
     assert!(again.checkpoint_config(&id, seq).unwrap().is_empty());
     again.shutdown();
 }
+
+#[test]
+fn the_config_copy_holds_the_state_before_the_run_and_follows_an_env_only_change() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempfile::tempdir().unwrap();
+    let repo = fixture_repo(dir.path());
+    std::fs::write(repo.path.join(".gitignore"), ".env.local\n").unwrap();
+    std::fs::write(repo.path.join(".env.local"), "TOKEN=before\n").unwrap();
+    let data = dir.path().join("data");
+    let (host, sink) = host_with(config(&data, sidecar_js()));
+    host.set_protect_config(true).unwrap();
+    let id = start(&host, "mock-plain-reply", &repo);
+    sink.wait_turn_end(&id);
+    // step 0 (the Rewind snapshot) has its copy, taken at the launch
+    let at_start = host.checkpoint_config(&id, 0).unwrap();
+    assert_eq!(at_start.iter().map(|c| (c.path.as_str(), c.state.as_str())).collect::<Vec<_>>(), [(".env.local", "same")]);
+    // owner-only: every folder 0700, every file 0600
+    let mut stack = vec![data.join("checkpoint-files").join(&id)];
+    let mut files = 0;
+    while let Some(d) = stack.pop() {
+        assert_eq!(std::fs::metadata(&d).unwrap().permissions().mode() & 0o777, 0o700, "{}", d.display());
+        for e in std::fs::read_dir(&d).unwrap().flatten() {
+            if e.file_type().unwrap().is_dir() {
+                stack.push(e.path());
+            } else {
+                files += 1;
+                assert_eq!(e.metadata().unwrap().permissions().mode() & 0o777, 0o600, "{}", e.path().display());
+            }
+        }
+    }
+    assert!(files >= 2, "the copy and its manifest");
+
+    // nothing changed during the turn (the copy at the start matches): no step of its own
+    std::thread::sleep(std::time::Duration::from_millis(300));
+    assert_eq!(host.checkpoints(&id).unwrap().len(), 1);
+    // only the ignored file changes: git sees nothing, the next prompt still takes a step with the new copy
+    std::fs::write(repo.path.join(".env.local"), "TOKEN=during\n").unwrap();
+    let last = sink.of(&id).last().unwrap().seq;
+    host.send(&id, "again").expect("send");
+    sink.wait(&id, "second turn end", 20, |e| e.seq > last && matches!(e.kind, EventKind::TurnEnd { .. }));
+    let steps = wait_steps(&host, &id, 2);
+    assert_eq!((steps[1].kind.as_str(), steps[1].changed), ("turn", 0), "{steps:?}");
+    assert_eq!(host.checkpoint_config(&id, steps[1].seq).unwrap()[0].state, "same");
+    assert_eq!(host.checkpoint_config(&id, 0).unwrap()[0].state, "differs");
+    // the state before the run comes back from step 0
+    host.restore_checkpoint_config(&id, 0, &repo.id, &[".env.local".into()], true).unwrap();
+    assert_eq!(read(&repo, ".env.local"), "TOKEN=before\n");
+    host.shutdown();
+}
