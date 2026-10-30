@@ -1,6 +1,7 @@
 import { createEffect, createMemo, createResource, createSignal, For, on, onCleanup, onMount, Show } from "solid-js";
 import { t } from "../../i18n";
 import { ipc } from "../../ipc";
+import { SendToAgentMenu } from "../../components/SendToAgentMenu";
 import { execute } from "../../platform/commands";
 import {
   Badge, Braces, Button, EmptyState, ExternalLink, IconButton, ImageIcon, Input, Moon, Monitor, MousePointerClick, RefreshCw, Select, SegmentedControl, Smartphone, Spinner, Sun, Tablet, TextArea, toast, TriangleAlert, type SelectOption,
@@ -8,7 +9,7 @@ import {
 import { componentApi, type HarnessInfo } from "./componentApi";
 import { attachToAgentPrompt } from "./componentAttach";
 import {
-  dataUrlToBytes, NO_WRAPPERS, parseFrameMessage, parseJsonObject, PROTOCOL, pretty, pushEvent, prefsKey, VIEWPORTS, viewportById, withPreset, type FrameMessage, type JsonCheck, type Viewport, type Wrappers,
+  dataUrlToBytes, eventsErrorText, NO_WRAPPERS, parseFrameMessage, parseJsonObject, PROTOCOL, pretty, pushEvent, prefsKey, statusErrorText, VIEWPORTS, viewportById, withPreset, type FrameMessage, type JsonCheck, type Viewport, type Wrappers,
 } from "./componentLogic";
 import { loadPrefs, patchPrefs, prefsOf } from "./componentState";
 import { findComponents, suggestProps, unsuggested } from "./components";
@@ -401,6 +402,7 @@ export function ComponentView(props: ComponentViewProps) {
             <Show when={s().state === "buildError" && s().errors[0]?.file}>
               <Button size="sm" variant="secondary" onClick={() => openError(s().errors[0])}>{t("pvc.build.open")}</Button>
             </Show>
+            <SendToAgentMenu variant="button" collect={() => ({ kind: "preview", repoId: props.repoId, text: statusErrorText(s()), extra: `Component: ${props.path}${exp() ? ` (export ${exp()})` : ""}` })} />
           </div>
         )}
       </Show>
@@ -525,6 +527,7 @@ export function ComponentView(props: ComponentViewProps) {
             <div class="pvc__section">
               <div class="pvc__row">
                 <span class="pvc__label">{errorCount() > 0 ? t("pvc.events.warn", { count: errorCount() }) : t("pvc.events.title")}</span>
+                <SendToAgentMenu disabled={errorCount() === 0} collect={() => ({ kind: "preview", repoId: props.repoId, text: eventsErrorText(events()), extra: `Component: ${props.path}${exp() ? ` (export ${exp()})` : ""}` })} />
                 <Button size="sm" variant="ghost" disabled={events().length === 0} onClick={() => setEvents([])}>{t("pvc.events.clear")}</Button>
               </div>
               <Show when={events().length > 0} fallback={<p class="pvc__hint">{t("pvc.events.empty")}</p>}>

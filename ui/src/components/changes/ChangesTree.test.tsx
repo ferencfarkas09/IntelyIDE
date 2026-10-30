@@ -1,6 +1,9 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
 import { lazy, type Component } from "solid-js";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+
+// These tests are about the tree and the first change it opens at startup; the Dashboard would take the first tab instead.
+vi.hoisted(() => localStorage.setItem("intely.dashboard.atStart", "0"));
 import { App } from "../../app/App";
 import { installLayoutStubs } from "../../app/testLayout";
 import { registerChangeBadge } from "../../platform/changeBadges";

@@ -4,6 +4,7 @@ import type { Tone } from "../../ui-kit";
 import { t } from "../../i18n";
 import { lazyLabels } from "../lazyLabels";
 import { cliPromptHint } from "./refusal";
+import { currentPlatform, type Platform } from "../../platform/platform";
 
 /** `claude-sonnet-5-5` -> `Sonnet 5.5`, `claude-haiku-4-5-20251001` -> `Haiku 4.5`; unknown ids pass through. */
 export function modelLabel(id: string): string {
@@ -55,6 +56,13 @@ export function costLabel(usage: UsageRecord | null | undefined, cost: CapEntry)
   }
 }
 
+const TIER_ORDER: Record<EnforcementTier, number> = { weak: 0, bestEffort: 1, strong: 2, structural: 3 };
+/** The highest tier shown on Windows (the backend caps it too: `WINDOWS_MAX_TIER` in crates/agent_host/src/host.rs). */
+export const WINDOWS_MAX_TIER: EnforcementTier = "bestEffort";
+/** `tier` as a chip may show it on this platform: never above best-effort on Windows (docs/install-windows.md). */
+export function platformTier(tier: EnforcementTier, platform: Platform = currentPlatform()): EnforcementTier {
+  return platform === "windows" && TIER_ORDER[tier] > TIER_ORDER[WINDOWS_MAX_TIER] ? WINDOWS_MAX_TIER : tier;
+}
 export const TIER_TONE: Record<EnforcementTier, Tone> = { structural: "ok", strong: "ok", bestEffort: "warn", weak: "danger" };
 export const TIER_LABEL = lazyLabels<EnforcementTier>({ structural: "chat.tier.structural", strong: "chat.tier.strong", bestEffort: "chat.tier.bestEffort", weak: "chat.tier.weak" });
 export const TIER_TITLE = lazyLabels<EnforcementTier>({

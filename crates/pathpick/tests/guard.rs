@@ -2,7 +2,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use intely_pathpick::fsops::{mount_key, Guard};
+use intely_pathpick::fsops::{mount_key, windows_mount_key, Guard};
 
 #[test]
 fn a_fast_call_returns_its_value() {
@@ -67,4 +67,23 @@ fn mount_keys() {
     assert_eq!(mount_key(Path::new("/Volumes/Backup/x/y")), "/Volumes/Backup");
     assert_eq!(mount_key(Path::new("/Users/alice")), "/");
     assert_eq!(mount_key(Path::new("/Volumes")), "/");
+}
+
+#[test]
+fn on_windows_each_drive_and_share_has_its_own_breaker() {
+    assert_eq!(windows_mount_key(r"C:\Users\u\repo"), "C:");
+    assert_eq!(windows_mount_key(r"c:\x"), "C:");
+    assert_eq!(windows_mount_key("D:/work"), "D:");
+    assert_eq!(windows_mount_key(r"\\?\C:\Users\u"), "C:");
+    assert_eq!(windows_mount_key(r"\\Server\Share\repo"), r"\\server\share");
+    assert_eq!(windows_mount_key("//server/share/x"), r"\\server\share");
+    assert_eq!(windows_mount_key(r"\\?\UNC\Server\Share\x"), r"\\server\share");
+    assert_ne!(windows_mount_key(r"\\server\a\x"), windows_mount_key(r"\\server\b\x"));
+    assert_ne!(windows_mount_key(r"Z:\dead"), windows_mount_key(r"C:\alive"), "a dead mapped drive must not break C:");
+    // one share that times out breaks only itself
+    let g = Guard::new(8);
+    let dead = windows_mount_key(r"\\dead\share\x");
+    let _ = g.run(&dead, std::time::Duration::from_millis(20), || std::thread::sleep(std::time::Duration::from_millis(200)));
+    assert!(g.is_broken(&dead));
+    assert!(!g.is_broken(&windows_mount_key(r"C:\Users\u")));
 }

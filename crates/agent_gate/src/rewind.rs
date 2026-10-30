@@ -22,6 +22,10 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use intely_core::{guard, GuardState};
 use serde::Serialize;
 
+mod checkpoint;
+pub mod vault;
+pub use checkpoint::{CheckpointInfo, CheckpointPlan, CheckpointRestore, CheckpointStage, FileDiff, CHECKPOINT_PREFIX, MAX_CHECKPOINTS, MAX_CHECKPOINT_RUNS, MAX_UNTRACKED_BYTES};
+
 pub const REF_PREFIX: &str = "refs/intely/snapshots/";
 const MAX_SKIP_LINES: usize = 500;
 const IDENTITY: [(&str, &str); 4] = [
@@ -47,6 +51,10 @@ pub enum RewindError {
     Unmerged,
     #[error("restore needs explicit confirmation (confirm: true) after reviewing the plan")]
     ConfirmationRequired,
+    #[error("no checkpoint {1} for run {0}")]
+    UnknownCheckpoint(String, u32),
+    #[error("the new and untracked files add up to {0} bytes, more than a checkpoint keeps")]
+    TooLarge(u64),
     #[error("git {args} failed: {stderr}")]
     Git { args: String, stderr: String },
     #[error(transparent)]
@@ -126,6 +134,8 @@ struct WorkTree {
     tree: String,
     files: usize,
     skipped: Vec<Skipped>,
+    /// Bytes of the untracked files in the tree (the size guard of checkpoints).
+    untracked_bytes: u64,
 }
 
 /// A throwaway index file next to the real one; removed on drop.
@@ -234,23 +244,31 @@ impl Rewind {
             prune_empty_parents(&top, &path);
         }
         let to_write: Vec<&String> = plan.overwrite.iter().chain(&plan.recreate).collect();
-        if !to_write.is_empty() {
-            let tmp = TempIndex::new(&git_dir, "restore");
-            let env = [("GIT_INDEX_FILE", tmp.0.as_os_str())];
-            self.git(&top, &["read-tree", &snap.tree], &env, None)?;
-            let mut stdin = Vec::new();
-            for rel in &to_write {
-                stdin.extend_from_slice(rel.as_bytes());
-                stdin.push(0);
-            }
-            self.git(&top, &["checkout-index", "-f", "-q", "-z", "--stdin"], &env, Some(&stdin))?;
-        }
+        self.write_from_tree(&top, &git_dir, &snap.tree, &to_write)?;
         let index_restored = plan.index_differs;
         if index_restored {
             self.git(&top, &["read-tree", "--reset", &snap.index_tree], &[], None)?;
             let _ = self.git(&top, &["update-index", "-q", "--refresh"], &[], None);
         }
         Ok(RestoreReport { overwritten: plan.overwrite.len(), recreated: plan.recreate.len(), deleted: plan.delete.len(), index_restored })
+    }
+
+    /// Writes `paths` with their content in `tree` into the working tree (through a throwaway index, so the user's index is not
+    /// touched). `checkout-index` refuses to write through a symbolic link in a leading directory.
+    fn write_from_tree(&self, top: &Path, git_dir: &Path, tree: &str, paths: &[&String]) -> Result<(), RewindError> {
+        if paths.is_empty() {
+            return Ok(());
+        }
+        let tmp = TempIndex::new(git_dir, "restore");
+        let env = [("GIT_INDEX_FILE", tmp.0.as_os_str())];
+        self.git(top, &["read-tree", tree], &env, None)?;
+        let mut stdin = Vec::new();
+        for rel in paths {
+            stdin.extend_from_slice(rel.as_bytes());
+            stdin.push(0);
+        }
+        self.git(top, &["checkout-index", "-f", "-q", "-z", "--stdin"], &env, Some(&stdin))?;
+        Ok(())
     }
 
     fn plan(&self, top: &Path, run_id: &str) -> Result<(RestorePlan, SnapshotInfo), RewindError> {
@@ -305,6 +323,7 @@ impl Rewind {
         // `-v` is `-t` with a lowercase tag for a file marked assume-unchanged (git then trusts the index, not the file).
         let listing = self.git(top, &["ls-files", "-z", "-v", "--cached", "--others", "--exclude-standard"], &[], None)?;
         let mut skipped = Vec::new();
+        let mut untracked_bytes = 0u64;
         let mut paths: BTreeSet<Vec<u8>> = BTreeSet::new();
         let mut cached: Vec<&[u8]> = Vec::new();
         let mut untrusted: BTreeSet<&[u8]> = BTreeSet::new();
@@ -339,6 +358,7 @@ impl Rewind {
                     skipped.push(Skipped { path: text, reason });
                     continue;
                 }
+                untracked_bytes += meta.len();
             }
             paths.insert(path.to_vec());
         }
@@ -350,7 +370,7 @@ impl Rewind {
             None => self.tree_from_scratch(top, &git_dir, &paths)?,
         };
         skipped.sort_by(|a, b| a.path.cmp(&b.path));
-        Ok(WorkTree { tree, files: paths.len(), skipped })
+        Ok(WorkTree { tree, files: paths.len(), skipped, untracked_bytes })
     }
 
     /// Git's check of a file for a change is strict (size, mtime, ctime, inode and mode all count) unless the configuration loosens it.

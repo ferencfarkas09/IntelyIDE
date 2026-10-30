@@ -1,0 +1,244 @@
+{
+ "note": "Every finding id the scan can produce (with the most severe level it can have) and every store checklist item. A test keeps this list, the fixtures and the app's English and Hungarian texts in step.",
+ "findings": [
+  {
+   "id": "android.androidx.off",
+   "severity": "warn"
+  },
+  {
+   "id": "android.appId.invalid",
+   "severity": "error"
+  },
+  {
+   "id": "android.appId.placeholder",
+   "severity": "warn"
+  },
+  {
+   "id": "android.gradle.noWrapper",
+   "severity": "warn"
+  },
+  {
+   "id": "android.gradle.tooOld",
+   "severity": "error"
+  },
+  {
+   "id": "android.gradle.unknownAgp",
+   "severity": "info"
+  },
+  {
+   "id": "android.keystore.notIgnored",
+   "severity": "error"
+  },
+  {
+   "id": "android.manifest.cleartext",
+   "severity": "warn"
+  },
+  {
+   "id": "android.manifest.debuggable",
+   "severity": "error"
+  },
+  {
+   "id": "android.namespace.missing",
+   "severity": "error"
+  },
+  {
+   "id": "android.permission.sensitive",
+   "severity": "warn"
+  },
+  {
+   "id": "android.permission.undeclared",
+   "severity": "error"
+  },
+  {
+   "id": "android.permission.unused",
+   "severity": "info"
+  },
+  {
+   "id": "android.sdk.compileMissing",
+   "severity": "error"
+  },
+  {
+   "id": "android.sdk.minAboveTarget",
+   "severity": "error"
+  },
+  {
+   "id": "android.sdk.targetAboveCompile",
+   "severity": "error"
+  },
+  {
+   "id": "android.sdk.targetMissing",
+   "severity": "warn"
+  },
+  {
+   "id": "android.sdkDir.missing",
+   "severity": "warn"
+  },
+  {
+   "id": "android.secrets.plaintext",
+   "severity": "error"
+  },
+  {
+   "id": "android.signing.absoluteKeystore",
+   "severity": "warn"
+  },
+  {
+   "id": "android.signing.keystoreMissing",
+   "severity": "error"
+  },
+  {
+   "id": "android.signing.releaseUsesDebug",
+   "severity": "warn"
+  },
+  {
+   "id": "android.version.codeInvalid",
+   "severity": "error"
+  },
+  {
+   "id": "android.version.missing",
+   "severity": "info"
+  },
+  {
+   "id": "cross.bundleId.mismatch",
+   "severity": "info"
+  },
+  {
+   "id": "cross.hermes.mismatch",
+   "severity": "info"
+  },
+  {
+   "id": "cross.newArch.mismatch",
+   "severity": "warn"
+  },
+  {
+   "id": "cross.version.mismatch",
+   "severity": "info"
+  },
+  {
+   "id": "env.missing",
+   "severity": "info"
+  },
+  {
+   "id": "env.notIgnored",
+   "severity": "error"
+  },
+  {
+   "id": "expo.bundleId.drift",
+   "severity": "warn"
+  },
+  {
+   "id": "expo.config.dynamic",
+   "severity": "info"
+  },
+  {
+   "id": "expo.version.drift",
+   "severity": "warn"
+  },
+  {
+   "id": "ios.bundleId.configsDiffer",
+   "severity": "warn"
+  },
+  {
+   "id": "ios.bundleId.extensionPrefix",
+   "severity": "error"
+  },
+  {
+   "id": "ios.bundleId.missing",
+   "severity": "error"
+  },
+  {
+   "id": "ios.bundleId.placeholder",
+   "severity": "warn"
+  },
+  {
+   "id": "ios.deployment.inconsistent",
+   "severity": "warn"
+  },
+  {
+   "id": "ios.deployment.mismatch",
+   "severity": "warn"
+  },
+  {
+   "id": "ios.entitlements.fileMissing",
+   "severity": "error"
+  },
+  {
+   "id": "ios.permission.emptyText",
+   "severity": "warn"
+  },
+  {
+   "id": "ios.permission.missing",
+   "severity": "error"
+  },
+  {
+   "id": "ios.pods.lockMissing",
+   "severity": "warn"
+  },
+  {
+   "id": "ios.pods.notInstalled",
+   "severity": "warn"
+  },
+  {
+   "id": "ios.pods.outOfSync",
+   "severity": "error"
+  },
+  {
+   "id": "ios.push.entitlementMissing",
+   "severity": "warn"
+  },
+  {
+   "id": "ios.signing.automaticWithProfile",
+   "severity": "info"
+  },
+  {
+   "id": "ios.signing.manualNoProfile",
+   "severity": "warn"
+  },
+  {
+   "id": "ios.team.empty",
+   "severity": "warn"
+  },
+  {
+   "id": "ios.version.buildDiffer",
+   "severity": "warn"
+  },
+  {
+   "id": "ios.version.marketingDiffer",
+   "severity": "warn"
+  },
+  {
+   "id": "ios.version.plistOverrides",
+   "severity": "warn"
+  },
+  {
+   "id": "ios.xcodeEnv.hardcodedNode",
+   "severity": "warn"
+  },
+  {
+   "id": "ios.xcodeEnv.missing",
+   "severity": "info"
+  }
+ ],
+ "checklist": [
+  {
+   "id": "ios.privacyManifest"
+  },
+  {
+   "id": "ios.icon"
+  },
+  {
+   "id": "ios.launchScreen"
+  },
+  {
+   "id": "ios.screenshots"
+  },
+  {
+   "id": "android.icon"
+  },
+  {
+   "id": "android.targetApi"
+  },
+  {
+   "id": "android.screenshots"
+  }
+ ]
+}

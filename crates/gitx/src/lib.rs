@@ -8,4 +8,5 @@ pub mod gh;
 pub mod git;
 pub mod pr;
 pub mod proc;
+pub mod setup;
 pub mod types;

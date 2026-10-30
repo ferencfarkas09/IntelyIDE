@@ -291,6 +291,7 @@ pub fn server_file(ssh: &Ssh, cfg: &ServerCfg, path: &str, file: &str, orig_path
 }
 
 #[cfg(test)]
+#[cfg(unix)] // the fake server of testkit is a set of /bin/sh scripts
 mod tests {
     use super::*;
     use crate::testkit::Fake;

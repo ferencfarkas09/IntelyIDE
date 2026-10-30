@@ -1,0 +1,6 @@
+#!/bin/sh
+# Fake npx for Metro: prints what `expo start` / `react-native start` print, then a red-box line, and stays up like a dev server.
+D=$(cd "$(dirname "$0")/.." && pwd)
+[ -n "$FAKE_DEVICES_LOG" ] && echo "npx $*" >> "$FAKE_DEVICES_LOG"
+cat "$D/data/metro.txt"
+exec sleep 600

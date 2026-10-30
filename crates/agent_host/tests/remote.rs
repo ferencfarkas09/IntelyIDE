@@ -114,7 +114,7 @@ fn start_on(host: &AgentHost, repo: &RepoRef, role: &str, location: Option<&str>
     let def = host.find_role(role, std::slice::from_ref(repo)).expect("role");
     host.start_role_with(
         &def,
-        AgentStartRequest { role: role.into(), repo_ids: vec![repo.id.clone()], prompt: "go".into(), mode: None, mcp_servers: None },
+        AgentStartRequest { role: role.into(), repo_ids: vec![repo.id.clone()], prompt: "go".into(), mode: None, mcp_servers: None, ..Default::default() },
         std::slice::from_ref(repo),
         StartOptions { location: location.map(str::to_string), ..Default::default() },
     )
@@ -280,7 +280,7 @@ fn two_repositories_with_one_folder_name_do_not_share_a_folder_on_the_server() {
     let def = host.find_role("mock-plain-reply", std::slice::from_ref(&a)).expect("role");
     let both = vec![a.clone(), b.clone()];
     let e = host
-        .start_role_with(&def, AgentStartRequest { role: def.name.clone(), repo_ids: vec![a.id.clone(), b.id.clone()], prompt: "go".into(), mode: None, mcp_servers: None }, &both, StartOptions { location: Some("srv".into()), ..Default::default() })
+        .start_role_with(&def, AgentStartRequest { role: def.name.clone(), repo_ids: vec![a.id.clone(), b.id.clone()], prompt: "go".into(), mode: None, mcp_servers: None, ..Default::default() }, &both, StartOptions { location: Some("srv".into()), ..Default::default() })
         .unwrap_err();
     assert_eq!(e.code, "remoteRepoName", "{e:?}");
     host.shutdown();
@@ -331,7 +331,7 @@ fn two_repositories_with_one_folder_name_start_when_each_has_its_own_folder() {
     let (host, sink) = host(&root.join("data"), &srv);
     let def = host.find_role("mock-plain-reply", std::slice::from_ref(&a)).expect("role");
     let both = vec![a.clone(), b.clone()];
-    let req = || AgentStartRequest { role: def.name.clone(), repo_ids: vec![a.id.clone(), b.id.clone()], prompt: "go".into(), mode: None, mcp_servers: None };
+    let req = || AgentStartRequest { role: def.name.clone(), repo_ids: vec![a.id.clone(), b.id.clone()], prompt: "go".into(), mode: None, mcp_servers: None, ..Default::default() };
     let opts = || StartOptions { location: Some("srv".into()), ..Default::default() };
     let e = host.start_role_with(&def, req(), &both, opts()).unwrap_err();
     assert_eq!(e.code, "remoteRepoName", "{e:?}");
@@ -403,7 +403,7 @@ fn a_repository_inside_another_one_of_the_run_is_refused() {
     let def = host.find_role("mock-plain-reply", std::slice::from_ref(&a)).expect("role");
     let both = vec![a.clone(), b.clone()];
     let e = host
-        .start_role_with(&def, AgentStartRequest { role: def.name.clone(), repo_ids: vec![a.id.clone(), b.id.clone()], prompt: "go".into(), mode: None, mcp_servers: None }, &both, StartOptions { location: Some("srv".into()), ..Default::default() })
+        .start_role_with(&def, AgentStartRequest { role: def.name.clone(), repo_ids: vec![a.id.clone(), b.id.clone()], prompt: "go".into(), mode: None, mcp_servers: None, ..Default::default() }, &both, StartOptions { location: Some("srv".into()), ..Default::default() })
         .unwrap_err();
     assert_eq!(e.code, "remoteRepoName", "{e:?}");
     assert!(e.message.contains("inside the other"), "{}", e.message);
@@ -604,7 +604,7 @@ fn a_start_is_refused_with_a_reason_the_person_can_act_on() {
     // an unknown server, MCP, a provider that is not Claude
     assert_eq!(start_on(&host, &repo, "mock-plain-reply", Some("nope")).unwrap_err().code, "serverNotReady");
     let def = host.find_role("mock-plain-reply", std::slice::from_ref(&repo)).unwrap();
-    let with_mcp = host.start_role_with(&def, AgentStartRequest { role: def.name.clone(), repo_ids: vec![repo.id.clone()], prompt: "go".into(), mode: None, mcp_servers: Some(vec!["x".into()]) }, std::slice::from_ref(&repo), StartOptions { location: Some("srv".into()), ..Default::default() });
+    let with_mcp = host.start_role_with(&def, AgentStartRequest { role: def.name.clone(), repo_ids: vec![repo.id.clone()], prompt: "go".into(), mode: None, mcp_servers: Some(vec!["x".into()]), ..Default::default() }, std::slice::from_ref(&repo), StartOptions { location: Some("srv".into()), ..Default::default() });
     assert_eq!(with_mcp.unwrap_err().code, "remoteMcp");
     host.shutdown();
 }

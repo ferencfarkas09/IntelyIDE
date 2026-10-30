@@ -47,6 +47,8 @@ process.stdout.write('late ' + t.slice(0, 16));
 setTimeout(() => process.stdout.write(t.slice(16) + '\n'), 800);
 "#;
 
+/// Prints a port it does not listen on, and listens on another one it never mentions: what a hostile script can do.
+const LIAR_JS: &str = "console.log('listening on http://localhost:4999'); require('http').createServer((q, r) => r.end('ok')).listen(0, '127.0.0.1'); setInterval(() => {}, 1000);";
 const QUIET_JS: &str = "require('http').createServer((q, r) => r.end('ok')).listen(0, '127.0.0.1');";
 
 const STUBBORN_JS: &str = r#"
@@ -60,7 +62,7 @@ setInterval(() => {}, 1000);
 fn package_json() -> String {
     format!(
         r#"{{"name":"fixture","version":"1.0.0","scripts":{{
-          "dev":"node server.js","quiet":"node quiet.js","stubborn":"node stubborn.js",
+          "dev":"node server.js","quiet":"node quiet.js","liar":"node liar.js","stubborn":"node stubborn.js",
           "heavy1":"node --max-old-space-size=4800 server.js","heavy2":"node --max-old-space-size=4800 server.js",
           "deploy":"node server.js","gitwrite":"node gitwrite.js","split":"node split.js",
           "login:github":"set GH_TOKEN={c} && set GH_TOKEN={c}"}}}}"#,
@@ -101,6 +103,7 @@ fn fixture_with(jail: Jail, orphans: Option<Arc<OrphanRegistry>>, grace: Duratio
     write("package.json", &package_json());
     write("server.js", SERVER_JS);
     write("quiet.js", QUIET_JS);
+    write("liar.js", LIAR_JS);
     write("gitwrite.js", GIT_WRITE_JS);
     write("split.js", SPLIT_JS);
     write("stubborn.js", STUBBORN_JS);
@@ -186,6 +189,19 @@ fn a_token_hidden_by_escapes_zero_width_text_base64_or_a_pause_never_reaches_the
         assert!(!text.contains(part), "{part} leaked: {text}");
     }
     assert!(text.contains("ansi ***") && text.contains("zwsp ***") && text.contains("b64 ***") && text.contains("late ***"), "{text}");
+}
+
+#[test]
+fn only_ports_confirmed_by_lsof_count_as_confirmed() {
+    let fx = fixture();
+    let id = "fx:npm:liar";
+    start(&fx, "npm:liar", false).unwrap();
+    let confirmed = wait_for("lsof port", 30, || Some(fx.mgr.confirmed_ports(id)).filter(|p| !p.is_empty()));
+    assert!(!confirmed.contains(&4999), "the port the script printed is not listening: {confirmed:?}");
+    assert!(TcpStream::connect(("127.0.0.1", confirmed[0])).is_ok());
+    assert!(fx.mgr.confirmed_ports("fx:npm:unknown").is_empty());
+    fx.mgr.stop(id).unwrap();
+    exited(&fx, id);
 }
 
 #[test]

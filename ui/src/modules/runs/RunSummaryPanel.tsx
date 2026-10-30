@@ -47,6 +47,11 @@ export default function RunSummaryPanel() {
                   </Badge>
                 </Show>
               </Fact>
+              <Show when={r().requested.ultracode}>
+                <Fact label={t("runpicker.summary")} title={t("runpicker.chipTitle")}>
+                  {t("runpicker.on")}
+                </Fact>
+              </Show>
               <Fact label={t("runs.summary.sandbox")}>{applied()?.sandbox ?? r().effective?.sandbox ?? t("runs.na")}</Fact>
               <Fact label={t("runs.summary.enforcement")} title={TIER_TITLE[r().enforcement]}>
                 <Badge tone={TIER_TONE[r().enforcement]} variant="outline" size="sm">

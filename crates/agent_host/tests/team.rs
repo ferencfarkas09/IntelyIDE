@@ -37,7 +37,7 @@ impl Rig {
     fn start(&self, team: Option<TeamRun>) -> Result<AgentSummary, EngineError> {
         let repos = vec![self.repo.clone()];
         let def = self.host.find_role("developer", &repos).expect("role");
-        let req = AgentStartRequest { role: "developer".into(), repo_ids: vec![self.repo.id.clone()], prompt: "go".into(), mode: Some(PermissionMode::Edit), mcp_servers: None };
+        let req = AgentStartRequest { role: "developer".into(), repo_ids: vec![self.repo.id.clone()], prompt: "go".into(), mode: Some(PermissionMode::Edit), mcp_servers: None, ..Default::default() };
         self.host.start_role_with(&def, req, &repos, StartOptions { team, ..Default::default() })
     }
 
@@ -86,6 +86,7 @@ fn the_instructions_name_the_roles_and_keep_the_role_prompt() {
         disallowed_tools: vec!["RemoteTrigger".into()],
         max_turns: None,
         max_budget_usd: None,
+        ultracode: None,
     };
     apply_team(&mut role, &worker("run-42", 2));
     assert!(role.system_prompt.as_deref().unwrap().starts_with("Role text.\n\nTEAM MODE."));

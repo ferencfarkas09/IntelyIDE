@@ -3,6 +3,7 @@
 // (`:workspace`); `sandbox: "workspace-write"` / `sandboxPolicy` leave `.git`, hooks and config writable. So the sandbox is
 // always selected by profile, never by the legacy sandbox fields.
 import path from 'node:path';
+import { allowedName, foldEnv } from '../../env.js';
 import type { AuthMode, PermissionMode, SessionEnv } from '../../types.js';
 
 export type Profile = ':read-only' | ':workspace';
@@ -80,13 +81,8 @@ export interface CodexEnv { env: Record<string, string>; scrubbed: string[]; add
 
 export function buildCodexEnv(spec: SessionEnv, auth: { mode: AuthMode; key: string | null }, base: NodeJS.ProcessEnv = process.env): CodexEnv {
   const src = spec.vars ?? base;
-  const env: Record<string, string> = {};
-  const scrubbed: string[] = [];
-  for (const [k, v] of Object.entries(src)) {
-    if (typeof v !== 'string') continue;
-    if (!allowed(k)) { scrubbed.push(k); continue; }
-    env[k] = v;
-  }
+  const strings = Object.entries(src).filter((e): e is [string, string] => typeof e[1] === 'string');
+  const { env, scrubbed } = foldEnv(strings, (k) => allowedName(k, allowed));
   const added: string[] = [];
   if (auth.mode === 'apiKey' && auth.key) { env.CODEX_API_KEY = auth.key; added.push('CODEX_API_KEY'); }
   if (spec.shimDir) { env.PATH = `${spec.shimDir}${path.delimiter}${env.PATH ?? '/usr/bin:/bin'}`; added.push('PATH(shim)'); }

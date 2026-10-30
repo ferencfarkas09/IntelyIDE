@@ -527,8 +527,11 @@ export function createMockAgents(scenarioName: string, scale: number): AgentApi 
     // The backend refuses what the UI already greys out: only read-only runs go to a provider whose enforcement is unproven.
     if (foreign && mode !== "readOnly") throw { code: "providerReadOnly", message: `${provider} runs read-only roles only until its enforcement tests pass` };
     const caps = foreign ? capsOfProvider(provider) : role.effort ? CLAUDE_CAPS : HAIKU_CAPS;
-    const model = foreign && provider !== role.provider ? (DEFAULT_MODEL[provider] ?? `${provider}-default`) : role.model;
-    const effort = foreign ? (role.effort && (caps.effortLevels ?? []).includes(role.effort) ? role.effort : undefined) : role.effort;
+    // The run picker's model and effort win over the role's; ultracode is for one Claude role, as the host says.
+    if (req.ultracode && (req.role === "auto" || provider !== "claude")) throw { code: req.role === "auto" ? "ultracodeAuto" : "ultracodeProvider", message: req.role === "auto" ? "ultracode is for a run of one role; Auto already hands the work to your roles" : "ultracode needs Claude" };
+    const model = req.model ?? (foreign && provider !== role.provider ? (DEFAULT_MODEL[provider] ?? `${provider}-default`) : role.model);
+    const wanted = req.effort ?? role.effort;
+    const effort = foreign ? (wanted && (caps.effortLevels ?? []).includes(wanted) ? wanted : undefined) : wanted;
     const id = `a${++counter}`;
     const summary: AgentSummary = {
       agentId: id,
@@ -538,7 +541,7 @@ export function createMockAgents(scenarioName: string, scale: number): AgentApi 
       title: req.prompt.slice(0, 60) || "Untitled run",
       status: "running",
       permission: mode,
-      requested: { effort, permission: mode },
+      requested: { effort, permission: mode, ...(req.ultracode ? { ultracode: true } : {}) },
       repoIds: req.repoIds,
       caps,
       // the same table Settings > Providers reads: a run and its provider card can never disagree

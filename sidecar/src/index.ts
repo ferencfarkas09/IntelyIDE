@@ -6,6 +6,7 @@ import { HistoryService } from './history.js';
 import { SidecarHost } from './host.js';
 import { LimitsService } from './limits.js';
 import { Loader } from './loader.js';
+import { ModelsService } from './models.js';
 import { parsePolicyTimeout, ProtocolClient } from './protocol.js';
 import { probe } from './probe.js';
 import { registry } from './registry.js';
@@ -26,6 +27,7 @@ function serve(): void {
   const host = new SidecarHost(proto, loader);
   new HistoryService(proto);
   new LimitsService(proto);
+  new ModelsService(proto);
   registerFsQuery(proto);
 
   let stopping = false;

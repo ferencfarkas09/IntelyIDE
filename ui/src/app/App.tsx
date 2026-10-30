@@ -5,6 +5,7 @@ import { Shell } from "../shell/Shell";
 import { startWorkspaces } from "../store/workspaces";
 import { startWorkspaceUiSync } from "../store/workspaceUi";
 import { initTheme, setThemePreference } from "../ui-kit";
+import { pinSkinFromUrl } from "../theme/skin";
 
 /** `?theme=dark|light|system` pins the theme for screenshots and manual checks (and is remembered like a menu choice). */
 function themeFromUrl(): "dark" | "light" | "system" | null {
@@ -18,6 +19,8 @@ export function App() {
   registerModules();
   const forced = themeFromUrl();
   if (forced) setThemePreference(forced);
+  // `?skin=standard|glass` shows a style for screenshots without storing it.
+  pinSkinFromUrl();
   onCleanup(startWorkspaces());
   onCleanup(startWorkspaceUiSync());
   return <Shell />;

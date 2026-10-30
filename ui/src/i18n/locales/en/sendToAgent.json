@@ -1,0 +1,21 @@
+{
+  "toAgent.name": "Send to agent",
+  "toAgent.menu": "Ask the agent about this error",
+  "toAgent.button": "Ask the agent",
+  "toAgent.fix": "Fix with agent",
+  "toAgent.fixDesc": "Opens a new run with the error, ready to start",
+  "toAgent.explain": "Explain this error",
+  "toAgent.explainDesc": "The agent explains it in plain language and changes nothing",
+  "toAgent.nothing": "There is no error to send",
+  "toAgent.nothingBody": "Select the lines you want to send, or wait until something fails.",
+  "toAgent.noDialog": "The New Run dialog could not be opened.",
+  "toAgent.failed": "The error could not be prepared",
+  "toAgent.cmd.terminalFix": "Fix the terminal error with agent",
+  "toAgent.cmd.terminalExplain": "Explain the terminal error",
+  "toAgent.section.name": "Send to agent",
+  "toAgent.section.title": "Fix with agent",
+  "toAgent.section.desc": "A button next to terminal output, dev server logs, failed scripts and checks and preview errors that opens a new run with the error. Secrets are masked and only the last 8 KB is sent; nothing runs until you press Start run.",
+  "toAgent.section.enable": "Show the Fix with agent buttons",
+  "toAgent.section.enableDesc": "Also adds the terminal commands to the palette.",
+  "toAgent.reducedMask": "The app's secret masker could not run, so a simpler one masked this text. Read it for passwords, tokens and keys before you start the run."
+}

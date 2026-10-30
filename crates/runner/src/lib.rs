@@ -4,6 +4,7 @@
 //! "Allow processes" for the session (docs/safety.md). Types that cross the IPC boundary live in `types` and are
 //! exported to `ui/src/bindings/run.ts` by `pnpm bindings`.
 
+pub mod autotest;
 pub mod catalog;
 pub mod guard;
 pub mod manager;

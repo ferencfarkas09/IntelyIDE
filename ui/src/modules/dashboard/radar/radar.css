@@ -1,0 +1,32 @@
+/* The radar window: one column of answer cards under a small draggable bar. */
+.radar {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--surface-1);
+  color: var(--text-1);
+}
+:root[data-skin="glass"] .radar {
+  background: var(--glass-panel, var(--surface-1));
+}
+.radar__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+  user-select: none;
+}
+.radar__title {
+  flex: 1;
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+}
+.radar__scroll {
+  flex: 1;
+  min-height: 0;
+}
+.radar__list {
+  padding: var(--space-2) var(--space-3) var(--space-3);
+}

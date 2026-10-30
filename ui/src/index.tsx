@@ -4,13 +4,22 @@ import { render } from "solid-js/web";
 import { App } from "./app/App";
 import { trackStartup } from "./perf";
 import { localeReady } from "./i18n";
+import { applyPlatformAttribute } from "./platform/platform";
+
+// Before the first paint: CSS follows the platform (the traffic-light gap is macOS-only, Windows gets window buttons).
+applyPlatformAttribute();
 
 const root = document.getElementById("root")!;
 const mode = window.__INTELY_MODE__;
 
-if (new URLSearchParams(location.search).get("view") === "kit") {
+const params = new URLSearchParams(location.search);
+
+if (params.get("view") === "kit") {
   // Design-system gallery (owned by ui-kit).
   void import("./ui-kit/gallery/mount").then((m) => m.mountGallery(root));
+} else if (params.get("widget") === "radar") {
+  // The Needs-You radar window (owned by the dashboard module): only the radar and the agent store, no workspace UI.
+  void localeReady.then(() => import("./modules/dashboard/radar/mount")).then((m) => m.mountRadar(root));
 } else if (mode === "empty" || mode === "rich") {
   void import("./spike/mount").then((m) => m.mountSpike(mode, root));
 } else {

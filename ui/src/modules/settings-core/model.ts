@@ -1,6 +1,7 @@
 import type { SettingsValue } from "../../ipc/settings";
 import { isSupported, type Locale } from "../../i18n";
 import { ACCENT_IDS, CUSTOM_ACCENT, normalizeHex } from "../../theme/accents";
+import { parseSkin, type Skin } from "../../theme/skin";
 import type { ThemePreference } from "../../ui-kit";
 
 /** Namespaces of settings.json owned by this module. The editor module reads `editor` through `ipc.settings`. */
@@ -24,6 +25,10 @@ export interface AppearanceSettings {
   density: Density;
   uiFontSize: number;
   codeFontSize: number;
+  /** "glass": translucent chrome over a soft gradient. Absent in settings.json = an install from before Glass = standard. */
+  skin: Skin;
+  /** Opaque surfaces, no gradient, no blur, even with the Glass skin (the OS setting does the same on its own). */
+  reduceTransparency: boolean;
 }
 
 export interface EditorSettings {
@@ -37,7 +42,7 @@ export interface EditorSettings {
 export const FONT_LIMITS = { ui: { min: 11, max: 16 }, code: { min: 10, max: 18 } } as const;
 
 export const DEFAULT_GENERAL: GeneralSettings = { language: "en", fetchOnFocus: true };
-export const DEFAULT_APPEARANCE: AppearanceSettings = { theme: "system", accent: "violet", customAccent: "#2a9d8f", density: "comfortable", uiFontSize: 13, codeFontSize: 12 };
+export const DEFAULT_APPEARANCE: AppearanceSettings = { theme: "system", accent: "violet", customAccent: "#2a9d8f", density: "comfortable", uiFontSize: 13, codeFontSize: 12, skin: "standard", reduceTransparency: false };
 export const DEFAULT_EDITOR: EditorSettings = { tabSize: 4, softWrap: false, lineNumbers: true, formatOnSave: false };
 
 const oneOf = <T,>(raw: unknown, allowed: readonly T[], fallback: T): T => (allowed.includes(raw as T) ? (raw as T) : fallback);
@@ -58,6 +63,8 @@ export function normalizeAppearance(raw: SettingsValue): AppearanceSettings {
     density: oneOf(raw.density, ["comfortable", "compact"], DEFAULT_APPEARANCE.density),
     uiFontSize: size(raw.uiFontSize, FONT_LIMITS.ui, DEFAULT_APPEARANCE.uiFontSize),
     codeFontSize: size(raw.codeFontSize, FONT_LIMITS.code, DEFAULT_APPEARANCE.codeFontSize),
+    skin: parseSkin(raw.skin) ?? DEFAULT_APPEARANCE.skin,
+    reduceTransparency: bool(raw.reduceTransparency, DEFAULT_APPEARANCE.reduceTransparency),
   };
 }
 

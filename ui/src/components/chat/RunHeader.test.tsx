@@ -47,6 +47,24 @@ describe("<RunHeader> provider", () => {
     expect(document.querySelector(".run-header__cost")?.textContent).toBe("cost n/a");
   });
 
+  it("never shows more than best-effort on Windows, even when the host reports more", () => {
+    document.documentElement.dataset.platform = "windows";
+    try {
+      show(row({ enforcement: "structural" }));
+      expect(screen.getByRole("note").getAttribute("aria-label")).toMatch(/Enforcement: Best effort/);
+    } finally {
+      delete document.documentElement.dataset.platform;
+    }
+    cleanup();
+    document.documentElement.dataset.platform = "mac";
+    try {
+      show(row({ enforcement: "structural" }));
+      expect(screen.getByRole("note").getAttribute("aria-label")).toMatch(/Enforcement: Structural/);
+    } finally {
+      delete document.documentElement.dataset.platform;
+    }
+  });
+
   it("keeps Claude as before: name chip and the best-effort tier", () => {
     show(row({}));
     expect(screen.getByTitle("Provider claude").textContent).toBe("Claude");

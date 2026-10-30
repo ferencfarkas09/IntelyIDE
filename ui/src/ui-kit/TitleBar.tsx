@@ -1,10 +1,12 @@
 import { createSignal, onCleanup, onMount, Show, type JSX } from "solid-js";
+import { currentPlatform } from "../platform/platform";
+import { WindowControls } from "./WindowControls";
 
 export interface TitleBarProps {
   left?: JSX.Element;
   center?: JSX.Element;
   right?: JSX.Element;
-  /** Reserve room for the macOS traffic lights (overlay title bar). Default true. */
+  /** Reserve room for the macOS traffic lights (overlay title bar). Default true; collapsed by CSS off macOS. */
   trafficLights?: boolean;
   class?: string;
 }
@@ -14,6 +16,8 @@ export interface TitleBarProps {
  * start a window drag, so interactive children stay clickable.
  */
 export function TitleBar(props: TitleBarProps) {
+  // Windows runs without a native frame (src-tauri/src/lib.rs): this bar is the only one, so it carries the window buttons.
+  const windowsFrame = currentPlatform() === "windows";
   // In native full screen the traffic lights are gone and the webview covers the whole screen: close up the gap.
   const [fullscreen, setFullscreen] = createSignal(false);
   const measure = () => setFullscreen(window.innerWidth === screen.width && window.innerHeight === screen.height);
@@ -36,6 +40,9 @@ export function TitleBar(props: TitleBarProps) {
       <div class="ui-titlebar__slot" data-slot="right" data-tauri-drag-region>
         {props.right}
       </div>
+      <Show when={windowsFrame}>
+        <WindowControls />
+      </Show>
     </header>
   );
 }

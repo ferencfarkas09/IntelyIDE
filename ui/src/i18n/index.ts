@@ -40,19 +40,34 @@ import enUsage from "./locales/en/usage.json";
 import enSentry from "./locales/en/sentry.json";
 import enTeam from "./locales/en/team.json";
 import enServerview from "./locales/en/serverview.json";
+import enGlass from "./locales/en/glass.json";
+import enDashboard from "./locales/en/dashboard.json";
+import enRunpicker from "./locales/en/runpicker.json";
+import enPrompts from "./locales/en/prompts.json";
+import enSendToAgent from "./locales/en/sendToAgent.json";
+import enProjectNotes from "./locales/en/projectNotes.json";
+import enSetupDoctor from "./locales/en/setupDoctor.json";
+import enSafetyPresets from "./locales/en/safetyPresets.json";
+import enCheckpoints from "./locales/en/checkpoints.json";
+import enAutotest from "./locales/en/autotest.json";
+import enRunSummary from "./locales/en/runSummary.json";
+import enReactnative from "./locales/en/reactnative.json";
+import enMobilehealth from "./locales/en/mobilehealth.json";
+import enWebtools from "./locales/en/webtools.json";
+import enWindows from "./locales/en/windows.json";
 import { compile, formatNodes, formatNumber, formatRelative, pseudoLocalize, type Params } from "./message";
 import { PSEUDO_LOCALE, detectLanguage, fallbackChain, isReviewed, isRtl, isSupported, languageName } from "./languages";
 
 export { LANGUAGES, PSEUDO_LOCALE, detectLanguage, fallbackChain, isReviewed, isRtl, isSupported, languageInfo, languageName, matchLanguage, pickerLanguages } from "./languages";
 export type { Params } from "./message";
 
-const en = { ...enPlatform, ...enShell, ...enSettings, ...enAbout, ...enComponents, ...enPanels, ...enWorkflow, ...enExtras, ...enPreview, ...enGitx, ...enAgentux, ...enProviders, ...enContract, ...enMongo, ...enMongoStudio, ...enMongoLoud, ...enMongoForm, ...enMongoDiag, ...enMongoManage, ...enLicenses, ...enWorkspace, ...enWorkspaceNew, ...enWorkspacePicker, ...enHappy, ...enModes, ...enMcp, ...enUpdates, ...enMemory, ...enNotes, ...enUsage, ...enSentry, ...enTeam, ...enServerview, ...enSlash };
+const en = { ...enPlatform, ...enShell, ...enSettings, ...enAbout, ...enComponents, ...enPanels, ...enWorkflow, ...enExtras, ...enPreview, ...enGitx, ...enAgentux, ...enProviders, ...enContract, ...enMongo, ...enMongoStudio, ...enMongoLoud, ...enMongoForm, ...enMongoDiag, ...enMongoManage, ...enLicenses, ...enWorkspace, ...enWorkspaceNew, ...enWorkspacePicker, ...enHappy, ...enModes, ...enMcp, ...enUpdates, ...enMemory, ...enNotes, ...enUsage, ...enSentry, ...enTeam, ...enServerview, ...enSlash, ...enGlass, ...enDashboard, ...enRunpicker, ...enPrompts, ...enSendToAgent, ...enProjectNotes, ...enSetupDoctor, ...enSafetyPresets, ...enCheckpoints, ...enAutotest, ...enRunSummary, ...enReactnative, ...enMobilehealth, ...enWebtools, ...enWindows };
 export type MessageKey = keyof typeof en;
 export type Locale = string;
 export type Catalog = Record<string, string>;
 
 /** Namespaces = catalog files. The checker and the extract script read this list, so a new module adds its name here. */
-export const NAMESPACES = ["platform", "shell", "settings", "about", "components", "panels", "workflow", "extras", "preview", "gitx", "agentux", "providers", "contract", "mongo", "mongoStudio", "mongoLoud", "mongoForm", "mongoDiag", "mongoManage", "licenses", "workspace", "workspaceNew", "workspacePicker", "happy", "modes", "mcp", "updates", "memory", "notes", "usage", "sentry", "team", "serverview", "slash"] as const;
+export const NAMESPACES = ["platform", "shell", "settings", "about", "components", "panels", "workflow", "extras", "preview", "gitx", "agentux", "providers", "contract", "mongo", "mongoStudio", "mongoLoud", "mongoForm", "mongoDiag", "mongoManage", "licenses", "workspace", "workspaceNew", "workspacePicker", "happy", "modes", "mcp", "updates", "memory", "notes", "usage", "sentry", "team", "serverview", "slash", "glass", "dashboard", "runpicker", "prompts", "sendToAgent", "projectNotes", "setupDoctor", "safetyPresets", "checkpoints", "autotest", "runSummary", "reactnative", "mobilehealth", "webtools", "windows"] as const;
 
 export const LOCALE_STORAGE_KEY = "intely.locale";
 

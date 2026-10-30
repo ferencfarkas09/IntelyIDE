@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  AA_TEXT, AA_UI, ACCENTS, ACCENT_STYLE_ID, SURFACES, accentCss, accentTokens, applyAccent, applyStoredAccent, contrast, customFamily, hexToOklch, normalizeHex, oklchHex, over,
+  AA_TEXT, AA_UI, ACCENTS, ACCENT_STYLE_ID, SURFACES, STANDARD_SURFACES, glassComposites, accentCss, accentTokens, applyAccent, applyStoredAccent, contrast, customFamily, hexToOklch, normalizeHex, oklchHex, over,
   tokensFor, type ResolvedThemeName,
 } from "./accents";
 
@@ -53,6 +53,16 @@ describe("accent contrast table (WCAG AA)", () => {
       }
       const sel = over(hexOf(tokens["--surface-selected"]), alphaOf(tokens["--surface-selected"]), SURFACES[theme][1]);
       expect(contrast(theme === "dark" ? "#ececee" : "#15181d", sel), `${id}/${theme} text-1 on selection`).toBeGreaterThanOrEqual(AA_TEXT);
+    }
+  });
+});
+
+describe("glass surfaces", () => {
+  it("every accent is also checked against the Glass composites (worst case over the gradient stops)", () => {
+    for (const theme of THEMES) {
+      expect(SURFACES[theme].length).toBe(STANDARD_SURFACES[theme].length + glassComposites(theme).length);
+      // The darkest light / lightest dark glass background is as demanding as the standard extremes.
+      expect(glassComposites(theme).length).toBeGreaterThanOrEqual(25);
     }
   });
 });

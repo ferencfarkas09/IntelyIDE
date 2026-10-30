@@ -28,7 +28,7 @@ describe("<RolesSection>", () => {
     await waitFor(() => expect(document.querySelectorAll("tbody.roles__role")).toHaveLength(5));
     const dev = row("developer");
     expect([...field(dev, "Model").options].map((o) => o.textContent)).toEqual(["Haiku 4.5", "Sonnet 5.5", "Opus 5.5"]);
-    expect([...field(dev, "Effort").options].map((o) => o.value)).toEqual(["low", "medium", "high"]);
+    expect([...field(dev, "Effort").options].map((o) => o.value)).toEqual(["low", "medium", "high", "max"]);
     fireEvent.change(field(dev, "Model"), { target: { value: "claude-haiku-4-5-20251001" } });
     await waitFor(() => expect(field(row("developer"), "Effort").disabled).toBe(true));
     expect(field(row("developer"), "Effort").selectedOptions[0].textContent).toBe("n/a");

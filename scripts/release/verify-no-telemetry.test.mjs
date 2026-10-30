@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 import {
   ALLOWED_CRATES,
   EXPECTED_PERMISSIONS,
+  WINDOWS_ONLY_PERMISSIONS,
   checkCapabilities,
   checkCsp,
   checkEndpoints,
@@ -90,7 +91,8 @@ const BASE = {
   "crates/core/src/lib.rs": "pub fn add() {}\n",
   "src-tauri/Cargo.toml": '[package]\nname = "intely-switch-ide"\n\n[dependencies]\ntauri = "2"\n',
   "src-tauri/tauri.conf.json": JSON.stringify({ app: { security: { csp: CSP } } }),
-  "src-tauri/capabilities/default.json": JSON.stringify({ identifier: "default", windows: ["main"], permissions: EXPECTED_PERMISSIONS }),
+  "src-tauri/capabilities/default.json": JSON.stringify({ identifier: "default", windows: ["main"], permissions: EXPECTED_PERMISSIONS.filter((p) => !WINDOWS_ONLY_PERMISSIONS.includes(p)) }),
+  "src-tauri/capabilities/windows.json": JSON.stringify({ identifier: "windows-frame", windows: ["main"], platforms: ["windows"], permissions: WINDOWS_ONLY_PERMISSIONS }),
   "ui/src/app.tsx": "export const x = 1;\n",
   "sidecar/src/index.ts": "export const y = 2;\n",
   "docs/privacy.md": `${ALLOWED_CRATES.join(" ")} sdk-install\n`,
@@ -175,7 +177,23 @@ describe("(8) capabilities and frame-src", () => {
   const caps = (o) => tree({ "src-tauri/capabilities/default.json": JSON.stringify(o) });
   it("passes the recorded set", () => assert.deepEqual(checkCapabilities(tree()), []));
   it("the recorded set is exactly the one in this test", () => {
-    assert.deepEqual(EXPECTED_PERMISSIONS, ["core:default", "core:window:allow-start-dragging", "core:window:allow-toggle-maximize"]);
+    assert.deepEqual(EXPECTED_PERMISSIONS, ["core:default", "core:window:allow-start-dragging", "core:window:allow-toggle-maximize", "core:window:allow-minimize", "core:window:allow-close"]);
+  });
+  it("fails Windows-only window permissions that lost their platform guard", () => {
+    const base = EXPECTED_PERMISSIONS.filter((p) => !WINDOWS_ONLY_PERMISSIONS.includes(p));
+    // windows.json without its platforms list
+    const dropped = tree({ "src-tauri/capabilities/windows.json": JSON.stringify({ identifier: "windows-frame", windows: ["main"], permissions: WINDOWS_ONLY_PERMISSIONS }) });
+    assert.ok(checkCapabilities(dropped).some((x) => /platforms/.test(x.detail)));
+    // minimize and close moved into default.json (which applies to macOS too)
+    const moved = tree({
+      "src-tauri/capabilities/default.json": JSON.stringify({ identifier: "default", windows: ["main"], permissions: EXPECTED_PERMISSIONS }),
+      "src-tauri/capabilities/windows.json": JSON.stringify({ identifier: "windows-frame", windows: ["main"], platforms: ["windows"], permissions: [] }),
+    });
+    assert.ok(checkCapabilities(moved).some((x) => /Windows-only/.test(x.detail)));
+    // windows.json widened to macOS
+    const widened = tree({ "src-tauri/capabilities/windows.json": JSON.stringify({ identifier: "windows-frame", windows: ["main"], platforms: ["windows", "macOS"], permissions: WINDOWS_ONLY_PERMISSIONS }) });
+    assert.ok(checkCapabilities(widened).length);
+    assert.deepEqual(checkCapabilities(tree({ "src-tauri/capabilities/default.json": JSON.stringify({ identifier: "default", windows: ["main"], permissions: base }) })), []);
   });
   it("fails a remote section", () => {
     assert.ok(checkCapabilities(caps({ permissions: EXPECTED_PERMISSIONS, remote: { urls: ["https://x.example"] } })).length);
@@ -308,9 +326,19 @@ describe("(7) Rust sources and the dependency graph", () => {
     "let s = UdpSocket::bind(a);",
     'Command::new("curl")',
     "use ureq::get;",
+    'let c = Command::new(intely_core::sys::program("npm"));',
+    'Command::new("npm").arg("outdated")',
   ]) {
     it(`fails ${code}`, () => assert.equal(checkRustSources(rs(code)).length, 1));
   }
+  it("only the dependency check may start npm by name, and only the loopback sender may open a socket, by exact file", () => {
+    assert.deepEqual(checkRustSources(rs('Command::new(intely_core::sys::program("npm"))', "crates/webtools/src/npmrun.rs")), []);
+    assert.deepEqual(checkRustSources(rs("TcpStream::connect_timeout(a, t)", "crates/webtools/src/tryit.rs")), []);
+    // the exemption is for those files, not for the crate
+    assert.equal(checkRustSources(rs("TcpStream::connect(a)", "crates/webtools/src/routes.rs")).length, 1);
+    assert.equal(checkRustSources(rs('Command::new("npm")', "crates/webtools/src/deps.rs")).length, 1);
+    assert.equal(checkRustSources(rs('Command::new("npm")', "src-tauri/src/modules/webtools.rs")).length, 1);
+  });
   it("the team crate (relay transport, like remote) is an allowed crate", () => {
     assert.ok(ALLOWED_CRATES.includes("team"));
     assert.deepEqual(checkRustSources(rs("TcpStream::connect(a)", "crates/team/src/client.rs")), []);

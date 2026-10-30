@@ -1,0 +1,6 @@
+{
+  "reviewed": "2026-10-29",
+  "note": "Not a statement of current policy. Store requirements change; these values are what the vendors' help pages named when this file was last reviewed. The app always words them as 'check the current requirement'.",
+  "play": { "targetApi": 36, "page": "support.google.com/googleplay/android-developer/answer/11926878" },
+  "apple": { "privacyManifest": "PrivacyInfo.xcprivacy", "page": "developer.apple.com/documentation/bundleresources/privacy-manifest-files" }
+}

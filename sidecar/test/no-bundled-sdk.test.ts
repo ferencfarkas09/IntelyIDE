@@ -34,7 +34,7 @@ describe('sidecar bundles', () => {
   it('the SDK installer bundle is small and imports nothing but Node built-ins', async () => {
     const entry = entries.find((e) => e.outfile === 'dist/sdk-install.js')!;
     const r = await build({ ...common, ...entry, absWorkingDir: root, write: false, logLevel: 'silent' });
-    expect(Object.keys(r.metafile!.inputs).sort()).toEqual(['src/redact.ts', 'src/sdk-install.ts', 'src/sdk.ts']);
+    expect(Object.keys(r.metafile!.inputs).sort()).toEqual(['src/env.ts', 'src/redact.ts', 'src/sdk-install.ts', 'src/sdk.ts']);
     for (const out of Object.values(r.metafile!.outputs)) for (const i of out.imports) expect(i.path, i.path).toMatch(/^node:/);
     expect(r.outputFiles![0]!.contents.length).toBeLessThan(100_000);
   });

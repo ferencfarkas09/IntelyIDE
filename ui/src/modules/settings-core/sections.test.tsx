@@ -184,6 +184,26 @@ describe("<AppearanceSection>", () => {
     expect(document.getElementById("intely-accent")).toBeNull();
   });
 
+  it("switches the style to Glass and back, and the transparency switch only applies to Glass", async () => {
+    render(() => <AppearanceSection />);
+    const style = await screen.findByRole("radiogroup", { name: "Style" });
+    const reduce = screen.getByRole("switch", { name: "Reduce transparency" });
+    fireEvent.click(within(style).getByRole("radio", { name: "Standard" }));
+    await waitFor(() => expect(document.documentElement.dataset.skin).toBe("standard"));
+    expect((reduce as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(within(style).getByRole("radio", { name: "Glass" }));
+    await waitFor(() => expect(document.documentElement.dataset.skin).toBe("glass"));
+    expect(JSON.parse(localStorage.getItem("intely.appearance")!)).toMatchObject({ skin: "glass", reduceTransparency: false });
+    await waitFor(() => expect((reduce as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(reduce);
+    await waitFor(() => expect(document.documentElement.dataset.transparency).toBe("reduced"));
+    expect(JSON.parse(localStorage.getItem("intely.appearance")!)).toMatchObject({ skin: "glass", reduceTransparency: true });
+    fireEvent.click(reduce);
+    await waitFor(() => expect(document.documentElement.dataset.transparency).toBeUndefined());
+    fireEvent.click(within(style).getByRole("radio", { name: "Standard" }));
+    await waitFor(() => expect(document.documentElement.dataset.skin).toBe("standard"));
+  });
+
   it("custom colour: live preview, hex validation and AA adjustment note", async () => {
     render(() => <AppearanceSection />);
     fireEvent.click(await screen.findByRole("radio", { name: "Custom colour" }));

@@ -179,6 +179,13 @@ describe("run mode", () => {
     expect(startRequest({ role: undefined, repoIds: ["a"], prompt: "x", mode: "auto", permission: "automatic" }, undefined, undefined)).toEqual({ role: "auto", repoIds: ["a"], prompt: "x", mode: "automatic" });
     expect(startRequest({ ...draft, permission: "readOnly" }, { provider: "claude" }, "codex")).toEqual({ role: "developer", repoIds: ["a"], prompt: "x", mode: "readOnly", provider: "codex" });
   });
+
+  it("adds the run picker's model, effort and ultracode only when they were picked; Auto never carries ultracode", () => {
+    const draft = { role: "developer", repoIds: ["a"], prompt: "x" };
+    expect(startRequest({ ...draft, pick: {} }, { provider: "claude" }, "claude")).toEqual({ role: "developer", repoIds: ["a"], prompt: "x" });
+    expect(startRequest({ ...draft, pick: { model: "claude-fable-5-1", effort: "max", ultracode: true } }, { provider: "claude" }, "claude")).toEqual({ role: "developer", repoIds: ["a"], prompt: "x", model: "claude-fable-5-1", effort: "max", ultracode: true });
+    expect(startRequest({ role: undefined, repoIds: ["a"], prompt: "x", mode: "auto", pick: { model: "claude-opus-5-5", effort: "xhigh", ultracode: true } }, undefined, undefined)).toEqual({ role: "auto", repoIds: ["a"], prompt: "x", model: "claude-opus-5-5", effort: "xhigh" });
+  });
 });
 
 describe("start errors", () => {

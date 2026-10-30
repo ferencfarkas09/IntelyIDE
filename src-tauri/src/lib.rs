@@ -39,7 +39,10 @@ pub fn run() {
             } else if event.id() == menu::CHECK_UPDATES {
                 let _ = app.emit(menu::CHECK_UPDATES_EVENT, ());
             } else if event.id() == menu::CLOSE_WINDOW {
-                // Closing goes through CloseRequested, which the guard sees.
+                // The focused radar closes itself; the main window's close goes through CloseRequested, which the guard sees.
+                if modules::radar::close_if_focused(app) {
+                    return;
+                }
                 if let Some(window) = app.get_webview_window("main") {
                     let _ = window.close();
                 }
@@ -194,6 +197,7 @@ pub fn run() {
             modules::roles::roles_delete_preview,
             modules::roles::roles_delete,
             modules::roles::roles_capabilities,
+            modules::roles::roles_models_live,
             modules::roles::runs_start,
             modules::roles::runs_list,
             modules::roles::runs_history,
@@ -204,6 +208,16 @@ pub fn run() {
             modules::roles::runs_usage,
             modules::roles::runs_rewind_snapshots,
             modules::roles::runs_rewind_restore,
+            modules::checkpoints::checkpoints_list,
+            modules::checkpoints::checkpoints_save,
+            modules::checkpoints::checkpoints_plan,
+            modules::checkpoints::checkpoints_restore,
+            modules::checkpoints::checkpoints_compare,
+            modules::checkpoints::checkpoints_patch,
+            modules::checkpoints::checkpoints_settings,
+            modules::checkpoints::checkpoints_set_protect_config,
+            modules::checkpoints::checkpoints_config,
+            modules::checkpoints::checkpoints_restore_config,
             // ==== track F commands (settings, happy) ====
             modules::settings::settings_get,
             modules::settings::settings_set,
@@ -330,6 +344,32 @@ pub fn run() {
             modules::versions::versions_scan,
             modules::versions::versions_plan,
             modules::versions::versions_apply,
+            modules::vibe::vibe_mask_text,
+            modules::vibe::vibe_setup_checks,
+            modules::vibe::vibe_project_notes,
+            // ==== React Native / Expo device loop ====
+            modules::devices::devices_detect,
+            modules::devices::devices_list,
+            modules::devices::devices_boot,
+            modules::devices::devices_shutdown,
+            modules::devices::devices_log_start,
+            modules::devices::devices_log_stop,
+            modules::devices::devices_log_clear,
+            modules::devices::devices_logs,
+            modules::devices::devices_reload,
+            modules::mobilehealth::mobilehealth_detect,
+            modules::mobilehealth::mobilehealth_scan_repo,
+            modules::webtools::webtools_detect,
+            modules::webtools::webtools_tokens,
+            modules::webtools::webtools_unused_styles,
+            modules::webtools::webtools_react,
+            modules::webtools::webtools_bundle,
+            modules::webtools::webtools_routes,
+            modules::webtools::webtools_find_rule,
+            modules::webtools::webtools_env,
+            modules::webtools::webtools_servers,
+            modules::webtools::webtools_try,
+            modules::webtools::webtools_deps_check,
             // ==== alpha attachments commands ====
             modules::attachments::attachment_import_bytes,
             modules::attachments::attachment_import_paths,
@@ -354,6 +394,9 @@ pub fn run() {
             modules::runner::run_open,
             modules::runner::run_access,
             modules::runner::run_allow_processes,
+            // ==== auto-test after a run ====
+            modules::autotest::autotest_pick,
+            modules::autotest::autotest_start,
             // ==== track P commands (preview) ====
             modules::preview::preview_check_url,
             modules::preview::preview_probe,
@@ -400,6 +443,7 @@ pub fn run() {
             modules::agentux::agentux_night_clear,
             modules::agentux::agentux_brief,
             modules::agentux::agentux_brief_summarise,
+            modules::agentux::agentux_run_digest,
             // ==== wave4 contract commands ====
             modules::contract::contract_analyze,
             modules::contract::contract_detail,
@@ -491,6 +535,9 @@ pub fn run() {
             modules::hud::hud_eco_active,
             modules::tray::tray_configure,
             modules::tray::tray_update,
+            modules::radar::radar_open,
+            modules::radar::radar_close,
+            modules::radar::radar_open_run,
             modules::notify::notify_configure,
             modules::notify::notify_badge,
             modules::notify::notify_show,
@@ -648,6 +695,7 @@ pub fn run() {
             modules::attachments::setup(app)?;
             // ==== track P state (run) ====
             modules::runner::setup(app)?;
+            modules::devices::setup(app)?;
             // ==== wave3 X2 checks state ====
             modules::checks::setup(app)?;
             // ==== track P state (preview) ====
@@ -690,9 +738,18 @@ pub fn run() {
                 intely_core::termination_signal().await;
                 handle.exit(0);
             });
+            // Windows: one title bar. The native frame goes and the app's own bar carries minimize, maximize and close
+            // (ui-kit/WindowControls, capabilities/windows.json); Windows keeps the resize borders and the shadow.
+            #[cfg(windows)]
+            {
+                window = window.decorations(false);
+            }
             perf::line("window_building");
             window.build()?;
             perf::line("window_built");
+            // The menu is a macOS app menu (Hide, Hide Others, Quit in the app menu). On Windows it would be a second bar of
+            // File-less menus under the title bar: there the window buttons, Alt+F4 and the webview's own Edit shortcuts serve.
+            #[cfg(not(windows))]
             app.set_menu(menu::build(app.handle())?)?;
             perf::line(&format!("setup_done mode={mode:?}"));
             Ok(())
@@ -701,9 +758,18 @@ pub fn run() {
         .expect("error while building IntelySwitchIDE");
 
     app.run(|handle, event| {
-        if let RunEvent::WindowEvent { event: tauri::WindowEvent::Focused(focused), .. } = &event {
-            modules::happy::set_focus(handle, *focused);
-            modules::updates::set_focus(handle, *focused);
+        // Only the main window's focus counts: the always-on-top radar must not pause or wake the focus-gated work.
+        if let RunEvent::WindowEvent { label, event: tauri::WindowEvent::Focused(focused), .. } = &event {
+            if label == "main" {
+                modules::happy::set_focus(handle, *focused);
+                modules::updates::set_focus(handle, *focused);
+            }
+        }
+        // The radar has no life of its own: it goes with the main window (else it would keep the app from quitting).
+        if let RunEvent::WindowEvent { label, event: WindowEvent::Destroyed, .. } = &event {
+            if label == "main" {
+                modules::radar::close(handle);
+            }
         }
         // An invite link (`intely-team://join#...`) opened the app or was clicked while it runs: the window comes forward and the page
         // opens Settings > Team with the code. Only macOS delivers links this way.
@@ -739,6 +805,7 @@ pub fn run() {
             }
             modules::term::shutdown(handle);
             modules::runner::shutdown(handle);
+            modules::devices::shutdown(handle);
             modules::checks::shutdown(handle);
             modules::preview::shutdown(handle);
             modules::remote::shutdown(handle);

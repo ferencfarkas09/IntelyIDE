@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildChildEnv } from '../src/env.js';
+import { allowedName, buildChildEnv, foldEnv, windowsEnvValueOk } from '../src/env.js';
 import { redact, redactDeep } from '../src/redact.js';
 
 const host = {
@@ -12,6 +12,42 @@ const host = {
 };
 
 describe('env scrub (providers-plan 4.2)', () => {
+  it('on Windows keeps what Node needs to start, under canonical names, and still drops credentials', () => {
+    const win = { Path: 'C:\\Windows', SYSTEMROOT: 'C:\\Windows', ComSpec: 'cmd.exe', PATHEXT: '.EXE;.CMD', USERPROFILE: 'C:\\Users\\u', APPDATA: 'a', LOCALAPPDATA: 'l', TEMP: 't', GITHUB_TOKEN: 'gh', COMPUTERNAME: 'pc' };
+    const b = buildChildEnv({ vars: win, shimDir: 'C:\\shim' }, { mode: 'subscription', key: null }, { addDirs: false, windows: true });
+    expect(b.env).toMatchObject({ SystemRoot: 'C:\\Windows', ComSpec: 'cmd.exe', PATHEXT: '.EXE;.CMD', USERPROFILE: 'C:\\Users\\u', APPDATA: 'a', LOCALAPPDATA: 'l', TEMP: 't' });
+    expect(b.env.PATH?.endsWith('C:\\Windows')).toBe(true);
+    expect(b.env.Path).toBeUndefined();
+    expect(b.env.GITHUB_TOKEN).toBeUndefined();
+    expect(b.env.COMPUTERNAME).toBeUndefined();
+    const mac = buildChildEnv({ vars: win }, { mode: 'subscription', key: null }, { addDirs: false, windows: false });
+    expect(mac.env.SYSTEMROOT).toBeUndefined();
+    expect(mac.env.SystemRoot).toBeUndefined();
+  });
+
+  it('folds like the Rust side: ASCII only, the exact spelling first, the Git Bash path checked', () => {
+    const keep = (k: string) => allowedName(k, (x) => x === 'PATH', true);
+    for (const order of [[['Path', 'B'], ['PATH', 'A']], [['PATH', 'A'], ['Path', 'B']]] as [string, string][][]) {
+      expect(foldEnv(order, keep).env.PATH).toBe('A');
+    }
+    expect(foldEnv([['path', 'lower'], ['Path', 'mixed']], keep).env.PATH).toBe('mixed');
+    expect(foldEnv([['\u017fystemRoot', 'x'], ['ProgramF\u0131les', 'y']], keep).env).toEqual({});
+    expect(windowsEnvValueOk('CLAUDE_CODE_GIT_BASH_PATH', 'C:\\Program Files\\Git\\bin\\bash.exe')).toBe(true);
+    for (const bad of ['bash.exe', '\\\\host\\share\\bash.exe', 'C:\\Windows\\System32\\cmd.exe', 'C:\\x\\..\\evil\\bash.exe', 'C:\\x\\bash.exe:ads']) {
+      expect(windowsEnvValueOk('CLAUDE_CODE_GIT_BASH_PATH', bad), bad).toBe(false);
+    }
+    expect(foldEnv([['CLAUDE_CODE_GIT_BASH_PATH', 'cmd.exe']], keep).env).toEqual({});
+  });
+
+  it('matches Windows names without case only on Windows', () => {
+    const portable = (k: string) => k === 'PATH';
+    expect(allowedName('windir', portable, true)).toBe('windir');
+    expect(allowedName('WINDIR', portable, true)).toBe('windir');
+    expect(allowedName('path', portable, true)).toBe('PATH');
+    expect(allowedName('path', portable, false)).toBeNull();
+    expect(allowedName('SystemRoot', portable, false)).toBeNull();
+  });
+
   it('drops host-session, foreign-provider and credential variables in subscription mode', () => {
     const b = buildChildEnv({ vars: host }, { mode: 'subscription', key: null }, { addDirs: false });
     for (const k of ['CLAUDECODE', 'CLAUDE_EFFORT', 'CLAUDE_CODE_ENTRYPOINT', 'INTELY_HUMAN_TOKEN', 'INTELY_REAL_GIT', 'ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL', 'ANTHROPIC_AUTH_TOKEN', 'OPENAI_API_KEY', 'GEMINI_API_KEY', 'GH_TOKEN', 'GITHUB_TOKEN', 'SSH_AUTH_SOCK', 'COPILOT_GITHUB_TOKEN', 'MY_SERVICE_TOKEN', 'DB_PASSWORD']) {

@@ -4,6 +4,7 @@
 //! the mandatory Rewind snapshot apply exactly as for a run started by hand, and the queue itself never commits or
 //! pushes. It is paused on battery and while the IDE is read-only, and a restart never resumes it.
 //! `agentux_brief_summarise` is the only model call (a one-shot Haiku session, on a click, over scrubbed facts).
+//! `agentux_run_digest` is the per-run summary ("What this run did"), built without a model.
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -19,11 +20,12 @@ use intely_core::jail::{Jail, Mode};
 use intely_core::EngineError;
 use intely_roles::types::RunState;
 use intely_runindex::brief::facts_text;
+use intely_runindex::digest::valid_run_id;
 use intely_runindex::index::{Facets, Query, SearchResult};
 #[cfg(target_os = "macos")]
 use intely_runindex::night::parse_on_battery;
 use intely_runindex::night::{Effect, NewItem, NightPlan, Observation, Paused, Phase, RunObs, MAX_RUNS_PER_NIGHT};
-use intely_runindex::{build_brief, Brief, GitDiff, Index, UsageIndex, UsageReport};
+use intely_runindex::{build_brief, load_or_build_digest, Brief, GitDiff, Index, RunDigest, UsageIndex, UsageReport};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State};
 
@@ -354,7 +356,7 @@ fn start_item(app: &AppHandle, inner: &Arc<Inner>, item_id: &str) {
             });
         }
     }
-    let req = AgentStartRequest { role: item.role_id.clone(), repo_ids: item.repo_ids.clone(), prompt: item.prompt.clone(), mode: None, mcp_servers: None };
+    let req = AgentStartRequest { role: item.role_id.clone(), repo_ids: item.repo_ids.clone(), prompt: item.prompt.clone(), mode: None, mcp_servers: None, ..Default::default() };
     // Never `run_without_safety_net`: a repo that cannot be snapshotted fails the item with `noSafetyNet`.
     match roles.supervisor().start_now_with(req, &repos, StartOptions::default()) {
         Ok(summary) => inner.with_plan(|p| p.on_started(item_id, &summary.agent_id, now_ms())),
@@ -531,6 +533,20 @@ pub async fn agentux_brief_summarise(state: State<'_, AgentuxState>, run_ids: Op
         crate::modules::l10n::run_claude(&prompt).map(|s| s.trim().to_owned())
     })
     .await
+}
+
+// ---- run summary -----------------------------------------------------------------------------------------------
+
+/// "What this run did": the plain facts of one run (files by purpose, commands, risks) from its event log and read-only
+/// git, cached as `<runs>/<id>.digest.json` once the run has finished. No model call; nothing is written into a
+/// repository. `None` when the run has no log.
+#[tauri::command]
+pub async fn agentux_run_digest(state: State<'_, AgentuxState>, run_id: String, refresh: Option<bool>) -> Res<Option<RunDigest>> {
+    if !valid_run_id(&run_id) {
+        return Err(err("invalidRunId", "not a run id"));
+    }
+    let inner = state.0.clone();
+    blocking(move || Ok(load_or_build_digest(&inner.runs_dir(), &run_id, &GitDiff { jail: Jail::global() }, now_ms(), refresh.unwrap_or(false)))).await
 }
 
 #[cfg(test)]

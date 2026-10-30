@@ -1,0 +1,12 @@
+#!/bin/sh
+# Fake emulator: `-list-avds` and `-avd <name>` (which just exits).
+D=$(cd "$(dirname "$0")/.." && pwd)
+[ -n "$FAKE_DEVICES_LOG" ] && echo "emulator $*" >> "$FAKE_DEVICES_LOG"
+MODE=${FAKE_MODE:-ok}
+[ "$MODE" = hang ] && exec sleep 600
+[ "$MODE" = fail ] && { echo "PANIC: Missing emulator engine program" >&2; exit 1; }
+case "$1" in
+  -list-avds) case "$MODE" in empty) ;; garbled) cat "$D/data/avds-garbled.txt" ;; *) cat "$D/data/avds.txt" ;; esac ;;
+  -avd) exit 0 ;;
+  *) exit 64 ;;
+esac

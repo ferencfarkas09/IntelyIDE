@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal, createUniqueId, For, on, onCleanup, Show, untrack } from "solid-js";
+import { createEffect, createMemo, createSignal, createUniqueId, For, lazy, on, onCleanup, Show, untrack } from "solid-js";
 import { Dynamic } from "solid-js/web";
 import { t } from "../../i18n";
 import { ipc } from "../../ipc";
@@ -6,9 +6,10 @@ import type { ProviderEnforcement, ProviderInfo } from "../../ipc/providers";
 import { BypassConfirmDialog } from "../../components/chat/BypassConfirmDialog";
 import { modelLabel } from "../../components/chat/format";
 import { ModeCards } from "../../components/chat/ModeCards";
+import { NewRunSlots } from "../../components/NewRunSlots";
 import { openDockTab } from "../../platform/dock";
 import { openSettings } from "../../platform/settings";
-import type { RoleGroup } from "../../ipc/roles";
+import type { RoleGroup, RoleProviderCaps } from "../../ipc/roles";
 import type { AgentSummary, AutoInfo, PermissionMode } from "../../store/agent-types";
 import { appMode } from "../../platform/mode";
 import { newRunPrefill, takeNewRunPrefill } from "../../platform/newRun";
@@ -25,6 +26,7 @@ import { AutoCard, type UntrustedRole } from "./AutoCard";
 import { PERMISSION_TITLES } from "../roles/rolesLogic";
 import { loadServers, servers } from "../servers/store";
 import { McpRunPicker, mcpStartIds } from "./mcpSeam";
+import { startMode } from "../presets/logic";
 import { autoReasonText, chosenProvider, claudeUnavailableReason, clampCounts, clampMode, defaultRepos, failureLines, MAC_MAX, initialMode, neutralRole, numberedPrompt, placementRows, placementSummary, planRuns, providerBlocker, providerChoices, startBlocker, startErrorText, startRequest, teamOf, teamPrompt, THIS_MAC, toggleRepo, totalRuns, type RunJob, type RunMode } from "./newRunLogic";
 import { roleColor } from "./roleColors";
 import { newRunOpen, setCentreView, setNewRunOpen } from "./state";
@@ -34,10 +36,14 @@ import { NewRunShare } from "../team/RunShare";
 import { AttachButton, AttachmentChips } from "../attachments/Chips";
 import { createComposerAttachments } from "../attachments/composer";
 import { promptWithAttachments, takePendingForNewRun } from "../attachments/newRunPrompt";
+import { effortChoice, isClaudeModelId, modelChoices, pickBlocker, pickRequest, restoredPick, ultracodeOffered, type RunPick } from "../runpicker/logic";
+import { runPickerEnabled } from "../runpicker/toggle";
 import "./runs.css";
 
 /** Starts a run: role, repository scope, first prompt. Opened by the `runs.new` command in either mode. */
 const repoLabel = (id: string) => repos().find((r) => r.id === id)?.name ?? id;
+/** The model, effort and ultracode picker (an extra that starts on); loaded with the dialog's first open. */
+const RunPicker = lazy(() => import("../runpicker/RunPicker"));
 
 export function NewRunDialog() {
   const [role, setRole] = createSignal<string | undefined>(undefined);
@@ -80,6 +86,12 @@ export function NewRunDialog() {
   const [bypassOk, setBypassOk] = createSignal(false);
   const [confirmingBypass, setConfirmingBypass] = createSignal(false);
   const [mcpValue, setMcpValue] = createSignal<string[]>([]);
+  // The run picker: what the provider offers (the live list once the CLI answered), the choice, and the one remembered from the last start.
+  const [caps, setCaps] = createSignal<RoleProviderCaps[]>([]);
+  const [runPick, setRunPick] = createSignal<RunPick>({});
+  const [pickTouched, setPickTouched] = createSignal(false);
+  // The choice remembered from the last start, per provider and role (Auto included): `runs.lastPicks["claude:developer"]`.
+  const [savedPicks, setSavedPicks] = createSignal<Record<string, { lastModel?: unknown; lastEffort?: unknown }>>({});
   // Where the runs go: how many on this Mac and on each server. Shown only when a server is enabled; with none the dialog starts one run here, as ever.
   const [counts, setCounts] = createSignal<Record<string, number>>({ [THIS_MAC]: 1 });
   const [numbering, setNumbering] = createSignal<boolean | undefined>(undefined);
@@ -98,6 +110,20 @@ export function NewRunDialog() {
   const claudeAuto = () => mode() === "auto" && autoProvider() === "claude";
   /** The provider this run goes to, whatever the form: the Auto provider, or the role's (picked) one. */
   const modeProvider = () => (mode() === "auto" ? autoProvider() : (provider() ?? current()?.provider ?? "claude"));
+  /** The model and effort the run gets when nothing is picked: Auto's, the role's, or none known (a role switched to another provider). */
+  const defaultModel = () => (claudeAuto() ? autoInfo()?.model : provider() && provider() !== current()?.provider ? undefined : current()?.model);
+  const defaultEffort = () => (claudeAuto() ? autoInfo()?.effort : provider() && provider() !== current()?.provider ? undefined : current()?.effort);
+  const ultraOk = () => ultracodeOffered(modeProvider(), claudeAuto());
+  /** Where the picker's choice is remembered: per provider and role, Auto being a role of its own. */
+  const pickKey = () => `${modeProvider()}:${claudeAuto() ? "auto" : (role() ?? "")}`;
+  /** The picker shows a choice remembered from the last start of this role, not one made now. */
+  const remembered = () => !pickTouched() && (!!runPick().model || !!runPick().effort);
+  /** What the picker adds to the request: only what was picked (nothing while the extra is off or untouched). */
+  const pickSent = () => {
+    if (!runPickerEnabled()) return undefined;
+    const levels = effortChoice(runPick().model?.trim() || defaultModel(), caps(), modeProvider()).levels;
+    return pickRequest(runPick(), { ultracodeAllowed: ultraOk(), effortLevels: levels });
+  };
   const draft = () => ({
     role: role(),
     repoIds: repoIds(),
@@ -105,6 +131,7 @@ export function NewRunDialog() {
     mode: claudeAuto() ? ("auto" as const) : ("role" as const),
     permission: permission(),
     ...(McpRunPicker ? { mcpServers: mcpStartIds(mcpValue(), modeProvider()) } : {}),
+    ...(pickSent() ? { pick: pickSent() } : {}),
   });
   const att = createComposerAttachments({ key: "newrun", get label() { return t("attach.promptLabel"); }, provider: () => (mode() === "auto" ? autoProvider() : current()?.provider ?? "claude"), caps: () => "files", root: () => document.querySelector<HTMLElement>(".newrun") ?? undefined, priority: 95, active: newRunOpen });
   const choices = createMemo(() => providerChoices(current(), providers(), runnable(), enforcement()));
@@ -126,7 +153,7 @@ export function NewRunDialog() {
   });
   const usable = () => supported().filter((m) => !unavailable()[m]);
   const blocker = () =>
-    startBlocker(draft(), agentRoles()) ?? (claudeAuto() && autoLoading() && !autoSlow() ? t("runs.auto.loading") : undefined) ?? (claudeAuto() ? autoReasonText(claudeUnavailableReason(providers())) || undefined : undefined) ?? providerBlocker(provider() ?? current()?.provider, choices()) ?? unavailable()[permission()] ?? (whereShown() && total() === 0 ? t("runs.where.pick") : undefined) ?? att.store.blocker();
+    startBlocker(draft(), agentRoles()) ?? (claudeAuto() && autoLoading() && !autoSlow() ? t("runs.auto.loading") : undefined) ?? (claudeAuto() ? autoReasonText(claudeUnavailableReason(providers())) || undefined : undefined) ?? providerBlocker(provider() ?? current()?.provider, choices()) ?? unavailable()[permission()] ?? (whereShown() && total() === 0 ? t("runs.where.pick") : undefined) ?? (runPickerEnabled() && pickBlocker(runPick(), caps(), modeProvider()) ? t("runpicker.badModel") : undefined) ?? att.store.blocker();
   const untrusted = createMemo((): UntrustedRole[] =>
     claudeAuto()
       ? groups().flatMap((g) => {
@@ -143,6 +170,7 @@ export function NewRunDialog() {
     if (prefill.repoIds?.length) setRepoIds(prefill.repoIds);
     if (prefill.error) setError(prefill.error);
     if (prefill.noSafetyNet) setNoNet(true);
+    if (prefill.permission && prefill.permission !== ("bypass" as string)) pickMode(prefill.permission);
   };
 
   const pick = (name: string | undefined) => {
@@ -215,6 +243,9 @@ export function NewRunDialog() {
     setPermission(m);
   };
 
+  // What the prompt picker and the safety presets may touch (ui/src/platform/newRunSlots.ts).
+  const slotCtx = { prompt, setPrompt, repoIds, permission, pickMode, supported, unavailable, disabled: busy };
+
   // Opening proposes the first role and its repos; the user can change both.
   createEffect(
     on(newRunOpen, (open) => {
@@ -232,6 +263,8 @@ export function NewRunDialog() {
       setBypassOk(false);
       setConfirmingBypass(false);
       setMcpValue([]);
+      setRunPick({});
+      setPickTouched(false);
       setCounts({ [THIS_MAC]: 1 });
       setNumbering(undefined);
       setTeam(undefined);
@@ -240,16 +273,20 @@ export function NewRunDialog() {
       void ipc.settings.get("agents").then((v) => setMacMax(typeof v.maxRuns === "number" && Number.isInteger(v.maxRuns) ? Math.max(1, Math.min(MAC_MAX, v.maxRuns)) : MAC_MAX), () => setMacMax(MAC_MAX));
       void ipc.settings.get("roles").then((v) => setNoticeDone(v.derivationNoticeDone === true), () => {});
       // The mode used last is this dialog's default (Bypass never is); a read failure leaves the initial default.
-      void ipc.settings.get("runs").then((v) => setLastMode(typeof v.lastMode === "string" ? (v.lastMode as PermissionMode) : undefined), () => {});
+      void ipc.settings.get("runs").then((v) => (setLastMode(startMode(v)), setSavedPicks(v.lastPicks && typeof v.lastPicks === "object" ? (v.lastPicks as Record<string, { lastModel?: unknown; lastEffort?: unknown }>) : {})), () => {});
       // From the backend's cache; nothing is started. A failure leaves the picker with the role's own provider.
+      let live = false;
       void Promise.all([ipc.providers.list(), ipc.roles.capabilities(), ipc.providers.enforcement()]).then(
         ([list, caps, enf]) => {
           setProviders(list);
           setRunnable(new Set(caps.filter((c) => c.models.length > 0).map((c) => c.provider)));
+          if (!live) setCaps(caps);
           setEnforcement(enf);
         },
         () => {},
       );
+      // Every model the installed Claude CLI offers (cached by the backend; the built-in models stand in until it answers or without a CLI).
+      if (runPickerEnabled()) void ipc.roles.modelsLive().then((caps) => ((live = true), setCaps(caps)), () => {});
       const dropped = takePendingForNewRun(); // files dropped on the window with no composer visible
       if (dropped.length) void att.store.addDropItems(dropped);
       // Another module (Happy tasks) asked for the dialog with a prompt and a repository scope; only the form is filled.
@@ -262,6 +299,19 @@ export function NewRunDialog() {
   createEffect(() => newRunOpen() && mode() === "role" && autoProvider() === "claude" && !role() && agentRoles().length > 0 && pick(agentRoles()[0].name));
   // What Auto would start with: read on open and whenever the repositories or the mode change (Plan and Ask take no writer lease, so they do not queue).
   createEffect(on([newRunOpen, () => repoIds().join(","), permission], ([open]) => open && loadAuto()));
+  // The picker follows the remembered choice until the person changes it; another provider keeps only what still fits it.
+  createEffect(() => {
+    if (!newRunOpen() || pickTouched() || caps().length === 0) return;
+    setRunPick(restoredPick(savedPicks()[pickKey()] ?? {}, caps(), modeProvider()));
+  });
+  createEffect(
+    on(modeProvider, (p) => {
+      if (!untrack(pickTouched)) return;
+      const now = untrack(runPick);
+      const fits = now.model !== undefined && (modelChoices(untrack(caps), p).some((m) => m.id === now.model) || (p === "claude" && (now.model === "" || isClaudeModelId(now.model))));
+      setRunPick({ ...(fits ? { model: now.model } : {}), ...(now.effort ? { effort: now.effort } : {}), ...(now.ultracode ? { ultracode: true } : {}) });
+    }, { defer: true }),
+  );
   // The modes the chosen provider supports.
   createEffect(on([newRunOpen, modeProvider], ([open, p]) => open && loadModes(p)));
   // The mode follows the defaults until a card is clicked: the last used mode, Plan for a read-only role, the nearest one the provider and its gate allow.
@@ -314,6 +364,13 @@ export function NewRunDialog() {
     const lead = current();
     const share = shareRun();
     const lastMode = permission();
+    // the picker's choice is remembered only when the person made one (an untouched picker leaves the remembered choice as it is)
+    const lastPick = pickTouched() ? pickSent() : undefined;
+    const lastPicks = (() => {
+      if (!lastPick) return undefined;
+      const { [pickKey()]: _old, ...rest } = savedPicks();
+      return lastPick.model || lastPick.effort ? { ...rest, [pickKey()]: { lastModel: lastPick.model ?? null, lastEffort: lastPick.effort ?? null } } : rest;
+    })();
     const typed = prompt().trim();
     const jobs: RunJob[] = whereShown() ? planRuns(placed(), rows(), team() ?? true) : [{ name: "", index: 1, of: 1 }];
     const numbered = jobs.length > 1 && (numbering() ?? true);
@@ -385,7 +442,7 @@ export function NewRunDialog() {
       const run = started[0];
       if (!revealed && started.length > 1) void selectAgent(run.agentId);
       if (failures.length > 0) toast.error(t("runs.where.someFailed", { count: failures.length }), lines.join("\n"));
-      void ipc.settings.set("runs", { lastMode }).catch(() => {});
+      void ipc.settings.set("runs", { lastMode, ...(lastPicks ? { lastPicks } : {}) }).catch(() => {});
       if (wanted && run.provider !== wanted) toast.warn(t("runs.new.otherProvider", { actual: run.provider, wanted }), t("runs.new.otherProviderDesc"));
       if (!revealed) {
         resetForm();
@@ -532,6 +589,7 @@ export function NewRunDialog() {
             <legend class="newrun__label" id={modesLegend}>
               {t("modes.picker.label")}
             </legend>
+            <NewRunSlots place="modes" ctx={slotCtx} />
             <div class="newrun__modes">
               <ModeCards modes={supported()} value={permission()} onChange={pickMode} labelledBy={modesLegend} unavailable={unavailable()} confirm={["bypass"]} disabled={busy()} />
             </div>
@@ -541,6 +599,20 @@ export function NewRunDialog() {
               </small>
             </Show>
           </fieldset>
+          <Show when={runPickerEnabled()}>
+            <RunPicker
+              caps={caps()}
+              provider={modeProvider()}
+              defaultModel={defaultModel()}
+              defaultEffort={defaultEffort()}
+              value={runPick()}
+              onChange={(next) => (setPickTouched(true), setRunPick(next))}
+              ultracodeOffered={ultraOk()}
+              remembered={remembered()}
+              onReset={() => (setPickTouched(true), setRunPick({}))}
+              disabled={busy()}
+            />
+          </Show>
           <fieldset class="newrun__field">
             <legend class="newrun__label">
               {t("runs.repos")}
@@ -598,6 +670,7 @@ export function NewRunDialog() {
               onKeyDown={(e) => (e.metaKey || e.ctrlKey) && e.key === "Enter" && (e.preventDefault(), void start())}
             />
           </label>
+          <NewRunSlots place="prompt" ctx={slotCtx} />
           <AttachmentChips items={att.store.items()} provider={att.provider()} onRemove={(id) => void att.store.remove(id)} onConfirm={(id) => void att.store.confirm(id)} />
           <div class="newrun__attach"><AttachButton onFiles={att.pick} /></div>
           <NewRunShare checked={shareRun()} onChange={setShareRun} />

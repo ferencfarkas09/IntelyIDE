@@ -553,8 +553,8 @@ impl Inner {
             agent_id: q.id.clone(),
             session_id: None,
             role: q.def.name.clone(),
-            model: q.def.model.clone(),
-            effort: q.def.effort.map(effort_of),
+            model: q.req.model.clone().unwrap_or_else(|| q.def.model.clone()),
+            effort: q.req.effort.or(q.def.effort).map(effort_of),
             cwd,
             repo_ids: q.req.repo_ids.clone(),
             started_at: q.enqueued_at as f64,
@@ -567,7 +567,7 @@ impl Inner {
     }
 
     fn try_start(&self, def: &RoleDef, req: &RunsStartRequest, repos: &[RepoRef]) -> Result<RunRecord, EngineError> {
-        let summary = self.host.start_role(def, AgentStartRequest { role: def.name.clone(), repo_ids: req.repo_ids.clone(), prompt: req.prompt.clone(), mode: req.mode, mcp_servers: None }, repos)?;
+        let summary = self.host.start_role(def, AgentStartRequest { role: def.name.clone(), repo_ids: req.repo_ids.clone(), prompt: req.prompt.clone(), mode: req.mode, mcp_servers: None, model: req.model.clone(), effort: req.effort, ultracode: req.ultracode }, repos)?;
         self.await_busy(&summary.agent_id);
         self.records().into_iter().find(|r| r.agent_id == summary.agent_id).ok_or_else(|| err("internal", "the run vanished while starting"))
     }

@@ -2,6 +2,8 @@
 
 pub mod agentux;
 pub mod attachments;
+pub mod autotest;
+pub mod checkpoints;
 pub mod checks;
 pub mod contract;
 pub mod deeppattern;
@@ -14,6 +16,7 @@ pub mod happy_inbox;
 pub mod hud;
 pub mod l10n;
 pub mod mcp;
+pub mod mobilehealth;
 #[cfg(feature = "mongo-studio")]
 pub mod mongo;
 #[cfg(test)]
@@ -22,6 +25,7 @@ pub mod notify;
 pub mod picker;
 pub mod preview;
 pub mod providers;
+pub mod radar;
 pub mod registry;
 pub mod relay_cloud;
 pub mod remote;
@@ -35,7 +39,10 @@ pub mod team;
 pub mod term;
 pub mod tray;
 pub mod updates;
+pub mod devices;
 pub mod versions;
+pub mod vibe;
+pub mod webtools;
 pub mod viewers;
 pub mod workspaces;
 pub mod workspaces_switch;

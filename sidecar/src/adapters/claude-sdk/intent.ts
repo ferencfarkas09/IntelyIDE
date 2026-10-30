@@ -63,6 +63,12 @@ export function intentFor(tool: string, rawInput: unknown, parentToolId?: string
         summary: `Subagent ${sub ?? ''} ${short(str(input.description) ?? '', 80)}`.trim(),
       };
     }
+    // A workflow (ultracode runs only): one that asks to run off this machine carries `remote`, which the broker refuses.
+    case 'Workflow':
+    {
+      const check = workflowCheck(input);
+      return { ...base, class: 'other', ...(check ? { workflowCheck: check } : {}), summary: `Workflow ${short(str(input.name) ?? str(input.scriptPath) ?? '', 80)}`.trim() };
+    }
     // The plan itself travels in the permission.request `plan` field, never in the intent (the Remote record shrinks the summary).
     case 'ExitPlanMode':
       return { ...base, class: 'other', summary: 'ExitPlanMode: leave plan mode' };
@@ -85,4 +91,35 @@ export function intentFor(tool: string, rawInput: unknown, parentToolId?: string
       return { ...base, class: 'other', summary: `${tool} ${short(redact(safeJson(rawInput)), 200)}`.trim() };
     }
   }
+}
+
+/** The keys of a `Workflow` input that may be present: the inline script and its `args` (`description` and `title` are ignored by the CLI). */
+export const WORKFLOW_KEYS = ["script", "args", "description", "title"];
+/** Words that ask for another place to run: a hard stop anywhere in a workflow script, as `isolation` is for `Agent`. */
+export const WORKFLOW_ISOLATION_WORDS = ["isolation", "worktree", "remote"];
+/** Code that builds keys, strings or code at run time (searched with the whitespace removed, case kept). */
+export const WORKFLOW_EVASION = ["]:", "eval(", "Function(", "\\u", "\\x", "fromCharCode", "fromCodePoint", "JSON.parse", "Object.assign", "Reflect.", "defineProperty", "import(", "require("];
+/** Keys that would pick what the run's own choice already set (searched with the whitespace removed, lower case). */
+export const WORKFLOW_OVERRIDES = ["model:", "effort:", "agenttype:"];
+const CONCAT = ["'+'", '"+"', "'+\"", "\"+'", "`+`", "'+`", "`+'", '"+`', '`+"'];
+
+/**
+ * What the broker refuses about a `Workflow` input, or undefined: the same rules as `workflow_check` in Rust (a best-effort TEXT check of a
+ * program; every tool call of the workflow's helper agents is judged by the broker on its own).
+ */
+export function workflowCheck(input: Record<string, unknown>): { kind: string; detail: string } | undefined {
+  const extra = Object.keys(input).filter((k) => !WORKFLOW_KEYS.includes(k) && input[k] !== null && input[k] !== undefined).sort();
+  if (extra.length) return { kind: "input", detail: extra[0]! };
+  const script = typeof input.script === "string" ? input.script : "";
+  if (!script.trim()) return { kind: "input", detail: "script" };
+  const lower = script.toLowerCase();
+  const word = WORKFLOW_ISOLATION_WORDS.find((w) => lower.includes(w));
+  if (word) return { kind: "isolation", detail: word };
+  const squeezed = script.replace(/\s/g, "");
+  const ev = WORKFLOW_EVASION.find((e) => squeezed.includes(e));
+  if (ev) return { kind: "evasion", detail: ev };
+  if (CONCAT.some((p) => squeezed.includes(p))) return { kind: "evasion", detail: "string concatenation" };
+  const low = squeezed.toLowerCase();
+  const ov = WORKFLOW_OVERRIDES.find((o) => low.includes(o));
+  return ov ? { kind: "override", detail: ov } : undefined;
 }

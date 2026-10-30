@@ -1,0 +1,38 @@
+/* React Native panel. Tokens only. */
+.rn { container-type: inline-size; display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3); min-width: 0; height: 100%; overflow: auto; background: var(--surface-1); color: var(--text-1); }
+.rn__bar { display: flex; align-items: center; gap: var(--space-1); }
+.rn__title { margin: 0; font-size: var(--text-md); font-weight: var(--weight-semibold); }
+.rn-spacer { flex: 1 1 0; }
+.rn-card { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-2); border-radius: var(--radius-3); background: var(--surface-0); box-shadow: inset 0 0 0 1px var(--border-subtle); min-width: 0; }
+.rn-card__head { display: flex; align-items: center; gap: var(--space-1); flex-wrap: wrap; min-width: 0; }
+.rn-h { margin: 0; font-size: var(--text-sm); font-weight: var(--weight-semibold); }
+.rn-sub { margin: var(--space-1) 0 0; font-size: var(--text-xs); color: var(--text-3); font-weight: var(--weight-medium); text-transform: uppercase; letter-spacing: 0.04em; }
+.rn-meta { color: var(--text-3); font-size: var(--text-xs); overflow-wrap: anywhere; }
+.rn-facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--space-1) var(--space-3); margin: 0; }
+.rn-fact { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.rn-fact dt { color: var(--text-3); font-size: var(--text-xs); }
+.rn-fact dd { margin: 0; font-size: var(--text-sm); font-family: var(--font-mono); overflow-wrap: anywhere; }
+.rn-fact dd[data-tone="ok"] { color: var(--ok); }
+.rn-fact dd[data-tone="warn"] { color: var(--warn); }
+.rn-note { display: flex; align-items: flex-start; gap: 6px; margin: 0; color: var(--warn); font-size: var(--text-sm); overflow-wrap: anywhere; min-width: 0; }
+.rn-error { margin: 0; padding: var(--space-1) var(--space-2); border-radius: var(--radius-2); background: var(--danger-subtle); color: var(--danger); font-size: var(--text-sm); overflow-wrap: anywhere; }
+.rn-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.rn-row { display: flex; align-items: center; gap: var(--space-1); min-height: var(--row); flex-wrap: wrap; padding-left: var(--space-1); box-shadow: inset 2px 0 0 var(--border-subtle); }
+.rn-row[data-state="booted"], .rn-row[data-state="device"] { box-shadow: inset 2px 0 0 var(--ok); }
+.rn-row__name { font-size: var(--text-sm); min-width: 0; max-width: 100%; }
+.rn-log { margin: 0; padding: var(--space-2); overflow: auto; max-height: 220px; border-radius: var(--radius-3); background: var(--surface-1); box-shadow: inset 0 0 0 1px var(--border-subtle); font-family: var(--font-mono); font-size: var(--text-xs); line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.rn-log--lines { white-space: normal; min-height: 64px; }
+.rn-line { white-space: pre-wrap; overflow-wrap: anywhere; }
+.rn-line[data-level="warn"] { color: var(--warn); }
+.rn-line[data-level="error"] { color: var(--danger); }
+.rn-chips { display: flex; align-items: center; gap: var(--space-1); flex-wrap: wrap; }
+.rn-chip { all: unset; box-sizing: border-box; cursor: pointer; padding: 2px var(--space-2); border-radius: var(--radius-full); font-size: var(--text-xs); color: var(--text-2); box-shadow: inset 0 0 0 1px var(--border); }
+.rn-chip:hover { background: var(--surface-hover); }
+.rn-chip[aria-pressed="true"] { background: var(--accent-subtle); color: var(--accent-text); box-shadow: inset 0 0 0 1px var(--accent-border); }
+.rn-chip:focus-visible { outline: 2px solid var(--focus-color); outline-offset: 1px; }
+.rn-error-card { display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-2); border-radius: var(--radius-2); background: var(--danger-subtle); box-shadow: inset 0 0 0 1px var(--danger-border); }
+.rn-error-card header { display: flex; align-items: center; gap: var(--space-1); flex-wrap: wrap; color: var(--danger); }
+.rn-error-card p { margin: 0; font-size: var(--text-sm); }
+.rn-error-card footer { display: flex; align-items: center; gap: var(--space-1); flex-wrap: wrap; }
+.rn-snippet { display: block; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--text-2); overflow-wrap: anywhere; white-space: pre-wrap; }
+.rn-reasons { margin: 0; padding-left: var(--space-3); font-size: var(--text-sm); }

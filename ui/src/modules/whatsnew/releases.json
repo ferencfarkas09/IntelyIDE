@@ -3,10 +3,76 @@
     "version": "1.14.0",
     "date": "2026-10-28",
     "headline": {
-      "en": "A Versions panel for every repository in your workspace, and registration that works.",
-      "hu": "Verziók panel a munkaterület minden repójához, és regisztráció, amely működik."
+      "en": "Built for vibe coders: choose the model and effort of every run, a Glass look, a Dashboard, and tools for React, React Native, iOS, Android and Node.",
+      "hu": "Vibe coderekre szabva: minden futtatásnál választható modell és erőfeszítés, Glass kinézet, Irányítópult, és eszközök React, React Native, iOS, Android és Node projektekhez."
     },
     "notes": [
+      {
+        "kind": "new",
+        "title": {
+          "en": "Choose the model, the effort and ultracode of every run",
+          "hu": "Minden futtatásnál választható modell, erőfeszítés és ultracode"
+        },
+        "text": {
+          "en": "New run now has a model list, an effort list (low to max) and an Ultracode switch. Ultracode lets the run start sub-agents in any permission mode; they follow the same hard stops as the run itself. Leave it alone and nothing changes.",
+          "hu": "Az Új futtatás ablakban mostantól modell- és erőfeszítés-lista (alacsonytól a maximumig) és Ultracode kapcsoló van. Az Ultracode bármelyik engedélymódban engedi al-ügynökök indítását; rájuk ugyanazok a kemény tiltások vonatkoznak, mint a futtatásra. Ha nem nyúlsz hozzá, semmi sem változik."
+        }
+      },
+      {
+        "kind": "new",
+        "title": {
+          "en": "Glass look in light and dark",
+          "hu": "Glass kinézet világos és sötét témában"
+        },
+        "text": {
+          "en": "Settings > Appearance > Style: Glass gives translucent panels over a soft gradient, rounded cards and sparkline tiles. New installs start with it; existing installs keep Standard.",
+          "hu": "Beállítások > Megjelenés > Stílus: a Glass áttetsző paneleket, lágy színátmenetet, lekerekített kártyákat és sparkline csempéket ad. Új telepítésen ez az alapértelmezett; a meglévő telepítések Standard-on maradnak."
+        }
+      },
+      {
+        "kind": "new",
+        "title": {
+          "en": "Dashboard, menu-bar usage and the Needs-You radar",
+          "hu": "Irányítópult, menüsávi használat és a Needs-You radar"
+        },
+        "text": {
+          "en": "A Dashboard tab shows your runs, plan burn-down, repositories and servers on cards. A small radar window lists the runs that are waiting for you.",
+          "hu": "Az Irányítópult fül kártyákon mutatja a futtatásaidat, a csomag fogyását, a repókat és a szervereket. Egy kis radarablak felsorolja a rád váró futtatásokat."
+        }
+      },
+      {
+        "kind": "new",
+        "title": {
+          "en": "Prompt library, Fix with agent, CLAUDE.md, setup doctor and safety presets",
+          "hu": "Promptkönyvtár, Javítás ügynökkel, CLAUDE.md, beállítás-ellenőrző és biztonsági készletek"
+        },
+        "text": {
+          "en": "Keep the prompts you reuse, turn an error into a new run with one click (secrets are masked), see exactly what CLAUDE.md tells a run, check your tools, and pick Careful, Balanced or Autonomous.",
+          "hu": "Tárold az újrahasznált promptokat, egy kattintással indíts futtatást egy hibából (a titkok maszkolva), nézd meg pontosan, mit mond a CLAUDE.md egy futtatásnak, ellenőrizd az eszközeidet, és válassz Óvatos, Kiegyensúlyozott vagy Önálló módot."
+        }
+      },
+      {
+        "kind": "new",
+        "title": {
+          "en": "Undo a step, tests after a run, and a plain summary",
+          "hu": "Lépés visszavonása, tesztek a futtatás után, és érthető összegzés"
+        },
+        "text": {
+          "en": "A run keeps checkpoints you can go back to, can run your unit tests when it ends, and says in plain words what changed and what to check.",
+          "hu": "A futtatás visszaállítási pontokat tart, a végén lefuttathatja a unit teszteket, és érthetően megmondja, mi változott és mit érdemes ellenőrizni."
+        }
+      },
+      {
+        "kind": "new",
+        "title": {
+          "en": "React Native, iOS, Android, CSS and Node tools",
+          "hu": "React Native, iOS, Android, CSS és Node eszközök"
+        },
+        "text": {
+          "en": "Panels for the React Native device loop, iOS and Android project health, CSS and SCSS tokens and unused styles, React accessibility, Node routes, .env checks and dependency audits. They only read, and each finding has an Ask agent to fix button.",
+          "hu": "Panelek a React Native eszközciklushoz, az iOS és Android projekt állapotához, a CSS és SCSS tokenekhez és használaton kívüli stílusokhoz, a React akadálymentességhez, Node útvonalakhoz, .env ellenőrzéshez és függőségi auditokhoz. Csak olvasnak, és minden találathoz tartozik egy Kérd az ügynököt a javításra gomb."
+        }
+      },
       {
         "kind": "new",
         "title": {

@@ -34,6 +34,91 @@ fn whitelisted(key: &str) -> bool {
     matches!(key, "PATH" | "HOME" | "USER" | "LANG" | "SSH_AUTH_SOCK" | "NVM_DIR" | "GNUPGHOME") || key.starts_with("LC_")
 }
 
+/// Variables a Windows program needs to start at all, kept in addition to the portable allow-lists on Windows only: Node
+/// and its crypto read `SystemRoot`, `.cmd` shims need `ComSpec` and `PATHEXT`, the CLIs keep their data under `USERPROFILE`,
+/// `APPDATA` and `LOCALAPPDATA`, temporary files go to `TEMP`/`TMP`. None of them carries a credential.
+/// `CLAUDE_CODE_GIT_BASH_PATH` tells Claude Code where Git Bash is when it is not on the default path.
+pub const WINDOWS_ENV: &[&str] = &[
+    "SystemRoot",
+    "SystemDrive",
+    "windir",
+    "ComSpec",
+    "PATHEXT",
+    "USERPROFILE",
+    "USERNAME",
+    "HOMEDRIVE",
+    "HOMEPATH",
+    "APPDATA",
+    "LOCALAPPDATA",
+    "TEMP",
+    "TMP",
+    "ProgramFiles",
+    "ProgramFiles(x86)",
+    "ProgramW6432",
+    "ProgramData",
+    "CommonProgramFiles",
+    "OS",
+    "PROCESSOR_ARCHITECTURE",
+    "NUMBER_OF_PROCESSORS",
+    "CLAUDE_CODE_GIT_BASH_PATH",
+];
+
+/// The canonical spelling of `key` when it is `PATH` or one of [`WINDOWS_ENV`]. Windows names are case-insensitive and
+/// arrive as `Path` or `WINDIR` as often as not; a map lookup of `PATH` must still find them.
+pub fn windows_env_name(key: &str) -> Option<&'static str> {
+    if key.eq_ignore_ascii_case("PATH") {
+        return Some("PATH");
+    }
+    WINDOWS_ENV.iter().copied().find(|n| n.eq_ignore_ascii_case(key))
+}
+
+/// Whether a kept Windows variable has a value that may pass: `CLAUDE_CODE_GIT_BASH_PATH` (Claude Code runs that program as its
+/// shell) only as an absolute local path to a `bash.exe`; every other name as it is.
+pub fn windows_env_value_ok(name: &str, value: &str) -> bool {
+    if name != "CLAUDE_CODE_GIT_BASH_PATH" {
+        return true;
+    }
+    let b = value.as_bytes();
+    let drive = b.len() >= 3 && b[0].is_ascii_alphabetic() && b[1] == b':' && (b[2] == b'\\' || b[2] == b'/');
+    let file = value.rsplit(['\\', '/']).next().unwrap_or("");
+    drive && file.eq_ignore_ascii_case("bash.exe") && !value.contains("..") && !value[2..].contains(':')
+}
+
+/// Folds `vars` into the names `name_of` keeps, the same way on every run: an entry spelled exactly like its kept name wins
+/// over another spelling (`PATH` over `Path`), otherwise the first in sorted key order. Values [`windows_env_value_ok`] refuses
+/// are dropped. Mirrors `foldEnv` in sidecar/src/env.ts.
+pub fn fold_env<'a>(vars: impl IntoIterator<Item = (&'a str, &'a str)>, name_of: impl Fn(&str) -> Option<String>) -> BTreeMap<String, String> {
+    let mut sorted: Vec<(&str, &str)> = vars.into_iter().collect();
+    sorted.sort();
+    let mut out: BTreeMap<String, (String, bool)> = BTreeMap::new();
+    for (k, v) in sorted {
+        let Some(name) = name_of(k) else { continue };
+        if !windows_env_value_ok(&name, v) {
+            continue;
+        }
+        let exact = k == name;
+        match out.get(&name) {
+            Some((_, true)) => {}
+            Some((_, false)) if !exact => {}
+            _ => {
+                out.insert(name, (v.to_owned(), exact));
+            }
+        }
+    }
+    out.into_iter().map(|(k, (v, _))| (k, v)).collect()
+}
+
+/// The name under which `key` survives the hook allow-list, or `None`. `windows` adds [`WINDOWS_ENV`] and the
+/// case-insensitive match of Windows; it is a parameter so that both platforms' rules are tested everywhere.
+fn hook_key(key: &str, windows: bool) -> Option<String> {
+    if windows {
+        if let Some(n) = windows_env_name(key) {
+            return Some(n.to_owned());
+        }
+    }
+    whitelisted(key).then(|| key.to_owned())
+}
+
 pub struct EnvOptions {
     /// Where the resolved environment is cached; `None` disables the cache.
     pub cache_path: Option<PathBuf>,
@@ -266,7 +351,8 @@ fn fingerprint(shell: &Path) -> String {
 /// Windows has no login shell to ask: a GUI app gets the user's full environment from Explorer.
 #[cfg(not(unix))]
 async fn probe_shell(_shell: &Path, _timeout: Duration) -> Result<BTreeMap<String, String>, String> {
-    let vars: BTreeMap<String, String> = std::env::vars().filter(|(k, _)| whitelisted(k) || k.eq_ignore_ascii_case("PATH")).map(|(k, v)| (if k.eq_ignore_ascii_case("PATH") { "PATH".to_owned() } else { k }, v)).collect();
+    let all: Vec<(String, String)> = std::env::vars().collect();
+    let vars = fold_env(all.iter().map(|(k, v)| (k.as_str(), v.as_str())), |k| hook_key(k, true));
     if vars.contains_key("PATH") { Ok(vars) } else { Err("the process has no PATH".to_owned()) }
 }
 
@@ -310,7 +396,7 @@ fn parse_env_dump(stdout: &[u8]) -> Option<BTreeMap<String, String>> {
         .filter_map(|rec| {
             let rec = String::from_utf8_lossy(rec);
             let (k, v) = rec.split_once('=')?;
-            whitelisted(k).then(|| (k.to_owned(), v.to_owned()))
+            hook_key(k, false).map(|k| (k, v.to_owned()))
         })
         .collect();
     vars.contains_key("PATH").then_some(vars)
@@ -351,10 +437,59 @@ mod tests {
     }
 
     #[test]
+    fn the_windows_rules_keep_what_programs_need_to_start_and_fold_the_case() {
+        assert_eq!(hook_key("Path", true).as_deref(), Some("PATH"));
+        assert_eq!(hook_key("SYSTEMROOT", true).as_deref(), Some("SystemRoot"));
+        assert_eq!(hook_key("WINDIR", true).as_deref(), Some("windir"));
+        for k in ["ComSpec", "PATHEXT", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "TEMP", "TMP", "ProgramFiles", "ProgramData"] {
+            assert_eq!(hook_key(k, true).as_deref(), Some(k), "{k} must reach a Windows child");
+            assert_eq!(hook_key(k, false), None, "{k} is not kept on macOS");
+        }
+        assert_eq!(hook_key("LANG", true).as_deref(), Some("LANG"), "the portable list still applies");
+        for k in ["GITHUB_TOKEN", "AWS_SECRET_ACCESS_KEY", "COMPUTERNAME", "USERDOMAIN", "Path2"] {
+            assert_eq!(hook_key(k, true), None, "{k} must be dropped");
+        }
+        assert_eq!(hook_key("Path", false), None, "macOS names are case-sensitive");
+        assert_eq!(windows_env_name("programfiles(x86)"), Some("ProgramFiles(x86)"));
+    }
+
+    #[test]
+    fn folding_is_ascii_only_deterministic_and_checks_the_git_bash_path() {
+        let keep = |k: &str| hook_key(k, true);
+        // the exact spelling wins, whatever the order the variables come in
+        for order in [[("Path", "B"), ("PATH", "A")], [("PATH", "A"), ("Path", "B")]] {
+            assert_eq!(fold_env(order, keep)["PATH"], "A");
+        }
+        // otherwise the first in sorted key order
+        assert_eq!(fold_env([("path", "lower"), ("Path", "mixed")], keep)["PATH"], "mixed");
+        // non-ASCII look-alikes never fold into a kept name
+        let odd = fold_env([("\u{17f}ystemRoot", "x"), ("ProgramF\u{131}les", "y")], keep);
+        assert!(odd.is_empty(), "{odd:?}");
+        // the Git Bash path must be an absolute local path to bash.exe
+        for ok in [r"C:\Program Files\Git\bin\bash.exe", "D:/Git/usr/bin/BASH.EXE"] {
+            assert!(windows_env_value_ok("CLAUDE_CODE_GIT_BASH_PATH", ok), "{ok}");
+        }
+        for bad in ["bash.exe", r"\\host\share\bash.exe", r"C:\Windows\System32\cmd.exe", r"C:\x\..\evil\bash.exe", r"C:\x\bash.exe:ads", "", "powershell -c x"] {
+            assert!(!windows_env_value_ok("CLAUDE_CODE_GIT_BASH_PATH", bad), "{bad}");
+        }
+        assert!(!fold_env([("CLAUDE_CODE_GIT_BASH_PATH", "cmd.exe")], keep).contains_key("CLAUDE_CODE_GIT_BASH_PATH"));
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn the_windows_probe_keeps_systemroot_and_a_canonical_path() {
+        let vars = probe_shell(Path::new("unused"), SHELL_BUDGET).await.unwrap();
+        assert!(vars.contains_key("PATH"));
+        assert!(vars.contains_key("SystemRoot"), "Node cannot start without SystemRoot: {:?}", vars.keys().collect::<Vec<_>>());
+        assert!(!vars.keys().any(|k| k != "PATH" && k.eq_ignore_ascii_case("PATH")));
+    }
+
+    #[test]
     fn fallback_path_keeps_the_process_path_and_appends_the_documented_dirs() {
         let p = fallback_path();
-        for d in FALLBACK_PATH.split(':') {
-            assert!(p.split(':').any(|x| x == d), "{d} missing in {p}");
+        // the platform's own separator; Windows has no fallback directories to append
+        for d in std::env::split_paths(FALLBACK_PATH).filter(|d| !d.as_os_str().is_empty()) {
+            assert!(std::env::split_paths(&p).any(|x| x == d), "{} missing in {p}", d.display());
         }
         let r = EnvResolver::with_options("git", EnvOptions { cache_path: None, ..Default::default() });
         assert_eq!(r.hook_env()["PATH"], p);

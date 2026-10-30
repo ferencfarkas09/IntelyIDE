@@ -2,6 +2,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { buildChildEnv } from '../../env.js';
+import { claudeExecutable, commandOf } from '../../winbin.js';
 import { loadSdk, SdkError } from '../../sdk.js';
 import type { AgentProvider, DetectContext, Detection, ModelInfo, ProviderCaps } from '../../types.js';
 import { staticCaps, toModelInfo } from './caps.js';
@@ -19,7 +20,8 @@ const provider: AgentProvider = {
   async detect(ctx: DetectContext): Promise<Detection> {
     if (!ctx.claudeBin) return { installed: false, auth: 'unknown' };
     try {
-      const { stdout } = await run(ctx.claudeBin, ['--version'], { timeout: 5000, env: buildChildEnv({}, { mode: 'subscription', key: null }).env });
+      const { cmd, args } = commandOf(claudeExecutable(ctx.claudeBin));
+      const { stdout } = await run(cmd, [...args, '--version'], { timeout: 5000, env: buildChildEnv({}, { mode: 'subscription', key: null }).env });
       const found: Detection = { installed: true, version: stdout.trim().split(/\s+/)[0], path: ctx.claudeBin, auth: 'unknown' };
       // The CLI is there, so this is never "not installed"; a missing/unverified SDK is a prefixed message (sdk_missing: ...) for the card.
       try { await loadSdk(); } catch (e) { if (e instanceof SdkError) return { ...found, message: e.message }; throw e; }
@@ -39,7 +41,7 @@ const provider: AgentProvider = {
     const q = query({
       prompt: never,
       options: {
-        pathToClaudeCodeExecutable: ctx.claudeBin,
+        pathToClaudeCodeExecutable: claudeExecutable(ctx.claudeBin),
         settingSources: [], strictMcpConfig: true, mcpServers: {},
         settings: settingsOverlay({}) as never,
         env: buildChildEnv({}, { mode: 'subscription', key: null }).env,

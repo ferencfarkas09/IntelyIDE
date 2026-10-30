@@ -371,7 +371,8 @@ async fn a_changed_host_key_has_its_own_code_and_no_trust_path() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_master_that_dies_is_reported_once_and_never_reopened() {
     let fx = fx();
-    fx.mode("die-after-n-seconds 1");
+    // the master must outlive opening even on a cold, loaded CI machine (it died after 1 s before the tunnel was ready)
+    fx.mode("die-after-n-seconds 3");
     let launcher = Arc::new(CountingLauncher::default());
     let mut e = env_for(&fx, FakeProcs::permissive());
     e.launcher = launcher.clone();
@@ -381,7 +382,7 @@ async fn a_master_that_dies_is_reported_once_and_never_reopened() {
     t.on_exit(Box::new(move || {
         h.fetch_add(1, Ordering::SeqCst);
     }));
-    assert!(wait_until(Duration::from_secs(8), || hits.load(Ordering::SeqCst) == 1), "the exit callback fired");
+    assert!(wait_until(Duration::from_secs(20), || hits.load(Ordering::SeqCst) == 1), "the exit callback fired");
     assert_eq!(t.state(), TunnelState::Down);
     // a callback registered afterwards runs at once
     let late = Arc::new(AtomicUsize::new(0));

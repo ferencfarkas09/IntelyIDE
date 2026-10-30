@@ -1,9 +1,10 @@
 import { t } from "../../i18n";
 import { createEffect, For, on, onCleanup, onMount, Show } from "solid-js";
+import { SendToAgentMenu } from "../../components/SendToAgentMenu";
 import { setToolWindow } from "../../platform/rail";
 import { workspace } from "../../store/workspace";
 import { ChevronDown, Icon, IconButton, Menu, Plus, RepoBadge, SquareTerminal, X, type MenuEntry } from "../../ui-kit";
-import { activateTerminal, activeTerminalId, closeTerminal, defaultRepoId, openTerminal, terminals, viewOf, type TerminalInfo } from "./store";
+import { activateTerminal, activeTerminalId, closeTerminal, defaultRepoId, openTerminal, terminalErrorInput, terminals, viewOf, type TerminalInfo } from "./store";
 import "./terminal.css";
 
 function Tab(props: { tab: TerminalInfo }) {
@@ -84,6 +85,7 @@ export default function TerminalPanel() {
         <div class="term__tabs" role="tablist" aria-label={t("term.tabs")}>
           <For each={terminals()}>{(tab) => <Tab tab={tab} />}</For>
         </div>
+        <SendToAgentMenu collect={() => terminalErrorInput()} disabled={!activeTerminalId()} />
         <IconButton icon={Plus} label={t("term.new")} size="sm" onClick={() => void openTerminal({ repoId: defaultRepoId() })} />
         <Show when={repoMenu().length > 1}>
           <Menu

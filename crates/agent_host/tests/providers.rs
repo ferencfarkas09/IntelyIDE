@@ -48,7 +48,7 @@ fn role(cfg: &HostConfig, permission: PermissionMode) -> roles::RoleDef {
 }
 
 fn start(host: &AgentHost, role: &roles::RoleDef, repo: &RepoRef, provider: &str) -> Result<intely_agent_core::api::AgentSummary, intely_core::EngineError> {
-    let req = AgentStartRequest { role: role.name.clone(), repo_ids: vec![repo.id.clone()], prompt: "go".into(), mode: None, mcp_servers: None };
+    let req = AgentStartRequest { role: role.name.clone(), repo_ids: vec![repo.id.clone()], prompt: "go".into(), mode: None, mcp_servers: None, ..Default::default() };
     host.start_role_with(role, req, std::slice::from_ref(repo), StartOptions { provider: Some(provider.into()), ..Default::default() })
 }
 

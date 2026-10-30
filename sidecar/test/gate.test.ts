@@ -644,3 +644,40 @@ describe('CLI-originated prompts in an unattended run (6.3 item 9)', () => {
     expect(kinds(out, 'permission.request')[0]).toMatchObject({ options: ['allow_once', 'deny'] });
   });
 });
+
+describe('a workflow helper agent (ultracode) in a run of one role', () => {
+  it('reaches policy with its own actor from the hook input, and a git push of it is refused', async () => {
+    const seen: any[] = [];
+    const { gate, denied } = rig({ decide: async (r) => { seen.push(r); return { decision: 'deny', by: 'hardStop', reason: 'git push is human-only', rule: 'git.push' }; } }, { mode: 'bypass' });
+    const r = await hook(gate, 'Bash', { command: 'git push origin main' }, 'wf-t1', { agent_id: 'wf-agent-1', agent_type: 'workflow-agent' });
+    expect(seen[0].intent).toMatchObject({ class: 'exec', rawCommand: 'git push origin main', actor: { agentId: 'wf-agent-1', role: 'workflow-agent' } });
+    expect(decisionOf(r)).toMatchObject({ permissionDecision: 'deny' });
+    expect(denied.has('wf-t1')).toBe(true);
+  });
+
+  it('a Workflow call of the lead is judged by policy like any other tool (no actor, the script is never sent)', async () => {
+    const seen: any[] = [];
+    const { gate } = rig({ decide: async (r) => { seen.push(r); return { decision: 'allow', by: 'default', rule: 'workflow.ultracode' }; } }, { mode: 'automatic' });
+    expect(await hook(gate, 'Workflow', { script: "export const meta = { name: 'x' }\nawait agent('do it')" }, 'wf-0')).toEqual({ continue: true });
+    expect(seen[0].intent).toMatchObject({ class: 'other', tool: 'Workflow' });
+    expect(seen[0].intent.actor).toBeUndefined();
+    expect(JSON.stringify(seen[0])).not.toContain('do it');
+  });
+});
+
+describe('the PreToolUse payload of a workflow helper (the shape the CLI sends; the live CLI was not run here)', () => {
+  it('copies agent_id and agent_type into the intent actor, and nothing else of the payload', async () => {
+    const seen: any[] = [];
+    const { gate } = rig({ decide: async (r) => { seen.push(r); return { decision: 'deny', by: 'hardStop', reason: 'git commit is human-only', rule: 'git.commit' }; } }, { mode: 'automatic' });
+    const payload = {
+      session_id: 'b7d1c0de-0000-4000-8000-000000000001', transcript_path: '/home/u/.claude/projects/p/s.jsonl', cwd: '/repo', permission_mode: 'acceptEdits',
+      hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'git commit -am wip', description: 'commit' }, tool_use_id: 'toolu_wf_1',
+      agent_id: 'a9f3e2', agent_type: 'workflow-agent',
+    };
+    const r = await gate.preToolUse(payload as never, 'toolu_wf_1', { signal: new AbortController().signal });
+    expect(seen[0].intent.actor).toEqual({ agentId: 'a9f3e2', role: 'workflow-agent' });
+    expect(seen[0].intent).toMatchObject({ class: 'exec', rawCommand: 'git commit -am wip' });
+    expect(JSON.stringify(seen[0])).not.toContain('transcript_path');
+    expect(decisionOf(r)).toMatchObject({ permissionDecision: 'deny' });
+  });
+});

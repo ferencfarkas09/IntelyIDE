@@ -56,7 +56,11 @@ The Claude provider needs the Anthropic Agent SDK. It is not distributed with In
 
 ### Which Macs and macOS versions are supported?
 
-macOS 13.5 or later, on an Intel or an Apple Silicon Mac. A release is one universal disk image (`IntelyIDE_<version>_universal.dmg`) that runs natively on both; it has been used mostly on an Intel Mac, so the Apple Silicon half has had less use. Windows and Linux are not supported.
+macOS 13.5 or later, on an Intel or an Apple Silicon Mac. A release is one universal disk image (`IntelyIDE_<version>_universal.dmg`) that runs natively on both; it has been used mostly on an Intel Mac, so the Apple Silicon half has had less use.
+
+### Does it run on Windows or Linux?
+
+Windows 10 and 11 (x86_64) are an **unsigned beta**: the installers are not code-signed, so SmartScreen warns on the first start (More info, then Run anyway), the build has had little use on Windows desktops, and the agent safety is weaker there (the git guard can be bypassed more easily and there is no process or memory watch per run; the enforcement chip shows Best effort at most). Read [install-windows.md](install-windows.md) before you use it. Linux compiles and passes the tests in CI but is not supported.
 
 ## Installing and starting
 

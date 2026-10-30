@@ -43,6 +43,9 @@ export type DeletedFile = {
 	path: string,
 };
 
+/**  Abstract effort ladder; resolution clamps the role's request to `ModelInfo::effort_levels`. */
+export type Effort = "low" | "medium" | "high" | "xhigh" | "max";
+
 /**  Why a role is not handed to the Auto lead (mirrors `intely_agent_core::delegates::ExcludeReason`). */
 export type ExcludeReason = "hidden" | "otherProvider" | "noDescription" | "reservedName" | "promptTooLarge" | "repoScope" | "tooMany" | "untrusted";
 
@@ -352,6 +355,12 @@ export type RunsStartRequest = {
 	 *  are accepted; `bypass` is refused at enqueue (`bypassNotConfirmed`) and `automatic` while the kill switch is on (`modeDisabled`).
 	 */
 	mode?: PermissionMode | null,
+	/**  The model of this run (absent = the role's own); any id passes through unchanged. */
+	model?: string | null,
+	/**  The effort of this run (absent = the role's own). */
+	effort?: Effort | null,
+	/**  Ultracode: the lead may start the Workflow tool. Absent or false = off. */
+	ultracode?: boolean | null,
 };
 
 /**  A repository whose `.claude/agents` directory was not read (a symlink, or outside the repository). */

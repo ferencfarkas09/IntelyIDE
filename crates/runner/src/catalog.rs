@@ -1,7 +1,8 @@
 //! Script discovery for one repo: `package.json` scripts (name, group, safety, heavy flag, env var names) plus a few
-//! synthetic `cargo` entries. The catalog never carries a body. A body is only available through [`display_command`],
+//! synthetic `cargo` entries, and a synthetic `pytest` entry when the repo carries pytest markers. The catalog never carries a body. A body is only available through [`display_command`],
 //! masked and with env var values replaced, when the user asks for it. The files read are `package.json`,
-//! `Cargo.toml` (existence) and `src-tauri/tauri.conf.json`; `.env*` files are never opened.
+//! `Cargo.toml` (existence), `src-tauri/tauri.conf.json` and the pytest markers (`pytest.ini`, `conftest.py`, the
+//! `[tool.pytest` table of `pyproject.toml`); `.env*` files are never opened.
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::path::Path;
@@ -28,6 +29,7 @@ pub fn catalog(repo_id: &str, repo: &Path) -> Result<Catalog, EngineError> {
     let (pm, scripts, notes) = load(repo)?;
     let mut infos: Vec<ScriptInfo> = scripts.iter().map(|(name, body)| npm_info(name, body, &scripts, &pm, repo)).collect();
     infos.extend(cargo_scripts(repo));
+    infos.extend(pytest_scripts(repo));
     infos.sort_by(|a, b| (group_rank(&a.group), a.source != "npm", priority(&a.name), &a.name).cmp(&(group_rank(&b.group), b.source != "npm", priority(&b.name), &b.name)));
     Ok(Catalog { repo_id: repo_id.to_owned(), package_manager: pm, scripts: infos, notes })
 }
@@ -44,6 +46,10 @@ pub fn plan(repo: &Path, script_id: &str) -> Result<Plan, EngineError> {
         }
         return Ok(Plan { argv, info });
     }
+    if script_id == PYTEST_ID {
+        let info = pytest_scripts(repo).into_iter().next().ok_or_else(unknown)?;
+        return Ok(Plan { argv: PYTEST_ARGV.iter().map(|s| (*s).to_owned()).collect(), info });
+    }
     let name = script_id.strip_prefix("npm:").ok_or_else(unknown)?;
     let (pm, scripts, _) = load(repo)?;
     let body = scripts.get(name).filter(|_| !name.starts_with('-') && !name.contains('\0')).ok_or_else(unknown)?;
@@ -55,6 +61,9 @@ pub fn plan(repo: &Path, script_id: &str) -> Result<Plan, EngineError> {
 pub fn display_command(repo: &Path, script_id: &str) -> Result<String, EngineError> {
     if let Some(kind) = script_id.strip_prefix("cargo:") {
         return Ok(format!("cargo {kind}"));
+    }
+    if script_id == PYTEST_ID {
+        return Ok(PYTEST_ARGV.join(" "));
     }
     let name = script_id.strip_prefix("npm:").unwrap_or(script_id);
     let (_, scripts, _) = load(repo)?;
@@ -83,7 +92,7 @@ fn priority(name: &str) -> u8 {
     }
 }
 
-type Scripts = BTreeMap<String, String>;
+pub(crate) type Scripts = BTreeMap<String, String>;
 
 fn read_json(path: &Path) -> Option<serde_json::Value> {
     let meta = std::fs::metadata(path).ok()?;
@@ -93,7 +102,7 @@ fn read_json(path: &Path) -> Option<serde_json::Value> {
     serde_json::from_slice(&std::fs::read(path).ok()?).ok()
 }
 
-fn load(repo: &Path) -> Result<(String, Scripts, Vec<String>), EngineError> {
+pub(crate) fn load(repo: &Path) -> Result<(String, Scripts, Vec<String>), EngineError> {
     let mut notes = Vec::new();
     let mut scripts = Scripts::new();
     let pkg = repo.join("package.json");
@@ -110,7 +119,7 @@ fn load(repo: &Path) -> Result<(String, Scripts, Vec<String>), EngineError> {
             }
             None => notes.push("package.json could not be read (invalid or larger than 2 MB).".to_owned()),
         }
-    } else if cargo_manifest(repo).is_none() {
+    } else if cargo_manifest(repo).is_none() && !has_pytest(repo) {
         return Err(EngineError::new(code::IO, "the repo has no package.json or Cargo.toml"));
     }
     let pm = ["pnpm-lock.yaml:pnpm", "yarn.lock:yarn", "bun.lockb:bun", "bun.lock:bun"]
@@ -149,13 +158,67 @@ fn cargo_scripts(repo: &Path) -> Vec<ScriptInfo> {
     ]
 }
 
+/// The id of the synthetic pytest entry; its argv is fixed and never comes from a file.
+pub const PYTEST_ID: &str = "pytest:test";
+const PYTEST_ARGV: [&str; 4] = ["python3", "-m", "pytest", "-q"];
+const MAX_PYPROJECT_BYTES: u64 = 512 * 1024;
+
+/// Whether the repo root says it uses pytest: `pytest.ini`, `conftest.py`, or a `[tool.pytest` table in `pyproject.toml`.
+pub(crate) fn has_pytest(repo: &Path) -> bool {
+    if repo.join("pytest.ini").is_file() || repo.join("conftest.py").is_file() {
+        return true;
+    }
+    let py = repo.join("pyproject.toml");
+    let small = std::fs::metadata(&py).is_ok_and(|m| m.is_file() && m.len() <= MAX_PYPROJECT_BYTES);
+    small && std::fs::read_to_string(&py).is_ok_and(|text| text.lines().any(|l| l.trim_start().starts_with("[tool.pytest")))
+}
+
+fn pytest_scripts(repo: &Path) -> Vec<ScriptInfo> {
+    if !has_pytest(repo) {
+        return Vec::new();
+    }
+    vec![ScriptInfo {
+        id: PYTEST_ID.to_owned(),
+        name: "pytest".to_owned(),
+        source: "pytest".to_owned(),
+        group: ScriptGroup::Test,
+        safety: Safety::Normal,
+        reasons: Vec::new(),
+        forbidden_to_agents: false,
+        heavy_mb: None,
+        env_names: Vec::new(),
+        port_hint: None,
+        runner: PYTEST_ARGV.join(" "),
+    }]
+}
+
 /// Lower-case alphanumeric words of a script name or body (`test:e2e:full` -> test, e2e, full).
-fn words(text: &str) -> Vec<String> {
+pub(crate) fn words(text: &str) -> Vec<String> {
     text.split(|c: char| !c.is_ascii_alphanumeric()).filter(|w| !w.is_empty()).map(str::to_ascii_lowercase).collect()
 }
 
-/// A script together with the scripts it runs through `npm run x` / `pnpm x` style references.
-fn closure(name: &str, scripts: &Scripts) -> String {
+/// The words of a command line: shell separators (`& | ; ( ) < > ` and `$(`) become spaces, so `npm run ios&&echo` is
+/// `npm run ios echo`; quotes are trimmed and each word is lower-cased.
+fn command_words(text: &str) -> Vec<String> {
+    let spaced: String = text.chars().map(|c| if matches!(c, '&' | '|' | ';' | '(' | ')' | '<' | '>' | '`' | '$' | '{' | '}') { ' ' } else { c }).collect();
+    spaced.split_whitespace().map(|t| t.trim_matches(|c| matches!(c, '"' | '\'' | ',')).to_ascii_lowercase()).filter(|t| !t.is_empty()).collect()
+}
+
+const PACKAGE_MANAGERS: [&str; 4] = ["npm", "pnpm", "yarn", "bun"];
+/// How far after a package manager a script name may stand (`pnpm --filter app ios`, `npm run --silent ios`).
+const REF_WINDOW: usize = 6;
+
+/// The script a word of `npm`'s lifecycle aliases stands for (`npm t` runs `test`).
+fn alias(word: &str) -> &str {
+    match word {
+        "t" | "tst" => "test",
+        other => other,
+    }
+}
+
+/// A script together with the scripts it runs: through `npm run x`, `pnpm x`, `yarn x`, the lifecycle commands (`npm start`,
+/// `npm test`), and the `pre` and `post` hooks that npm runs around any script.
+pub(crate) fn closure(name: &str, scripts: &Scripts) -> String {
     fn walk(name: &str, scripts: &Scripts, depth: usize, seen: &mut HashSet<String>, out: &mut String) {
         if depth > REF_DEPTH || !seen.insert(name.to_owned()) {
             return;
@@ -163,10 +226,21 @@ fn closure(name: &str, scripts: &Scripts) -> String {
         let Some(body) = scripts.get(name) else { return };
         out.push_str(body);
         out.push('\n');
+        // npm runs pre<name> and post<name> around the script, and restart is stop, start and their hooks.
+        let mut next: Vec<String> = vec![format!("pre{name}"), format!("post{name}")];
+        if name == "restart" {
+            next.extend(["stop", "start"].map(str::to_owned));
+        }
         for other in scripts.keys() {
             if other != name && references(body, other) {
-                walk(other, scripts, depth + 1, seen, out);
+                next.push(other.clone());
             }
+        }
+        if installs(body) {
+            next.extend(["preinstall", "install", "postinstall", "prepublish", "preprepare", "prepare", "postprepare"].map(str::to_owned));
+        }
+        for n in next {
+            walk(&n, scripts, depth + 1, seen, out);
         }
     }
     let mut out = String::new();
@@ -174,10 +248,22 @@ fn closure(name: &str, scripts: &Scripts) -> String {
     out
 }
 
-/// Whether `body` runs script `other`: `npm run other`, `pnpm run other`, `yarn other`.
+/// Whether `body` runs a package manager's install (which runs the install hooks).
+fn installs(body: &str) -> bool {
+    let toks = command_words(body);
+    toks.iter().enumerate().any(|(i, t)| PACKAGE_MANAGERS.contains(&t.as_str()) && toks[i + 1..].iter().take(REF_WINDOW).any(|w| matches!(w.as_str(), "install" | "i" | "ci" | "add")))
+}
+
+/// Whether `body` runs script `other`: `npm run other` (also with flags between), `pnpm --filter app other`, `yarn workspace app
+/// other`, `npm start`, `npm test`, `run other`.
 fn references(body: &str, other: &str) -> bool {
-    let toks: Vec<&str> = body.split_whitespace().map(|t| t.trim_matches(|c| matches!(c, '"' | '\'' | ';' | ')' | '('))).collect();
-    toks.windows(2).any(|w| matches!(w[0], "run" | "run-script" | "yarn" | "pnpm" | "bun") && w[1] == other)
+    let toks = command_words(body);
+    let other = other.to_ascii_lowercase();
+    toks.iter().enumerate().any(|(i, t)| {
+        let after = &toks[i + 1..];
+        (PACKAGE_MANAGERS.contains(&t.as_str()) && after.iter().take(REF_WINDOW).any(|w| alias(w) == other))
+            || (matches!(t.as_str(), "run" | "run-script") && after.iter().take(REF_WINDOW).find(|w| !w.starts_with('-')).is_some_and(|w| *w == other))
+    })
 }
 
 fn heap_mb(text: &str) -> Option<u32> {
@@ -218,11 +304,34 @@ fn env_names(text: &str) -> Vec<String> {
     names.into_iter().collect()
 }
 
-const TEST_WORDS: [&str; 9] = ["test", "tests", "e2e", "jest", "vitest", "cypress", "playwright", "cover", "lambdatest"];
+const TEST_WORDS: [&str; 10] = ["test", "tests", "unit", "e2e", "jest", "vitest", "cypress", "playwright", "cover", "lambdatest"];
 const LINT_WORDS: [&str; 7] = ["lint", "eslint", "prettier", "format", "typecheck", "tsc", "check"];
 const BUILD_WORDS: [&str; 17] = [
     "build", "builder", "compile", "bundle", "dist", "pack", "export", "publish", "deploy", "release", "ipa", "aab", "apk", "sign", "analyze", "clean", "rebuild",
 ];
+/// Words that build the native app, or install it on a simulator or device, when they stand alone (`run:ios`, `xcodebuild`).
+const NATIVE_WORDS: [&str; 8] = ["run:ios", "run-ios", "run:android", "run-android", "build-ios", "build-android", "xcodebuild", "fastlane"];
+/// A program followed, within a few words, by a subcommand that starts with one of these: `expo prebuild`, `eas build`, `pod
+/// install`, `gradlew assembleRelease`.
+const NATIVE_PAIRS: [(&[&str], &[&str]); 5] = [
+    (&["expo", "expo-cli"], &["prebuild"]),
+    (&["eas", "eas-cli"], &["build", "submit"]),
+    (&["pod"], &["install", "update"]),
+    (&["gradlew", "gradle", "gradlew.bat"], &["assemble", "bundle", "install", "build", "publish", "upload"]),
+    (&["react-native", "rnc-cli"], &["build-ios", "build-android", "run-ios", "run-android"]),
+];
+
+/// Whether `text` runs a command that builds the native app and installs it on a simulator or device. Such a script is a
+/// build whatever it is called (`ios`, `android`, `device`): it takes minutes, writes `ios/build` or `android/app/build` and
+/// starts an app. Whole words only, after the separators are taken out and a path is cut to its program name.
+fn native_run(text: &str) -> bool {
+    let toks: Vec<String> = command_words(text).into_iter().map(|t| t.rsplit('/').next().unwrap_or("").to_owned()).collect();
+    toks.iter().enumerate().any(|(i, t)| {
+        NATIVE_WORDS.contains(&t.as_str())
+            || NATIVE_PAIRS.iter().any(|(progs, subs)| progs.contains(&t.as_str()) && toks[i + 1..].iter().take(4).filter(|w| !w.starts_with('-')).take(1).any(|w| subs.iter().any(|s| w.starts_with(s))))
+    })
+}
+
 const DEV_WORDS: [&str; 6] = ["dev", "serve", "watch", "web", "local", "nodemon"];
 const DEV_BODY: [&str; 9] = ["expo start", "webpack serve", "webpack-dev-server", "srcwebserver", "srcserver", "next dev", "vite", "nodemon", "react-scripts start"];
 
@@ -244,10 +353,13 @@ fn group_of(name: &str, body: &str, scripts: &Scripts) -> ScriptGroup {
     if has(&BUILD_WORDS) {
         return ScriptGroup::Build;
     }
+    let body_lower = body.to_ascii_lowercase();
+    if native_run(&closure(name, scripts)) {
+        return ScriptGroup::Build;
+    }
     if lower.starts_with("start") {
         return ScriptGroup::Start;
     }
-    let body_lower = body.to_ascii_lowercase();
     if has(&DEV_WORDS) || DEV_BODY.iter().any(|h| body_lower.contains(h)) {
         return ScriptGroup::Dev;
     }
@@ -286,6 +398,9 @@ fn reasons_of(name: &str, group: &ScriptGroup, closure_text: &str) -> Vec<String
     }
     if lower_body.contains("npm install") || lower_body.contains("npm i ") || lower_body.contains("yarn install") || lower_body.contains("pnpm install") {
         r.push("installs packages".to_owned());
+    }
+    if native_run(closure_text) {
+        r.push("builds the native app and installs it on a simulator or device".to_owned());
     }
     if *group == ScriptGroup::Build && r.is_empty() {
         r.push("build: writes output and is heavy".to_owned());
@@ -344,6 +459,103 @@ mod tests {
 
     fn find<'a>(c: &'a Catalog, name: &str) -> &'a ScriptInfo {
         c.scripts.iter().find(|s| s.name == name).unwrap_or_else(|| panic!("no script {name}"))
+    }
+
+    #[test]
+    fn scripts_that_build_and_install_the_native_app_are_builds_that_need_a_confirmation() {
+        let pkg = r#"{"scripts":{
+            "start":"expo start","ios":"expo run:ios","android":"react-native run-android",
+            "device":"npm run ios","xcode":"xcodebuild -workspace ios/App.xcworkspace","web":"expo start --web","lint":"eslint . && expo run:ios"
+        }}"#;
+        let dir = repo(&[("package.json", pkg)]);
+        let c = catalog("r", dir.path()).unwrap();
+        for name in ["ios", "android", "device", "xcode"] {
+            let s = find(&c, name);
+            assert_eq!((s.group.clone(), s.safety.clone(), s.forbidden_to_agents), (ScriptGroup::Build, Safety::Confirm, true), "{name}");
+            assert!(s.reasons.iter().any(|r| r.contains("simulator or device")) || name == "device" || name == "xcode", "{name}: {:?}", s.reasons);
+        }
+        assert_eq!(find(&c, "start").safety, Safety::Normal);
+        assert_eq!(find(&c, "web").safety, Safety::Normal);
+        assert_eq!(find(&c, "lint").group, ScriptGroup::Lint, "the name still wins for lint and test scripts");
+    }
+
+    fn safety_of(scripts: &[(&str, &str)], name: &str) -> (ScriptGroup, Safety) {
+        let body: serde_json::Map<String, serde_json::Value> = scripts.iter().map(|(k, v)| ((*k).to_owned(), serde_json::Value::String((*v).to_owned()))).collect();
+        let pkg = serde_json::json!({ "scripts": body }).to_string();
+        let dir = repo(&[("package.json", pkg.as_str())]);
+        let c = catalog("r", dir.path()).unwrap();
+        let s = find(&c, name);
+        (s.group.clone(), s.safety.clone())
+    }
+
+    /// Everything that ends in a native build or install must need a confirmation, however the script reaches it.
+    #[test]
+    fn native_builds_need_a_confirmation_however_they_are_reached() {
+        let build = ("expo run:ios", "ios");
+        let cases: &[(&[(&str, &str)], &str)] = &[
+            (&[("go", "npm start"), ("start", "expo run:ios")], "go"),
+            (&[("go", "npm test"), ("test", "expo run:ios")], "go"),
+            (&[("go", "npm t"), ("test", "expo run:ios")], "go"),
+            (&[("go", "npm run -s ios"), ("ios", build.0)], "go"),
+            (&[("go", "npm run --silent ios"), ("ios", build.0)], "go"),
+            (&[("go", "npm run ios&&echo done"), ("ios", build.0)], "go"),
+            (&[("go", "npm run ios||true"), ("ios", build.0)], "go"),
+            (&[("go", "npm run ios|tee out.log"), ("ios", build.0)], "go"),
+            (&[("go", "echo `npm run ios`"), ("ios", build.0)], "go"),
+            (&[("go", "echo $(npm run ios)"), ("ios", build.0)], "go"),
+            (&[("go", "(npm run ios)"), ("ios", build.0)], "go"),
+            (&[("go", "pnpm --filter app ios"), ("ios", build.0)], "go"),
+            (&[("go", "yarn workspace app ios"), ("ios", build.0)], "go"),
+            (&[("go", "npm run ios -- --device"), ("ios", build.0)], "go"),
+            (&[("ios", "echo"), ("preios", "expo run:ios")], "ios"),
+            (&[("ios", "echo"), ("postios", "xcodebuild -scheme App")], "ios"),
+            (&[("test", "jest"), ("pretest", "expo run:ios")], "test"),
+            (&[("start", "node server.js"), ("prestart", "expo run:android")], "start"),
+            (&[("restart", "echo"), ("stop", "expo run:ios")], "restart"),
+            (&[("a", "expo  prebuild")], "a"),
+            (&[("a", "expo\tprebuild --clean")], "a"),
+            (&[("a", "expo-cli prebuild")], "a"),
+            (&[("a", "npx expo prebuild")], "a"),
+            (&[("a", "react-native build-android")], "a"),
+            (&[("a", "react-native build-ios")], "a"),
+            (&[("a", "cd ios && pod install")], "a"),
+            (&[("a", "cd android && ./gradlew assembleRelease")], "a"),
+            (&[("a", "./gradlew bundleRelease")], "a"),
+            (&[("a", "android/gradlew installDebug")], "a"),
+            (&[("a", "fastlane beta")], "a"),
+            (&[("a", "eas build -p ios")], "a"),
+            (&[("a", "eas submit")], "a"),
+            (&[("a", "./node_modules/.bin/xcodebuild -scheme App")], "a"),
+            (&[("a", "EXPO_DEBUG=1 expo run:ios")], "a"),
+        ];
+        for (scripts, name) in cases {
+            let (_, safety) = safety_of(scripts, name);
+            assert_eq!(safety, Safety::Confirm, "{scripts:?} -> {name}");
+        }
+    }
+
+    #[test]
+    fn ordinary_scripts_stay_normal() {
+        let cases: &[(&[(&str, &str)], &str)] = &[
+            (&[("test", "jest")], "test"),
+            (&[("test", "jest --testPathPattern=prerun:iosx")], "test"),
+            (&[("lint", "eslint . && tsc --noEmit")], "lint"),
+            (&[("start", "expo start")], "start"),
+            (&[("start", "react-native start --reset-cache")], "start"),
+            (&[("web", "expo start --web")], "web"),
+            (&[("dev", "vite")], "dev"),
+            (&[("go", "npm start"), ("start", "expo start")], "go"),
+            (&[("go", "npm run -s lint"), ("lint", "eslint .")], "go"),
+            (&[("check", "npm test && npm run lint"), ("test", "jest"), ("lint", "eslint .")], "check"),
+            (&[("a", "echo run:iosx")], "a"),
+            (&[("a", "cat ./gradlewrapper.md")], "a"),
+            (&[("a", "pod --version")], "a"),
+        ];
+        for (scripts, name) in cases {
+            let (group, safety) = safety_of(scripts, name);
+            assert_eq!(safety, Safety::Normal, "{scripts:?} -> {name}");
+            assert_ne!(group, ScriptGroup::Build, "{scripts:?} -> {name}");
+        }
     }
 
     #[test]
@@ -425,6 +637,23 @@ mod tests {
         assert_eq!(find(&c, "cargo build").safety, Safety::Confirm);
         let p = plan(dir.path(), "cargo:check").unwrap();
         assert_eq!(p.argv, vec!["cargo", "check", "--manifest-path", "src-tauri/Cargo.toml"]);
+    }
+
+    #[test]
+    fn pytest_markers_add_one_fixed_entry_and_a_plain_python_repo_stays_an_error() {
+        let plain = repo(&[("main.py", "print(1)"), ("pyproject.toml", "[project]\nname='x'\n")]);
+        assert!(catalog("r", plain.path()).is_err(), "no marker: no catalog, as before");
+        let py = repo(&[("pyproject.toml", "[project]\nname='x'\n\n[tool.pytest.ini_options]\naddopts='-q'\n")]);
+        let c = catalog("r", py.path()).unwrap();
+        assert_eq!(c.scripts.len(), 1);
+        let s = find(&c, "pytest");
+        assert_eq!((s.id.as_str(), s.group.clone(), s.safety.clone(), s.forbidden_to_agents), (PYTEST_ID, ScriptGroup::Test, Safety::Normal, false));
+        assert_eq!(plan(py.path(), PYTEST_ID).unwrap().argv, vec!["python3", "-m", "pytest", "-q"]);
+        assert_eq!(display_command(py.path(), PYTEST_ID).unwrap(), "python3 -m pytest -q");
+        let ini = repo(&[("pytest.ini", "[pytest]\n"), ("package.json", r#"{"scripts":{"test":"jest"}}"#)]);
+        let c = catalog("r", ini.path()).unwrap();
+        assert_eq!(c.scripts.iter().map(|s| s.id.as_str()).collect::<Vec<_>>(), vec!["npm:test", PYTEST_ID]);
+        assert_eq!(plan(plain.path(), PYTEST_ID).unwrap_err().code, "unknownScript");
     }
 
     #[test]

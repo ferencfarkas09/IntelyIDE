@@ -51,7 +51,7 @@ pub fn summary(agent: &str) -> AgentSummary {
         title: "Fix the thing".into(),
         status: RunStatus::Running,
         permission: PermissionMode::Ask,
-        requested: Requested { effort: None, permission: PermissionMode::Ask },
+        requested: Requested { effort: None, permission: PermissionMode::Ask, ultracode: None },
         effective: None,
         repo_ids: vec!["admin".into()],
         caps: ProviderCaps::default(),

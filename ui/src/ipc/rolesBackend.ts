@@ -113,6 +113,7 @@ export function createBackendRoles(): RolesIpc {
     resolveDrift: (roleId, _repoId, keep, opts) => call<void>("roles_resolve_drift", { roleId, keep, confirmWrite: opts?.confirmWrite ?? false }),
     presetHappyTiering: async (opts) => (await call<WireRole[]>("roles_preset_happy_tiering", { confirmWrite: opts?.confirmWrite ?? false })).map(fromWire),
     capabilities: () => call<WireCaps[]>("roles_capabilities") as Promise<RoleProviderCaps[]>,
+    modelsLive: () => call<WireCaps[]>("roles_models_live") as Promise<RoleProviderCaps[]>,
     groups: async () => (await call<WireGroup[]>("roles_groups")).map(fromWireGroup),
     setHidden: async (name, hidden) => fromWireGroup(await call<WireGroup>("roles_set_hidden", { name, hidden })),
     setPin: async (name, pin) => fromWireGroup(await call<WireGroup>("roles_set_pin", { name, pin })),

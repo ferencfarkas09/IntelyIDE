@@ -228,3 +228,21 @@ export function pushEvent<T>(list: readonly T[], item: T): T[] {
   const next = [...list, item];
   return next.length > EVENT_LIMIT ? next.slice(-EVENT_LIMIT) : next;
 }
+
+/** The text "Fix with agent" sends for a render, runtime or build error of the component frame. */
+export function statusErrorText(s: Extract<FrameMessage, { kind: "status" }>): string {
+  const lines = [s.state === "buildError" ? "Build error" : s.state === "renderError" ? "Render error" : "Runtime error"];
+  for (const e of s.errors) lines.push(`${e.file}:${e.line}:${e.col} ${e.text}`);
+  if (s.message) lines.push(s.message);
+  if (s.stack) lines.push(s.stack);
+  if (s.componentStack) lines.push(`Component stack:${s.componentStack}`);
+  return lines.join("\n");
+}
+
+/** The console, network and error events of the frame, oldest first, as log lines (the other events are left out). */
+export function eventsErrorText(events: readonly { event: EventKind; name: string; detail: string }[]): string {
+  return events
+    .filter((e) => e.event === "console" || e.event === "network" || e.event === "error")
+    .map((e) => `[${e.event}] ${e.name}${e.detail ? ` ${e.detail}` : ""}`)
+    .join("\n");
+}

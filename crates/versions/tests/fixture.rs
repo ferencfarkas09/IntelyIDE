@@ -360,13 +360,16 @@ fn a_folder_swapped_for_a_link_while_writing_never_lets_a_write_leave_the_reposi
                     let _ = fs::remove_file(root.join("app"));
                     let _ = fs::rename(root.join("app.real"), root.join("app"));
                 }
+                // a moment with the folder in place, so a loaded machine still lets a write through
+                std::thread::sleep(Duration::from_millis(1));
             }
         })
     };
     let start = Instant::now();
     let mut wrote = 0u32;
     let mut turn = 0u32;
-    while start.elapsed() < Duration::from_millis(1500) {
+    // at least 1.5 s of swapping, and on until one write got through (at most 15 s): the check below is about what a write does, not how often one lands
+    while start.elapsed() < Duration::from_millis(1500) || (wrote == 0 && start.elapsed() < Duration::from_secs(15)) {
         let from = format!("1.0.{turn}");
         let to = format!("1.0.{}", turn + 1);
         if apply(&root, &[change("app/package.json#version", &from, &to)]).is_ok() {

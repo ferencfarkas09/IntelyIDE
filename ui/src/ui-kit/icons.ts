@@ -5,6 +5,8 @@ export {
   ArrowDownToLine,
   ArrowLeft,
   ArrowRight,
+  ArrowUpRight,
+  ArrowDownRight,
   ArrowUp,
   Ban,
   Binary,

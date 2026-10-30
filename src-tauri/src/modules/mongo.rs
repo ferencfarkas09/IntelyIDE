@@ -412,7 +412,10 @@ impl Dialogs for NativeDialogs {
         }
         #[cfg(target_os = "macos")]
         return Self::osascript("POSIX path of (choose file with prompt \"Import connections\")");
-        #[cfg(not(target_os = "macos"))]
+        // Windows: the common file dialog through rfd (already used by the folder picker); called off the async threads
+        #[cfg(windows)]
+        return Ok(rfd::FileDialog::new().set_title("Import connections").add_filter("JSON", &["json"]).pick_file());
+        #[cfg(not(any(target_os = "macos", windows)))]
         Err(EngineError::new("mongoDialog", "native file dialogs are not available on this system"))
     }
 
@@ -422,7 +425,9 @@ impl Dialogs for NativeDialogs {
         }
         #[cfg(target_os = "macos")]
         return Self::osascript(&format!("POSIX path of (choose file name with prompt \"Export connections\" default name \"{}\")", dialog_file_name(Some(suggested))));
-        #[cfg(not(target_os = "macos"))]
+        #[cfg(windows)]
+        return Ok(rfd::FileDialog::new().set_title("Export connections").add_filter("JSON", &["json"]).set_file_name(suggested).save_file());
+        #[cfg(not(any(target_os = "macos", windows)))]
         {
             let _ = suggested;
             Err(EngineError::new("mongoDialog", "native file dialogs are not available on this system"))

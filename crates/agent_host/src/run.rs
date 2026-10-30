@@ -69,6 +69,29 @@ pub struct Meta {
     /// Team mode (New run): this run's place in a team started together; `None` = an independent run.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub team: Option<TeamRun>,
+    /// What the New run picker chose over the role (model, effort, ultracode); a resume runs with the same choice.
+    #[serde(default, skip_serializing_if = "RunPicks::is_empty")]
+    pub picks: RunPicks,
+}
+
+/// The model, effort and ultracode the user picked for one run in New run. Empty = the role's own, exactly as before the picker.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RunPicks {
+    /// Any model id; ids this build does not know pass through unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub effort: Option<Effort>,
+    /// The lead may start the Workflow tool (its helper agents are judged call by call like the lead).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub ultracode: bool,
+}
+
+impl RunPicks {
+    pub fn is_empty(&self) -> bool {
+        self.model.is_none() && self.effort.is_none() && !self.ultracode
+    }
 }
 
 /// A run's place in a team started from the New run dialog: Agent 1 is the lead, the others work for it.
@@ -337,7 +360,7 @@ impl Run {
             title: if self.state.title.is_empty() { self.meta.role.clone() } else { self.state.title.clone() },
             status: self.state.status(),
             permission: self.meta.permission,
-            requested: Requested { effort: self.meta.effort, permission: self.meta.permission },
+            requested: Requested { effort: self.meta.effort, permission: self.meta.permission, ultracode: self.meta.picks.ultracode.then_some(true) },
             effective: self.state.effective.clone(),
             repo_ids: self.meta.repos.iter().map(|r| r.id.clone()).collect(),
             caps: self.state.caps.clone().unwrap_or_else(|| static_caps(&self.meta.provider)),
@@ -399,6 +422,7 @@ pub fn context_for_remote(meta: &Meta, remote: &RemoteDirs, role_deny: Vec<Strin
     ctx.strict_jail = meta.permission != PermissionMode::Bypass;
     ctx.scratch_dirs = vec![PathBuf::from("/tmp"), PathBuf::from("/var/tmp")];
     ctx.subagents = vec!["*".into()];
+    ctx.ultracode = meta.picks.ultracode;
     ctx
 }
 
@@ -419,5 +443,6 @@ pub fn context_for(meta: &Meta, home: Option<PathBuf>, role_deny: Vec<String>, s
         ctx.plan_dir = Some(plan_dir(state_dir, &meta.agent_id));
     }
     ctx.subagents = vec!["*".into()];
+    ctx.ultracode = meta.picks.ultracode;
     ctx
 }

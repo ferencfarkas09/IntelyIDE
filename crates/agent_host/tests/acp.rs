@@ -24,7 +24,7 @@ fn acp_config(data: &Path) -> HostConfig {
 }
 
 fn start(host: &AgentHost, role: &str, repo: &RepoRef) -> Result<intely_agent_core::api::AgentSummary, intely_core::EngineError> {
-    host.start(AgentStartRequest { role: role.into(), repo_ids: vec![repo.id.clone()], prompt: "go".into(), mode: None, mcp_servers: None }, std::slice::from_ref(repo))
+    host.start(AgentStartRequest { role: role.into(), repo_ids: vec![repo.id.clone()], prompt: "go".into(), mode: None, mcp_servers: None, ..Default::default() }, std::slice::from_ref(repo))
 }
 
 fn texts(events: &[intely_agent_core::events::types::AgentEvent]) -> String {
@@ -75,7 +75,7 @@ fn a_write_role_is_refused_on_a_provider_below_the_write_tier_but_a_read_only_ro
     let mut edit = roles::builtin(&cfg).into_iter().find(|r| r.name == "mock-plain-reply").unwrap();
     edit.permission = PermissionMode::Edit;
     edit.mock_scenario = None;
-    let req = || AgentStartRequest { role: edit.name.clone(), repo_ids: vec![repo.id.clone()], prompt: "go".into(), mode: None, mcp_servers: None };
+    let req = || AgentStartRequest { role: edit.name.clone(), repo_ids: vec![repo.id.clone()], prompt: "go".into(), mode: None, mcp_servers: None, ..Default::default() };
     let refused = host.start_role_with(&edit, req(), std::slice::from_ref(&repo), StartOptions { provider: Some("gemini".into()), ..Default::default() }).expect_err("a write role on a weak provider");
     assert_eq!(refused.code, "providerReadOnly", "{}", refused.message);
     assert!(host.list().is_empty(), "a refused start leaves no run behind");

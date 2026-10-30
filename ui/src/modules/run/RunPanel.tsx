@@ -1,5 +1,6 @@
 import { createEffect, createMemo, createSignal, For, on, onCleanup, onMount, Show } from "solid-js";
 import { t } from "../../i18n";
+import { SendToAgentMenu } from "../../components/SendToAgentMenu";
 import { openSettings } from "../../platform/settings";
 import { setToolWindow } from "../../platform/rail";
 import { devServers, formatRss, heavyServers, isLive, liveServers } from "../../store/devservers";
@@ -8,7 +9,7 @@ import {
 } from "../../ui-kit";
 import type { ScriptGroup, ScriptInfo, ServerInfo } from "../../ipc/run";
 import { highlight, parseAnsi } from "./ansi";
-import { COLLAPSED_BY_DEFAULT, favoriteScripts, groupScripts, heapLabel, searchLines, serverId, statusLabel, statusTone } from "./logic";
+import { COLLAPSED_BY_DEFAULT, favoriteScripts, groupScripts, heapLabel, searchLines, serverErrorInput, serverId, statusLabel, statusTone } from "./logic";
 import {
   cancelPending, catalogState, clearLog, confirmPending, currentRepoId, dismissServer, favoriteIds, isFavorite, logOf, openServer, pendingStart, processAccess, refreshAccess, repoList, requestStart, rerun, restartServer,
   revealedCommand, filterFocusTick, selectedServerId, selectRepo, selectServer, stopAll, stopServer, toggleCommand, toggleFavorite, wire,
@@ -213,6 +214,7 @@ function LogView() {
                 onKeyDown={(e) => e.key === "Escape" && setQuery("")}
                 trailing={query() ? <span class="ui-tnum run-log__count">{lines().length}</span> : undefined}
               />
+              <SendToAgentMenu collect={() => serverErrorInput(s(), logOf(s().id))} disabled={logOf(s().id).length === 0} />
               <IconButton icon={Trash2} label={t("run.clearLog")} size="sm" onClick={() => clearLog(s().id)} />
               <Show
                 when={isLive(s())}

@@ -24,6 +24,7 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import zlib from 'node:zlib';
 import { redact } from './redact.js';
+import { allowedName, foldEnv } from './env.js';
 import { parseManifest, SDK_NAME, SDK_PIN, stateDirOf as platformStateDir, treeLines } from './sdk.js';
 
 /** The only registry the CLI talks to. */
@@ -359,7 +360,7 @@ async function homeOf(home: string | undefined): Promise<string> {
     throw new InstallError('state_unsafe', 'the home directory cannot be resolved');
   }
 }
-/** Same function as the loader's (one definition in sdk.ts): macOS `<home>/Library/Application Support/IntelyIDE`, Linux `<home>/.local/share/IntelyIDE`. */
+/** Same function as the loader's (one definition in sdk.ts): macOS `<home>/Library/Application Support/IntelyIDE`, Linux `<home>/.local/share/IntelyIDE`, Windows `<home>\\AppData\\Roaming\\IntelyIDE` (%APPDATA%). */
 export const stateDirOf = (home: string, platform: NodeJS.Platform = process.platform) => platformStateDir(home, platform);
 
 /** Creates the state directory (mode 0700) when it is missing. Used by the launcher and by the installer. */
@@ -373,9 +374,11 @@ async function ensureStateDir(stateDir: string): Promise<void> {
   } catch (e) { if (code(e) !== 'EEXIST') throw new InstallError('disk', `cannot create the state directory (${code(e) ?? 'error'})`); }
 }
 
-async function checkStateDir(stateDir: string): Promise<void> {
+async function checkStateDir(stateDir: string, platform: NodeJS.Platform = process.platform): Promise<void> {
   const st = await lstat(stateDir).catch(() => { throw new InstallError('state_unsafe', 'the state directory is missing'); });
   if (st.isSymbolicLink() || !st.isDirectory()) throw new InstallError('state_unsafe', 'the state directory is not a plain directory');
+  // Windows has no uid and no group/other bits: the per-user ACL of %APPDATA% keeps other accounts out (weaker, documented)
+  if (platform === 'win32') return;
   if (uid() < 0) throw new InstallError('state_unsafe', 'cannot check file ownership on this platform');
   if (st.uid !== uid()) throw new InstallError('state_unsafe', 'the state directory is not owned by the current user');
   if ((st.mode & 0o022) !== 0) throw new InstallError('state_unsafe', 'the state directory is writable by group or others (run chmod go-w on it)');
@@ -759,18 +762,18 @@ export function nodeSupportsAllowNet(flags: ReadonlySet<string> = process.allowe
 }
 
 /** The Node flags of the sandboxed re-execution. Paths containing a comma are not supported by the permission flags. */
-export function sandboxFlags(p: RestrictedPaths, allowNet: boolean = nodeSupportsAllowNet()): string[] {
+export function sandboxFlags(p: RestrictedPaths, allowNet: boolean = nodeSupportsAllowNet(), sep: string = path.sep): string[] {
   const abs = (k: string) => { const v = p.env[k]; return v && path.isAbsolute(v) ? v : null; };
   const files = ['SSL_CERT_FILE', 'NODE_EXTRA_CA_CERTS'].map(abs).filter((v): v is string => v !== null);
   const dirs = ['SSL_CERT_DIR'].map(abs).filter((v): v is string => v !== null);
   const flags = [
     '--permission',
     `--allow-fs-read=${p.script}`,
-    `--allow-fs-read=${p.pinDir}`, `--allow-fs-read=${p.pinDir}/*`,
-    `--allow-fs-read=${p.stateDir}`, `--allow-fs-read=${p.stateDir}/*`,
+    `--allow-fs-read=${p.pinDir}`, `--allow-fs-read=${p.pinDir}${sep}*`,
+    `--allow-fs-read=${p.stateDir}`, `--allow-fs-read=${p.stateDir}${sep}*`,
     ...files.map((f) => `--allow-fs-read=${f}`),
-    ...dirs.map((d) => `--allow-fs-read=${d}/*`),
-    `--allow-fs-write=${p.stateDir}`, `--allow-fs-write=${p.stateDir}/*`,
+    ...dirs.map((d) => `--allow-fs-read=${d}${sep}*`),
+    `--allow-fs-write=${p.stateDir}`, `--allow-fs-write=${p.stateDir}${sep}*`,
   ];
   if (PROXY_VARS.some((k) => p.env[k])) flags.push('--use-env-proxy'); // fetch() honours HTTPS_PROXY / NO_PROXY only with this
   // the child downloads the SDK itself; the filesystem and process limits above are the sandbox. The flag is still experimental and says so on stderr.
@@ -780,10 +783,11 @@ export function sandboxFlags(p: RestrictedPaths, allowNet: boolean = nodeSupport
 
 const CHILD_ENV = new Set(['PATH', 'TMPDIR', 'LANG', 'TERM', 'NO_PROXY', 'no_proxy', 'SSL_CERT_FILE', 'SSL_CERT_DIR', 'NODE_EXTRA_CA_CERTS', ...PROXY_VARS]);
 /** The sandboxed child gets an allow-list, not the caller's whole environment (no DYLD_*, LD_*, NODE_DEBUG, tokens, ...). */
-export function childEnv(env: NodeJS.ProcessEnv, home: string): NodeJS.ProcessEnv {
-  const out: NodeJS.ProcessEnv = { HOME: home };
-  for (const [k, v] of Object.entries(env)) if (v !== undefined && (CHILD_ENV.has(k) || k.startsWith('LC_'))) out[k] = v;
-  return out;
+export function childEnv(env: NodeJS.ProcessEnv, home: string, windows = process.platform === 'win32'): NodeJS.ProcessEnv {
+  // on Windows also SystemRoot & co. (Node's DNS and TLS need them), under their canonical names (`Path` is PATH)
+  const strings = Object.entries(env).filter((e): e is [string, string] => typeof e[1] === 'string');
+  const { env: kept } = foldEnv(strings, (k) => allowedName(k, (x) => CHILD_ENV.has(x) || x.startsWith('LC_'), windows));
+  return { HOME: home, ...kept };
 }
 
 /** Real process wiring: the sandboxed re-execution. */

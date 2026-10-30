@@ -3,11 +3,15 @@
 // the module edits its folder; this file is complete and never changes when a module grows.
 import { register as account } from "./account";
 import { register as attachments } from "./attachments";
+import { register as autotest } from "./autotest";
 import { register as branches } from "./branches";
 import { register as brief } from "./brief";
+import { register as checkpoints } from "./checkpoints";
 import { register as checks } from "./checks";
 import { register as contract } from "./contract";
+import { register as dashboard } from "./dashboard";
 import { register as deepPattern } from "./deeppattern";
+import { register as doctor } from "./doctor";
 import { register as editor } from "./editor";
 import { register as graph } from "./graph";
 import { register as happyChat } from "./happy-chat";
@@ -29,16 +33,25 @@ import { register as mongo } from "./mongo";
 import { register as l10n } from "./l10n";
 import { register as licenses } from "./licenses";
 import { register as pr } from "./pr";
+import { register as presets } from "./presets";
 import { register as preview } from "./preview";
 import { register as previewInspect } from "./preview-inspect";
+import { register as projectNotes } from "./projectnotes";
+import { register as prompts } from "./prompts";
 import { register as providers } from "./providers";
 import { register as release } from "./release";
 import { register as versions } from "./versions";
+import { register as runpicker } from "./runpicker";
+import { register as reactnative } from "./reactnative";
+import { register as mobilehealth } from "./mobilehealth";
+import { register as webtools } from "./webtools";
 import { register as remote } from "./remote";
 import { register as roles } from "./roles";
 import { register as run } from "./run";
 import { register as runs } from "./runs";
+import { register as runSummary } from "./runsummary";
 import { register as search } from "./search";
+import { register as sendToAgent } from "./sendtoagent";
 import { register as sentry } from "./sentry";
 import { register as settingsCore } from "./settings-core";
 import { register as terminal } from "./terminal";
@@ -78,6 +91,10 @@ export const MODULES: readonly FeatureModule[] = [
   { id: "l10n", register: l10n },
   { id: "release", register: release },
   { id: "versions", register: versions },
+  { id: "runpicker", register: runpicker },
+  { id: "reactnative", register: reactnative },
+  { id: "mobilehealth", register: mobilehealth },
+  { id: "webtools", register: webtools },
   { id: "remote", register: remote },
   { id: "viewers", register: viewers },
   { id: "hud", register: hud },
@@ -98,6 +115,15 @@ export const MODULES: readonly FeatureModule[] = [
   { id: "intelyfix", register: intelyfix },
   { id: "account", register: account },
   { id: "deeppattern", register: deepPattern },
+  { id: "dashboard", register: dashboard },
+  { id: "prompts", register: prompts },
+  { id: "sendtoagent", register: sendToAgent },
+  { id: "projectnotes", register: projectNotes },
+  { id: "doctor", register: doctor },
+  { id: "presets", register: presets },
+  { id: "checkpoints", register: checkpoints },
+  { id: "autotest", register: autotest },
+  { id: "runsummary", register: runSummary },
 ];
 
 /** Runs every module's `register()`. A module that throws is logged and skipped: the app and the other modules start anyway. */

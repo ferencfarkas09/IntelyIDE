@@ -441,10 +441,30 @@ impl RunManager {
     }
 
     /// The loopback URL of a running server's first port; the Tauri side opens it in the system browser.
+    /// The sockets this server's process tree listens on, asked of `lsof` right now (not taken from the log, which a script can fake).
+    /// `None` when `lsof` is unavailable or the server is not alive.
+    pub fn listeners(&self, id: &str) -> Option<Vec<port::Listener>> {
+        let server = lock(&self.inner.servers).get(id).cloned()?;
+        let pid = {
+            let live = lock(&server.live);
+            live.pid.filter(|_| Server::is_live(&live))?
+        };
+        let tree = rss::tree_pids(&[pid], &[pid]);
+        port::listeners(&tree)
+    }
+
     pub fn url(&self, id: &str) -> Option<String> {
         let server = self.find(id).ok()?;
         let live = lock(&server.live);
         server.info(&live).url
+    }
+
+    /// The listening ports that `lsof` found for the server's process tree. Unlike `ServerInfo.ports`, a port the script merely
+    /// printed never shows up here, so a caller that acts on a port (the Reload button) can trust it.
+    pub fn confirmed_ports(&self, id: &str) -> Vec<u16> {
+        let Ok(server) = self.find(id) else { return Vec::new() };
+        let live = lock(&server.live);
+        live.lsof_ports.clone()
     }
 
     /// Lines with `seq >= from_seq`.

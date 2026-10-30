@@ -40,8 +40,11 @@ use serde_json::{json, Value};
 use crate::config::{find_on_path, scrub_env, HostConfig, PolicyFault, ProviderLaunch};
 use crate::roles::{self, RoleDef};
 use crate::remote::{self, NotReady, RemoteFs, SidecarFs, FS_QUERY_TIMEOUT, REMOTE_POLICY_TIMEOUT_MS};
-use crate::run::{context_for, context_for_remote, meta_path, plan_dir, Live, Meta, RemoteDirs, RepoRef, Run, RunState, SnapshotRef, TeamRun};
+use crate::run::{context_for, context_for_remote, meta_path, plan_dir, Live, Meta, RemoteDirs, RepoRef, Run, RunState, RunPicks, SnapshotRef, TeamRun};
 use crate::sidecar::{Handler, Incoming, Sidecar};
+
+mod checkpoints;
+pub use checkpoints::{CheckpointSettings, ConfigCopy, RepoCheckpoint, RepoCheckpointPlan, RepoCheckpointRestore, RunCheckpoint};
 
 /// Where committed events go. Called only after the durable append, in `seq` order per agent.
 pub trait HostSink: Send + Sync {
@@ -104,6 +107,8 @@ struct Inner {
     log: Arc<JsonlEventLog>,
     sink: Arc<dyn HostSink>,
     rewind: Rewind,
+    /// Per-turn checkpoints and the opt-in copies of ignored config files (host/checkpoints.rs).
+    checkpoints: checkpoints::Checkpoints,
     /// `enforcement.json` as last read; re-read when the file changes (the attempt-suite harness writes it).
     book: Mutex<(Option<SystemTime>, EnforcementBook)>,
     book_path: PathBuf,
@@ -281,6 +286,28 @@ impl std::fmt::Debug for CreatedHook {
     }
 }
 
+/// The picks of a start request, checked: a model id that is not one, an empty effort... are refused before anything starts. Ultracode
+/// is for a single Claude role: Auto's lead already hands work to the roles (a workflow's helper agents are no role of its team, so the
+/// broker would refuse every call they make), and other providers have no Workflow tool.
+fn run_picks(req: &AgentStartRequest, role: &RoleDef) -> Result<RunPicks, EngineError> {
+    let model = req.model.as_deref().map(str::trim).filter(|m| !m.is_empty()).map(str::to_string);
+    if let Some(m) = &model {
+        if !roles::valid_model_id(m) {
+            return Err(err("invalidModel", format!("\"{}\" is not a model id", roles::shown_model_id(m))));
+        }
+    }
+    let ultracode = req.ultracode == Some(true);
+    if ultracode {
+        if role.is_delegating() {
+            return Err(err("ultracodeAuto", "ultracode is for a run of one role; Auto already hands the work to your roles"));
+        }
+        if !matches!(role.provider.as_str(), "claude" | "mock") {
+            return Err(err("ultracodeProvider", "ultracode needs Claude"));
+        }
+    }
+    Ok(RunPicks { model, effort: req.effort, ultracode })
+}
+
 /// Per-run start options.
 #[derive(Debug, Clone, Default)]
 pub struct StartOptions {
@@ -365,6 +392,7 @@ impl AgentHost {
         let book = (file_mtime(&book_path), EnforcementBook::load(&book_path).unwrap_or_default());
         let inner = Arc::new_cyclic(|me| Inner {
             rewind: Rewind::new(&cfg.git),
+            checkpoints: checkpoints::Checkpoints::new(&cfg.data_dir),
             cfg,
             gate: gate.clone(),
             log,
@@ -461,6 +489,7 @@ impl AgentHost {
             location: None,
             remote: None,
             team: None,
+            picks: Default::default(),
         };
         let ctx = context_for(&meta, std::env::var_os("HOME").map(PathBuf::from), role.disallowed_tools.clone(), &inner.cfg.data_dir);
         lock(&inner.state).agents.insert(agent_id.clone(), Run::new(meta, RunState::default(), ctx, true));
@@ -583,6 +612,10 @@ impl AgentHost {
             }
             None => role,
         };
+        // The New run picker: model, effort and ultracode of this run, over the role's own (absent = the role's, exactly as before).
+        let picks = run_picks(&req, role)?;
+        let picked = role.with_picks(&picks);
+        let role = &picked;
         // The run mode (D9): the request's choice wins over the role for the lead and for a single role; the role's own permission is the
         // default and, for a delegate, a ceiling. A request without a mode keeps the role's permission, exactly as before.
         let mode = req.mode.unwrap_or(role.permission);
@@ -634,6 +667,7 @@ impl AgentHost {
             location,
             remote: None,
             team,
+            picks,
         };
         self.launch(run_role, meta, &resolved.disallowed_tools, Some(&prompt), opts)
     }
@@ -666,6 +700,7 @@ impl AgentHost {
             location: None,
             remote: None,
             team: None,
+            picks: Default::default(),
         };
         self.launch(role, meta, &resolved.disallowed_tools, None, StartOptions::default())
     }
@@ -767,6 +802,10 @@ impl AgentHost {
             return Err(err("turnOpen", "the agent is still working; stop it first or wait"));
         }
         lock(&inner.peers).human_message(agent_id);
+        // a checkpoint before the prompt, so this step can be undone on its own (skipped when nothing changed since the last one)
+        if let Err(e) = inner.checkpoint_step(agent_id, "turn", None, false) {
+            eprintln!("agent host: no checkpoint before the prompt of {agent_id}: {e}");
+        }
         inner.prompt(agent_id, text, files)
     }
 
@@ -883,6 +922,23 @@ impl AgentHost {
         let sc = self.inner.ensure_sidecar(None)?;
         let body = json!({"env": {"claudeBin": bin.to_string_lossy(), "vars": env_vars}, "cwd": self.inner.cfg.data_dir});
         sc.request("usage/limits", body, Duration::from_secs(40)).map_err(|e| err("usageLimits", e.to_string()))
+    }
+
+    /// The models the installed Claude CLI offers right now, each with the effort levels it takes (`models/list`): the sidecar starts the
+    /// CLI for a moment and reads its model catalog; nothing goes to a model. Like [`Self::usage_limits`], a missing CLI and the sidecar's own
+    /// failures are answers with an `error` field. `timeout` bounds the whole ask.
+    ///
+    /// No `Jail::check_op`, like [`Self::usage_limits`]: the CLI starts in the IDE's own state folder with no repository, no tools and no
+    /// session (the sidecar passes `settingSources: []`, no MCP servers and the deny-rule overlay), and only answers `initialize`.
+    pub fn models_live(&self, timeout: Duration) -> Result<Value, EngineError> {
+        let env_vars = scrub_env(&(self.inner.cfg.env)());
+        let all: HashMap<String, String> = env_vars.clone().into_iter().collect();
+        let Some(bin) = self.inner.cfg.claude_bin.clone().or_else(|| find_on_path("claude", &all)) else {
+            return Ok(json!({"error": "claudeNotFound"}));
+        };
+        let sc = self.inner.ensure_sidecar(None)?;
+        let body = json!({"env": {"claudeBin": bin.to_string_lossy(), "vars": env_vars}, "cwd": self.inner.cfg.data_dir, "timeoutMs": timeout.as_millis() as u64});
+        sc.request("models/list", body, timeout + Duration::from_secs(2)).map_err(|e| err("modelsLive", e.to_string()))
     }
 
     /// Switches the permission mode of a run, live when it has a session (permission-modes spec 5.1). Rust is the authority; the SDK follows:
@@ -1557,6 +1613,8 @@ impl Inner {
             // the run was started on another provider than its role's own (the New run picker); it stays there
             role = role.on_provider(&provider);
         }
+        // and with the model, effort and ultracode it was started with
+        role = role.with_picks(&meta.picks);
         // The mode the run recorded decides, except that Bypass never resumes and a role that changed under the run narrows it
         // (permission-modes spec 5.5). The delegates of a team lead are rebuilt from the files.
         let (resumed, reason) = self.resume_mode_for(&role, &meta);
@@ -1721,7 +1779,7 @@ impl Inner {
                 weakest = Some(chip);
             }
         }
-        weakest.unwrap_or(EnforcementChip { tier: Tier::Weak, run: None })
+        capped_for_platform(weakest.unwrap_or(EnforcementChip { tier: Tier::Weak, run: None }), cfg!(windows))
     }
 
     /// The tier a role of this mode earns on its provider, computed from recorded suites only (unknown = weak).
@@ -2186,7 +2244,13 @@ impl Inner {
             Some(env) => self.upload_remote_shim(env, agent_id)?,
             None => {
                 let shim_dir = self.cfg.data_dir.join("shims").join(agent_id);
-                shim::generate(&shim_dir, &self.cfg.git).map_err(|e| err("shim", format!("cannot prepare the git guard: {e}")))?.dir.to_string_lossy().into_owned()
+                let guard = shim::generate(&shim_dir, &self.cfg.git).map_err(|e| err("shim", format!("cannot prepare the git guard: {e}")))?;
+                // Windows: without git.cmd (no Git Bash next to git.exe, or a path a batch file cannot quote) cmd and PowerShell reach
+                // the real git; said in the log of every such run and in the enforcement chip (docs/install-windows.md)
+                if cfg!(windows) && guard.cmd.is_none() {
+                    eprintln!("agent host: no git.cmd for {agent_id}: the git guard does not cover cmd and PowerShell in this run (no Git Bash found next to {})", self.cfg.git.display());
+                }
+                guard.dir.to_string_lossy().into_owned()
             }
         };
         let (cwd, add_dirs) = match &remote_target {
@@ -2203,6 +2267,9 @@ impl Inner {
         };
         let mut resolved = role.resolved(&self.cfg);
         resolved.permission = meta.permission;
+        if meta.picks.ultracode {
+            resolved.ultracode = Some(true);
+        }
         if let Some(team) = &meta.team {
             roles::apply_team(&mut resolved, team);
         }
@@ -2434,9 +2501,26 @@ impl Inner {
             Self::apply(&self.gate, run, &event);
             events.push(event);
         }
+        let turn_ended = events.iter().any(|e| matches!(e.kind, EventKind::TurnEnd { .. }));
         if !quiet {
             self.commit(agent_id, events);
         }
+        if turn_ended && !quiet {
+            // a turn the host ended (cancel, sidecar death) is a step of the timeline too; the thread waits for `st` to be released
+            self.checkpoint_later(agent_id);
+        }
+    }
+
+    /// Takes the "after the turn" checkpoint off the calling thread (it reads the disk; the caller may hold the state lock).
+    fn checkpoint_later(&self, agent_id: &str) {
+        let (weak, id) = (self.me.clone(), agent_id.to_string());
+        std::thread::spawn(move || {
+            if let Some(inner) = weak.upgrade() {
+                if let Err(e) = inner.checkpoint_step(&id, "end", None, false) {
+                    eprintln!("agent host: no checkpoint after the turn of {id}: {e}");
+                }
+            }
+        });
     }
 
     /// Folds one stored event into the run, and mirrors it to the gate and the cancel tracker.
@@ -2523,12 +2607,17 @@ impl Inner {
         if let Some(caps) = stored.iter().rev().find_map(|e| if let EventKind::SessionInfo { caps: Some(c), .. } = &e.kind { Some(c.clone()) } else { None }) {
             st.negotiated.insert(provider.to_string(), caps);
         }
+        let turn_ended = !quiet && stored.iter().any(|e| matches!(e.kind, EventKind::TurnEnd { .. }));
         if !quiet {
             self.commit(agent_id, stored);
         }
         drop(st);
         if let Some(m) = meta.filter(|_| !quiet) {
             self.persist_meta(&m);
+        }
+        if turn_ended {
+            // after each turn: what the agent did in it becomes one step of the run's timeline
+            self.checkpoint_later(agent_id);
         }
     }
 
@@ -2930,7 +3019,7 @@ impl Inner {
             events.iter().for_each(|e| state.apply(e));
             // The run keeps the mode it recorded, so a listed Bypass run still shows Bypass; a resume re-derives what it may continue in
             // from the role as it resolves then (`resume_mode_for`), and nothing a stopped run holds is ever consulted for a decision.
-            let role_deny = self.role_named(&meta.role, &meta.repos).map(|r| r.disallowed_tools).unwrap_or_default();
+            let role_deny = self.role_named(&meta.role, &meta.repos).map(|r| r.with_picks(&meta.picks).disallowed_tools).unwrap_or_default();
             let (ctx, remote_fs) = self.context_for_run(&meta, role_deny);
             let mut run = Run::new(meta, state, ctx, false);
             run.remote_fs = remote_fs;
@@ -3138,4 +3227,34 @@ pub fn repo_files(git: &Path, repo: &Path, query: &str, limit: usize) -> Vec<Str
         .collect();
     hits.sort();
     hits.into_iter().take(limit).map(|(_, _, p)| p).collect()
+}
+
+/// The highest tier a chip may show on Windows (mirrors `WINDOWS_MAX_TIER` in ui/src/modules/providers/enforcement.ts). The git
+/// guard there is a Git Bash script that git.exe by its full path or a direct CreateProcess bypasses, and no sandbox or
+/// process-tree watch backs a run up (docs/install-windows.md). Applied where every chip is computed, so the run header,
+/// Settings and the provider gate (`check_provider_gate`) all see the capped tier, not only the New run dialog.
+pub(crate) const WINDOWS_MAX_TIER: Tier = Tier::BestEffort;
+
+/// `chip` with its tier lowered to [`WINDOWS_MAX_TIER`] when `windows`; the recorded run stays attached as evidence.
+pub(crate) fn capped_for_platform(mut chip: EnforcementChip, windows: bool) -> EnforcementChip {
+    if windows && chip.tier > WINDOWS_MAX_TIER {
+        chip.tier = WINDOWS_MAX_TIER;
+    }
+    chip
+}
+
+#[cfg(test)]
+mod platform_cap_tests {
+    use super::*;
+
+    #[test]
+    fn on_windows_no_chip_reads_above_best_effort_and_elsewhere_nothing_changes() {
+        for tier in [Tier::Weak, Tier::BestEffort, Tier::Strong, Tier::Structural] {
+            let chip = || EnforcementChip { tier, run: None };
+            assert_eq!(capped_for_platform(chip(), false).tier, tier, "macOS and Linux keep {tier:?}");
+            assert_eq!(capped_for_platform(chip(), true).tier, tier.min(Tier::BestEffort), "Windows caps {tier:?}");
+        }
+        // the gate's rule: a non-Claude write role needs Strong, which a capped Windows chip never reaches
+        assert!(capped_for_platform(EnforcementChip { tier: Tier::Structural, run: None }, true).tier < Tier::Strong);
+    }
 }

@@ -1,0 +1,51 @@
+/* Checkpoints: the timeline (inspector panel and tab), the Compare pane and the restore dialog. Tokens only. */
+.cp-tab { height: 100%; padding: var(--space-3); overflow: hidden; }
+.cp-timeline { display: flex; flex-direction: column; gap: var(--space-2); height: 100%; min-height: 0; }
+.cp-timeline__bar { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.cp-timeline__grow { flex: 1 1 auto; }
+.cp-timeline__scroll { flex: 1 1 auto; min-height: 0; }
+.cp-timeline__list { margin: 0; padding: 0; list-style: none; }
+.cp-step { position: relative; padding: var(--space-2) var(--space-2) var(--space-2) var(--space-5); border-radius: var(--radius-2); }
+.cp-step + .cp-step { box-shadow: inset 0 1px 0 var(--border-subtle); }
+.cp-step::before { content: ""; position: absolute; left: 9px; top: 0; bottom: 0; width: 1px; background: var(--border); }
+.cp-step__dot { position: absolute; left: 5px; top: 14px; width: 9px; height: 9px; border-radius: var(--radius-full); background: var(--surface-1); box-shadow: inset 0 0 0 2px var(--text-3); }
+.cp-step[data-kind="save"] .cp-step__dot { box-shadow: inset 0 0 0 5px var(--accent); }
+.cp-step[data-kind="start"] .cp-step__dot { box-shadow: inset 0 0 0 2px var(--ok); }
+.cp-step[data-kind="restore"] .cp-step__dot { box-shadow: inset 0 0 0 2px var(--warn); }
+.cp-step__top { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+.cp-step__title { flex: 1 1 auto; min-width: 0; font-weight: var(--weight-medium); }
+.cp-step__time { flex: none; color: var(--text-3); font-size: var(--text-xs); }
+.cp-step__meta { display: flex; align-items: center; gap: var(--space-1); margin-top: 2px; font-size: var(--text-sm); }
+.cp-compare { margin-top: var(--space-2); padding: var(--space-2); border-radius: var(--radius-2); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--border-subtle); }
+.cp-compare__bar { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-2); }
+.cp-compare__files { margin: 0; padding: 0; list-style: none; }
+.cp-compare__file { display: flex; align-items: center; gap: var(--space-2); width: 100%; min-height: 26px; padding: 0 var(--space-1); border: 0; border-radius: var(--radius-1); background: transparent; color: var(--text-1); font: inherit; font-size: var(--text-sm); text-align: left; cursor: pointer; }
+.cp-compare__file:hover { background: var(--surface-hover); }
+.cp-compare__file:focus-visible { outline: 2px solid var(--focus-color); outline-offset: 1px; }
+.cp-compare__count { flex: none; margin-left: auto; color: var(--text-3); }
+.cp-compare__change { flex: none; min-width: 64px; color: var(--text-3); text-align: right; }
+.cp-compare__file[data-change="created"] .cp-compare__change { color: var(--status-added); }
+.cp-compare__file[data-change="deleted"] .cp-compare__change { color: var(--danger); }
+.cp-compare__patch { max-height: 280px; margin: var(--space-1) 0 var(--space-2); padding: var(--space-2); overflow: auto; border-radius: var(--radius-1); background: var(--surface-1); color: var(--text-2); font-size: var(--text-xs); white-space: pre; }
+.cp-restore__error, .cp-restore__warn { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; margin: var(--space-2) 0; padding: var(--space-2); border-radius: var(--radius-2); font-size: var(--text-sm); }
+.cp-restore__error { flex-direction: row; background: var(--danger-subtle); box-shadow: inset 0 0 0 1px var(--danger-border); color: var(--danger); }
+.cp-restore__warn { background: var(--warn-subtle); box-shadow: inset 0 0 0 1px var(--warn-border); color: var(--text-1); }
+.cp-restore__dry { margin-bottom: var(--space-1); color: var(--text-2); font-size: var(--text-sm); }
+.cp-restore__none, .cp-restore__ok { display: flex; align-items: center; gap: 6px; color: var(--ok); }
+.cp-restore__list { margin: 0 0 var(--space-2); padding: 0; list-style: none; max-height: 200px; overflow: auto; border-radius: var(--radius-2); box-shadow: inset 0 0 0 1px var(--border-subtle); }
+.cp-restore__file { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); min-height: 26px; padding: 0 var(--space-2); font-size: var(--text-sm); }
+.cp-restore__file + .cp-restore__file { box-shadow: inset 0 1px 0 var(--border-subtle); }
+.cp-restore__path { min-width: 0; font-family: var(--font-mono); color: var(--text-1); }
+.cp-restore__change { flex: none; color: var(--text-3); }
+.cp-restore__file[data-change="created"] .cp-restore__change { color: var(--danger); }
+.cp-restore__file[data-change="deleted"] .cp-restore__change { color: var(--ok); }
+.cp-restore__file[data-conflict] .cp-restore__change { color: var(--warn); }
+.cp-restore__note { margin: 0 0 var(--space-2); color: var(--text-3); font-size: var(--text-sm); }
+.cp-restore__config { display: flex; flex-direction: column; gap: 6px; margin: var(--space-2) 0; padding: var(--space-2); border: 0; border-radius: var(--radius-2); box-shadow: inset 0 0 0 1px var(--border-subtle); }
+.cp-restore__config legend { padding: 0 var(--space-1); color: var(--text-2); font-size: var(--text-sm); font-weight: var(--weight-medium); }
+.cp-restore__config p { margin: 0; font-size: var(--text-sm); }
+.cp-restore__confirm { display: flex; flex-direction: column; gap: 6px; margin-top: var(--space-3); color: var(--text-2); font-size: var(--text-sm); }
+.cp-restore__phrase { color: var(--text-1); font-family: var(--font-mono); }
+.cp-restore__busy { display: flex; align-items: center; gap: 6px; margin-top: var(--space-2); color: var(--text-3); }
+.cp-restore__result p { margin: var(--space-2) 0 0; }
+.cp-section__names { margin: 0; font-size: var(--text-sm); line-height: var(--leading-base); }

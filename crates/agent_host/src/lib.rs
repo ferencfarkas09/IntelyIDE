@@ -12,5 +12,7 @@ pub mod sidecar;
 pub use config::{automatic_memory_budget, limits_from_settings, limits_supplier, scrub_env, AcpMock, AgentDefaults, DefaultsSupplier, UserMemorySupplier, EnvSupplier, HostConfig, LaunchSupplier, PolicyFault, ProviderLaunch, RoleResolver, VersionSupplier};
 pub use host::{repo_files, AgentHost, AnswerExtra, CreatedHook, HostSink, SetModeOpts, StartOptions, NO_SAFETY_NET};
 pub use host::{local_origin, ProbeReport, PROBE_ROLE};
+pub use host::{CheckpointSettings, ConfigCopy, RepoCheckpoint, RepoCheckpointPlan, RepoCheckpointRestore, RunCheckpoint};
+pub use intely_agent_gate::rewind::FileDiff as CheckpointFileDiff;
 pub use remote::{NotReady, ServerRegistry, ServersSupplier};
-pub use run::{RemoteDirs, RepoRef, TeamRun};
+pub use run::{RemoteDirs, RepoRef, RunPicks, TeamRun};

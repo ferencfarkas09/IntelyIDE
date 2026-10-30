@@ -4,7 +4,7 @@ import { execute, getCommand } from "../../platform/commands";
 import { selectedFile } from "../../store/selection";
 import { repoError, snapshots } from "../../store/snapshots";
 import { repos } from "../../store/workspace";
-import { Badge, BrandMark, type ChangeKindName, Button, Copy, CircleAlert, Eye, File, FileDiff, FolderOpen, IconButton, Kbd, ListChecks, SegmentedControl, ShieldAlert, Skeleton, TriangleAlert, StatusLetter, EmptyState, toast, readStored, resolvedTheme, writeStored } from "../../ui-kit";
+import { Badge, BrandMark, type ChangeKindName, Button, Copy, CircleAlert, Eye, File, FileDiff, FolderOpen, IconButton, Kbd, ListChecks, SegmentedControl, ShieldAlert, Skeleton, TriangleAlert, StatusLetter, EmptyState, toast, readStored, resolvedTheme, writeStored, appearanceLook } from "../../ui-kit";
 import { splitPath } from "../push/logic";
 import { t, type MessageKey } from "../../i18n";
 import type { DiffHandle } from "./cm";
@@ -146,7 +146,7 @@ export function DiffView(props: DiffViewProps) {
       setStats(h.stats);
     }),
   );
-  createEffect(on(resolvedTheme, (theme) => handle?.setDark(theme === "dark"), { defer: true }));
+  createEffect(on(appearanceLook, () => handle?.setDark(resolvedTheme() === "dark"), { defer: true }));
   onCleanup(unmount);
 
   const pathParts = () => splitPath(target()?.path ?? "");

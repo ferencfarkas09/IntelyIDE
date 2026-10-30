@@ -1,0 +1,7 @@
+{
+  "windowControls.label": "Window controls",
+  "windowControls.minimize": "Minimize",
+  "windowControls.maximize": "Maximize",
+  "windowControls.close": "Close",
+  "windowsSafety.capped": "On Windows the chip shows {tier} at most. The git guard there is a Git Bash script; cmd and PowerShell reach it through a git.cmd wrapper, which exists only when Git for Windows is installed in its usual layout (otherwise the run's log says that cmd and PowerShell are not guarded). It does not cover git.exe called by its full path, nor programs that start git.exe themselves (scripts, build tools, Python). Windows has no sandbox for the agent, and the memory and process watch of a run does not work yet. The policy hook and the deny rules still stop commit and push."
+}

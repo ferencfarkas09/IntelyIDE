@@ -143,6 +143,11 @@ pub struct PolicyContext {
     /// `agents.peerMessages` as it was when the run started (the host passes the live value to every decision): rules the two peer tools.
     #[serde(default)]
     pub peer_mode: PeerMode,
+    /// Ultracode is on for this run (the user switched it on in New run): the lead may call `Workflow`, in every mode. Off (the
+    /// default) keeps `Workflow` with the other state-changing tools. Every tool call of a Workflow's helper agents is judged by the
+    /// same rules as the lead's, hard stops first.
+    #[serde(default)]
+    pub ultracode: bool,
     /// The file system the run's files live on: `None` = this machine. For a run on a remote server it answers from the server (see
     /// `policy::fsview`); `decide` judges every path, glob and script against it. Not part of the wire form.
     #[serde(skip)]
@@ -151,7 +156,7 @@ pub struct PolicyContext {
 
 impl std::fmt::Debug for PolicyContext {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let Self { mode, cwd, add_dirs, home, role_deny, subagents, mcp_servers, saved, state_dir, strict_jail, scratch_dirs, delegates, delegation_cap, delegation_used, saved_by_role, plan_dir, mcp_tools, mcp_code_paths, peer_mode, fs } = self;
+        let Self { mode, cwd, add_dirs, home, role_deny, subagents, mcp_servers, saved, state_dir, strict_jail, scratch_dirs, delegates, delegation_cap, delegation_used, saved_by_role, plan_dir, mcp_tools, mcp_code_paths, peer_mode, ultracode, fs } = self;
         f.debug_struct("PolicyContext")
             .field("mode", mode)
             .field("cwd", cwd)
@@ -172,6 +177,7 @@ impl std::fmt::Debug for PolicyContext {
             .field("mcp_tools", mcp_tools)
             .field("mcp_code_paths", mcp_code_paths)
             .field("peer_mode", peer_mode)
+            .field("ultracode", ultracode)
             .field("fs", &fs.as_ref().map(|_| "FsView"))
             .finish()
     }
@@ -179,14 +185,14 @@ impl std::fmt::Debug for PolicyContext {
 
 impl PartialEq for PolicyContext {
     fn eq(&self, other: &Self) -> bool {
-        let Self { mode, cwd, add_dirs, home, role_deny, subagents, mcp_servers, saved, state_dir, strict_jail, scratch_dirs, delegates, delegation_cap, delegation_used, saved_by_role, plan_dir, mcp_tools, mcp_code_paths, peer_mode, fs } = self;
-        let Self { mode: o_mode, cwd: o_cwd, add_dirs: o_add_dirs, home: o_home, role_deny: o_role_deny, subagents: o_subagents, mcp_servers: o_mcp_servers, saved: o_saved, state_dir: o_state_dir, strict_jail: o_strict_jail, scratch_dirs: o_scratch_dirs, delegates: o_delegates, delegation_cap: o_delegation_cap, delegation_used: o_delegation_used, saved_by_role: o_saved_by_role, plan_dir: o_plan_dir, mcp_tools: o_mcp_tools, mcp_code_paths: o_mcp_code_paths, peer_mode: o_peer_mode, fs: o_fs } = other;
+        let Self { mode, cwd, add_dirs, home, role_deny, subagents, mcp_servers, saved, state_dir, strict_jail, scratch_dirs, delegates, delegation_cap, delegation_used, saved_by_role, plan_dir, mcp_tools, mcp_code_paths, peer_mode, ultracode, fs } = self;
+        let Self { mode: o_mode, cwd: o_cwd, add_dirs: o_add_dirs, home: o_home, role_deny: o_role_deny, subagents: o_subagents, mcp_servers: o_mcp_servers, saved: o_saved, state_dir: o_state_dir, strict_jail: o_strict_jail, scratch_dirs: o_scratch_dirs, delegates: o_delegates, delegation_cap: o_delegation_cap, delegation_used: o_delegation_used, saved_by_role: o_saved_by_role, plan_dir: o_plan_dir, mcp_tools: o_mcp_tools, mcp_code_paths: o_mcp_code_paths, peer_mode: o_peer_mode, ultracode: o_ultracode, fs: o_fs } = other;
         let same_fs = match (fs, o_fs) {
             (None, None) => true,
             (Some(a), Some(b)) => Arc::ptr_eq(a, b),
             _ => false,
         };
-        same_fs && mode == o_mode && cwd == o_cwd && add_dirs == o_add_dirs && home == o_home && role_deny == o_role_deny && subagents == o_subagents && mcp_servers == o_mcp_servers && saved == o_saved && state_dir == o_state_dir && strict_jail == o_strict_jail && scratch_dirs == o_scratch_dirs && delegates == o_delegates && delegation_cap == o_delegation_cap && delegation_used == o_delegation_used && saved_by_role == o_saved_by_role && plan_dir == o_plan_dir && mcp_tools == o_mcp_tools && mcp_code_paths == o_mcp_code_paths && peer_mode == o_peer_mode
+        same_fs && mode == o_mode && cwd == o_cwd && add_dirs == o_add_dirs && home == o_home && role_deny == o_role_deny && subagents == o_subagents && mcp_servers == o_mcp_servers && saved == o_saved && state_dir == o_state_dir && strict_jail == o_strict_jail && scratch_dirs == o_scratch_dirs && delegates == o_delegates && delegation_cap == o_delegation_cap && delegation_used == o_delegation_used && saved_by_role == o_saved_by_role && plan_dir == o_plan_dir && mcp_tools == o_mcp_tools && mcp_code_paths == o_mcp_code_paths && peer_mode == o_peer_mode && ultracode == o_ultracode
     }
 }
 
@@ -259,7 +265,7 @@ impl<'de> Deserialize<'de> for DelegationCounter {
 
 impl PolicyContext {
     pub fn new(mode: PermissionMode, cwd: impl Into<PathBuf>) -> Self {
-        Self { mode, cwd: cwd.into(), add_dirs: Vec::new(), home: None, role_deny: Vec::new(), subagents: Vec::new(), mcp_servers: Vec::new(), saved: Vec::new(), state_dir: None, strict_jail: false, scratch_dirs: Vec::new(), delegates: None, delegation_cap: DEFAULT_DELEGATION_CAP, delegation_used: DelegationCounter::default(), saved_by_role: BTreeMap::new(), plan_dir: None, mcp_tools: BTreeMap::new(), mcp_code_paths: Vec::new(), peer_mode: PeerMode::Ask, fs: None }
+        Self { mode, cwd: cwd.into(), add_dirs: Vec::new(), home: None, role_deny: Vec::new(), subagents: Vec::new(), mcp_servers: Vec::new(), saved: Vec::new(), state_dir: None, strict_jail: false, scratch_dirs: Vec::new(), delegates: None, delegation_cap: DEFAULT_DELEGATION_CAP, delegation_used: DelegationCounter::default(), saved_by_role: BTreeMap::new(), plan_dir: None, mcp_tools: BTreeMap::new(), mcp_code_paths: Vec::new(), peer_mode: PeerMode::Ask, ultracode: false, fs: None }
     }
 
     /// Judges the run's paths against `fs` (a remote server's files) instead of this machine's.
@@ -960,6 +966,10 @@ fn decide_other(eff: &Eff, intent: &ToolIntent) -> PolicyDecision {
     if matches!(name, "Task" | "Agent") {
         return decide_spawn(eff, intent);
     }
+    // another place to run is a hard stop for a workflow as it is for `Agent`, ultracode or not, in every mode
+    if let Some(w) = intent.workflow_check.as_ref().filter(|w| name == "Workflow" && w.kind == "isolation") {
+        return hard_stop("workflow.isolation", format!("the workflow script names \"{}\": a workflow runs its agents here, in the run's folders, never in a worktree or off this machine (avoid that word in the script, also in prompts and comments)", w.detail));
+    }
     // An MCP-looking name that arrived as another class is not judged as an unknown tool (Bypass would allow it).
     if name.starts_with("mcp__") {
         return role_deny("mcp.unknown", "MCP call that was not classified as one: it is refused");
@@ -986,6 +996,7 @@ fn decide_other(eff: &Eff, intent: &ToolIntent) -> PolicyDecision {
             Automatic => allow("other.auto", format!("{name} only reads or touches the session's own state")),
             Bypass => allow("other.bypass", format!("{name} only reads or touches the session's own state")),
         },
+        "Workflow" if eff.ctx.ultracode => decide_workflow(eff, intent),
         n if OTHER_STATE_CHANGE.contains(&n) => match eff.mode {
             ReadOnly => role_deny("other.read-only", format!("{name} changes state, which a read-only role may not do")),
             Ask | Edit => ask("other.unknown", format!("unknown tool {name}")),
@@ -997,6 +1008,29 @@ fn decide_other(eff: &Eff, intent: &ToolIntent) -> PolicyDecision {
             Bypass => allow("other.bypass", format!("{name}: this run has no prompts")),
         },
     }
+}
+
+/// `Workflow` in a run with ultracode on (the user chose it for this run): only an inline script that passes the text checks of
+/// [`workflow_check`](super::intent::workflow_check), started by the lead. Ask shows a card for it; every other mode runs it (Plan too:
+/// the helper agents are judged in the run's mode, so they cannot write). The text checks are best effort; the structural defence is that
+/// every tool call of the helper agents reaches this broker with their actor, hard stops first.
+fn decide_workflow(eff: &Eff, intent: &ToolIntent) -> PolicyDecision {
+    // (the intent's actor, not `eff.actor`: a run of one role has no delegate rules, but a workflow's helper agent still names itself)
+    if eff.actor.is_some() || intent.actor.is_some() {
+        return role_deny("workflow.nested", "only the lead may start a workflow; a helper agent reports back instead");
+    }
+    if let Some(w) = &intent.workflow_check {
+        return match w.kind.as_str() {
+            "input" if w.detail == "script" => role_deny("workflow.input", "a workflow must be an inline `script` (with optional `args`); write the script into the call"),
+            "input" => role_deny("workflow.input", format!("a workflow input with `{}` is refused: only an inline `script` (with optional `args`) is run, never a script file, a named or resumed workflow", w.detail)),
+            "override" => role_deny("workflow.override", format!("the script sets `{}` for its agents: the run's model and effort apply to every helper; remove it", w.detail.trim_end_matches(':'))),
+            _ => role_deny("workflow.evasion", format!("the script builds keys, text or code at run time (`{}`), which the IDE cannot check in advance; write keys and strings as plain literals", w.detail)),
+        };
+    }
+    if eff.mode == PermissionMode::Ask {
+        return ask("workflow.ask", "start a workflow: its helper agents work in parallel, each of their actions is checked like the lead's");
+    }
+    allow("workflow.ultracode", "ultracode is on for this run; every tool call of the workflow's agents is judged on its own")
 }
 
 #[cfg(test)]

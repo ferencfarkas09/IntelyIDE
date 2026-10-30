@@ -56,10 +56,21 @@ fn sidecar_js() -> PathBuf {
     if let Some(p) = std::env::var_os("INTELY_SIDECAR") {
         return PathBuf::from(p);
     }
-    let bundled = std::env::current_exe().ok().and_then(|exe| exe.parent().map(|d| d.join("../Resources/sidecar/index.js")));
+    let bundled = std::env::current_exe().ok().and_then(|exe| exe.parent().map(|d| bundled_sidecar(d, cfg!(windows))));
     match bundled {
         Some(p) if p.is_file() => p,
         _ => PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../sidecar/dist/index.js")),
+    }
+}
+
+/// The sidecar of an installed app, from the folder of its executable: `IntelyIDE.app/Contents/MacOS/../Resources/sidecar` on
+/// macOS; on Windows Tauri installs the resources next to IntelyIDE.exe, so `<install dir>\sidecar` (sidecar/src/sdk.ts
+/// `isPackagedPath` recognises the same layout).
+fn bundled_sidecar(exe_dir: &std::path::Path, windows: bool) -> PathBuf {
+    if windows {
+        exe_dir.join("sidecar").join("index.js")
+    } else {
+        exe_dir.join("../Resources/sidecar/index.js")
     }
 }
 
@@ -184,7 +195,7 @@ fn defaults_from(ns: &serde_json::Map<String, serde_json::Value>) -> AgentDefaul
     let fallback = AgentDefaults::default();
     let model = ns.get("defaultModel").and_then(Value::as_str).map(intely_roles::store::resolve_model).filter(|m| !m.is_empty()).unwrap_or(fallback.model.clone());
     let effort = match ns.get("defaultEffort").and_then(Value::as_str) {
-        Some(e) => Effort::parse(e).filter(|e| *e != Effort::Max).or(fallback.effort),
+        Some(e) => Effort::parse(e).or(fallback.effort),
         None => fallback.effort,
     }
     .filter(|_| intely_roles::store::effort_available("claude", &model));
@@ -559,6 +570,16 @@ mod tests {
 
     use super::*;
 
+    #[test]
+    fn the_installed_sidecar_is_found_next_to_the_exe_on_windows_and_in_resources_on_macos() {
+        let win = bundled_sidecar(std::path::Path::new(r"C:\Program Files\IntelyIDE"), true);
+        assert!(win.ends_with("sidecar/index.js") || win.ends_with(r"sidecar\index.js"));
+        assert!(win.starts_with(r"C:\Program Files\IntelyIDE"), "{}", win.display());
+        assert!(!win.to_string_lossy().contains("Resources"));
+        let mac = bundled_sidecar(std::path::Path::new("/Applications/IntelyIDE.app/Contents/MacOS"), false);
+        assert_eq!(mac, std::path::Path::new("/Applications/IntelyIDE.app/Contents/MacOS/../Resources/sidecar/index.js"));
+    }
+
     /// A scripted supervisor: `stop` ends a run unless it is listed in `stubborn`.
     #[derive(Default)]
     struct Fake {
@@ -640,7 +661,11 @@ mod tests {
         // Haiku has no effort control; max is refused; the cap is clamped; garbage is ignored
         let haiku = defaults_from(&ns(serde_json::json!({"defaultModel": "haiku", "defaultEffort": "high"})));
         assert_eq!(haiku.effort, None);
-        assert_eq!(defaults_from(&ns(serde_json::json!({"defaultEffort": "max"}))).effort, Some(Effort::Medium));
+        // the whole ladder: max is a choice like any other level (Settings > Roles "Auto run" offers it)
+        assert_eq!(defaults_from(&ns(serde_json::json!({"defaultEffort": "max"}))).effort, Some(Effort::Max));
+        assert_eq!(defaults_from(&ns(serde_json::json!({"defaultModel": "opus", "defaultEffort": "xhigh"}))).effort, Some(Effort::Xhigh));
+        // a model this build does not know keeps its effort (no name test)
+        assert_eq!(defaults_from(&ns(serde_json::json!({"defaultModel": "claude-fable-5-1", "defaultEffort": "low"}))).effort, Some(Effort::Low));
         let nested = defaults_from(&ns(serde_json::json!({"auto": {"enabled": false}, "delegation": {"enabled": false}, "autoEnabled": true})));
         assert!(!nested.auto_enabled && !nested.delegation_enabled, "the nested switches the UI writes win over the flat keys");
         assert_eq!(defaults_from(&ns(serde_json::json!({"delegationCap": 500}))).delegation_cap, 40);

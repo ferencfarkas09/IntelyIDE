@@ -46,11 +46,18 @@ export const IGNORED_EDGES = [["tauri", "reqwest"]];
 // (7) loopback-only probes outside the allowed crates, by exact file (reason in the comment)
 export const RUST_NET_ALLOW = [
   "src-tauri/src/modules/preview/gate.rs", // TcpStream::connect_timeout to 127.0.0.1 / ::1 only: "is a dev server listening"
+  "crates/devices/src/net.rs", // one GET /reload to 127.0.0.1 on the port the runner detected for the user's own Metro server; the host is a constant
+  "crates/webtools/src/npmrun.rs", // `npm outdated` / `npm audit` on a private copy of package.json, after the person confirmed that it contacts the npm registry (docs/node-tools.md)
+  "crates/webtools/src/tryit.rs", // Try it: one HTTP request to 127.0.0.1 / ::1, on the port of a dev server the Scripts panel started (target_addrs is loopback by construction)
 ];
 // (6) the one sidecar file allowed to use the network (confirm-first SDK installer); must be named in privacy.md
 export const SIDECAR_NET_FILE = "sidecar/src/sdk-install.ts";
 // (8) the capability set recorded for the main window (test asserts the same literal)
-export const EXPECTED_PERMISSIONS = ["core:default", "core:window:allow-start-dragging", "core:window:allow-toggle-maximize"];
+// minimize and close only on Windows (capabilities/windows.json): its window has no native frame, the title bar carries the buttons
+export const EXPECTED_PERMISSIONS = ["core:default", "core:window:allow-start-dragging", "core:window:allow-toggle-maximize", "core:window:allow-minimize", "core:window:allow-close"];
+// Granted on Windows only: they must sit in capability files limited to `"platforms": ["windows"]`, so a moved permission or a
+// dropped platform list cannot hand them to the macOS window.
+export const WINDOWS_ONLY_PERMISSIONS = ["core:window:allow-minimize", "core:window:allow-close"];
 // (11) the one host crates/registry talks to (the optional registration the person agrees to on the first-start screen)
 export const REGISTRY_HOSTS = ["registry.intelyhome.com"];
 // (10) hosts of crates/updater/src/endpoints.rs (updater-spec 4.6); a suffix entry starts with a dot
@@ -237,9 +244,14 @@ export function checkCapabilities(root) {
       continue;
     }
     if ("remote" in j) out.push(V("capabilities", f, null, "has a remote section"));
+    const windowsOnly = Array.isArray(j.platforms) && j.platforms.length === 1 && j.platforms[0] === "windows";
+    if (/(^|\/)windows\.json$/.test(f) && !windowsOnly) out.push(V("capabilities", f, null, 'must be limited to "platforms": ["windows"]'));
     for (const p of j.permissions ?? []) {
       if (typeof p !== "string") out.push(V("capabilities", f, null, "non-string permission entry"));
-      else perms.add(p);
+      else {
+        perms.add(p);
+        if (WINDOWS_ONLY_PERMISSIONS.includes(p) && !windowsOnly) out.push(V("capabilities", f, null, `${p} is Windows-only and needs "platforms": ["windows"]`));
+      }
     }
   }
   const extra = [...perms].filter((p) => !EXPECTED_PERMISSIONS.includes(p));
@@ -359,6 +371,8 @@ const RUST_NET = [
   [/Command::new\(\s*"curl"/, "curl"],
   [/\buse\s+curl\b|\bcurl::/, "curl"],
   [/\bureq\b/, "ureq"],
+  // npm talks to the registry: only the user-confirmed dependency check may start it by name (crates/webtools/src/npmrun.rs)
+  [/Command::new\([^)]*\bprogram\(\s*"npm"|Command::new\(\s*"npm"/, "npm"],
 ];
 
 export function checkRustSources(root) {

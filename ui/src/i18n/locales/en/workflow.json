@@ -473,6 +473,6 @@
   "roles.overlay.resetFailed": "Could not reset the file",
   "roles.delete.noBackupDir": "the IntelyIDE data folder",
   "roles.warn.effortXhigh": "xhigh effort uses many tokens. Use it on purpose.",
-  "roles.warn.effortMax": "max effort is disabled: it costs far more for little gain. Use xhigh if you must.",
+  "roles.warn.effortMax": "max effort uses the most tokens of all. Use it on purpose.",
   "roles.warn.effortNotSent": "This model has no effort control, so the effort is not sent."
 }
