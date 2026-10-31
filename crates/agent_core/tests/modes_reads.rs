@@ -796,6 +796,27 @@ fn a_shell_command_may_list_and_print_the_claude_memory_notes_of_its_own_folders
             assert_eq!(d.decision, Decision::Deny, "{mode:?} {cmd}: {:?} {:?}", d.rule, d.reason);
         }
     }
+    // a reader prints the path it was given: the writer behind the pipe must not take it from stdin; and the readers' own loaders
+    let piped = [
+        format!("ls {mem}/MEMORY.md | xargs rm"),
+        format!("ls -d {mem}/topic.md | xargs rm"),
+        format!("ls {mem}/topic.md {mem}/MEMORY.md | xargs rm"),
+        format!("ls {mem}/topic.md | xargs sed -i s/x/y/"),
+        format!("ls -d {mem} | xargs rm -r"),
+        format!("wc -c {mem}/topic.md | xargs rm"),
+        format!("head -n1 {mem}/topic.md {mem}/MEMORY.md | xargs rm"),
+        format!("stat {mem}/topic.md | xargs rm"),
+        format!("file {mem}/topic.md | xargs rm"),
+        format!("ls {mem}/topic.md | parallel rm"),
+        format!("LESSOPEN='|rm %s' less {mem}/topic.md"),
+        format!("MAGIC=/etc/passwd file {mem}/topic.md"),
+    ];
+    for cmd in &piped {
+        for mode in all {
+            let d = run(mode, cmd);
+            assert_eq!(d.decision, Decision::Deny, "{mode:?} {cmd}: {:?} {:?}", d.rule, d.reason);
+        }
+    }
     // printers are fine between the readers
     for cmd in [format!("cd {mem} && ls -la && echo ---- && cat MEMORY.md"), format!("cd {mem} && pwd && cat MEMORY.md")] {
         for mode in [PermissionMode::Automatic, PermissionMode::Bypass] {

@@ -373,10 +373,17 @@ impl<'a> Walker<'a> {
                 let r = self.jail.resolve(s);
                 self.jail.is_claude_memory_folder(&r) || (self.jail.is_claude_memory_note(&r) && !fsview::is_dir(&r))
             };
-            let tail: Vec<String> = self.a.paths.split_off(paths_at.min(self.a.paths.len())).into_iter().filter(|s| !exempt(s)).collect();
+            let all = self.a.paths.split_off(paths_at.min(self.a.paths.len()));
+            let tail: Vec<String> = all.iter().filter(|s| !exempt(s)).cloned().collect();
+            let mut named = tail.len() != all.len();
             self.a.paths.extend(tail);
-            let tail: Vec<String> = self.a.probes.split_off(probes_at.min(self.a.probes.len())).into_iter().filter(|s| !exempt(s)).collect();
+            let all = self.a.probes.split_off(probes_at.min(self.a.probes.len()));
+            let tail: Vec<String> = all.iter().filter(|s| !exempt(s)).cloned().collect();
+            named |= tail.len() != all.len();
             self.a.probes.extend(tail);
+            // `ls`, `wc`, `stat`, `file` and `head` print the path they were given: a later `xargs <writer>` would take it from stdin
+            // where no policy sees it (`ls <note> | xargs rm`). `cat` prints content only.
+            self.memory_named |= named && base != "cat";
         }
     }
 
