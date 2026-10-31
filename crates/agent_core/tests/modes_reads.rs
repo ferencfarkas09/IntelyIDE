@@ -715,3 +715,38 @@ fn a_shell_command_may_list_and_print_the_claude_memory_notes_of_its_own_folders
         }
     }
 }
+
+/// Reading the notes from the shell does not make `~/.claude` writable: every way a command may write into the notes folder stays refused.
+#[test]
+fn a_shell_command_still_cannot_write_into_the_claude_memory_folder() {
+    use intely_agent_core::policy::paths::claude_project_slug;
+    use serde_json::json;
+
+    let fx = mfx();
+    let memory = fx.cwd.join("home").join(".claude").join("projects").join(claude_project_slug(&fx.cwd)).join("memory");
+    std::fs::create_dir_all(&memory).unwrap();
+    std::fs::write(memory.join("topic.md"), "x").unwrap();
+    std::fs::write(memory.join("MEMORY.md"), "x").unwrap();
+    let m = memory.display();
+    let all = [PermissionMode::ReadOnly, PermissionMode::Ask, PermissionMode::Edit, PermissionMode::Automatic, PermissionMode::Bypass];
+    for cmd in [
+        format!("echo x >> {m}/MEMORY.md"),
+        format!("echo x > {m}/new.md"),
+        format!("cat {m}/topic.md > {m}/copy.md"),
+        format!("cat {m}/topic.md | tee {m}/MEMORY.md"),
+        format!("cd {m} && echo x >> MEMORY.md"),
+        format!("rm {m}/topic.md"),
+        format!("mv {m}/topic.md {m}/old.md"),
+        format!("cp {m}/topic.md {m}/copy.md"),
+        format!("touch {m}/x.md"),
+        format!("sed -i s/x/y/ {m}/topic.md"),
+        format!("ls -la {m} && rm {m}/MEMORY.md"),
+    ] {
+        for mode in all {
+            let d = decide_tool(&ctx(&fx, mode), "Bash", json!({ "command": cmd }));
+            assert_eq!(d.decision, Decision::Deny, "{mode:?} {cmd}: {:?} {:?}", d.rule, d.reason);
+        }
+    }
+    // and the file is untouched
+    assert_eq!(std::fs::read_to_string(memory.join("MEMORY.md")).unwrap(), "x");
+}
