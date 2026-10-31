@@ -598,10 +598,8 @@ fn a_run_may_read_the_claude_memory_notes_of_its_own_folders_and_nothing_else_of
             assert_eq!((d.decision, d.rule.as_deref()), (Decision::Deny, Some("fs.protected")), "{mode:?} {tool}");
         }
     }
-    // (ReadOnly keeps its folder boundary for a command. Automatic lets a program that only prints a note read it: the owner's runs were
-    // refused `cd <memory> && ls && cat MEMORY.md`, see `a_shell_command_may_list_and_print_the_claude_memory_notes_...` below)
-    let d = bash(&ctx(&fx, PermissionMode::ReadOnly), &format!("cat {}", memory.join("topic.md").display()));
-    assert_eq!(d.decision, Decision::Deny, "ReadOnly: a command is not the Read tool");
+    // (a program that only prints a note may read it in the modes that let a command read: the owner's runs were refused
+    // `cd <memory> && ls && cat MEMORY.md`, see `a_shell_command_may_list_and_print_the_claude_memory_notes_...` below)
     let d = bash(&ctx(&fx, PermissionMode::Automatic), &format!("cat {}", memory.join("topic.md").display()));
     assert_eq!(d.decision, Decision::Allow, "Automatic: a program that only prints a note may read it: {:?}", d.reason);
 }
@@ -765,8 +763,50 @@ fn a_shell_command_may_list_and_print_the_claude_memory_notes_of_its_own_folders
         }
     }
 
-    // a wrapper that names the folder (the wrapped program runs or writes there): Automatic keeps its folder boundary for the whole command.
-    // (Bypass has no folder boundary and, before this change, let `env -C ~/.claude touch x` through as well: not something this change decides.)
+    // `cd <memory>` is allowed, but from then on every program but the readers (and the printers) is refused while the walker is in the folder:
+    // they would run there without naming a path. Same verdict in every mode, Bypass included.
+    let in_folder = [
+        format!("cd {mem} && ls | xargs rm"),
+        format!("cd {mem} && ls -la | xargs rm -r"),
+        format!("cd {mem} && cat MEMORY.md | xargs rm"),
+        format!("cd {mem} && ls | xargs mv"),
+        format!("cd {mem} && ls | xargs chmod 777"),
+        format!("cd {mem} && ls | xargs touch"),
+        format!("cd {mem} && sudo --chdir . rm MEMORY.md"),
+        format!("cd {mem} && grep -r x"),
+        format!("cd {mem} && rg x"),
+        format!("cd {mem} && rg --hidden x"),
+        format!("cd {mem} && rg --files"),
+        format!("cd {mem} && find"),
+        format!("cd {mem} && fd"),
+        format!("cd {mem} && ls -R"),
+        format!("cd {mem} && du -a"),
+        format!("cd {mem} && tree -a"),
+        format!("cd {mem} && sort"),
+        format!("cd {mem} && python3 -c 'print(1)'"),
+        format!("cd {mem} && env rm MEMORY.md"),
+        format!("cd {mem} && rm MEMORY.md"),
+        format!("cd {mem} && less '+!rm MEMORY.md' MEMORY.md"),
+        format!("(cd {mem}; ls | xargs rm)"),
+        format!("true && cd {mem} && ls | xargs rm"),
+    ];
+    for cmd in &in_folder {
+        for mode in all {
+            let d = run(mode, cmd);
+            assert_eq!(d.decision, Decision::Deny, "{mode:?} {cmd}: {:?} {:?}", d.rule, d.reason);
+        }
+    }
+    // printers are fine between the readers
+    for cmd in [format!("cd {mem} && ls -la && echo ---- && cat MEMORY.md"), format!("cd {mem} && pwd && cat MEMORY.md")] {
+        for mode in [PermissionMode::Automatic, PermissionMode::Bypass] {
+            let d = run(mode, &cmd);
+            assert_eq!(d.decision, Decision::Allow, "{mode:?} {cmd}: {:?} {:?}", d.rule, d.reason);
+        }
+    }
+
+    // a wrapper or an option value that names the folder, after a read of the same note: the read must not clear the way for the write.
+    // Automatic keeps its folder boundary (`exec.auto.outside-jail`) for what is not a plain read; the lower modes ask or refuse.
+    // (Bypass has no folder boundary and let `env -C ~/.claude touch x` through before this change as well: not decided here.)
     let wrapped = [
         format!("env -C {mem} rm MEMORY.md"),
         format!("echo x | env -C {mem} tee MEMORY.md"),
@@ -778,12 +818,29 @@ fn a_shell_command_may_list_and_print_the_claude_memory_notes_of_its_own_folders
         format!("env time -o {mem}/new.md ls"),
         format!("time -o {mem}/new.md ls"),
         format!("ls {mem} && env -C {mem} rm MEMORY.md"),
+        format!("ls {mem}; sudo --chdir {mem} rm MEMORY.md"),
+        format!("ls {mem}; sudo -R {mem} rm MEMORY.md"),
+        format!("cat {mem}/MEMORY.md; time --output {mem}/MEMORY.md ls"),
+        format!("cat {mem}/MEMORY.md; env time --output {mem}/MEMORY.md ls"),
+        format!("cat {mem}/MEMORY.md; command time --output {mem}/MEMORY.md ls"),
+        format!("cat {mem}/MEM*; time -o {mem}/MEM* ls"),
+        format!("cat {mem}/MEMORY.m?; time -o {mem}/MEMORY.m? ls"),
         format!("git -C {mem} status"),
     ];
     for cmd in &wrapped {
-        for mode in [PermissionMode::ReadOnly, PermissionMode::Ask, PermissionMode::Edit, PermissionMode::Automatic] {
+        for mode in [PermissionMode::ReadOnly, PermissionMode::Ask, PermissionMode::Edit] {
             let d = run(mode, cmd);
             assert_ne!(d.decision, Decision::Allow, "{mode:?} {cmd}: {:?} {:?}", d.rule, d.reason);
+        }
+        let d = run(PermissionMode::Automatic, cmd);
+        assert_eq!(d.decision, Decision::Deny, "Automatic {cmd}: {:?} {:?}", d.rule, d.reason);
+        assert!(matches!(d.rule.as_deref(), Some("exec.auto.outside-jail" | "read.never-read")), "Automatic {cmd}: {:?} {:?}", d.rule, d.reason);
+    }
+    // the same line with the writer relative to the folder
+    for cmd in [format!("cd {mem} && cat MEM*; time -o MEM* ls")] {
+        for mode in [PermissionMode::Automatic, PermissionMode::Bypass] {
+            let d = run(mode, &cmd);
+            assert_eq!(d.decision, Decision::Deny, "{mode:?} {cmd}: {:?} {:?}", d.rule, d.reason);
         }
     }
 }

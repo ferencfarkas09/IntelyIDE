@@ -288,24 +288,9 @@ impl<'a> Walker<'a> {
         }
         for c in candidates(&w.text) {
             self.probe(c);
-            self.wrapped_memory(c);
         }
         if let Some((_, v)) = w.text.split_once('=') {
             self.probe(v);
-            self.wrapped_memory(v);
-        }
-    }
-
-    /// A word of a wrapper that names the Claude memory folder or a note in it (`env -C <memory> rm x`, `time -o <memory>/x.md ls`): the
-    /// command it wraps runs there or writes there, which the exemption for the printing programs does not cover.
-    fn wrapped_memory(&mut self, word: &str) {
-        let t = strip_file_scheme(word);
-        if t.is_empty() || (!self.cwd_known && !t.starts_with('/') && !t.starts_with('~')) {
-            return;
-        }
-        let p = paths::resolve(&self.cwd, t, self.jail.home.as_deref());
-        if self.jail.is_claude_memory_folder(&p) || self.jail.is_claude_memory_note(&p) {
-            self.a.wrapped_memory = true;
         }
     }
 
@@ -332,18 +317,7 @@ impl<'a> Walker<'a> {
                 let own_memory = !program_text
                     && self.memory_reader
                     && (self.jail.is_claude_memory_folder(&p) || (self.jail.is_claude_memory_note(&p) && !fsview::is_dir(&p)) || pattern_in_memory);
-                if own_memory {
-                    let mut shown = vec![p.display().to_string()];
-                    if pattern_in_memory {
-                        // (the pattern as written is a path of the command too: its matches were judged one by one)
-                        shown.push(paths::resolve(&self.cwd, strip_file_scheme(cand), self.jail.home.as_deref()).display().to_string());
-                    }
-                    for s in shown {
-                        if !self.a.memory_reads.contains(&s) {
-                            self.a.memory_reads.push(s);
-                        }
-                    }
-                } else {
+                if !own_memory {
                     if let Some(why) = self.jail.never_read_reason(&p) {
                         self.stop("read.never-read", &format!("{} is a secret or IDE-state path and is never read by an agent ({why})", p.display()));
                         return;
@@ -381,9 +355,34 @@ impl<'a> Walker<'a> {
     pub(super) fn leaf_facts(&mut self, base: &str, words: &[Word], ctx: &Ctx) {
         // (a command given by a path, `./cat` or `bin/ls`, is the repository's own program and gets no exemption)
         let bare = words.first().is_some_and(|w| !w.text.contains('/'));
-        let before = std::mem::replace(&mut self.memory_reader, bare && memory_reader(base, words.get(1..).unwrap_or(&[])));
+        let reader = bare && memory_reader(base, words.get(1..).unwrap_or(&[]));
+        // `cd <memory>` is allowed so that `cd <memory> && cat MEMORY.md` works, but from then on the walker is IN the protected folder: any
+        // program but a names-listing or file-printing one runs there without naming a path (`ls | xargs rm`, `grep -r x`, `find`), so it is
+        // refused; the notes are named to the readers
+        if !reader && !PRINTERS.contains(&base) && base != "pwd" && self.in_memory_folder() {
+            self.stop("read.never-read", &format!("{base} runs in the Claude memory folder, where only cd, ls, cat, head, tail, wc, stat, file, bat, less and more may be used (name the notes to read, give no other program the folder)"));
+            return;
+        }
+        let before = std::mem::replace(&mut self.memory_reader, reader);
+        let (paths_at, probes_at) = (self.a.paths.len(), self.a.probes.len());
         self.leaf_facts_inner(base, words, ctx);
         self.memory_reader = before;
+        if reader {
+            // what the exemption let through is no path to judge against the run's folders either: drop exactly those entries of this leaf
+            let exempt = |s: &String| {
+                let r = self.jail.resolve(s);
+                self.jail.is_claude_memory_folder(&r) || (self.jail.is_claude_memory_note(&r) && !fsview::is_dir(&r))
+            };
+            let tail: Vec<String> = self.a.paths.split_off(paths_at.min(self.a.paths.len())).into_iter().filter(|s| !exempt(s)).collect();
+            self.a.paths.extend(tail);
+            let tail: Vec<String> = self.a.probes.split_off(probes_at.min(self.a.probes.len())).into_iter().filter(|s| !exempt(s)).collect();
+            self.a.probes.extend(tail);
+        }
+    }
+
+    /// The walker is in the Claude memory folder of one of the run's own folders (here or in a branch of an `if`/`&&` list it may be in).
+    pub(super) fn in_memory_folder(&self) -> bool {
+        self.cwd_known && (self.jail.is_claude_memory_folder(&self.cwd) || self.cwd_alts.iter().any(|(d, _)| self.jail.is_claude_memory_folder(d)))
     }
 
     fn leaf_facts_inner(&mut self, base: &str, words: &[Word], ctx: &Ctx) {
@@ -1038,7 +1037,7 @@ fn memory_reader(base: &str, rest: &[Word]) -> bool {
         "cat" => opts.iter().all(|o| short(o, "AbEnsTtuv") || matches!(*o, "--number" | "--number-nonblank" | "--squeeze-blank" | "--show-all" | "--show-ends" | "--show-tabs" | "--show-nonprinting")),
         "head" | "tail" => opts.iter().all(|o| short(o, "nqvc0123456789") || o.starts_with("--lines=") || o.starts_with("--bytes=") || matches!(*o, "--quiet" | "--silent" | "--verbose")),
         "wc" => opts.iter().all(|o| short(o, "lwcmL") || matches!(*o, "--lines" | "--words" | "--bytes" | "--chars" | "--max-line-length")),
-        "stat" | "file" | "bat" | "less" | "more" => opts.is_empty(),
+        "stat" | "file" | "bat" | "less" | "more" => opts.is_empty() && !rest.iter().any(|w| w.text.starts_with('+')),
         _ => false,
     }
 }

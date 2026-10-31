@@ -825,17 +825,11 @@ pub fn automatic_refusal(a: &Analysis, jail: &Jail) -> Option<AutoRefusal> {
     // a relative word that is a symlink out of the run's folders (`cat lnk/hosts`, `cd lnk`) is not in `a.paths`: every operand is judged by
     // where it really points, from the directory its command ran in (`a.probes`; non-existing targets resolve lexically, so a new file
     // inside a folder stays fine, and a search pattern is not a path)
-    let memory_reads: Vec<std::path::PathBuf> = a.memory_reads.iter().map(|p| jail.resolve(p)).collect();
     for p in a.paths.iter().chain(&a.probes) {
         if HARMLESS_DEVICES.contains(&p.as_str()) {
             continue;
         }
         let resolved = jail.resolve(p);
-        // an operand that a names-listing or file-printing program was given and the hard stops let through (the memory notes of the run's
-        // own folders, as the dedicated tools may read them before the folder boundary of Automatic); never when a wrapper names that folder
-        if !a.wrapped_memory && memory_reads.contains(&resolved) {
-            continue;
-        }
         if !jail.contains(&resolved) && !jail.in_scratch(&resolved) && !HARMLESS_DEVICES.iter().any(|d| resolved == std::path::Path::new(d)) {
             return refusal("exec.auto.outside-jail", format!("{p} is outside the run's folders; Automatic works only inside them. The run's folders are: {}. Work inside one of them, or ask the user to switch to Bypass or to add the folder", jail.folders_hint()));
         }
