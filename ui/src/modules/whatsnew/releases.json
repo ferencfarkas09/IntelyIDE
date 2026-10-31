@@ -61,6 +61,17 @@
           "en": "Popups in Glass are frosted so text behind them does not show through, a Mac with Reduce transparency starts with the standard look, and a secret written with a space before the colon is now masked too.",
           "hu": "A felugró ablakok Glass stílusban matt üvegesek, így nem látszik át mögöttük a szöveg, a Reduce transparency beállítású Mac a hagyományos kinézettel indul, és a kettőspont előtt szóközzel írt titkok is maszkolva lesznek."
         }
+      },
+      {
+        "kind": "fixed",
+        "title": {
+          "en": "Agents can read your project's memory notes again",
+          "hu": "Az ügynökök ismét olvashatják a projekt memóriajegyzeteit"
+        },
+        "text": {
+          "en": "A run that tried to list or read the memory notes of its own project from the shell was told they were blocked. Listing the folder and printing its notes works again; everything else under ~/.claude stays off limits.",
+          "hu": "Az a futtatás, amely a shellből próbálta listázni vagy olvasni a saját projektje memóriajegyzeteit, azt a választ kapta, hogy tiltott. A mappa listázása és a jegyzetek kiírása újra működik; a ~/.claude többi része továbbra is tiltott."
+        }
       }
     ]
   },

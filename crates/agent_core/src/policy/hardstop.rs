@@ -273,6 +273,10 @@ struct Walker<'a> {
     cd_unreliable: bool,
     /// `setopt`, `shopt` or `set -o` changed how globs match (`GLOB_DOTS`, `dotglob`): a glob after it cannot be judged.
     glob_untrusted: bool,
+    /// The program at the leaf being judged only lists names or prints the files it is given, with no option that recurses, searches, follows
+    /// or writes (`cd`, `ls`, `cat`, ... see `facts::memory_reader`): for it, the Claude memory folder of one of the run's OWN folders and the
+    /// notes directly in it are no secret (`Jail::is_claude_memory_folder`, `Jail::is_claude_memory_note`).
+    memory_reader: bool,
     /// Commands walked for loop iterations so far: the work a loop may cost is bounded.
     loop_work: usize,
     a: Analysis,
@@ -280,7 +284,7 @@ struct Walker<'a> {
 
 impl<'a> Walker<'a> {
     fn new(jail: &'a Jail) -> Self {
-        Self { jail, cwd: jail.cwd.clone(), cwd_known: true, alias_depth: 0, shell_aliases: Default::default(), repl: None, src: String::new(), script_stack: Vec::new(), script_dir: None, vars: Default::default(), vars_off: false, made_dirs: Vec::new(), cwd_pending: Vec::new(), cwd_alts: Vec::new(), cwd_stack: Vec::new(), cdpath: false, made_links: false, cd_unreliable: false, glob_untrusted: false, loop_work: 0, a: Analysis::default() }
+        Self { jail, cwd: jail.cwd.clone(), cwd_known: true, alias_depth: 0, shell_aliases: Default::default(), repl: None, src: String::new(), script_stack: Vec::new(), script_dir: None, vars: Default::default(), vars_off: false, made_dirs: Vec::new(), cwd_pending: Vec::new(), cwd_alts: Vec::new(), cwd_stack: Vec::new(), cdpath: false, made_links: false, cd_unreliable: false, glob_untrusted: false, memory_reader: false, loop_work: 0, a: Analysis::default() }
     }
 
     fn stop(&mut self, rule: &str, reason: &str) {

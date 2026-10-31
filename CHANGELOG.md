@@ -41,6 +41,7 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 - The New Run dialog no longer shows the inactive Templates box next to Saved prompts.
 - The palette command Generate a CLAUDE.md with an agent is now for the repository on screen (the one Project notes shows, or the active file's) and starts in Ask, like the panel's button; with several repositories and none on screen it opens Project notes to pick one.
 - On a short window the cards at the top of a run (What this run did, Unit tests) no longer squeeze the conversation: together they take at most about 40% of the run's height and scroll, the summary starts folded below 700 pixels of window height, and the Unit tests card folds (remembered).
+- A run can read the Claude memory notes of its own project from the shell again: `cd ~/.claude/projects/<folder>/memory && ls -la && cat MEMORY.md` was refused as "a secret or IDE-state path" (the file tools could read them, the shell could not), so an agent said "the memory dir is blocked" and went without the notes. Now `cd`, `ls`, `cat`, `head`, `tail`, `wc`, `stat`, `file`, `bat`, `less` and `more` may name that folder and the `.md` notes directly in it, with a short list of allowed options each, in every mode. The notes of other projects, transcripts, settings and credentials stay refused, as do searches over the folder and anything that writes there (`docs/safety.md`).
 
 ## [1.14.0] - 2026-10-28
 

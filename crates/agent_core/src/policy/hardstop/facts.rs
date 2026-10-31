@@ -308,9 +308,17 @@ impl<'a> Walker<'a> {
                 // A token of program text is judged by its spelling (no filesystem calls: a script has thousands of tokens); an
                 // operand the program opens is resolved, symlinks included.
                 let p = if program_text { self.lexical_path(lit) } else { paths::resolve(&self.cwd, lit, self.jail.home.as_deref()) };
-                if let Some(why) = self.jail.never_read_reason(&p) {
-                    self.stop("read.never-read", &format!("{} is a secret or IDE-state path and is never read by an agent ({why})", p.display()));
-                    return;
+                // The Claude memory notes of the run's own folders (`~/.claude/projects/<folder>/memory`) are the user's notes about the project,
+                // which the CLI loads into every session; the dedicated tools may read them, and so may a program that only lists names or
+                // prints the files it is given. `p` is resolved, so a link that leads elsewhere is judged by where it leads.
+                // (the literal start of a pattern directly in that folder, `topic` of `topic*.md`: the files it matches are judged one by one)
+                let pattern_in_memory = literal_prefix(cand).len() != cand.len() && p.parent().is_some_and(|d| self.jail.is_claude_memory_folder(d));
+                let own_memory = !program_text && self.memory_reader && (self.jail.is_claude_memory_folder(&p) || self.jail.is_claude_memory_note(&p) || pattern_in_memory);
+                if !own_memory {
+                    if let Some(why) = self.jail.never_read_reason(&p) {
+                        self.stop("read.never-read", &format!("{} is a secret or IDE-state path and is never read by an agent ({why})", p.display()));
+                        return;
+                    }
                 }
             }
         }
@@ -342,6 +350,12 @@ impl<'a> Walker<'a> {
 
     /// Facts and stops of the command at the leaf of the walk (wrappers are already peeled).
     pub(super) fn leaf_facts(&mut self, base: &str, words: &[Word], ctx: &Ctx) {
+        let before = std::mem::replace(&mut self.memory_reader, memory_reader(base, words.get(1..).unwrap_or(&[])));
+        self.leaf_facts_inner(base, words, ctx);
+        self.memory_reader = before;
+    }
+
+    fn leaf_facts_inner(&mut self, base: &str, words: &[Word], ctx: &Ctx) {
         if super::SHELLS.contains(&base) || matches!(base, "eval" | "export" | "declare" | "typeset" | "readonly" | "local" | "alias" | "unalias" | "trap" | "source" | ".") {
             return;
         }
@@ -372,6 +386,11 @@ impl<'a> Walker<'a> {
             }
             let t = w.text.as_str();
             if t.is_empty() {
+                continue;
+            }
+            // `memory_reader` checked every option of the program against its short list (none takes a file) and a count (`head -n 20`) is
+            // not a name: neither is an operand to judge (after `cd <memory>`, `-la` would be read as the file `a` of that folder)
+            if self.memory_reader && ((t.starts_with('-') && t != "-") || t.chars().all(|c| c.is_ascii_digit())) {
                 continue;
             }
             // an unquoted glob names the files it matches, also where the program reads a pattern: the shell expands it first
@@ -962,4 +981,25 @@ fn bare_root_token(w: &str) -> bool {
         return true;
     }
     ["$HOME", "${HOME}", "~"].iter().any(|r| w.strip_prefix(r).is_some_and(|rest| rest.starts_with('/') && rest.contains('$')))
+}
+
+/// The programs for which the Claude memory folder of the run's own folders is no secret: they change into it, list its names or print the
+/// notes they are given, and none of the options in the words recurses, searches, follows a link, follows a growing file or writes. Every
+/// option must be on the program's own short list; anything else (`ls -R`, `tail -f`, `less -o log`, `stat -f`) leaves the folder on the
+/// never-read list, as before.
+fn memory_reader(base: &str, rest: &[Word]) -> bool {
+    if rest.iter().any(|w| w.dynamic) {
+        return false;
+    }
+    let opts: Vec<&str> = rest.iter().map(|w| w.text.as_str()).filter(|t| t.starts_with('-') && *t != "-").collect();
+    let short = |o: &str, letters: &str| o.len() > 1 && !o.starts_with("--") && o[1..].chars().all(|c| letters.contains(c));
+    match base {
+        "cd" => opts.iter().all(|o| matches!(*o, "-L" | "-P")),
+        "ls" => opts.iter().all(|o| short(o, "1AaCdFhiklmnopqrSstTUux") || matches!(*o, "--all" | "--almost-all" | "--human-readable" | "--classify") || o.starts_with("--color")),
+        "cat" => opts.iter().all(|o| short(o, "AbEnsTtuv") || matches!(*o, "--number" | "--number-nonblank" | "--squeeze-blank" | "--show-all" | "--show-ends" | "--show-tabs" | "--show-nonprinting")),
+        "head" | "tail" => opts.iter().all(|o| short(o, "nqvc0123456789") || o.starts_with("--lines=") || o.starts_with("--bytes=") || matches!(*o, "--quiet" | "--silent" | "--verbose")),
+        "wc" => opts.iter().all(|o| short(o, "lwcmL") || matches!(*o, "--lines" | "--words" | "--bytes" | "--chars" | "--max-line-length")),
+        "stat" | "file" | "bat" | "less" | "more" => opts.is_empty(),
+        _ => false,
+    }
 }

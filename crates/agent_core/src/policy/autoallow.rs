@@ -830,6 +830,11 @@ pub fn automatic_refusal(a: &Analysis, jail: &Jail) -> Option<AutoRefusal> {
             continue;
         }
         let resolved = jail.resolve(p);
+        // the Claude memory notes of the run's own folders: the hard stops let only names-listing and file-printing programs reach one (as the
+        // dedicated tools may, before the folder boundary of Automatic)
+        if jail.is_claude_memory_note(&resolved) || jail.is_claude_memory_folder(&resolved) {
+            continue;
+        }
         if !jail.contains(&resolved) && !jail.in_scratch(&resolved) && !HARMLESS_DEVICES.iter().any(|d| resolved == std::path::Path::new(d)) {
             return refusal("exec.auto.outside-jail", format!("{p} is outside the run's folders; Automatic works only inside them. The run's folders are: {}. Work inside one of them, or ask the user to switch to Bypass or to add the folder", jail.folders_hint()));
         }
