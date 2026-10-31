@@ -288,9 +288,24 @@ impl<'a> Walker<'a> {
         }
         for c in candidates(&w.text) {
             self.probe(c);
+            self.wrapped_memory(c);
         }
         if let Some((_, v)) = w.text.split_once('=') {
             self.probe(v);
+            self.wrapped_memory(v);
+        }
+    }
+
+    /// A word of a wrapper that names the Claude memory folder or a note in it (`env -C <memory> rm x`, `time -o <memory>/x.md ls`): the
+    /// command it wraps runs there or writes there, which the exemption for the printing programs does not cover.
+    fn wrapped_memory(&mut self, word: &str) {
+        let t = strip_file_scheme(word);
+        if t.is_empty() || (!self.cwd_known && !t.starts_with('/') && !t.starts_with('~')) {
+            return;
+        }
+        let p = paths::resolve(&self.cwd, t, self.jail.home.as_deref());
+        if self.jail.is_claude_memory_folder(&p) || self.jail.is_claude_memory_note(&p) {
+            self.a.wrapped_memory = true;
         }
     }
 
@@ -313,8 +328,22 @@ impl<'a> Walker<'a> {
                 // prints the files it is given. `p` is resolved, so a link that leads elsewhere is judged by where it leads.
                 // (the literal start of a pattern directly in that folder, `topic` of `topic*.md`: the files it matches are judged one by one)
                 let pattern_in_memory = literal_prefix(cand).len() != cand.len() && p.parent().is_some_and(|d| self.jail.is_claude_memory_folder(d));
-                let own_memory = !program_text && self.memory_reader && (self.jail.is_claude_memory_folder(&p) || self.jail.is_claude_memory_note(&p) || pattern_in_memory);
-                if !own_memory {
+                // (a note is a file: a folder called `x.md` inside the notes is not one)
+                let own_memory = !program_text
+                    && self.memory_reader
+                    && (self.jail.is_claude_memory_folder(&p) || (self.jail.is_claude_memory_note(&p) && !fsview::is_dir(&p)) || pattern_in_memory);
+                if own_memory {
+                    let mut shown = vec![p.display().to_string()];
+                    if pattern_in_memory {
+                        // (the pattern as written is a path of the command too: its matches were judged one by one)
+                        shown.push(paths::resolve(&self.cwd, strip_file_scheme(cand), self.jail.home.as_deref()).display().to_string());
+                    }
+                    for s in shown {
+                        if !self.a.memory_reads.contains(&s) {
+                            self.a.memory_reads.push(s);
+                        }
+                    }
+                } else {
                     if let Some(why) = self.jail.never_read_reason(&p) {
                         self.stop("read.never-read", &format!("{} is a secret or IDE-state path and is never read by an agent ({why})", p.display()));
                         return;
@@ -350,7 +379,9 @@ impl<'a> Walker<'a> {
 
     /// Facts and stops of the command at the leaf of the walk (wrappers are already peeled).
     pub(super) fn leaf_facts(&mut self, base: &str, words: &[Word], ctx: &Ctx) {
-        let before = std::mem::replace(&mut self.memory_reader, memory_reader(base, words.get(1..).unwrap_or(&[])));
+        // (a command given by a path, `./cat` or `bin/ls`, is the repository's own program and gets no exemption)
+        let bare = words.first().is_some_and(|w| !w.text.contains('/'));
+        let before = std::mem::replace(&mut self.memory_reader, bare && memory_reader(base, words.get(1..).unwrap_or(&[])));
         self.leaf_facts_inner(base, words, ctx);
         self.memory_reader = before;
     }
@@ -374,6 +405,7 @@ impl<'a> Walker<'a> {
         // `git check-ignore .env` prints a name, it does not read the file.
         let names_only = base == "git" && git_names_only(rest);
         let mut after_dd = false;
+        let mut count_next = false;
         for (idx, w) in rest.iter().enumerate() {
             if self.a.hard_stop.is_some() {
                 return;
@@ -388,10 +420,17 @@ impl<'a> Walker<'a> {
             if t.is_empty() {
                 continue;
             }
-            // `memory_reader` checked every option of the program against its short list (none takes a file) and a count (`head -n 20`) is
-            // not a name: neither is an operand to judge (after `cd <memory>`, `-la` would be read as the file `a` of that folder)
-            if self.memory_reader && ((t.starts_with('-') && t != "-") || t.chars().all(|c| c.is_ascii_digit())) {
-                continue;
+            // `memory_reader` checked every option of the program against its short list (none takes a file): an option is not an operand to
+            // judge (after `cd <memory>`, `-la` would be read as the file `a` of that folder). The one word after `head -n` / `tail -c` is a
+            // count; any other word, a number included, is a name (a link called `21` is judged by where it leads).
+            if self.memory_reader {
+                if std::mem::take(&mut count_next) {
+                    continue;
+                }
+                if t.starts_with('-') && t != "-" {
+                    count_next = matches!(base, "head" | "tail") && matches!(t, "-n" | "-c");
+                    continue;
+                }
             }
             // an unquoted glob names the files it matches, also where the program reads a pattern: the shell expands it first
             if w.glob && !t.starts_with('-') && !code_like(t) {

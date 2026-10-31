@@ -60,6 +60,12 @@ pub struct Analysis {
     /// `VAR=value` overrides that make an interpreter load code (`NODE_OPTIONS`, `PYTHON*`, `RUBYOPT`, `TMPDIR` ...). `PATH`,
     /// `HOME` and the other overrides that remove the git shim are hard stops, not listed here.
     pub env_overrides: Vec<String>,
+    /// Operands the Claude memory exemption let through (the memory folder of one of the run's own folders, or a note directly in it, given
+    /// to `cd`, `ls`, `cat` ... as a bare command name): resolved paths. Automatic's folder boundary skips these and nothing else.
+    pub memory_reads: Vec<String>,
+    /// A wrapper (`env -C`, `sudo -D`, `time -o`, `xargs -a`) names that folder or a note in it: what the wrapped program does there is not
+    /// something the exemption judged, so Automatic keeps its folder boundary for the whole command.
+    pub wrapped_memory: bool,
     /// Operations that destroy work no Rewind snapshot may hold, on a run directory itself (`rm -rf .`, `git clean`,
     /// `git restore`, `find . -delete`): the Automatic-only `exec.auto.destructive` refusal. The wider set is `exec.catastrophic`.
     pub destructive: Vec<String>,

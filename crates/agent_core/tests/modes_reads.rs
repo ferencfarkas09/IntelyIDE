@@ -606,22 +606,28 @@ fn a_run_may_read_the_claude_memory_notes_of_its_own_folders_and_nothing_else_of
     assert_eq!(d.decision, Decision::Allow, "Automatic: a program that only prints a note may read it: {:?}", d.reason);
 }
 
-/// The owner's run in the repository `admin` was refused `cd ~/.claude/projects/<folder>/memory && ls -la ... && cat MEMORY.md` ("a secret or
-/// IDE-state path"), although the dedicated tools may read those notes. The shell may do it too, but only with a program that lists names or
-/// prints the files it is given and no option that recurses, searches, follows or writes; the rest of `~/.claude` stays refused.
-#[test]
-fn a_shell_command_may_list_and_print_the_claude_memory_notes_of_its_own_folders_and_nothing_else_of_dot_claude() {
-    use intely_agent_core::policy::paths::claude_project_slug;
-    use serde_json::json;
-    use std::path::Path;
+/// The home folder of these tests is OUTSIDE the run's folder (the fixture's `home` is inside it, which hides every boundary of Automatic).
+struct MemFx {
+    fx: Fx,
+    home: tempfile::TempDir,
+    claude: std::path::PathBuf,
+    projects: std::path::PathBuf,
+    project: std::path::PathBuf,
+    memory: std::path::PathBuf,
+    other: std::path::PathBuf,
+}
 
+fn mem_fx() -> MemFx {
+    use intely_agent_core::policy::paths::claude_project_slug;
+    use std::path::Path;
     let fx = mfx();
-    let home = fx.cwd.join("home");
-    let claude = home.join(".claude");
+    let home = tempfile::tempdir().unwrap();
+    let claude = std::fs::canonicalize(home.path()).unwrap().join(".claude");
     let projects = claude.join("projects");
-    let memory = projects.join(claude_project_slug(&fx.cwd)).join("memory");
+    let project = projects.join(claude_project_slug(&fx.cwd));
+    let memory = project.join("memory");
     let other = projects.join(claude_project_slug(Path::new("/somewhere/else"))).join("memory");
-    for d in [&memory, &other, &memory.join("sub"), &claude.join("plans")] {
+    for d in [&memory, &other, &memory.join("sub"), &memory.join("dir.md"), &claude.join("plans")] {
         std::fs::create_dir_all(d).unwrap();
     }
     for p in [
@@ -631,46 +637,75 @@ fn a_shell_command_may_list_and_print_the_claude_memory_notes_of_its_own_folders
         memory.join(".hidden.md"),
         memory.join("sub").join("a.md"),
         other.join("topic.md"),
-        projects.join(claude_project_slug(&fx.cwd)).join("session.jsonl"),
+        project.join("session.jsonl"),
         claude.join("settings.json"),
         claude.join(".credentials.json"),
     ] {
         std::fs::write(p, "x").unwrap();
     }
     std::os::unix::fs::symlink(claude.join("settings.json"), memory.join("link.md")).unwrap();
+    // links a cloned repository could ship, named like a count or a program
+    for (name, to) in [("21", claude.join("settings.json")), ("5", claude.join(".credentials.json"))] {
+        std::os::unix::fs::symlink(to, fx.cwd.join(name)).unwrap();
+    }
+    std::fs::create_dir_all(fx.cwd.join("bin")).unwrap();
+    for exe in [fx.cwd.join("cat"), fx.cwd.join("ls"), fx.cwd.join("bin").join("cat")] {
+        std::fs::write(&exe, "#!/bin/sh\ncat \"$1\"/../../settings.json\n").unwrap();
+        std::os::unix::fs::PermissionsExt::set_mode(&mut std::fs::metadata(&exe).unwrap().permissions(), 0o755);
+    }
+    MemFx { fx, home, claude, projects, project, memory, other }
+}
 
+fn mem_ctx(m: &MemFx, mode: PermissionMode) -> PolicyContext {
+    let mut c = ctx(&m.fx, mode);
+    c.home = Some(std::fs::canonicalize(m.home.path()).unwrap());
+    c
+}
+
+/// The owner's run in the repository `admin` was refused `cd ~/.claude/projects/<folder>/memory && ls -la ... && cat MEMORY.md` ("a secret or
+/// IDE-state path"), although the dedicated tools may read those notes. The shell may do it too, but only with a program that lists names or
+/// prints the files it is given and no option that recurses, searches, follows or writes; the rest of `~/.claude` stays refused.
+#[test]
+fn a_shell_command_may_list_and_print_the_claude_memory_notes_of_its_own_folders_and_nothing_else_of_dot_claude() {
+    use serde_json::json;
+
+    let m = mem_fx();
     let all = [PermissionMode::ReadOnly, PermissionMode::Ask, PermissionMode::Edit, PermissionMode::Automatic, PermissionMode::Bypass];
-    let run = |mode: PermissionMode, cmd: &str| decide_tool(&ctx(&fx, mode), "Bash", json!({ "command": cmd }));
-    let m = memory.display();
-    let project = projects.join(claude_project_slug(&fx.cwd));
-    let (o, pr, cl) = (other.display(), project.display(), claude.display());
+    let run = |mode: PermissionMode, cmd: &str| decide_tool(&mem_ctx(&m, mode), "Bash", json!({ "command": cmd }));
+    let (mem, o, pr, cl) = (m.memory.display(), m.other.display(), m.project.display(), m.claude.display());
+    let _ = &m.projects;
 
     // what a program that only lists names or prints a note may do: never the never-read hard stop, in any mode
     let allowed = [
-        format!("cd {m}"),
-        format!("cd {m} && ls -la"),
-        format!("ls -la {m}"),
-        format!("ls -1 {m}/"),
-        format!("cat {m}/MEMORY.md"),
-        format!("cat {m}/topic*.md"),
-        format!("head -n 20 {m}/topic.md"),
-        format!("tail -20 {m}/topic.md"),
-        format!("wc -l {m}/topic.md"),
-        format!("stat {m}/topic.md"),
-        format!("cd {m} && cat MEMORY.md"),
+        format!("cd {mem}"),
+        format!("cd {mem} && ls -la"),
+        format!("ls -la {mem}"),
+        format!("ls -1 {mem}/"),
+        format!("cat {mem}/MEMORY.md"),
+        format!("cat {mem}/topic*.md"),
+        format!("head -n 20 {mem}/topic.md"),
+        format!("tail -20 {mem}/topic.md"),
+        format!("tail -n 5 {mem}/topic.md"),
+        format!("wc -l {mem}/topic.md"),
+        format!("stat {mem}/topic.md"),
+        format!("cd {mem} && cat MEMORY.md"),
+        format!("cd {mem} && head -n 3 MEMORY.md"),
         // the command of the report
-        format!("cd {m} && ls -la {m} && cat MEMORY.md"),
-        format!("ls -la {m} && cat {m}/MEMORY.md"),
+        format!("cd {mem} && ls -la {mem} && cat MEMORY.md"),
+        format!("ls -la {mem} && cat {mem}/MEMORY.md"),
     ];
     for cmd in &allowed {
         for mode in all {
             let d = run(mode, cmd);
             assert_ne!(d.rule.as_deref(), Some("read.never-read"), "{mode:?} {cmd}: {:?}", d.reason);
-        }
-        // a run with no folder boundary lets it through, and so does Automatic (the notes are the one thing it may read outside its folders)
-        for mode in [PermissionMode::Bypass, PermissionMode::Automatic] {
-            let d = run(mode, cmd);
-            assert_eq!(d.decision, Decision::Allow, "{mode:?} {cmd}: {:?} {:?}", d.rule, d.reason);
+            // the one thing a run without any folder boundary or with Automatic's must do: let it through
+            if matches!(mode, PermissionMode::Bypass | PermissionMode::Automatic) {
+                assert_eq!(d.decision, Decision::Allow, "{mode:?} {cmd}: {:?} {:?}", d.rule, d.reason);
+            }
+            // the modes that ask or keep a boundary never refuse it as a secret: they ask, or refuse for the folder boundary
+            if matches!(mode, PermissionMode::Ask | PermissionMode::Edit) {
+                assert!(matches!(d.decision, Decision::Allow | Decision::Ask), "{mode:?} {cmd}: {:?} {:?} {:?}", d.decision, d.rule, d.reason);
+            }
         }
     }
 
@@ -684,29 +719,44 @@ fn a_shell_command_may_list_and_print_the_claude_memory_notes_of_its_own_folders
         format!("ls {cl}"),
         format!("cat {cl}/settings.json"),
         format!("cat {cl}/.credentials.json"),
-        format!("cat {m}/notes.jsonl"),                     // not a note
-        format!("cat {m}/.hidden.md"),                      // hidden
-        format!("cat {m}/sub/a.md"),                        // a subfolder of the notes
-        format!("ls {m}/sub"),
-        format!("cat {m}/link.md"),                         // a link that leads out: judged by where it leads
-        format!("cat {m}/../settings.json"),                // `..` out of the notes folder
-        format!("cat {m}/../session.jsonl"),
-        format!("cd {m} && cat ../settings.json"),
-        format!("cd {m}/.. && ls"),
-        format!("ls -R {m}"),                               // an option that recurses
-        format!("tail -f {m}/topic.md"),                    // an option that follows a growing file
-        format!("less -o /tmp/log {m}/topic.md"),           // an option that writes
-        format!("less -N {m}/topic.md"),                    // no option at all for the pager
-        format!("stat -f {m}/topic.md"),
-        format!("grep -r x {m}"),                           // programs that search
-        format!("grep x {m}/topic.md"),
-        format!("rg x {m}"),
-        format!("find {m} -name '*.md'"),
-        format!("sed -n 1p {m}/topic.md"),
-        format!("awk 1 {m}/topic.md"),
-        format!("python3 -c \"print(open('{m}/topic.md').read())\""), // a program that opens it by a name in its own code
-        format!("cd {m} && grep -r x ."),
-        format!("cat {m}/topic.md {cl}/settings.json"),     // one allowed note next to a refused file
+        format!("cat {mem}/notes.jsonl"),                   // not a note
+        format!("cat {mem}/.hidden.md"),                    // hidden
+        format!("cat {mem}/sub/a.md"),                      // a subfolder of the notes
+        format!("ls {mem}/sub"),
+        format!("ls {mem}/dir.md"),                         // a folder called like a note is no note
+        format!("cat {mem}/dir.md"),
+        format!("cat {mem}/link.md"),                       // a link that leads out: judged by where it leads
+        format!("cat {mem}/../settings.json"),              // `..` out of the notes folder
+        format!("cat {mem}/../session.jsonl"),
+        format!("cd {mem} && cat ../settings.json"),
+        format!("cd {mem}/.. && ls"),
+        format!("ls -R {mem}"),                             // an option that recurses
+        format!("tail -f {mem}/topic.md"),                  // an option that follows a growing file
+        format!("less -o /tmp/log {mem}/topic.md"),         // an option that writes
+        format!("less -N {mem}/topic.md"),                  // no option at all for the pager
+        format!("stat -f {mem}/topic.md"),
+        format!("grep -r x {mem}"),                         // programs that search
+        format!("grep x {mem}/topic.md"),
+        format!("rg x {mem}"),
+        format!("find {mem} -name '*.md'"),
+        format!("sed -n 1p {mem}/topic.md"),
+        format!("awk 1 {mem}/topic.md"),
+        format!("python3 -c \"print(open('{mem}/topic.md').read())\""), // a program that opens it by a name in its own code
+        format!("cd {mem} && grep -r x ."),
+        format!("cat {mem}/topic.md {cl}/settings.json"),   // one allowed note next to a refused file
+        // a link a cloned repository ships, named like a count: judged by where it leads, as every operand is
+        "cat 21".to_string(),
+        "cat 5 6".to_string(),
+        "head -n 5 21".to_string(),
+        "tail -n 5 21".to_string(),
+        "wc -l 21".to_string(),
+        "cat -n 21".to_string(),
+        "ls 21".to_string(),
+        // a program of the repository that is called like a reader
+        format!("./cat {mem}/MEMORY.md"),
+        format!("bin/cat {mem}/MEMORY.md"),
+        format!("./ls {mem}"),
+        format!("{}/cat {mem}/MEMORY.md", m.fx.cwd.display()),
     ];
     for cmd in &refused {
         for mode in all {
@@ -714,39 +764,56 @@ fn a_shell_command_may_list_and_print_the_claude_memory_notes_of_its_own_folders
             assert_eq!((d.decision, d.rule.as_deref()), (Decision::Deny, Some("read.never-read")), "{mode:?} {cmd}: {:?}", d.reason);
         }
     }
+
+    // a wrapper that names the folder (the wrapped program runs or writes there): Automatic keeps its folder boundary for the whole command.
+    // (Bypass has no folder boundary and, before this change, let `env -C ~/.claude touch x` through as well: not something this change decides.)
+    let wrapped = [
+        format!("env -C {mem} rm MEMORY.md"),
+        format!("echo x | env -C {mem} tee MEMORY.md"),
+        format!("env --chdir={mem} touch x.md"),
+        format!("env -C {mem} sed -i s/x/y/ topic.md"),
+        format!("env -C {mem} mv topic.md MEMORY.md"),
+        format!("env -C {mem} mkdir newdir"),
+        format!("sudo -D {mem} rm MEMORY.md"),
+        format!("env time -o {mem}/new.md ls"),
+        format!("time -o {mem}/new.md ls"),
+        format!("ls {mem} && env -C {mem} rm MEMORY.md"),
+        format!("git -C {mem} status"),
+    ];
+    for cmd in &wrapped {
+        for mode in [PermissionMode::ReadOnly, PermissionMode::Ask, PermissionMode::Edit, PermissionMode::Automatic] {
+            let d = run(mode, cmd);
+            assert_ne!(d.decision, Decision::Allow, "{mode:?} {cmd}: {:?} {:?}", d.rule, d.reason);
+        }
+    }
 }
 
 /// Reading the notes from the shell does not make `~/.claude` writable: every way a command may write into the notes folder stays refused.
 #[test]
 fn a_shell_command_still_cannot_write_into_the_claude_memory_folder() {
-    use intely_agent_core::policy::paths::claude_project_slug;
     use serde_json::json;
 
-    let fx = mfx();
-    let memory = fx.cwd.join("home").join(".claude").join("projects").join(claude_project_slug(&fx.cwd)).join("memory");
-    std::fs::create_dir_all(&memory).unwrap();
-    std::fs::write(memory.join("topic.md"), "x").unwrap();
-    std::fs::write(memory.join("MEMORY.md"), "x").unwrap();
-    let m = memory.display();
+    let m = mem_fx();
+    let mem = m.memory.display();
     let all = [PermissionMode::ReadOnly, PermissionMode::Ask, PermissionMode::Edit, PermissionMode::Automatic, PermissionMode::Bypass];
     for cmd in [
-        format!("echo x >> {m}/MEMORY.md"),
-        format!("echo x > {m}/new.md"),
-        format!("cat {m}/topic.md > {m}/copy.md"),
-        format!("cat {m}/topic.md | tee {m}/MEMORY.md"),
-        format!("cd {m} && echo x >> MEMORY.md"),
-        format!("rm {m}/topic.md"),
-        format!("mv {m}/topic.md {m}/old.md"),
-        format!("cp {m}/topic.md {m}/copy.md"),
-        format!("touch {m}/x.md"),
-        format!("sed -i s/x/y/ {m}/topic.md"),
-        format!("ls -la {m} && rm {m}/MEMORY.md"),
+        format!("echo x >> {mem}/MEMORY.md"),
+        format!("echo x > {mem}/new.md"),
+        format!("cat {mem}/topic.md > {mem}/copy.md"),
+        format!("cat {mem}/topic.md | tee {mem}/MEMORY.md"),
+        format!("cd {mem} && echo x >> MEMORY.md"),
+        format!("rm {mem}/topic.md"),
+        format!("mv {mem}/topic.md {mem}/old.md"),
+        format!("cp {mem}/topic.md {mem}/copy.md"),
+        format!("touch {mem}/x.md"),
+        format!("sed -i s/x/y/ {mem}/topic.md"),
+        format!("ls -la {mem} && rm {mem}/MEMORY.md"),
     ] {
         for mode in all {
-            let d = decide_tool(&ctx(&fx, mode), "Bash", json!({ "command": cmd }));
+            let d = decide_tool(&mem_ctx(&m, mode), "Bash", json!({ "command": cmd }));
             assert_eq!(d.decision, Decision::Deny, "{mode:?} {cmd}: {:?} {:?}", d.rule, d.reason);
         }
     }
     // and the file is untouched
-    assert_eq!(std::fs::read_to_string(memory.join("MEMORY.md")).unwrap(), "x");
+    assert_eq!(std::fs::read_to_string(m.memory.join("MEMORY.md")).unwrap(), "x");
 }
