@@ -177,7 +177,7 @@ const DANGEROUS_KEYS: &[&str] = &[
 ];
 
 /// Variables that name a program or script the next command runs (pager, editor, shell startup file).
-const LOADER_ENV_EXACT: &[&str] = &["PAGER", "EDITOR", "VISUAL", "BASH_ENV", "ENV", "BROWSER", "PROMPT_COMMAND", "SHELLOPTS", "BASHOPTS", "PS4"];
+const LOADER_ENV_EXACT: &[&str] = &["PAGER", "LESSOPEN", "LESSCLOSE", "BAT_PAGER", "BAT_CONFIG_PATH", "MAGIC", "EDITOR", "VISUAL", "BASH_ENV", "ENV", "BROWSER", "PROMPT_COMMAND", "SHELLOPTS", "BASHOPTS", "PS4"];
 const GIT_ENV_EXACT: &[&str] = &[
     "GIT_SSH_COMMAND",
     "GIT_SSH",
@@ -273,6 +273,12 @@ struct Walker<'a> {
     cd_unreliable: bool,
     /// `setopt`, `shopt` or `set -o` changed how globs match (`GLOB_DOTS`, `dotglob`): a glob after it cannot be judged.
     glob_untrusted: bool,
+    /// The program at the leaf being judged only lists names or prints the files it is given, with no option that recurses, searches, follows
+    /// or writes (`cd`, `ls`, `cat`, ... see `facts::memory_reader`): for it, the Claude memory folder of one of the run's OWN folders and the
+    /// notes directly in it are no secret (`Jail::is_claude_memory_folder`, `Jail::is_claude_memory_note`).
+    memory_reader: bool,
+    /// a reader of the memory notes has printed (or may print) a memory path to stdout in this walk
+    memory_named: bool,
     /// Commands walked for loop iterations so far: the work a loop may cost is bounded.
     loop_work: usize,
     a: Analysis,
@@ -280,7 +286,7 @@ struct Walker<'a> {
 
 impl<'a> Walker<'a> {
     fn new(jail: &'a Jail) -> Self {
-        Self { jail, cwd: jail.cwd.clone(), cwd_known: true, alias_depth: 0, shell_aliases: Default::default(), repl: None, src: String::new(), script_stack: Vec::new(), script_dir: None, vars: Default::default(), vars_off: false, made_dirs: Vec::new(), cwd_pending: Vec::new(), cwd_alts: Vec::new(), cwd_stack: Vec::new(), cdpath: false, made_links: false, cd_unreliable: false, glob_untrusted: false, loop_work: 0, a: Analysis::default() }
+        Self { jail, cwd: jail.cwd.clone(), cwd_known: true, alias_depth: 0, shell_aliases: Default::default(), repl: None, src: String::new(), script_stack: Vec::new(), script_dir: None, vars: Default::default(), vars_off: false, made_dirs: Vec::new(), cwd_pending: Vec::new(), cwd_alts: Vec::new(), cwd_stack: Vec::new(), cdpath: false, made_links: false, cd_unreliable: false, glob_untrusted: false, memory_reader: false, memory_named: false, loop_work: 0, a: Analysis::default() }
     }
 
     fn stop(&mut self, rule: &str, reason: &str) {
@@ -461,6 +467,10 @@ impl<'a> Walker<'a> {
             return;
         }
         if let Some((inner, xargs)) = self.peel(&base, words) {
+            if self.in_memory_folder() {
+                self.stop("read.never-read", &format!("{base} wraps another program in the Claude memory folder, where only cd, ls, cat, head, tail, wc, stat, file, bat, less and more may be used"));
+                return;
+            }
             for w in &words[1..words.len().saturating_sub(inner.len()).max(1)] {
                 self.probe_wrapper_word(w);
             }
@@ -685,6 +695,9 @@ impl<'a> Walker<'a> {
             "sudo" => (rest(skip(&["-u", "-g", "-C", "-D", "-h", "-p", "-r", "-t", "-T", "-U", "--user", "--group"])), false),
             "doas" => (rest(skip(&["-u", "-C"])), false),
             "xargs" | "parallel" => {
+                if self.memory_named {
+                    self.stop("read.never-read", &format!("{base} would take a path of the Claude memory notes from the output of a reader and act on it"));
+                }
                 self.repl = words.iter().enumerate().find_map(|(i, w)| {
                     let t = w.text.as_str();
                     match t {
