@@ -1,6 +1,7 @@
 import { createEffect, createMemo, createSignal, For, on, onCleanup, onMount, Show, Suspense } from "solid-js";
 import { Dynamic } from "solid-js/web";
 import { t } from "../../i18n";
+import { execute } from "../../platform/commands";
 import { ecoInterval } from "../../platform/eco";
 import { visibleTab } from "../../platform/mode";
 import {
@@ -19,9 +20,9 @@ import {
   type WidgetSize,
 } from "../../platform/widgets";
 import { activeSummary } from "../../store/workspaces";
-import { announce, Button, Card, Check, Eye, EyeOff, GripVertical, Icon, IconButton, LayoutGrid, Pencil, RefreshCw, RotateCcw, SegmentedControl } from "../../ui-kit";
-import { partOfDay } from "./logic";
+import { announce, Button, Card, Check, Eye, EyeOff, GripVertical, Icon, IconButton, LayoutGrid, Pencil, Plus, RefreshCw, RotateCcw, SegmentedControl } from "../../ui-kit";
 import { CardLoading } from "./parts";
+import { createPulse, DashTiles, summaryOf } from "./Tiles";
 import { sentryApi } from "../sentry/api";
 import { setConfigStatus } from "../sentry/store";
 import "./dashboard.css";
@@ -196,29 +197,37 @@ export default function Dashboard() {
     announce(t("dash.edit.moved", { title: titleOf(d.id), pos: to + 1, count: ids.length }));
   };
 
-  const GREETING = { morning: "dash.greeting.morning", afternoon: "dash.greeting.afternoon", evening: "dash.greeting.evening" } as const;
-  const greeting = () => t(GREETING[partOfDay(Date.now())]);
+  const pulse = createPulse();
+  const name = () => activeSummary()?.name;
   return (
     <div class="dash" data-testid="dashboard" data-editing={editing() ? "" : undefined}>
       <header class="dash__head">
         <div class="dash__heading">
-          <h2 class="dash__title">{greeting()}</h2>
-          <p class="dash__sub">{activeSummary()?.name ? t("dash.sub", { name: activeSummary()!.name }) : t("dash.subNoName")}</p>
+          <h2 class="dash__title">{name() ? t("dash.heading", { name: name()! }) : t("dash.headingNoName")}</h2>
+          <p class="dash__sub" data-testid="dash-summary">
+            {summaryOf(pulse())}
+          </p>
         </div>
         <div class="dash__tools">
           <Show when={!editing()}>
-            <IconButton icon={RefreshCw} label={t("dash.refresh")} onClick={() => setRefreshAll((n) => n + 1)} />
+            <IconButton size="lg" class="dash__refresh" icon={RefreshCw} label={t("dash.refresh")} onClick={() => setRefreshAll((n) => n + 1)} />
           </Show>
           <Show when={editing()}>
-            <Button size="sm" variant="ghost" icon={RotateCcw} onClick={reset}>
+            <Button size="xl" variant="ghost" icon={RotateCcw} onClick={reset}>
               {t("dash.edit.reset")}
             </Button>
           </Show>
-          <Button size="sm" variant={editing() ? "primary" : "secondary"} icon={editing() ? Check : Pencil} aria-pressed={editing()} onClick={() => setEditing((v) => !v)}>
+          <Button size="xl" variant={editing() ? "primary" : "secondary"} icon={editing() ? Check : Pencil} aria-pressed={editing()} onClick={() => setEditing((v) => !v)}>
             {editing() ? t("dash.edit.done") : t("dash.edit.start")}
           </Button>
+          <Show when={!editing()}>
+            <Button size="xl" variant="primary" icon={Plus} onClick={() => void execute("runs.new")} data-testid="dash-new-run">
+              {t("runs.newRun")}
+            </Button>
+          </Show>
         </div>
       </header>
+      <DashTiles pulse={pulse} />
       <Show when={editing()}>
         <p class="dash__edit-hint" role="note">
           {t("dash.edit.hint")}

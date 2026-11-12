@@ -8,7 +8,7 @@ import { setPanelOpen } from "../../../shell/layout";
 import { setSelectedFile } from "../../../store/selection";
 import { repoError, snapshots } from "../../../store/snapshots";
 import { repos, workspaceState } from "../../../store/workspace";
-import { AheadBehind, BranchPill, FolderGit2, RepoBadge, Skeleton } from "../../../ui-kit";
+import { FolderGit2, Skeleton } from "../../../ui-kit";
 import { subjectOf } from "../logic";
 import { CardEmpty, CardLoading } from "../parts";
 
@@ -62,23 +62,30 @@ export default function RepoHeartbeat(props: WidgetProps) {
               const dirty = () => snap()?.changes.length ?? 0;
               return (
                 <li>
-                  <button type="button" class="dash-row" onClick={() => openRepo(r.id)} aria-label={t("dash.repos.open", { name: r.name })}>
-                    <RepoBadge color={r.color} badge={r.badge} size={20} />
-                    <span class="dash-row__main">
-                      <span class="dash-row__title">
-                        <span class="ui-truncate">{r.name}</span>
-                        <Show when={snap()} fallback={<Skeleton width={60} height={12} />}>
-                          {(s) => <BranchPill name={s().head.branch ?? undefined} detached={s().head.detached} unborn={s().head.unborn} oid={s().head.oid?.slice(0, 7)} />}
-                        </Show>
-                      </span>
-                      <span class="dash-row__sub ui-truncate">{repoError(r.id) ? t("dash.repos.unreadable") : subject(r.id) || " "}</span>
-                    </span>
-                    <span class="dash-row__end ui-tnum">
-                      <Show when={snap()}>{(s) => <AheadBehind ahead={s().ahead} behind={s().behind} />}</Show>
+                  <button type="button" class="dash-row dash-repo" onClick={() => openRepo(r.id)} aria-label={t("dash.repos.open", { name: r.name })}>
+                    <span class="dash-repo__dot" aria-hidden="true" style={{ background: r.color }} />
+                    <span class="dash-repo__name ui-truncate">{r.name}</span>
+                    <Show when={snap()} fallback={<Skeleton width={60} height={12} />}>
+                      {(s) => (
+                        <span class="dash-repo__branch ui-truncate" title={s().head.branch ?? undefined}>
+                          {s().head.unborn ? t("dash.repos.unborn") : s().head.detached || !s().head.branch ? t("dash.repos.detached", { oid: s().head.oid?.slice(0, 7) ?? "" }) : s().head.branch}
+                        </span>
+                      )}
+                    </Show>
+                    <span class="dash-repo__counts ui-tnum">
                       <Show when={dirty() > 0} fallback={<span class="dash-clean">{t("dash.repos.clean")}</span>}>
                         <span class="dash-dirty">{t("dash.repos.dirty", { n: dirty() })}</span>
                       </Show>
+                      <Show when={(snap()?.ahead ?? 0) > 0}>
+                        <span>{t("dash.repos.toPush", { n: snap()!.ahead })}</span>
+                      </Show>
+                      <Show when={(snap()?.behind ?? 0) > 0}>
+                        <span>{t("dash.repos.toPull", { n: snap()!.behind })}</span>
+                      </Show>
                     </span>
+                    <Show when={repoError(r.id) || subject(r.id)}>
+                      <span class="dash-repo__last ui-truncate">{repoError(r.id) ? t("dash.repos.unreadable") : subject(r.id)}</span>
+                    </Show>
                   </button>
                 </li>
               );
