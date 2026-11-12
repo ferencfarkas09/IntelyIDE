@@ -28,6 +28,10 @@ export interface MapState {
   /** Tool ids refused by policy or the user; their error result is reported as "denied". */
   denied: Set<string>;
   prevUsage: Map<string, Raw>;
+  /** The size of the lead's context after its last message: the prompt it was sent (fresh, cache read, cache write) and its reply. */
+  contextUsed?: number;
+  /** The model that wrote the lead's last message: its window is the run's context window. */
+  leadModel?: string;
   cumulative: UsageTotals;
   status?: StatusState;
   errorThisTurn: boolean;
@@ -118,11 +122,14 @@ function usageOf(state: MapState, r: Raw): UsageRecord | undefined {
     if (delta > best) { best = delta; model = name; }
     if (typeof e.contextWindow === 'number') ctx = e.contextWindow;
   }
+  // a run with delegates lists several models: the window that counts is the lead's
+  const lead = state.leadModel ? mu[state.leadModel] : undefined;
+  if (lead && typeof lead.contextWindow === 'number') ctx = lead.contextWindow;
   state.prevUsage = new Map(Object.entries(mu));
   state.cumulative = cum;
   // cumulative per model (the CLI reports cost per model, not per role; sub-agents are included in modelUsage)
   const perModel = Object.entries(mu).map(([name, e]) => { const t = zero(); add(t, e); return { model: name, tokens: t }; });
-  return { model, costBasis: state.costBasis, ...(ctx ? { contextSize: ctx } : {}), perTurn: per, cumulative: cum, ...(perModel.length ? { perModel } : {}) };
+  return { model, costBasis: state.costBasis, ...(state.contextUsed ? { contextUsed: state.contextUsed } : {}), ...(ctx ? { contextSize: ctx } : {}), perTurn: per, cumulative: cum, ...(perModel.length ? { perModel } : {}) };
 }
 
 function diffFor(name: string, input: Raw): { path: string; old: string | null; new: string } | undefined {
@@ -213,9 +220,24 @@ function mapStream(state: MapState, e: Raw, sub: { parentToolId?: string }): Eve
   }
 }
 
+/** Tokens of one API answer that are in the context afterwards; undefined when the message carries no usable usage. */
+function contextOf(usage: unknown): number | undefined {
+  if (!usage || typeof usage !== 'object') return undefined;
+  const u = usage as Raw;
+  const n = (k: string) => (typeof u[k] === 'number' && Number.isFinite(u[k]) && u[k] > 0 ? u[k] : 0);
+  const total = n('input_tokens') + n('cache_read_input_tokens') + n('cache_creation_input_tokens') + n('output_tokens');
+  return total > 0 ? total : undefined;
+}
+
 function mapAssistant(state: MapState, m: Raw, parent?: string): EventInput[] {
   const msg = m.message ?? {};
   const out: EventInput[] = [];
+  // the lead's own messages only: a delegate has a context of its own
+  const ctx = parent ? undefined : contextOf(msg.usage);
+  if (ctx !== undefined) {
+    state.contextUsed = ctx;
+    if (typeof msg.model === 'string' && msg.model) state.leadModel = msg.model;
+  }
   const sub = parent ? { parentToolId: parent } : {};
   for (const b of Array.isArray(msg.content) ? msg.content : []) {
     const n = state.assistantBlocks.get(msg.id) ?? 0;

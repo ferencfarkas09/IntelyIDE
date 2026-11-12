@@ -518,4 +518,24 @@ describe('facts and usage', () => {
     expect(ev2.usage.perModel?.[0]?.tokens.inputTokens).toBe(150);
     expect(ev2.usage.perTurn.inputTokens).toBe(50);
   });
+
+  it("the context fill is the lead's last answer (prompt and reply), and the window is the lead model's", () => {
+    const state = newMapState();
+    const assistant = (model: string, usage: Record<string, unknown> | undefined, parent?: string) => ({ type: 'assistant', parent_tool_use_id: parent ?? null, message: { id: `m-${model}-${parent ?? 'lead'}`, model, content: [{ type: 'text', text: 'ok' }], ...(usage ? { usage } : {}) } });
+    const result = { type: 'result', subtype: 'success', is_error: false, modelUsage: {
+      'claude-opus-5-5[1m]': { inputTokens: 10, outputTokens: 5, cacheReadInputTokens: 0, cacheCreationInputTokens: 0, costUSD: 0.1, contextWindow: 1_000_000 },
+      'claude-haiku-4-5-20251001': { inputTokens: 4, outputTokens: 1, cacheReadInputTokens: 0, cacheCreationInputTokens: 0, costUSD: 0.01, contextWindow: 200_000 },
+    } };
+    const usage = () => (mapRaw(state, result).find((e) => e.kind === 'usage') as Extract<WireEvent, { kind: 'usage' }>).usage;
+    // no answer with usage yet: nothing is made up
+    expect(usage().contextUsed).toBeUndefined();
+    mapRaw(state, assistant('claude-opus-5-5[1m]', { input_tokens: 1200, cache_read_input_tokens: 60_000, cache_creation_input_tokens: 800, output_tokens: 500 }));
+    // a delegate's answer and an answer without numbers do not move the lead's fill
+    mapRaw(state, assistant('claude-haiku-4-5-20251001', { input_tokens: 9, cache_read_input_tokens: 9, cache_creation_input_tokens: 9, output_tokens: 9 }, 'toolu_1'));
+    mapRaw(state, assistant('<synthetic>', { input_tokens: 0, output_tokens: 0 }));
+    mapRaw(state, assistant('claude-opus-5-5[1m]', undefined));
+    const u = usage();
+    expect(u.contextUsed).toBe(62_500);
+    expect(u.contextSize, "the lead's window, not the last model listed").toBe(1_000_000);
+  });
 });

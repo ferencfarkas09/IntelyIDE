@@ -59,6 +59,7 @@
   "usage": {
    "model": "claude-haiku-4-5-20251001",
    "costBasis": "subscription",
+   "contextUsed": 15558,
    "contextSize": 200000,
    "perTurn": {
     "inputTokens": 910,
@@ -174,6 +175,7 @@
   "usage": {
    "model": "claude-haiku-4-5",
    "costBasis": "subscription",
+   "contextUsed": 16192,
    "contextSize": 200000,
    "perTurn": {
     "inputTokens": 18,
@@ -300,6 +302,7 @@
   "usage": {
    "model": "claude-haiku-4-5-20251001",
    "costBasis": "subscription",
+   "contextUsed": 16698,
    "contextSize": 200000,
    "perTurn": {
     "inputTokens": 18,
