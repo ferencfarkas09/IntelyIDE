@@ -829,3 +829,37 @@ describe('the Claude CLI prompt as a tier-2 question', () => {
     }
   });
 });
+
+describe('a tier-2 call that runs without its card being answered', () => {
+  const offer = { kind: 'secretFile', rule: 'read.never-read', scope: '/work/.env', repo: '/work' } as const;
+  const stop: PolicyDecision = { decision: 'deny', by: 'hardStop', reason: 'x', rule: 'read.never-read', confirm: offer };
+  it('is a breach: the run is stopped and says so (the CLI skipped canUseTool after the hook asked)', async () => {
+    let breached = 0;
+    const out: WireEvent[] = [];
+    const guard = new TurnGuard(new SeqSink((e) => out.push(e)));
+    guard.beginTurn();
+    const gate = new ToolGate({ agentId: 'a1', provider: 'claude', policy: { decide: async () => stop }, sink: guard, denied: new Set(), mode: () => 'automatic', onBreach: () => { breached++; } });
+    expect(decisionOf(await hook(gate, 'Read', { file_path: '/work/.env' }, 'b1'))).toMatchObject({ permissionDecision: 'ask' });
+    gate.toolResult('b1'); // the tool ran, no card was ever shown
+    expect(breached).toBe(1);
+    expect((out.find((e) => e.kind === 'error') as any)?.message).toContain('ran without it');
+  });
+  it('is not a breach when the card was answered, or the call was refused', async () => {
+    let breached = 0;
+    const st = { granted: false };
+    const policy: PolicyClient = { decide: async () => (st.granted ? { decision: 'allow', by: 'default' } : stop) };
+    const { gate, denied } = rig(policy, { mode: 'automatic' });
+    (gate as any).o.onBreach = () => { breached++; };
+    await hook(gate, 'Read', { file_path: '/work/.env' }, 'b2');
+    const p = gate.canUseTool('Read', { file_path: '/work/.env' }, { toolUseID: 'b2', signal: new AbortController().signal } as never);
+    await tick(); await tick();
+    st.granted = true;
+    gate.answer('perm-b2', { outcome: 'allow', grant: 'once' });
+    await p;
+    gate.toolResult('b2');
+    await hook(gate, 'Read', { file_path: '/work/.env' }, 'b3');
+    denied.add('b3'); // refused by the person
+    gate.toolResult('b3');
+    expect(breached).toBe(0);
+  });
+});

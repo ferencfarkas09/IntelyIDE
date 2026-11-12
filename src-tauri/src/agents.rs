@@ -134,7 +134,8 @@ impl AgentSlot {
         // only while a window of the IDE is open on this computer
         cfg.stop_allow = Some(Arc::new(intely_agent_host::stop_allow::StopAllow::open(&cfg.data_dir)));
         let ui_app = app.clone();
-        cfg.ui_attached = Some(Arc::new(move || !ui_app.webview_windows().is_empty()));
+        // (a window that is hidden or minimised cannot show the card: it does not count)
+        cfg.ui_attached = Some(Arc::new(move || ui_app.webview_windows().values().any(|w| w.is_visible().unwrap_or(false) && !w.is_minimized().unwrap_or(true))));
         let git = cfg.git.clone();
         // track E: file roles and the run supervisor sit on this one host (one sidecar, one gate)
         let (observer, roles) = crate::modules::roles::prepare(&mut cfg, Arc::new(TauriHostSink { app: app.clone() }));

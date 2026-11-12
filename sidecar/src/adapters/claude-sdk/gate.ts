@@ -69,6 +69,8 @@ export interface GateOptions {
   /** AskUserQuestion is not offered to this run (a team worker): a call is refused here too, whatever the CLI does. */
   noQuestions?: boolean;
   onCanary?: () => void;
+  /** A call that needed a person's answer ran without one (the CLI skipped `canUseTool` after a hook `ask`): the run is stopped. */
+  onBreach?: () => void;
   /** The IDE mode the session holds right now (it changes live). The unattended guard keys on it, like Rust keys on the run mode. */
   mode: () => PermissionMode;
   /** An ExitPlanMode approval chose the mode the run continues in: the session's own view follows BEFORE the CLI is answered. */
@@ -96,6 +98,9 @@ export class ToolGate {
   private cliPromptTold = new Set<string>();
   /** Standing-grant overrides already written to the run log (tool call, kind, scope). */
   private overrideTold = new Set<string>();
+  /** Tool calls the hook sent to `canUseTool` for a tier-2 card, and those whose card was answered yes: a call in the first set and not the second that ran anyway is a breach. */
+  private askedByHook = new Set<string>();
+  private confirmedTools = new Set<string>();
   /** agent_id -> agent_type of the sub-agents in flight (SubagentStart adds, SubagentStop removes). */
   private agentTypes = new Map<string, string>();
   private active = new Set<string>();
@@ -186,6 +191,7 @@ export class ToolGate {
       for (const [agent, parent] of this.agentParents) if (parent === toolUseId) this.agentParents.delete(agent);
       this.hookAgents.clear();
     }
+    if (this.askedByHook.delete(toolUseId) && !this.confirmedTools.delete(toolUseId) && !this.o.denied.has(toolUseId)) this.breach(toolUseId);
     if (!this.agentCalls.delete(toolUseId)) return;
     if (this.agentCalls.size === 0) this.clearSubagents();
   }
@@ -259,6 +265,12 @@ export class ToolGate {
     this.subagentToolIds.add(toolId);
     if (this.subagentToolIds.size > 512) this.subagentToolIds.delete(this.subagentToolIds.keys().next().value as string);
     if (this.actorless.has(toolId)) this.trip();
+  }
+
+  /** Fail closed after the fact: the call ran although its card was never answered. It cannot be undone, so the run stops and says so. */
+  private breach(toolId: string): void {
+    this.o.sink.emit({ kind: 'error', class: 'policy', message: `A tool call (${toolId}) that needed your answer ran without it; the run was stopped. The Claude CLI did not ask for the answer the IDE requested.`, retryable: false });
+    this.o.onBreach?.();
   }
 
   private trip(): void {
@@ -349,7 +361,10 @@ export class ToolGate {
     const d = await this.decide(toolId, input.tool_name, input.tool_input, actor);
     // A tier-2 stop (a secret file of the project, ...) is not refused here: the CLI is made to ask, and `canUseTool` puts the card to the
     // person. The refusal stays the verdict unless the person allows it, and every path that does not reach `canUseTool` stays a refusal.
-    if (d.decision === 'deny' && d.confirm && d.by === 'hardStop') return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'ask' } };
+    if (d.decision === 'deny' && d.confirm && d.by === 'hardStop') {
+      this.askedByHook.add(toolId);
+      return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'ask' } };
+    }
     if (d.decision === 'deny') {
       this.audit(toolId, input.tool_name, input.tool_input, d, actor);
       return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: this.denyText(d, input.tool_name, input.tool_input) } };
@@ -386,6 +401,7 @@ export class ToolGate {
       const asked = await this.confirmStops(toolId, toolName, input, o.signal, actor, d);
       if ('refused' in asked) return asked.refused;
       d = asked.d;
+      if (d.decision !== 'deny') this.confirmedTools.add(toolId);
     }
     if (d.decision === 'deny') {
       this.audit(toolId, toolName, input, d, actor);

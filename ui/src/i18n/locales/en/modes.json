@@ -91,7 +91,7 @@
   "stops.ask.secretFile": "Read the secret file {what}?",
   "stops.ask.secretEdit": "Change the env file {what}?",
   "stops.ask.cliPrompt": "Run a command the Claude CLI flagged: “{what}”",
-  "stops.why.secretFile": "An agent normally never reads secret files. If you allow it, the content goes to the model provider and may land in logs and transcripts.",
+  "stops.why.secretFile": "An agent normally never reads secret files. If you allow it, the content goes to the model provider and may land in logs and transcripts. If the command can send data over the network, the content can also leave this computer.",
   "stops.why.secretEdit": "An agent normally never changes env files, they hold secrets. If you allow it, the new content goes to the model provider and may land in logs and transcripts.",
   "stops.why.cliPrompt": "The Claude CLI's own safety check flagged this command and a run without prompts cannot answer it. Every other rule of the IDE has already allowed the command.",
   "stops.who": "{role} asks",

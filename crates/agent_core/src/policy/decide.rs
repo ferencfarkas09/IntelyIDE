@@ -568,8 +568,19 @@ fn decide_exec(eff: &Eff, intent: &ToolIntent, jail: &Jail) -> PolicyDecision {
         (None, Some(argv)) if !argv.is_empty() => Some(analyze_argv(argv, jail)),
         _ => None,
     };
+    // A command that names a git index or ref write, or a program that sends data off this computer, is never offered for a secret file, and a
+    // grant never lifts it (an agent never stages; a granted file must not leave the computer through a command line)
+    let command_text = match (&intent.raw_command, &intent.argv) {
+        (Some(raw), _) => raw.clone(),
+        (None, Some(argv)) => argv.join(" "),
+        _ => String::new(),
+    };
+    let secret_sink = super::confirm::names_secret_sink(&command_text);
     if let Some(stop) = analysis.as_ref().and_then(|a| a.hard_stop.as_ref()) {
-        return hard_stop_offer(eff, &stop.rule, format!("{} (commit, push and stage-all are done by the human in the IDE)", stop.reason), stop.confirm.clone(), false);
+        return hard_stop_offer(eff, &stop.rule, format!("{} (commit, push and stage-all are done by the human in the IDE)", stop.reason), stop.confirm.clone().filter(|_| !secret_sink), false);
+    }
+    if secret_sink && jail.lifted() {
+        return hard_stop("exec.secret-sink", "a grant for a secret file does not cover a command that also stages with git or sends data off this computer; run them as separate commands");
     }
     // Bypass has no static check for what the analyser cannot judge; the raw text is searched instead (spec 2.3.1 `exec.raw-text`).
     if eff.mode == PermissionMode::Bypass && analysis.as_ref().is_some_and(|a| !a.issues.is_empty()) {
@@ -652,7 +663,9 @@ fn decide_write(eff: &Eff, intent: &ToolIntent, jail: &Jail) -> PolicyDecision {
     }
     for p in &resolved {
         if let Some(why) = jail.protected_reason_ask(p) {
-            return hard_stop_offer(eff, "fs.protected", format!("{why} is never written by an agent ({})", p.display()), jail.confirm_offer("fs.protected", p, true), false);
+            // (only a `.env` file is a question; the IDE state directory inside a run folder is not)
+            let offer = if why == ".env*" { jail.confirm_offer("fs.protected", p, true) } else { None };
+            return hard_stop_offer(eff, "fs.protected", format!("{why} is never written by an agent ({})", p.display()), offer, false);
         }
     }
     // Bypass has no folder boundary whatever `strict_jail` says; every other mode keeps it.

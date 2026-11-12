@@ -2192,7 +2192,8 @@ impl Inner {
         confirm_always: bool,
     ) -> Result<(Option<StopGrant>, Option<String>, StopGrantScope), EngineError> {
         let base = if card.kind == ConfirmKind::CliPrompt { cli_prompt_intent(intent, &card.scope) } else { intent.clone() };
-        let fresh = rejudge(&run.ctx, agent_id, &format!("perm-{tool_id}"), &run.meta.provider, &base);
+        // (judged as the real tool call: the grants of the earlier cards of the same call apply, so the next stop of a command is the one that is offered)
+        let fresh = rejudge(&run.ctx, agent_id, tool_id, &run.meta.provider, &base);
         // another answer got there first (a grant for the run, or an always entry, now lifts this very stop): the click is a yes and there is
         // nothing left to grant; "always" still needs the host's own derivation below
         if fresh.decision == Decision::Allow && matches!(decision, PermissionDecision::AllowOnce | PermissionDecision::AllowRun) {
@@ -2700,6 +2701,8 @@ impl Inner {
     }
 
     fn ingest(&self, sc: &Arc<Sidecar>, agent_id: &str, provider: &str, batch: Vec<BatchEvent>) {
+        // (asked before the state lock is taken: the window check belongs to the app and must never be called while the host's state is locked)
+        let ui = self.cfg.ui_attached.as_ref().is_some_and(|f| f());
         let mut st = lock(&self.state);
         // the card of a message to another run says who gets it and what it says (made here, from the host's own view of the runs)
         let mut cards: HashMap<String, PeerCard> = batch
@@ -2751,7 +2754,6 @@ impl Inner {
         let turn_ended = !quiet && stored.iter().any(|e| matches!(e.kind, EventKind::TurnEnd { .. }));
         // a card of a confirmable stop needs a window on this computer and a run on this computer
         let on_server = st.agents.get(agent_id).is_some_and(|r| r.meta.location.is_some());
-        let ui = self.cfg.ui_attached.as_ref().is_some_and(|f| f());
         // (a request that resolved in the same batch is a log entry of an override, not a card)
         let resolved: std::collections::HashSet<&String> = stored.iter().filter_map(|e| if let EventKind::PermissionResolved { req_id, .. } = &e.kind { Some(req_id) } else { None }).collect();
         let unanswerable: Vec<String> = stored
@@ -2765,7 +2767,7 @@ impl Inner {
             self.commit(agent_id, stored);
         }
         drop(st);
-        self.refuse_unanswerable_cards(agent_id, unanswerable, if on_server { "This stop is not lifted for a run on a server. Do it without it or ask the user to do it themselves." } else { "No window of the IDE is open on the user's computer to ask, so this stop stays. Do it without it or ask the user to do it themselves." });
+        self.refuse_unanswerable_cards(agent_id, unanswerable, if on_server { "This stop is not lifted for a run on a server. Do it without it or ask the user to do it themselves." } else { "No window of the IDE is open and visible on the user's computer to ask, so this stop stays. Do it without it or ask the user to do it themselves." });
         if let Some(m) = meta.filter(|_| !quiet) {
             self.persist_meta(&m);
         }
