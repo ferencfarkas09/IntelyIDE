@@ -2,8 +2,11 @@ import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-lib
 import { createSignal } from "solid-js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { registerWidget, resetWidgets, widgetLayout, type WidgetProps } from "../../platform/widgets";
+import { registerModeView, resetModes, setAppMode } from "../../platform/mode";
+import { activateTab, openTab, registerTabType, resetTabs } from "../../platform/tabs";
 import { installDomStubs } from "../../store/testing-u2";
 import Dashboard from "./Dashboard";
+import { Bot } from "../../ui-kit";
 
 installDomStubs();
 
@@ -122,5 +125,32 @@ describe("dashboard", () => {
     fireEvent.click(screen.getByRole("button", { name: "Refresh the cards" }));
     await vi.waitFor(() => expect(ticks().one).toBe(1));
     expect((screen.getByTestId("body-one")).textContent).toContain("one m 1");
+  });
+
+  it("refreshes a card on its clock only while the dashboard tab is on screen, and once when it is back", async () => {
+    vi.useFakeTimers();
+    registerTabType({ type: "dashboard", title: "Dashboard", icon: Bot, component: () => null, canClose: true });
+    registerTabType({ type: "other", title: "Other", icon: Bot, component: () => null, canClose: true });
+    registerWidget({ id: "poll", title: "Poll", category: "agents", order: 40, defaultSize: "s", refresh: { everyMs: 1_000 }, component: body("poll") });
+    openTab({ type: "dashboard", id: "dashboard" });
+    render(() => <Dashboard />);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(ticks().poll).toBe(1);
+    // another tab in front: the clock runs on but nothing is fetched
+    openTab({ type: "other", id: "other" });
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(ticks().poll).toBe(1);
+    // back on screen: one refresh for what was missed
+    activateTab("dashboard");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(ticks().poll).toBe(2);
+    // Agent mode over the editor area hides it as well
+    registerModeView({ id: "agent", title: "Agent", component: () => null });
+    setAppMode("agent");
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(ticks().poll).toBe(2);
+    resetModes();
+    resetTabs();
+    vi.useRealTimers();
   });
 });

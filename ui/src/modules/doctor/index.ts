@@ -8,8 +8,9 @@ import { t } from "../../i18n";
 import { registerCommand } from "../../platform/commands";
 import { registerNewRunSlot } from "../../platform/newRunSlots";
 import { registerSettingsSection } from "../../platform/settings";
-import { openTab, registerTabType } from "../../platform/tabs";
+import { registerTabType } from "../../platform/tabs";
 import { Wrench } from "../../ui-kit";
+import { openDoctor } from "./open";
 import { setupDoctorEnabled } from "./toggle";
 
 let live: (() => void)[] = [];
@@ -19,7 +20,7 @@ function activate(): void {
   live = [
     registerTabType({ type: "doctor", get title() { return t("setup.name"); }, icon: Wrench, component: lazy(() => import("./DoctorTab")), canClose: true }),
     registerNewRunSlot({ id: "doctor.card", place: "modes", order: 0, component: lazy(() => import("./AgentSetupCard")) }),
-    registerCommand({ id: "doctor.setup", get title() { return t("setup.cmd.open"); }, get group() { return t("setup.name"); }, keywords: ["setup", "doctor", "node", "sdk", "login", "xcode", "cocoapods", "android", "adb", "watchman", "install"], run: () => void openTab({ type: "doctor", id: "doctor", title: t("setup.name") }) }),
+    registerCommand({ id: "doctor.setup", get title() { return t("setup.cmd.open"); }, get group() { return t("setup.name"); }, keywords: ["setup", "doctor", "node", "sdk", "login", "xcode", "cocoapods", "android", "adb", "watchman", "install"], run: () => void openDoctor() }),
   ];
 }
 

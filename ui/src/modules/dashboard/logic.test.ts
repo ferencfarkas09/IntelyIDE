@@ -153,4 +153,14 @@ describe("plan usage for the menu bar", () => {
     expect(trayPlanPercent()).toBeNull();
     dispose();
   });
+
+  it("clears the menu bar reading when the poll is stopped (the Dashboard switched off)", async () => {
+    setUsageApi(api(30));
+    setTrayPlanEnabled(true);
+    const dispose = createRoot(() => startPlanPoll());
+    await vi.waitFor(() => expect(trayPlanPercent()).toBe(30));
+    dispose();
+    expect(trayPlanPercent()).toBeNull();
+    setTrayPlanEnabled(false);
+  });
 });

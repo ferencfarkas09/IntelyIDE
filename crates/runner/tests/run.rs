@@ -64,7 +64,7 @@ fn package_json() -> String {
         r#"{{"name":"fixture","version":"1.0.0","scripts":{{
           "dev":"node server.js","quiet":"node quiet.js","liar":"node liar.js","stubborn":"node stubborn.js",
           "heavy1":"node --max-old-space-size=4800 server.js","heavy2":"node --max-old-space-size=4800 server.js",
-          "deploy":"node server.js","gitwrite":"node gitwrite.js","split":"node split.js",
+          "deploy":"node server.js","gitwrite":"node gitwrite.js","split":"node split.js","envdump":"node envdump.js",
           "login:github":"set GH_TOKEN={c} && set GH_TOKEN={c}"}}}}"#,
         c = canary()
     )
@@ -107,6 +107,7 @@ fn fixture_with(jail: Jail, orphans: Option<Arc<OrphanRegistry>>, grace: Duratio
     write("gitwrite.js", GIT_WRITE_JS);
     write("split.js", SPLIT_JS);
     write("stubborn.js", STUBBORN_JS);
+    write("envdump.js", "console.log('manifest=' + (process.env.CARGO_MANIFEST_DIR ? 'set' : 'none') + ' given=' + (process.env.GIVEN || 'none'));\n");
     let sink = Arc::new(Collect::default());
     let mgr = RunManager::with_grace(Arc::new(jail), orphans, sink.clone(), grace);
     Fx { repo, sink, mgr }
@@ -138,7 +139,7 @@ fn all_log_text(fx: &Fx, id: &str) -> String {
 }
 
 fn start(fx: &Fx, script: &str, confirmed: bool) -> Result<ServerInfo, intely_core::EngineError> {
-    fx.mgr.start("fx", fx.repo.path(), script, StartOpts { confirmed, allow_second_heavy: false, env: Default::default() })
+    fx.mgr.start("fx", fx.repo.path(), script, StartOpts { confirmed, allow_second_heavy: false, env: Default::default(), clean_env: false })
 }
 
 fn exited(fx: &Fx, id: &str) {
@@ -282,7 +283,7 @@ fn a_second_heavy_server_needs_an_explicit_ok() {
     let err = start(&fx, "npm:heavy2", false).unwrap_err();
     assert_eq!(err.code, "heavyRunning");
     assert!(err.message.contains("heavy1"), "{}", err.message);
-    let ok = fx.mgr.start("fx", fx.repo.path(), "npm:heavy2", StartOpts { confirmed: false, allow_second_heavy: true, env: Default::default() });
+    let ok = fx.mgr.start("fx", fx.repo.path(), "npm:heavy2", StartOpts { confirmed: false, allow_second_heavy: true, env: Default::default(), clean_env: false });
     assert!(ok.is_ok());
     fx.mgr.stop_all();
     exited(&fx, "fx:npm:heavy1");
@@ -415,4 +416,25 @@ fn clearing_the_log_resets_the_view_but_not_the_sequence() {
     assert!(fx.sink.logs.lock().unwrap().iter().any(|c| c.reset));
     fx.mgr.stop(id).unwrap();
     exited(&fx, id);
+}
+
+/// Auto-test starts with `clean_env`: the process gets only what `env` names, nothing of the IDE process (cargo sets
+/// `CARGO_MANIFEST_DIR` for this test binary, so it stands in for a token the IDE's environment carries).
+#[test]
+fn a_clean_start_passes_only_the_given_environment() {
+    let dump = |clean_env: bool| {
+        let fx = fixture();
+        let mut env: std::collections::HashMap<String, String> = [("GIVEN".to_owned(), "yes".to_owned())].into();
+        if let Ok(path) = std::env::var("PATH") {
+            env.insert("PATH".to_owned(), path);
+        }
+        fx.mgr.start("fx", fx.repo.path(), "npm:envdump", StartOpts { env, clean_env, ..StartOpts::default() }).unwrap();
+        exited(&fx, "fx:npm:envdump");
+        wait_for("log", 10, || Some(all_log_text(&fx, "fx:npm:envdump")).filter(|t| t.contains("manifest=")))
+    };
+    assert!(std::env::var_os("CARGO_MANIFEST_DIR").is_some(), "cargo sets it for tests");
+    let open = dump(false);
+    assert!(open.contains("manifest=set given=yes"), "{open}");
+    let clean = dump(true);
+    assert!(clean.contains("manifest=none given=yes"), "{clean}");
 }

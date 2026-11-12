@@ -39,8 +39,11 @@ function activate(): void {
 }
 
 function deactivate(): void {
+  if (!live.length) return;
   for (const off of live) off();
   live = [];
+  // a device log stream started from the panel would otherwise keep running, and its poll loop with it
+  void import("./store").then((s) => s.stopDeviceLogs());
 }
 
 export function register(): void {

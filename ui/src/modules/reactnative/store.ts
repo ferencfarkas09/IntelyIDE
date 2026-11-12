@@ -284,6 +284,13 @@ export async function stopLog(p: Platform): Promise<void> {
   patch(p, { running: false });
 }
 
+/** The extra was switched off: the poll loop stops and each device log stream that is still asked for or running is stopped. */
+export async function stopDeviceLogs(): Promise<void> {
+  if (timer) clearTimeout(timer);
+  timer = undefined;
+  await Promise.all((["ios", "android"] as const).filter((p) => deviceLog(p).wanted || deviceLog(p).running).map((p) => stopLog(p)));
+}
+
 export async function clearLog(p: Platform): Promise<void> {
   await devicesApi().logClear(p).catch(() => {});
   patch(p, { lines: [], dropped: 0 });

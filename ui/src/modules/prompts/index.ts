@@ -7,8 +7,9 @@ import { registerCommand } from "../../platform/commands";
 import { registerNewRunSlot } from "../../platform/newRunSlots";
 import { registerOverlay } from "../../platform/overlay";
 import { registerSettingsSection } from "../../platform/settings";
-import { openTab, registerTabType } from "../../platform/tabs";
+import { registerTabType } from "../../platform/tabs";
 import { ListChecks } from "../../ui-kit";
+import { openPrompts } from "./open";
 import { promptsEnabled } from "./toggle";
 
 let live: (() => void)[] = [];
@@ -21,7 +22,7 @@ function activate(): void {
     registerNewRunSlot({ id: "prompts.picker", place: "prompt", order: 10, component: lazy(() => import("./PromptPicker")) }),
     registerOverlay({ id: "prompts.run", component: lazy(dialog) }),
     registerCommand({ id: "prompts.run", get title() { return t("prompts.cmd.run"); }, get group() { return t("prompts.name"); }, keywords: ["prompt", "template", "snippet", "saved", "library", "run"], run: async () => void (await dialog()).openRunPrompt() }),
-    registerCommand({ id: "prompts.open", get title() { return t("prompts.cmd.open"); }, get group() { return t("prompts.name"); }, keywords: ["prompt", "template", "library", "import", "export"], run: () => void openTab({ type: "prompts", id: "prompts", title: t("prompts.name") }) }),
+    registerCommand({ id: "prompts.open", get title() { return t("prompts.cmd.open"); }, get group() { return t("prompts.name"); }, keywords: ["prompt", "template", "library", "import", "export"], run: () => void openPrompts() }),
   ];
 }
 

@@ -57,6 +57,10 @@ pub struct StartOpts {
     pub allow_second_heavy: bool,
     /// Overlaid on the process environment (the login-shell `PATH` and friends).
     pub env: HashMap<String, String>,
+    /// Start from an empty environment: the process gets `env` and the fixed variables below, nothing of the IDE
+    /// process. Auto-test sets it (with `autotest::unattended_env`), so an unattended start never sees `SSH_AUTH_SOCK`
+    /// or a token the person's shell exports.
+    pub clean_env: bool,
 }
 
 #[cfg(unix)]
@@ -283,6 +287,9 @@ impl RunManager {
         let mut cmd = Command::new(intely_core::sys::program(&plan.argv[0]));
         cmd.args(&plan.argv[1..]).current_dir(repo).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
         intely_core::sys::NewGroup::new_group(&mut cmd);
+        if opts.clean_env {
+            cmd.env_clear();
+        }
         for key in std::env::vars_os().filter_map(|(k, _)| k.into_string().ok()).filter(|k| k.starts_with("INTELY_") || k == "CI") {
             cmd.env_remove(key);
         }
@@ -431,7 +438,7 @@ impl RunManager {
         while Instant::now() < deadline && Server::is_live(&lock(&server.live)) {
             std::thread::sleep(Duration::from_millis(40));
         }
-        self.start(&server.repo_id, &server.repo, &server.script_id, StartOpts { confirmed: true, allow_second_heavy: true, env })
+        self.start(&server.repo_id, &server.repo, &server.script_id, StartOpts { confirmed: true, allow_second_heavy: true, env, clean_env: false })
     }
 
     pub fn list(&self) -> Vec<ServerInfo> {

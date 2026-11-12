@@ -17,7 +17,7 @@ import { agentRoles, selectAgent, selectStartingRun, startRun } from "../../stor
 import { beginStarting, failStarting, showStarting, startingRun } from "../../store/starting";
 import { repos } from "../../store/workspace";
 import { activeId } from "../../store/workspaces";
-import { Badge, Button, Checkbox, Dialog, Icon, Kbd, ListChecks, RepoBadge, TextArea, toast } from "../../ui-kit";
+import { Badge, Button, Checkbox, Dialog, Kbd, RepoBadge, TextArea, toast } from "../../ui-kit";
 import { CapsMatrix } from "../providers/CapsMatrix";
 import { ProviderMark } from "../providers/ProviderMark";
 import { providerName } from "../providers/catalog";
@@ -244,7 +244,7 @@ export function NewRunDialog() {
   };
 
   // What the prompt picker and the safety presets may touch (ui/src/platform/newRunSlots.ts).
-  const slotCtx = { prompt, setPrompt, repoIds, permission, pickMode, supported, unavailable, disabled: busy };
+  const slotCtx = { prompt, setPrompt, repoIds, permission, pickMode, supported, unavailable, disabled: busy, close: () => setNewRunOpen(false) };
 
   // Opening proposes the first role and its repos; the user can change both.
   createEffect(
@@ -679,16 +679,6 @@ export function NewRunDialog() {
             <Checkbox checked={skipNet()} onChange={setSkipNet} label={t("runs.new.noNet")} />
           </Show>
         </div>
-        <aside class="newrun__templates" aria-label={t("runs.new.templates")}>
-          <h3 class="newrun__label">{t("runs.new.templates")}</h3>
-          <div class="newrun__tpl-empty">
-            <Icon icon={ListChecks} size={16} />
-            <p>{t("runs.new.templatesEmpty")}</p>
-            <Button size="sm" variant="secondary" disabled>
-              {t("runs.new.savePrompt")}
-            </Button>
-          </div>
-        </aside>
       </div>
     </Dialog>
     <BypassConfirmDialog

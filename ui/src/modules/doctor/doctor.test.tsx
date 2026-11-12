@@ -1,11 +1,14 @@
-import { cleanup, render, screen, waitFor } from "@solidjs/testing-library";
+import { cleanup, fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ipc } from "../../ipc";
 import { setVibeIpc, type SetupCheck } from "../../ipc/vibe";
 import { installDomStubs } from "../../store/testing-u2";
-import { agentBlocker } from "./AgentSetupCard";
+import { agentTabInstance, appMode, registerModeView, resetModes, setAppMode } from "../../platform/mode";
+import { registerTabType, resetTabs } from "../../platform/tabs";
+import AgentSetupCard, { agentBlocker } from "./AgentSetupCard";
 import DoctorTab, { putInTerminal } from "./DoctorTab";
 import { agentReady, agentRows, doctorRows, fixOf, summary, type Platform } from "./logic";
+import { Bot } from "../../ui-kit";
 
 const openTerminal = vi.fn(async (_opts: { repoId?: string; cwd?: string }) => "t1");
 vi.mock("../terminal/store", () => ({ openTerminal: (o: { repoId?: string; cwd?: string }) => openTerminal(o), defaultRepoId: () => "shop-backend" }));
@@ -87,5 +90,26 @@ describe("typing a fix into a terminal", () => {
             const fix = fixOf({ id, status, reason }, on, ["node 'x' --plan", "node 'x' --yes"]);
             if (fix?.runnable) expect(fix.command, `${id} ${on}`).toMatch(/^[\x20-\x7e]+$/);
           }
+  });
+});
+
+describe("the first-run card of the New Run dialog", () => {
+  afterEach(() => {
+    resetModes();
+    resetTabs();
+  });
+
+  it("closes the dialog and shows the Setup doctor in the Agent workspace", async () => {
+    vi.spyOn(ipc.providers, "list").mockResolvedValue([claude("notInstalled")]);
+    registerTabType({ type: "doctor", title: "Setup doctor", icon: Bot, component: () => null, canClose: true });
+    registerModeView({ id: "agent", title: "Agent", component: () => null });
+    setAppMode("agent");
+    const close = vi.fn();
+    const ctx = { prompt: () => "", setPrompt: () => {}, repoIds: () => [], permission: () => "edit" as const, pickMode: () => {}, supported: () => [], unavailable: () => ({}), disabled: () => false, close };
+    render(() => <AgentSetupCard ctx={ctx} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Open the setup doctor" }));
+    expect(close).toHaveBeenCalledTimes(1);
+    expect(appMode()).toBe("agent");
+    expect(agentTabInstance()?.id).toBe("doctor");
   });
 });

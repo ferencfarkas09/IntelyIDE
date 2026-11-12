@@ -6,7 +6,7 @@ mod common;
 
 use common::{real_git, Repo};
 use intely_agent_gate::rewind::vault::{ConfigVault, PROTECTED_NAMES};
-use intely_agent_gate::rewind::{Rewind, RewindError, CHECKPOINT_PREFIX, MAX_CHECKPOINTS};
+use intely_agent_gate::rewind::{Rewind, RewindError, CHECKPOINT_PREFIX, MAX_CHECKPOINTS, MAX_UNTRACKED_BYTES};
 
 fn rewind() -> Rewind {
     common::isolate_env();
@@ -256,14 +256,65 @@ fn a_file_that_changes_or_vanishes_during_the_checkpoint_does_not_break_it() {
 }
 
 #[test]
-fn the_size_guard_refuses_a_checkpoint_of_too_many_untracked_bytes() {
+fn the_size_guard_refuses_a_checkpoint_of_too_many_untracked_bytes_before_hashing_any() {
     let repo = started("sum");
-    // many files just under the guard's per-file limit
+    let objects = || repo.git(&["count-objects", "-v"]);
+    let before = objects();
+    // many sparse files just under the guard's per-file limit: their sizes add up past the cap, their blocks are never written
+    std::fs::create_dir_all(repo.path.join("gen")).unwrap();
     for i in 0..60 {
-        repo.write(&format!("gen/f{i}.txt"), vec![b'x'; 4_900_000]);
+        std::fs::File::create(repo.path.join(format!("gen/f{i}.txt"))).unwrap().set_len(4_900_000).unwrap();
     }
     let err = rewind().checkpoint(&repo.path, "sum", "end", None, false).unwrap_err();
-    assert!(matches!(err, RewindError::TooLarge(_)), "{err}");
+    assert!(matches!(err, RewindError::TooLarge(n) if n > MAX_UNTRACKED_BYTES), "{err}");
+    assert_eq!(objects(), before, "nothing was hashed into the object store");
+    assert!(r_list(&repo, "sum").len() == 1, "only the snapshot");
+}
+
+fn r_list(repo: &Repo, run: &str) -> Vec<u32> {
+    rewind().checkpoints(&repo.path, run).unwrap().iter().map(|c| c.seq).collect()
+}
+
+#[test]
+fn a_checkpoint_stops_at_its_deadline_or_when_cancelled() {
+    use std::sync::atomic::AtomicBool;
+    use std::sync::Arc;
+    use std::time::Duration;
+    let repo = started("late");
+    repo.write("app.tsx", "v2\n");
+    let err = rewind().bounded(Duration::ZERO, None).checkpoint(&repo.path, "late", "end", None, false).unwrap_err();
+    assert!(matches!(err, RewindError::Cancelled(_)), "{err}");
+    let cancel = Arc::new(AtomicBool::new(true));
+    let err = rewind().bounded(Duration::from_secs(60), Some(cancel.clone())).checkpoint(&repo.path, "late", "end", None, false).unwrap_err();
+    assert!(matches!(err, RewindError::Cancelled(_)), "{err}");
+    assert_eq!(r_list(&repo, "late"), [0], "nothing was written");
+    // with time to spare and no cancel it is taken as usual, through the bounded path
+    cancel.store(false, std::sync::atomic::Ordering::Relaxed);
+    let cp = rewind().bounded(Duration::from_secs(60), Some(cancel)).checkpoint(&repo.path, "late", "end", None, false).unwrap().unwrap();
+    assert_eq!(cp.seq, 1);
+}
+
+#[test]
+fn the_safety_checkpoint_before_a_restore_never_prunes_the_step_being_restored() {
+    let repo = started("full");
+    let r = rewind();
+    for i in 0..MAX_CHECKPOINTS {
+        repo.write("app.tsx", format!("v{i}\n"));
+        r.checkpoint(&repo.path, "full", "end", None, false).unwrap().unwrap();
+    }
+    let oldest = r_list(&repo, "full")[1];
+    assert_eq!(oldest, 1);
+    // the run is full: the next checkpoint prunes the oldest plain one, unless it is the one about to be restored
+    repo.write("app.tsx", "edited\n");
+    let stage = r.stage_checkpoint(&repo.path, "full").unwrap();
+    let safety = r.commit_checkpoint_keeping(&stage, "full", stage.next_seq, "restore", Some("before restoring step 1"), &[oldest]).unwrap();
+    let list = r_list(&repo, "full");
+    assert!(list.contains(&oldest), "{list:?}");
+    assert!(!list.contains(&2), "the next oldest went instead: {list:?}");
+    assert_eq!(list.len(), MAX_CHECKPOINTS + 1);
+    assert!(list.contains(&safety.seq));
+    r.restore_checkpoint(&repo.path, "full", oldest, true, true).unwrap();
+    assert_eq!(std::fs::read_to_string(repo.path.join("app.tsx")).unwrap(), "v0\n");
 }
 
 #[test]
