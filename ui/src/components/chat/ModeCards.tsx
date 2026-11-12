@@ -17,14 +17,19 @@ export interface ModeCardsProps {
   unavailable?: Partial<Record<PermissionMode, string>>;
   /** Modes that open a confirmation when picked: announced as such, and arrow keys move over them without picking them. */
   confirm?: readonly PermissionMode[];
-  /** `grid`: the New run dialog (wide); `list`: one column, for the chat column. */
-  layout?: "grid" | "list";
+  /** `grid`: three across (wide forms); `list`: one column, for the chat column; `radio`: bordered radio cards with a dot (the New run dialog). */
+  layout?: "grid" | "list" | "radio";
+  /**
+   * A plain-language name (and one line) for some modes: the safety presets "Careful", "Balanced", "Autonomous". The card then
+   * leads with that name, keeps the mode's own name beside it, and carries the mode's full explanation as its tooltip.
+   */
+  plain?: Partial<Record<PermissionMode, { label: string; hint?: string }>>;
   disabled?: boolean;
   class?: string;
 }
 
 /**
- * The five run modes as a radio group of option cards: icon, name and the one-line explanation. One tab stop (the picked card),
+ * The five run modes as a radio group of option cards: icon, name and the one-line explanation (a radio dot before them in the `radio` layout). One tab stop (the picked card),
  * arrows move and pick (arrows only move over a mode that needs confirming), Space and Enter pick.
  */
 export function ModeCards(props: ModeCardsProps) {
@@ -51,6 +56,7 @@ export function ModeCards(props: ModeCardsProps) {
         {(m) => {
           const meta = MODE_META[m];
           const hint = `${uid}-${m}`;
+          const plain = () => props.plain?.[m];
           return (
             <button
               type="button"
@@ -63,17 +69,25 @@ export function ModeCards(props: ModeCardsProps) {
               aria-describedby={hint}
               aria-haspopup={props.confirm?.includes(m) ? "dialog" : undefined}
               tabIndex={tabbable(m) ? 0 : -1}
-              title={reasonOf(m) ?? (props.confirm?.includes(m) ? t("modes.picker.bypassOpens") : undefined)}
+              title={reasonOf(m) ?? (props.confirm?.includes(m) ? t("modes.picker.bypassOpens") : plain()?.hint ? t(meta.hint) : undefined)}
               onClick={() => pickable(m) && props.onChange(m)}
               onKeyDown={(e) => onKey(e, m)}
             >
-              <span class="mode-card__head">
-                <Icon icon={meta.icon} size={14} />
-                <span class="mode-card__label">{t(meta.label)}</span>
-              </span>
-              <span class="mode-card__hint" id={hint}>
-                {t(meta.hint)}
-                <Show when={reasonOf(m)}>{(why) => <span class="mode-card__why"> {why()}</span>}</Show>
+              <Show when={props.layout === "radio"}>
+                <span class="mode-card__dot" aria-hidden="true" />
+              </Show>
+              <span class="mode-card__text">
+                <span class="mode-card__head">
+                  <Icon icon={meta.icon} size={14} />
+                  <span class="mode-card__label">{plain()?.label ?? t(meta.label)}</span>
+                  <Show when={plain()}>
+                    <span class="mode-card__mode">{t(meta.label)}</span>
+                  </Show>
+                </span>
+                <span class="mode-card__hint" id={hint}>
+                  {plain()?.hint ?? t(meta.hint)}
+                  <Show when={reasonOf(m)}>{(why) => <span class="mode-card__why"> {why()}</span>}</Show>
+                </span>
               </span>
             </button>
           );
