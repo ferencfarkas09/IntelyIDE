@@ -208,7 +208,7 @@ export default {
     lead: 'Nyugodtabb ablak, kártya ott, ahol eddig csak egy kurta elutasítás volt, és egy mérő, amely megmutatja, mennyi hely maradt még egy hosszú futásban.',
     cards: [
       { icon: 'sparkles', to: 'gallery', more: 'Nézd meg a képeken', h: 'Letisztultabb, átláthatóbb külső', p: 'Újrarajzoltuk az ablakot, a futások listáját, a futás nézetét, az Új futás ablakot és az Irányítópultot, mindkét stílusban (Standard és Üveg), világosban és sötétben is. Minden ott van, ahol eddig; a térközök, a betűk, a kártyák és a vezérlők lettek rendezettebbek.' },
-      { icon: 'shield', to: 'ask', more: 'Mit kérdez meg, és mit nem enged soha', h: 'Tiltás helyett megkérdez', p: 'Ha az ügynök a projekted egy titoknak látszó fájlját olvasná vagy szerkesztené, a futásban megjelenik egy kártya. A gépednél ülve te döntesz: elutasítod, egyszer engedélyezed, erre a futásra engedélyezed, vagy azt a fájlt mindig engedélyezed.' },
+      { icon: 'shield', to: 'ask', more: 'Mit kérdez meg, és mit nem enged soha', h: 'Tiltás helyett megkérdez', p: 'Ha az ügynök a projekted egy titoknak látszó fájlját olvasná vagy szerkesztené, a futásban megjelenik egy kártya. A gépednél ülve te döntesz: elutasítod, egyszer engedélyezed, vagy erre a futásra engedélyezed.' },
       { icon: 'pie', to: 'context', more: 'Így működik', h: 'Kontextusmérő és csomaghasználat', p: 'A futás fejlécében egy gyűrű mutatja, mennyit használ a futás a modell kontextusablakából, és még a határ előtt átviheted az összefoglalót egy friss futásba. Az alsó sávban látod, mennyi fogyott a csomagod heti keretéből.' },
     ],
     items: [
@@ -218,7 +218,7 @@ export default {
         p: 'Eddig ha az ügynök egy <code>.env</code> fájlhoz nyúlt, elutasítást kapott, és sokszor újra meg újra próbálkozott. Mostantól az elutasítás mellé te is kapsz egy kérdést.',
         list: [
           'A futás mappáin belüli, titoknak látszó fájloknál kérdez (<code>.env</code>, <code>*.pem</code>, <code>*.key</code>, <code>credentials.json</code> és társaik), valamint a Claude CLI néhány olyan kérdésénél, amelyre a futás magától nem tudott válaszolni',
-          'Négy válasz közül választhatsz: Elutasítom, Egyszer engedélyezem, Engedélyezem erre a futásra, vagy Mindig engedélyezem ehhez a repóhoz. A „mindig” külön megerősítést kér, és a Beállítások &gt; Biztonság alatt látod, mit engedélyeztél; ott vissza is vonhatod',
+          'Három válasz közül választhatsz: Elutasítom, Egyszer engedélyezem, vagy Engedélyezem erre a futásra. A futás végén az app semmit sem jegyez meg ebből',
           'Az igen az IDE fájleszközeire szól, pontosan arra az egy fájlra: a Read és a Grep eszközre, <code>.env</code> fájlnál az Edit és a Write eszközre is. Az olvasás és a szerkesztés két külön kérdés',
           'A titkos fájlt megnevező shell-parancsok minden módban tiltva maradnak, bármit engedélyeztél is',
           'Igent csak az mondhat, aki a gépnél, az IDE ablaka előtt ül. A párosított telefonon a kártya csak elutasítani enged, a szerveren futó futásnál pedig a tiltás tiltás marad',

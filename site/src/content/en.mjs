@@ -209,7 +209,7 @@ export default {
     lead: 'A quieter window, a card where there used to be a flat refusal, and a meter that shows how much room a long run has left.',
     cards: [
       { icon: 'sparkles', to: 'gallery', more: 'See the screenshots', h: 'A calmer, clearer look', p: 'The window, the runs list, the run view, the New run dialog and the Dashboard are redrawn in both styles, Standard and Glass, light and dark. Everything is where it was; spacing, type, cards and controls are cleaner.' },
-      { icon: 'shield', to: 'ask', more: 'What it asks, and what it never does', h: 'It asks instead of blocking', p: 'When an agent wants to read or edit a secret-looking file of your project, the run shows a card. You answer at your computer: deny, allow once, allow for this run, or always allow that file.' },
+      { icon: 'shield', to: 'ask', more: 'What it asks, and what it never does', h: 'It asks instead of blocking', p: 'When an agent wants to read or edit a secret-looking file of your project, the run shows a card. You answer at your computer: deny, allow once, or allow for this run.' },
       { icon: 'pie', to: 'context', more: 'How it works', h: 'A context meter and plan usage', p: 'A ring in the header of a run shows how much of the model’s context window the run uses, and lets you carry a summary into a fresh run before the limit. The bottom bar shows how much of your weekly plan limit is used.' },
     ],
     items: [
@@ -219,7 +219,7 @@ export default {
         p: 'Until now an agent that reached for a <code>.env</code> file was refused, and often tried again and again. Now the refusal comes with a question for you.',
         list: [
           'It asks for secret-looking files inside the folders of the run (<code>.env</code>, <code>*.pem</code>, <code>*.key</code>, <code>credentials.json</code> and the like), and for a short list of prompts of the Claude CLI that a run could not answer by itself',
-          'Four answers: Deny, Allow once, Allow for this run, or Always allow for this repository. Always needs a second confirmation, and Settings &gt; Safety lists what you allowed, with Revoke',
+          'Three answers: Deny, Allow once, or Allow for this run. Nothing is remembered after the run ends',
           'A yes covers the IDE’s file tools on that exact file: Read and Grep, and Edit and Write for a <code>.env</code> file. Reading and editing are two separate questions',
           'Shell commands that name a secret file stay refused in every mode, whatever you allowed',
           'Only a person at the IDE window on the computer can say yes. A paired phone shows the card with Deny only, and for a run on a server the stop stays a refusal',

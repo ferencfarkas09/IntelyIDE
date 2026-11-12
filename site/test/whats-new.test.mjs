@@ -64,6 +64,8 @@ describe('what is new in 1.15', () => {
     assert.match(ask(en), /Only a person at the IDE window on the computer can say yes/);
     assert.match(ask(en), /stays a hard stop that nothing lifts: commit, push, merge/);
     assert.match(ask(en), /Best effort/);
+    assert.match(ask(en), /Three answers: Deny, Allow once, or Allow for this run/);
+    for (const t of [en, hu]) assert.doesNotMatch(textOf({ n: t.whatsNew, tr: t.trust }), /always allow|Always allow|mindig engedélyez|Mindig engedélyez/);
     assert.match(ask(hu), /shell-parancsok minden módban tiltva maradnak/);
     assert.match(ask(hu), /pontosan arra az egy fájlra/);
     assert.match(ask(hu), /telefonon a kártya csak elutasítani enged/);
