@@ -111,6 +111,29 @@ export type ClientMsg =
 /**  Restarts the re-auth window: without `step_up` the Mac answers with a challenge, with it the assertion is verified. */
 { t: "reauth"; opId: string; stepUp?: StepUpProof | null } | { t: "signOut"; opId: string } | { t: "ping" };
 
+/**  What kind of thing a confirmable stop is about. */
+export type ConfirmKind = 
+/**  A secret-looking file inside a folder of the run (`.env`, `*.pem`, ...) that is READ, or only named in script text. */
+"secretFile" | 
+/**  A `.env` file inside a folder of the run that is EDITED or written. Kept apart from reading: allowing a read never allows an edit. */
+"secretEdit" | 
+/**  The Claude CLI raised its own prompt that an Automatic or Bypass run cannot answer. */
+"cliPrompt";
+
+/**  What a person could allow instead of the refusal. Rides on the refusal (`PolicyDecision::confirm`) and on the card. */
+export type ConfirmOffer = {
+	kind: ConfirmKind,
+	/**  The rule that stopped it (`read.never-read`, `fs.protected`, `fs.protected-arg`, `script.protected-path`, `cli.prompt-denied`). */
+	rule: string,
+	/**  The exact thing: a canonical path (`SecretFile`) or the CLI's own reason text (`CliPrompt`). */
+	scope: string,
+	/**
+	 *  The folder of the run that holds the path (the repository the always-list entry belongs to); for a CLI prompt the run's
+	 *  working directory.
+	 */
+	repo: string,
+};
+
 export type CostBasis = "billed" | "estimated" | "subscription" | "included" | "unknown";
 
 /**  Who decided a permission request. */
@@ -204,7 +227,17 @@ planTruncated?: boolean | null;
 /**  ExitPlanMode: the working modes the card offers (ask, edit, automatic). */
 modes?: PermissionMode[]; 
 /**  `peer_send`: who the message would go to and a bounded excerpt of it (host-made). */
-peer?: PeerCard | null } | { kind: "permission.resolved"; reqId: string; outcome: PermissionOutcome; by: DecidedBy } | { kind: "question.request"; reqId: string; toolId?: string | null; prompt: string; options?: QuestionOption[] } | { kind: "plan"; items: PlanItem[] } | 
+peer?: PeerCard | null; 
+/**
+ *  A tier-2 stop (`policy::confirm`): the card is a "may this one thing be allowed?" card. Display only: the host judges the
+ *  request again when it is answered and trusts only its own result.
+ */
+confirm?: ConfirmOffer | null } | { kind: "permission.resolved"; reqId: string; outcome: PermissionOutcome; by: DecidedBy; 
+/**
+ *  A tier-2 card that was allowed: how far the person's yes reaches. The run log, the run summary and the Needs-You inbox
+ *  read "you allowed reading .env once" from this and the request's `confirm`.
+ */
+grant?: StopGrantScope | null } | { kind: "question.request"; reqId: string; toolId?: string | null; prompt: string; options?: QuestionOption[] } | { kind: "plan"; items: PlanItem[] } | 
 /**  A note the user added to a running agent, the lead or one sub-agent. One event per state, joined by `note_id`. */
 { kind: "note"; noteId: string; state: NoteState; 
 /**  The sub-agent's `Agent` tool call; absent for the lead. */
@@ -330,7 +363,9 @@ export type PermissionMode = "readOnly" | "edit" | "ask" |
 /**  What the user can answer a permission request with; `once` variants only for shell and write. */
 export type PermissionOption = "allow_once" | 
 /**  "Allow always in this session" (a saved allow the host keeps for the run). Offered only when `session_allow` is present. */
-"allow_run" | "deny";
+"allow_run" | 
+/**  "Always allow this for this repository" (a tier-2 card only; stored in the IDE's own state, never in the repository). */
+"allow_always" | "deny";
 
 export type PermissionOutcome = "allow" | "deny" | "cancelled";
 
@@ -518,6 +553,15 @@ export type StepUpProof = {
 	clientDataJson: string,
 	signature: string,
 };
+
+/**  How far an allowed tier-2 card reaches. */
+export type StopGrantScope = 
+/**  This one tool call. */
+"once" | 
+/**  Every stop of the same kind until the run ends. */
+"run" | 
+/**  This exact thing in this repository, from now on (the IDE's always-list). */
+"always";
 
 export type StopReason = "endTurn" | "maxTokens" | "maxTurns" | "refusal" | "cancelled" | "error";
 

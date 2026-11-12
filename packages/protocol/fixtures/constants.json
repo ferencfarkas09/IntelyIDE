@@ -47,6 +47,7 @@
       "fs.outside-jail",
       "exec.raw-text",
       "exec.too-long",
+      "exec.secret-sink",
       "exec.catastrophic",
       "exec.proc-env",
       "exec.system-secrets",
