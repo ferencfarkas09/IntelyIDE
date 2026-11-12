@@ -48,6 +48,25 @@ export function refreshUsage(withLimits = true): Promise<void> {
   return inflight;
 }
 
+let limitsInflight: Promise<void> | undefined;
+
+/**
+ * Reads the plan limits alone (the bottom bar needs no report). It starts the Claude CLI for a moment, so the caller asks
+ * rarely. Never rejects: a plan that cannot be read is `available: false`. Calls that overlap share one read.
+ */
+export function refreshLimits(): Promise<void> {
+  limitsInflight ??= usageApi()
+    .limits()
+    .then(
+      (l) => void setLimits(l),
+      () => undefined,
+    )
+    .finally(() => {
+      limitsInflight = undefined;
+    });
+  return limitsInflight;
+}
+
 export function resetUsage(): void {
   setReport(undefined);
   setLimits(undefined);
@@ -55,4 +74,5 @@ export function resetUsage(): void {
   setLoading(false);
   setMetricSignal("tokens");
   inflight = undefined;
+  limitsInflight = undefined;
 }

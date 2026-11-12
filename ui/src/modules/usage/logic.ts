@@ -1,7 +1,7 @@
 // The Usage view's arithmetic: periods, series, the contribution grid, the busiest days. Pure: every day is a local
 // `YYYY-MM-DD` string from the report and all date arithmetic goes through day numbers in UTC, so nothing here depends on the
 // reader's own time zone or clock.
-import type { DayUsage, Metric, ModelUsage, PlanLimits, UsageReport, UsageTotals } from "./types";
+import type { DayUsage, Metric, ModelUsage, PlanLimits, ScopedWindow, UsageReport, UsageTotals } from "./types";
 
 export const ZERO: UsageTotals = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, costUsd: 0, turns: 0 };
 
@@ -171,4 +171,25 @@ export function windows(limits: PlanLimits): { key: "fiveHour" | "sevenDay" | "s
     if (w) out.push({ key, utilization: percent(w.utilization), resetsAt: w.resetsAt });
   }
   return out;
+}
+
+/**
+ * The weekly windows of single model classes, under the name the plan data gives them: the rows of `modelScoped` in the
+ * server's order, then the older fixed fields (`sevenDayOpus`, `sevenDaySonnet`) unless a row of that name is already there.
+ */
+export function scopedWindows(limits: PlanLimits | undefined): ScopedWindow[] {
+  if (!limits?.available) return [];
+  const out: ScopedWindow[] = (limits.modelScoped ?? []).map((w) => ({ name: w.name, utilization: percent(w.utilization), resetsAt: w.resetsAt }));
+  for (const [key, name] of [["sevenDayOpus", "Opus"], ["sevenDaySonnet", "Sonnet"]] as const) {
+    const w = limits[key];
+    if (w && !out.some((o) => o.name.toLowerCase() === name.toLowerCase())) out.push({ name, utilization: percent(w.utilization), resetsAt: w.resetsAt });
+  }
+  return out;
+}
+
+/** The rows of `modelScoped` the fixed fields do not already show (the Usage view lists those itself). */
+export function extraScoped(limits: PlanLimits | undefined): ScopedWindow[] {
+  if (!limits?.available) return [];
+  const fixed = [limits.sevenDayOpus ? "opus" : "", limits.sevenDaySonnet ? "sonnet" : ""];
+  return (limits.modelScoped ?? []).filter((w) => !fixed.includes(w.name.toLowerCase())).map((w) => ({ name: w.name, utilization: percent(w.utilization), resetsAt: w.resetsAt }));
 }

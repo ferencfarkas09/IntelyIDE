@@ -2,7 +2,7 @@
 // fixture in a plain browser. Tests swap it with `setUsageApi`.
 import { call } from "../../ipc/rpc";
 import { inTauri } from "../l10n/api";
-import type { DayUsage, LimitWindow, ModelUsage, PlanLimits, UsageReport, UsageTotals } from "./types";
+import type { DayUsage, LimitWindow, ModelUsage, PlanLimits, ScopedWindow, UsageReport, UsageTotals } from "./types";
 
 export interface UsageApi {
   report(tzOffsetMin: number): Promise<UsageReport>;
@@ -14,6 +14,10 @@ interface RawWindow {
   utilization?: unknown;
   resetsAt?: unknown;
 }
+
+/** The most per-model weekly windows kept, and the longest label of one (the sidecar holds the same bounds). */
+const MAX_SCOPED = 6;
+const MAX_SCOPED_NAME = 40;
 
 /** What the sidecar answered, in the view's shape; anything that is not a usable answer is "not available". */
 export function normalizeLimits(raw: unknown): PlanLimits {
@@ -27,8 +31,15 @@ export function normalizeLimits(raw: unknown): PlanLimits {
     return w && typeof w.utilization === "number" && typeof w.resetsAt === "string" ? { utilization: w.utilization, resetsAt: w.resetsAt } : undefined;
   };
   const out = { fiveHour: win(r.fiveHour), sevenDay: win(r.sevenDay), sevenDayOpus: win(r.sevenDayOpus), sevenDaySonnet: win(r.sevenDaySonnet) };
-  if (r.available === false || !Object.values(out).some(Boolean)) return { available: false, reason: "notSignedIn" };
-  return { available: true, plan: typeof r.plan === "string" ? r.plan : null, ...Object.fromEntries(Object.entries(out).filter(([, v]) => v)) };
+  // the per-model weeks, under the label the plan data gave them: a row without a label or numbers is dropped
+  const modelScoped: ScopedWindow[] = [];
+  for (const row of Array.isArray(r.modelScoped) ? r.modelScoped.slice(0, MAX_SCOPED) : []) {
+    const w = win(row);
+    const name = typeof (row as { name?: unknown } | null)?.name === "string" ? (row as { name: string }).name.trim().slice(0, MAX_SCOPED_NAME) : "";
+    if (w && name && !modelScoped.some((m) => m.name === name)) modelScoped.push({ name, ...w });
+  }
+  if (r.available === false || (!Object.values(out).some(Boolean) && !modelScoped.length)) return { available: false, reason: "notSignedIn" };
+  return { available: true, plan: typeof r.plan === "string" ? r.plan : null, ...Object.fromEntries(Object.entries(out).filter(([, v]) => v)), ...(modelScoped.length ? { modelScoped } : {}) };
 }
 
 const tauriApi: UsageApi = {
@@ -128,7 +139,15 @@ export function createMockUsage(now: number = Date.now(), tzOffsetMin: number = 
       return { generatedMs: now, tzOffsetMin: tz, today: dateOf(today), runs: Math.max(1, Math.round(daysOut.length * 1.7)), firstMs: first, lastMs: last, total, days: daysOut, hours, weekdays, models: modelsOut };
     },
     async limits() {
-      return { available: true, plan: "max", fiveHour: { utilization: 28, resetsAt: new Date(now + 2.2 * 3_600_000).toISOString() }, sevenDay: { utilization: 15, resetsAt: new Date(now + 41 * 3_600_000).toISOString() } };
+      // the two per-model weeks are demo rows: with the calm week they show the three states of a bottom bar item
+      const week = new Date(now + 41 * 3_600_000).toISOString();
+      return {
+        available: true,
+        plan: "max",
+        fiveHour: { utilization: 28, resetsAt: new Date(now + 2.2 * 3_600_000).toISOString() },
+        sevenDay: { utilization: 15, resetsAt: week },
+        modelScoped: [{ name: "Fable", utilization: 78, resetsAt: week }, { name: "Sonnet", utilization: 96, resetsAt: week }],
+      };
     },
   };
 }

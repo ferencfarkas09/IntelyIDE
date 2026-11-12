@@ -1,14 +1,39 @@
 # Token saver
 
-The token saver helps long agent runs stay cheaper without making the agent worse. It turns the warnings of a run's Context panel into buttons, offers a fresh run when the context gets large, shows how much of the cost is the conversation being read again, and can give Claude runs a short list of token-saving habits. Applies to version 1.14.0.
+The token saver helps long agent runs stay cheaper without making the agent worse. It puts a context meter in the run header, turns the warnings of a run's Context panel into buttons, offers a fresh run when the context gets large, shows how much of the cost is the conversation being read again, and can give Claude runs a short list of token-saving habits. The bottom bar of the window shows how much of the weekly plan limit is used. Applies to version 1.14.0.
 
-It is a lazy extra that starts switched on. Settings > Token saver turns it off. It only adds buttons and lines to the Context panel (the context cockpit, Settings > Session search). Nothing is sent to a run unless you press a button, or switch on **Nudge automatically**.
+It is a lazy extra that starts switched on. Settings > Token saver turns it off. It adds the context meter to the run header and buttons and lines to the Context panel (the context cockpit, Settings > Session search). Nothing is sent to a run unless you press a button, or switch on **Nudge automatically**. The plan usage items of the bottom bar have their own switch under Settings > Usage.
 
 ## Why runs get expensive
 
 Every turn of a run sends the whole conversation to the model again. Most of it comes from the prompt cache (the "Cache read" number of the Usage block), which is cheaper per token than fresh input, but a long run with a large context reads it again on every step. A file that the agent reads again and again in large chunks makes the context bigger each time. So the two levers are: keep the context small, and start fresh when a new part of the task begins.
 
 ## What it adds
+
+### The context meter
+
+The header of a run shows a small ring with a percent: how much of the model's context window the run uses. It is there for every run that reported both numbers (the size of its context after the last turn, and the window of its model: 200k or 1M tokens). A run that has not reported them yet, or a provider that never does, has no ring: the meter does not estimate and does not guess a window from a model name. The ring turns to the warning colour above 70% and to the danger colour above 90%, and its accessible name says the percent.
+
+A click on the ring (or Enter or Space while it has the focus) opens the context meter:
+
+- the tokens used "of 200k tokens" (or 1M), a bar, and one sentence on what the number means: how much of this run the agent can keep in mind. It never limits search, history or the files the agent can open;
+- **Model**: the model and its window;
+- **At this pace**: about how many more turns fit, worked out from how much this run's context grew per turn over its last turns (six at most). The row is not shown with fewer than three turns, after a compaction until three more turns have passed, when the context is not growing, or when the answer would be less than one turn or more than 500;
+- **Continue in a fresh run**: the same hand-off as on the context card below. It opens New Run filled in; nothing starts until you press Start run;
+- **Compact now**: shown only when the run's CLI lists the `/compact` command, as on the context card; it waits for a working turn to end;
+- **Copy summary**: copies the numbers of the popover as a few lines of plain text (used and window, percent, model, pace). Nothing from the conversation is in it.
+
+Esc or a click outside closes it and the focus returns to the ring. The meter reads only what the run already reported to the app and makes no network request.
+
+For Claude runs the context size is the size of the lead's last answer as the CLI reported it (the prompt it was sent, fresh and cached, plus the reply); a delegate's own context is not counted. The window is the one the CLI reports for the lead's model.
+
+### Plan usage in the bottom bar
+
+The bottom bar of the window shows **Weekly**: a label, a small bar and the percent of the weekly limit of your Claude plan that is used. When the plan data names a weekly limit for a single model class (the Claude CLI reports such rows with the name the service gives them, for example "Fable"), an item with that name follows (two at most; the popover lists them all). Without such a row there is no such item: the app does not make one up. A window below 70% is calm, from 70% it has the warning colour and from 90% the danger colour, and the accessible name of an item says the percent and the reset time.
+
+A click on an item opens **Plan usage**: the week of all models, the week of each model class, and the 5-hour window, each with its percent, a bar and when it resets ("Resets Monday 09:00", or "Resets at 18:50" for today). A window that is getting close says so in words as well. **Open usage details** opens the Usage view.
+
+The numbers are the ones the Usage view and the Dashboard already show: the app starts your own Claude Code CLI for a moment and asks it for the plan's usage (the request behind the CLI's `/usage`; no prompt and no file goes with it). While the items are on, this happens a few seconds after the app starts and then every five minutes, not while the window is hidden or Eco mode has paused background work. With no Claude CLI, no signed-in subscription, or a plan without limits (an API key, another provider) the items are not shown. Settings > Usage > **Plan usage in the bottom bar** switches them off; then the limits are read only when you open the Usage view or the Dashboard, as before.
 
 ### Tell the agent
 
@@ -49,13 +74,15 @@ The block says that the session's safety rules, your own instructions and the pr
 
 | Setting | Default |
 |---|---|
-| Token saver in the Context panel | on |
+| Token saver in the run header and the Context panel | on |
+| Plan usage in the bottom bar (Settings > Usage) | on |
 | Nudge automatically | off |
 | Context card from | 60% |
 | Token-saving habits | off |
 
 ## Estimated and reported numbers
 
+- The context meter in the run header shows reported numbers only. The Context panel and its card fall back to an estimate when there is no report.
 - The context fill is what the provider reported after the last turn when there is such a report, otherwise an estimate from the transcript text (about 4 characters per token). The card says when it is an estimate. The app cannot know the real size of the context the model sees: the system prompt, tool definitions and the CLI's own reminders are not in the transcript.
 - Input, output, cache-read and cost figures come from the provider. The share of cache reads in the cost is an estimate built on them.
 - Per-tool numbers in the Context panel remain estimates, as before.
@@ -64,4 +91,6 @@ The block says that the session's safety rules, your own instructions and the pr
 
 - A nudge or the habits are requests, not rules: they cannot make the agent behave in a certain way.
 - Compaction is done by the Claude Code CLI; what the summary keeps is up to the CLI.
-- Everything here runs on your computer. The token saver makes no network request of its own; a nudge or `/compact` goes only to the run you chose, like a message you type.
+- The pace of the context meter is arithmetic on the last turns, not a promise: one large file read can use up several turns' worth at once.
+- The plan usage is what the Claude CLI reports for your account; it can lag behind the service by a few minutes, and the per-model rows exist only for plans that have such a limit.
+- Everything here runs on your computer. The token saver makes no network request of its own; a nudge or `/compact` goes only to the run you chose, like a message you type. The plan usage is read through your own Claude Code CLI, which asks Anthropic for it (see [Privacy](privacy.md)).
