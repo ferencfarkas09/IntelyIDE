@@ -9,6 +9,10 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 - Work in progress, not released: the Windows 10 and 11 unsigned beta. The code for it is in place (window chrome and menu for Windows, the Windows environment variables the agent and the runner need, NSIS and MSI installer settings, a Windows CI job) but no Windows installer is published with 1.14.0. The agent safety is weaker than on macOS and the app says so. See `docs/install-windows.md`.
 - Work in progress, not released: the code compiles for Linux (x86_64, webkit2gtk 4.1), Windows 10/11 (x86_64, WebView2) and Apple Silicon Macs, in addition to Intel Macs. Linux passes its tests; on Windows the permission checks and many tests are not yet verified. No Linux or Windows package is published; see `docs/install-linux.md` and `docs/install-windows.md` for what works and what is different. Secrets use Windows Credential Manager and the Linux Secret Service (one vault entry, split over several Credential Manager entries when it is large), banners use a Windows toast and `notify-send`, files and links open with `explorer.exe` and `xdg-open`, the terminal starts PowerShell on Windows, and connections to servers are not shared on Windows (OpenSSH for Windows has no `ControlMaster`). Process groups, the process table and the disk-space check are macOS and Linux features; the update swap of the app bundle stays macOS only.
 
+### Security
+
+- Updated `rustix` from 1.1.5 to 1.1.6 (a lock file update only) for RustSec advisory RUSTSEC-2026-0486: its extended-attribute functions marked bytes as initialised after a zero-length query. The app's own code does not call those functions (it uses `rustix` for directory-handle file access and through `tempfile`), so this closes the advisory check and the exposure alike.
+
 ## [1.14.1] - 2026-10-30
 
 ### Added
