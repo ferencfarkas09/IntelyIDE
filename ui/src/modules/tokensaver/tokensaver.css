@@ -47,6 +47,15 @@
 .ctxm__actions { display: flex; gap: 8px; }
 .ctxm__actions .ui-btn { flex: 1 1 0; min-width: 0; height: 34px; border-radius: var(--radius-ctl); font-weight: var(--weight-medium); }
 .ctxm__source { margin: 0; color: var(--text-3); font-size: var(--text-sm); }
+/* A narrow pane (the run header folds to short lines, see chat.css): the ring alone, a little smaller than the folded
+   header's buttons, and the buttons closer together, so the group still fits beside the chips and the header gets no extra
+   line. The percent stays in the button's name and in the popover. */
+@container chat (max-width: 520px) {
+  .ctxm-ring { justify-content: center; width: 24px; height: 26px; padding: 0; }
+  .ctxm-ring__svg { width: 16px; height: 16px; }
+  .ctxm-ring__pct { display: none; }
+  .run-header__actions:has(.ctxm-ring) { gap: 2px; }
+}
 /* A short window (the minimum is 960x600): tighter, so the popover fits under the ring instead of covering it. */
 @media (max-height: 700px) {
   .ui-popover.ctxm-popover[data-kind="dialog"] { padding: 14px; }

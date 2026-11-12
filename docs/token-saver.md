@@ -12,7 +12,7 @@ Every turn of a run sends the whole conversation to the model again. Most of it 
 
 ### The context meter
 
-The header of a run shows a small ring with a percent: how much of the model's context window the run uses. It is there for every run that reported both numbers (the size of its context after the last turn, and the window of its model: 200k or 1M tokens). A run that has not reported them yet, or a provider that never does, has no ring: the meter does not estimate and does not guess a window from a model name. The ring turns to the warning colour above 70% and to the danger colour above 90%, and its accessible name says the percent.
+The header of a run shows a small ring with a percent: how much of the model's context window the run uses. It is there for every run that reported both numbers (the size of its context after the last turn, and the window of its model: 200k or 1M tokens). A run that has not reported them yet, or a provider that never does, has no ring: the meter does not estimate and does not guess a window from a model name. The ring turns to the warning colour above 70% and to the danger colour above 90%, and its accessible name says the percent. In a narrow pane (a small window, or several run panes side by side) the header folds and the ring is shown without the number; its tooltip and the popover still say it.
 
 A click on the ring (or Enter or Space while it has the focus) opens the context meter:
 

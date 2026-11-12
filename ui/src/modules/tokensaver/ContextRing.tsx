@@ -121,7 +121,7 @@ export function ContextRing(props: { agent: AgentRow }) {
           aria-label={t("ctxmeter.title")}
           class="ctxm-popover"
           trigger={(p) => (
-            <button {...p} type="button" class="ctxm-ring" data-testid="context-ring" data-tone={m().tone} aria-label={t("ctxmeter.ring", { percent: m().percent })}>
+            <button {...p} type="button" class="ctxm-ring" data-testid="context-ring" data-tone={m().tone} aria-label={t("ctxmeter.ring", { percent: m().percent })} title={t("ctxmeter.ring", { percent: m().percent })}>
               <Ring fraction={m().fraction} />
               <span class="ctxm-ring__pct ui-tnum" aria-hidden="true">{m().percent}%</span>
             </button>
