@@ -170,8 +170,13 @@ export function Transcript(props: { agentId: string; view: AgentView; readOnly?:
 
   // WebKit holds back resize notifications while the window is hidden or covered (a locked screen, another Space): rows that changed
   // height meanwhile keep their old measure and the next row is drawn over them. Measure the rows on screen again when it comes back.
+  // (virt.measureElement(el) is no use here: without a ResizeObserver entry it hands back the size it already has, so the DOM is read
+  // and handed to resizeItem directly. A box with no height is a hidden pane: its rows keep their sizes until it is shown again.)
   const remeasure = () => {
-    for (const el of scrollEl()?.querySelectorAll<HTMLElement>(".transcript__row") ?? []) virt.measureElement(el);
+    for (const el of scrollEl()?.querySelectorAll<HTMLElement>(".transcript__row") ?? []) {
+      const height = Math.round(el.getBoundingClientRect().height);
+      if (height > 0) virt.resizeItem(Number(el.dataset.index), height);
+    }
   };
   const onVisible = () => {
     if (!document.hidden) remeasure();
@@ -181,9 +186,11 @@ export function Transcript(props: { agentId: string; view: AgentView; readOnly?:
   onCleanup(() => {
     document.removeEventListener("visibilitychange", onVisible);
     window.removeEventListener("focus", remeasure);
+    cancelAnimationFrame(measureFrame);
   });
 
   let pinFrame = 0;
+  let measureFrame = 0;
   // True from a sign of user intent (wheel up, keys, drag) until `release` has looked at where the scroll ended up.
   // Every pin checks it when it RUNS, not when it was queued: whichever frame callback comes first, a pin queued by the
   // stream can never undo a scroll the user has just started.
@@ -245,6 +252,21 @@ export function Transcript(props: { agentId: string; view: AgentView; readOnly?:
     });
     el.addEventListener("keydown", (e) => ["PageUp", "Home", "ArrowUp"].includes(e.key) && release(true));
     new ResizeObserver(() => mayPin() && (el.scrollTop = el.scrollHeight)).observe(el.firstElementChild ?? el);
+    // The pane itself coming back from a zero size (a hidden layout, a collapsed split) or changing width: the rows were measured
+    // against the old box (or against nothing), so measure the ones on screen again instead of waiting for a layout switch.
+    let seenW = el.clientWidth;
+    let seenH = el.clientHeight;
+    new ResizeObserver(() => {
+      const revived = (seenW === 0 || seenH === 0) && el.clientWidth > 0 && el.clientHeight > 0;
+      const resized = el.clientWidth !== seenW;
+      seenW = el.clientWidth;
+      seenH = el.clientHeight;
+      // a frame later: the virtual list first has to draw the rows the new box shows
+      if (revived || resized) {
+        cancelAnimationFrame(measureFrame);
+        measureFrame = requestAnimationFrame(remeasure);
+      }
+    }).observe(el);
     setScrollEl(el);
   };
   const needsYou = () => !props.readOnly && pendingPermissions(props.view).length + pendingQuestions(props.view).length > 0;

@@ -61,7 +61,8 @@ fn healthy() -> tempfile::TempDir {
 }
 
 fn env() -> Env {
-    Env { android_home: None, ..Env::default() }
+    // (a scan that runs out of its time budget reads every later file as missing: a loaded CI machine must not turn that into findings)
+    Env { android_home: None, budget: Some(std::time::Duration::from_secs(120)) }
 }
 
 fn project(root: &Path) -> Project {
@@ -325,7 +326,7 @@ fn a_project_below_the_root_is_found_with_its_path() {
 fn android_home_in_the_environment_settles_the_sdk_location() {
     let d = healthy();
     rm(d.path(), "android/local.properties");
-    let with = scan_with(d.path(), &Env { android_home: Some("/sdk".into()), ..Env::default() });
+    let with = scan_with(d.path(), &Env { android_home: Some("/sdk".into()), budget: Some(std::time::Duration::from_secs(120)) });
     assert!(!with.projects[0].findings.iter().any(|f| f.id == "android.sdkDir.missing"));
     put(d.path(), "android/local.properties", "# empty\n");
     let p = project(d.path());
