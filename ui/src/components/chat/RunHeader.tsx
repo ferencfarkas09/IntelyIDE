@@ -62,10 +62,10 @@ export function RunHeader(props: { agent: AgentRow; stopping: boolean; onInterru
   return (
     <header class="run-header" data-testid="run-header" data-bypass={effectiveMode(a()) === "bypass" ? "" : undefined}>
       <div class="run-header__top">
-        <span class="run-header__role" title={t("chat.header.provider", { name: a().provider })}>
+        <span class="run-header__role" title={t("chat.header.provider", { name: providerName(a().provider) })}>
           <span class="run-header__tile" aria-hidden="true">{initials(roleName())}</span>
         </span>
-        <h1 class="run-header__title">{a().title}</h1>
+        <h2 class="run-header__title">{a().title}</h2>
         <span class="run-header__state" data-tone={shownStatus(a()).tone}>
           <StatusDot tone={shownStatus(a()).tone} size={6} label={shownStatus(a()).text} />
           <span class="run-header__status">{shownStatus(a()).text}</span>
@@ -102,7 +102,7 @@ export function RunHeader(props: { agent: AgentRow; stopping: boolean; onInterru
           <ProviderMark id={a().provider} size={14} />
           <Badge title={t("chat.header.providerBadge", { name: a().provider })}>{providerName(a().provider)}</Badge>
         </span>
-        <span class="run-header__chip">
+        <span class="run-header__chip run-header__model">
           <Badge title={t("chat.header.modelBadge", { name: a().model })}>{modelLabel(a().model)}</Badge>
           <span aria-hidden="true">·</span>
           <Badge tone={effort().tone} title={effort().title}>

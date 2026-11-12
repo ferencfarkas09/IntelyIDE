@@ -22,6 +22,9 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 - Permission and question cards: a larger title with one line of explanation, the command or path on its own row, and bigger buttons. "Deny" is now the first button; a new request still puts the keyboard focus on "Allow once", and Escape still denies.
 - The left rail has larger buttons (40 x 40); the open tool window is marked with a tinted button instead of a bar at the edge.
 - The title bar is 48 px tall (it was 40 px).
+- Permission cards: with "Deny" first, the last button of the row is now the broadest allow (it used to be "Deny"). In a small window the row of buttons and the button that has the keyboard focus are always scrolled into view.
+- Run view in a narrow pane (a small window, or several runs side by side): the header shows the title, the status, the permission mode, the MCP servers, the enforcement level and the actions; role, provider, model, effort, repositories, tokens and cost are in the "This run" card. The composer keeps its buttons on one line there, without the send hint and the "Saved prompts" button.
+- New run dialog: a "Role default" button next to Effort returns the effort alone to the role's level.
 - New run dialog: while the presets are on, the Ask, Edit automatically and Automatic cards carry the preset names (Careful, Balanced, Autonomous) with the mode's own name beside them; the separate row of preset buttons above the cards is gone.
 - Dashboard: Run pulse lists runs as rows instead of four counters, Burn-down shows the last 14 days as bars, and the greeting line is replaced by the summary sentence.
 

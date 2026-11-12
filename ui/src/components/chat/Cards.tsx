@@ -31,8 +31,23 @@ export function focusRequest(reqId: string, card: HTMLElement | undefined): void
   const free = !active || active === document.body || (!typing && !!active.closest(".chat"));
   if (!free) return;
   focused.add(reqId);
-  card.querySelector<HTMLElement>("[data-primary]")?.focus({ preventScroll: true });
+  const target = card.querySelector<HTMLElement>("[data-primary]");
+  target?.focus({ preventScroll: true });
+  revealRequest(card, target);
+  // The transcript sticks to its end while rows are measured, which can scroll a tall card's focused control away again: once
+  // that has settled, the control that still has the focus is brought back.
+  for (const ms of [150, 500]) setTimeout(() => card.isConnected && target && document.activeElement === target && target.scrollIntoView?.({ block: "nearest" }), ms);
+}
+
+/**
+ * Brings a request into view so that what has the focus is on screen: the card first, then its row of buttons, then the focused
+ * button itself. In a short transcript the card can be taller than the room it has; the buttons win over the title then, because
+ * a focused "Allow once" that cannot be seen would be allowed by Enter without having been read.
+ */
+export function revealRequest(card: HTMLElement, target: HTMLElement | null | undefined): void {
   card.scrollIntoView?.({ block: "nearest" });
+  card.querySelector<HTMLElement>(".perm__actions")?.scrollIntoView?.({ block: "nearest" });
+  target?.scrollIntoView?.({ block: "nearest" });
 }
 
 /** After an answer, focus goes to the next open request, else back to the composer, so the next Tab does not restart at the top of the app. */

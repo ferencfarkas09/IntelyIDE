@@ -114,3 +114,21 @@ describe("<Shell> and workspaces", () => {
     expect(container.querySelectorAll("h1[data-workspace-heading]")).toHaveLength(1);
   });
 });
+
+describe("title bar: repositories that do not fit", () => {
+  it("marks the chips that wrapped below the one line as clipped and inert, and names them for the N more menu", async () => {
+    const { hiddenChips } = await import("./TitleContent");
+    const row = document.createElement("div");
+    row.innerHTML = '<span data-repo="a"></span><span data-repo="b"></span><span data-repo="c"></span>';
+    const tops = [0, 0, 26];
+    [...row.children].forEach((el, i) => Object.defineProperty(el, "offsetTop", { get: () => tops[i] }));
+    expect(hiddenChips(row)).toEqual(["c"]);
+    expect(row.children[2].hasAttribute("data-clipped")).toBe(true);
+    expect(row.children[2].hasAttribute("inert")).toBe(true);
+    expect(row.children[0].hasAttribute("inert")).toBe(false);
+    // the window got wider: everything fits again
+    tops[2] = 0;
+    expect(hiddenChips(row)).toEqual([]);
+    expect(row.children[2].hasAttribute("inert")).toBe(false);
+  });
+});

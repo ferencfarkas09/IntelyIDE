@@ -73,8 +73,8 @@
 }
 .ttl__chip:hover, .ttl__chip[aria-expanded="true"] { border-color: var(--border-strong); color: var(--text-1); }
 .ttl__chip-dot { flex: none; width: 7px; height: 7px; border-radius: var(--radius-full); }
-.ttl__chip-name { flex: none; }
-.ttl__chip-branch { flex: 0 1 auto; min-width: 0; overflow: hidden; color: var(--text-3); font-family: var(--font-mono); }
+.ttl__chip-name { flex: 0 1 auto; min-width: 0; max-width: 60%; overflow: hidden; text-overflow: ellipsis; }
+.ttl__chip-branch { flex: 0 2 auto; min-width: 24px; overflow: hidden; color: var(--text-3); font-family: var(--font-mono); }
 .ttl__more { flex: none; }
 .ttl__search {
   display: flex;

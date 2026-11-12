@@ -11,9 +11,9 @@ import { openDockTab } from "../../platform/dock";
 import { openSettings } from "../../platform/settings";
 import type { RoleGroup, RoleProviderCaps } from "../../ipc/roles";
 import type { AgentSummary, AutoInfo, PermissionMode } from "../../store/agent-types";
+import { formatChord } from "../../platform/keymap";
 import { appMode } from "../../platform/mode";
 import { newRunPrefill, takeNewRunPrefill } from "../../platform/newRun";
-import { newRunSlots } from "../../platform/newRunSlots";
 import { agentRoles, selectAgent, selectStartingRun, startRun } from "../../store/agents";
 import { beginStarting, failStarting, showStarting, startingRun } from "../../store/starting";
 import { snapshots } from "../../store/snapshots";
@@ -30,6 +30,7 @@ import { loadServers, servers } from "../servers/store";
 import { McpRunPicker, mcpStartIds } from "./mcpSeam";
 import { PRESETS, startMode } from "../presets/logic";
 import { SecretGuardOffer } from "../presets/SecretGuardOffer";
+import { presetsEnabled } from "../presets/toggle";
 import { autoReasonText, chosenProvider, claudeUnavailableReason, clampCounts, clampMode, defaultRepos, failureLines, MAC_MAX, initialMode, neutralRole, numberedPrompt, placementRows, placementSummary, planRuns, providerBlocker, providerChoices, startBlocker, startErrorText, startRequest, teamOf, teamPrompt, THIS_MAC, toggleRepo, totalRuns, type RunJob, type RunMode } from "./newRunLogic";
 import { roleColor } from "./roleColors";
 import { newRunOpen, setCentreView, setNewRunOpen } from "./state";
@@ -48,8 +49,6 @@ import "./newrun.css";
 const repoLabel = (id: string) => repos().find((r) => r.id === id)?.name ?? id;
 /** The model, effort and ultracode picker (an extra that starts on); loaded with the dialog's first open. */
 const RunPicker = lazy(() => import("../runpicker/RunPicker"));
-/** The slot of the safety presets: when it is registered the dialog names its mode cards after them instead of mounting the bar. */
-const PRESET_SLOT = "presets.bar";
 
 export function NewRunDialog() {
   const [role, setRole] = createSignal<string | undefined>(undefined);
@@ -260,15 +259,14 @@ export function NewRunDialog() {
   };
 
   /** Careful / Balanced / Autonomous: the plain names of Ask, Edit automatically and Automatic, while the safety presets are on. */
-  const presetsOn = () => newRunSlots("modes").some((s) => s.id === PRESET_SLOT);
-  const plainModes = createMemo(() => (presetsOn() ? Object.fromEntries(PRESETS.map((p) => [p.mode, { label: t(`presets.${p.id}` as MessageKey), hint: t(`presets.${p.id}.desc` as MessageKey) }])) : undefined));
+  const plainModes = createMemo(() => (presetsEnabled() ? Object.fromEntries(PRESETS.map((p) => [p.mode, { label: t(`presets.${p.id}` as MessageKey), hint: t(`presets.${p.id}.desc` as MessageKey) }])) : undefined));
   /** The footer line: what the run starts with (the model and effort that apply now, and how many repositories it may work in). */
   const summary = () => {
     const model = runPick().model?.trim() || defaultModel();
     const levels = effortChoice(model, caps(), modeProvider()).levels;
     const picked = runPick().effort;
     const effort = picked && levels.includes(picked) ? picked : (defaultEffort() ?? undefined);
-    return [model ? modelLabel(model) : undefined, effort, t("runs.new.summary.repos", { count: repoIds().length })].filter(Boolean).join(" · ");
+    return [model ? modelLabel(model) : undefined, effort ? t(`runpicker.effortLevel.${effort}` as MessageKey) : undefined, t("runs.new.summary.repos", { count: repoIds().length })].filter(Boolean).join(" · ");
   };
 
   // What the prompt picker and the safety presets may touch (ui/src/platform/newRunSlots.ts).
@@ -512,7 +510,7 @@ export function NewRunDialog() {
           </Button>
           <Button size="xl" variant="primary" aria-label={t("runs.new.start")} aria-keyshortcuts="Meta+Enter Control+Enter" loading={busy()} disabled={!!blocker()} onClick={() => void start()}>
             {t("runs.new.start")}
-            <span class="ui-btn__kbd" aria-hidden="true">⌘⏎</span>
+            <span class="ui-btn__kbd" aria-hidden="true">{formatChord("Cmd+Enter").join("")}</span>
           </Button>
         </>
       }
@@ -688,11 +686,11 @@ export function NewRunDialog() {
         <div class="newrun__side">
           <fieldset class="newrun__field newrun__modes-field">
             <legend class="newrun__label">{t("runs.new.freedom")}</legend>
-            <NewRunSlots place="modes" ctx={slotCtx} skip={[PRESET_SLOT]} />
+            <NewRunSlots place="modes" ctx={slotCtx} />
             <div class="newrun__modes">
               <ModeCards layout="radio" modes={supported()} value={permission()} onChange={pickMode} label={t("modes.picker.label")} plain={plainModes()} unavailable={unavailable()} confirm={["bypass"]} disabled={busy()} />
             </div>
-            <Show when={presetsOn()}>
+            <Show when={presetsEnabled()}>
               <SecretGuardOffer />
             </Show>
             <Show when={mode() === "role" && !touched() && permission() === "readOnly" && current()?.permission === "readOnly"}>

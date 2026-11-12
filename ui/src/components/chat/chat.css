@@ -66,15 +66,37 @@
 .run-header__tokens { overflow: hidden; text-overflow: ellipsis; }
 .run-header__tokens::after { content: " ·"; }
 @container chat (max-width: 420px) { .run-header__tokens { display: none; } }
+/* A narrow pane (three columns in a small window, several panes side by side): the header folds to a title line and one or two
+   short lines with the permission mode, the MCP servers, the enforcement level and the actions. Role, provider, model, effort,
+   repositories, tokens and cost are in the "This run" card next to it, so they give way here; nothing scrolls sideways. */
 @container chat (max-width: 520px) {
-  .run-header { padding-inline: var(--space-3); }
-  .run-header__top { flex-wrap: wrap; }
-  .run-header__title { flex-basis: 60%; }
-  /* A narrow pane keeps the chips on one line that scrolls sideways, so the conversation keeps its height. */
-  .run-header__chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
-  .run-header__chips::-webkit-scrollbar { display: none; }
+  .run-header { flex-flow: row wrap; align-items: center; gap: 6px; padding: var(--space-2) var(--space-3); }
+  .run-header__top, .run-header__chips { display: contents; }
+  /* The title line comes first whatever wraps the chips (a tooltip wrapper is not a direct child): negative orders, the rest in document order, the actions last. */
+  .run-header__role { order: -4; }
+  .run-header__tile { width: 24px; height: 24px; border-radius: 7px; font-size: 10px; }
+  .run-header__title { order: -3; flex: 1 1 calc(100% - 150px); min-width: 120px; font-size: var(--text-md); -webkit-line-clamp: 1; line-clamp: 1; }
+  .run-header__state { order: -2; height: 22px; padding: 0 8px; }
+  .run-header__scope { order: -1; flex: 1 1 100%; }
   .run-header__chips > * { flex: none; }
-  .run-header__chips > .run-header__grow { display: none; }
+  .run-header__actions { order: 1; gap: 4px; margin-inline-start: auto; }
+  .run-header__actions .ui-icon-btn { --ib: 26px; }
+  .run-header__chips > :is(.run-header__name, .run-header__provider, .run-header__model, .run-header__lead, .run-header__repos, .run-header__usage, .run-header__grow) { display: none; }
+  .run-header__chips .ui-badge, .run-header__chips .ui-pill, .run-header__chip { height: 22px; }
+  /* The composer keeps one line of buttons: the send hint and the way to the prompt library (also in the command palette) give way. */
+  .composer { padding: var(--space-1) var(--space-3) var(--space-2); }
+  .composer__box { gap: var(--space-1); padding: var(--space-2); }
+  .composer__hint:not([role="status"]), .composer__prompts { display: none; }
+  .composer__bar { flex-wrap: nowrap; }
+  .composer__bar .ui-btn { --btn-h: var(--control-md); padding-inline: 10px; }
+  .composer__bar .ui-icon-btn { --ib: var(--control-md); }
+  .transcript__row { padding-inline: var(--space-3); }
+  /* Requests stay whole in a short transcript: tighter card, 32 px buttons. */
+  .perm { gap: var(--space-2); padding: var(--space-3); }
+  .perm__tile { width: 28px; height: 28px; border-radius: 8px; }
+  .perm__title { font-size: var(--text-md); }
+  .perm__actions .ui-btn { --btn-h: var(--control-lg); padding-inline: 12px; }
+  .ui-btn.q__option { min-height: var(--control-lg); padding-block: 5px; }
 }
 .run-header__cost { flex: none; }
 .run-header__tier { cursor: help; }

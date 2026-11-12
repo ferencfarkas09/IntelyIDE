@@ -36,6 +36,12 @@ export function ChoiceCard(props: ChoiceCardProps) {
       checked={props.checked}
       disabled={props.disabled}
       onChange={(e) => props.onChange(e.currentTarget.checked)}
+      // Enter ticks a card too (a native tick box only answers Space); a radio is chosen with the arrow keys as usual.
+      onKeyDown={(e) => {
+        if (e.key !== "Enter" || props.type === "radio" || props.disabled || e.metaKey || e.ctrlKey || e.altKey) return;
+        e.preventDefault();
+        props.onChange(!props.checked);
+      }}
     />
   );
   return (

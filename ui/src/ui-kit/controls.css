@@ -272,7 +272,8 @@
 }
 .ui-chip[data-size="sm"] { height: 26px; padding: 0 10px; }
 .ui-chip:hover { border-color: var(--border-strong); }
-.ui-chip__text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* Its own line box: with the chip's line-height of 1 the clip would cut accents (Á, Ö, Ű). */
+.ui-chip__text { min-width: 0; overflow: hidden; line-height: 1.5; text-overflow: ellipsis; }
 .ui-chip__count { color: inherit; font-variant-numeric: tabular-nums; }
 /* A toggle (aria-pressed is set): quiet until chosen, then the accent tint. */
 .ui-chip[aria-pressed] { background: transparent; color: var(--text-2); }

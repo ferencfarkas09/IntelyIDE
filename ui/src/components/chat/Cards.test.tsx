@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@solidjs/testing-li
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PermissionItem, QuestionItem, TurnItem } from "../../store/agent-reducer";
 import { installDomStubs } from "../../store/testing-u2";
-import { CONTINUE_TEXT, PermissionCard, QuestionCard, TurnMarker, resolvedWording, scopeSentence } from "./Cards";
+import { CONTINUE_TEXT, PermissionCard, QuestionCard, TurnMarker, resolvedWording, scopeSentence, revealRequest } from "./Cards";
 
 installDomStubs();
 afterEach(cleanup);
@@ -143,6 +143,33 @@ describe("<PermissionCard>", () => {
     expect(resolvedWording({ outcome: "cancelled", by: "user" })).toBe("Cancelled");
     expect(resolvedWording({ outcome: "deny", by: "hardStop", refusal: { reason: "x", rule: "git.commit" } })).toBe("Blocked by a hard stop");
     expect(resolvedWording({ outcome: "deny", by: "hardStop", refusal: { reason: "x", rule: "cli.prompt-denied" } })).toBe("Blocked: the Claude CLI asked for approval");
+  });
+});
+
+describe("<PermissionCard> buttons of the 1.15 refresh", () => {
+  it("orders all four choices with Deny first and reports Allow once when it is clicked", () => {
+    const answer = vi.fn();
+    render(() => <PermissionCard item={perm({ options: ["allowOnce", "allowRun", "allowAlways", "deny"], sessionAllow: { kind: "exec", scope: "pnpm" } })} onAnswer={answer} />);
+    expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual(["Deny", "Allow once", "Allow always in this session", "Always for role + repo"]);
+    fireEvent.click(screen.getByRole("button", { name: "Allow once" }));
+    expect(answer).toHaveBeenCalledTimes(1);
+    expect(answer).toHaveBeenCalledWith("allowOnce");
+  });
+
+  it("brings the row of buttons and then the focused button into view, after the card", () => {
+    const calls: string[] = [];
+    const card = document.createElement("section");
+    card.innerHTML = '<div class="perm__actions"><button data-primary>Allow once</button></div>';
+    document.body.append(card);
+    const actions = card.querySelector<HTMLElement>(".perm__actions")!;
+    const target = card.querySelector<HTMLElement>("[data-primary]")!;
+    card.scrollIntoView = () => calls.push("card");
+    actions.scrollIntoView = () => calls.push("actions");
+    target.scrollIntoView = () => calls.push("target");
+    revealRequest(card, target);
+    // the focused button is the last word: in a transcript shorter than the card it is the part that must be on screen
+    expect(calls).toEqual(["card", "actions", "target"]);
+    card.remove();
   });
 });
 

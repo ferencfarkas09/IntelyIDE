@@ -1,11 +1,13 @@
 // Screenshots and layout checks of the 1.15 refresh against the MOCK UI in headless Chromium (no app binary, no WKWebView):
-// the Agent run, the Dashboard and the New run dialog in Standard and Glass, light and dark, at 1440x900 and 960x600.
-// Every shot is audited in the page: text contrast below 4.5:1 (3:1 for large text), controls that are covered or off screen,
-// and a page that scrolls sideways. What it cannot tell: how WKWebView (the Mac web view) paints; that needs scripts/shots.sh.
+// the Agent run with a permission request, a question, the Dashboard and the New run dialog in Standard and Glass, light and
+// dark, at 1440x900, 1100x700 and 960x600.
+// Every shot is audited in the page: text contrast below 4.5:1 (3:1 for large text, badges included), controls that are covered
+// or off screen, a focused control that is not fully on screen, a transcript shorter than 200 px, header chips or a page that
+// scroll sideways. What it cannot tell: how WKWebView (the Mac web view) paints; that needs scripts/shots.sh.
 //
 //   VITE_MOCK_IPC=1 pnpm --dir ui exec vite build --outDir ../.scratch/mock-ui      (or: pnpm --dir ui dev)
 //   node scripts/e2e/ui-refresh-shots.mjs [--dir .scratch/mock-ui | --base http://localhost:1420] [--out .scratch/refresh-shots]
-//                                         [--locale hu] [--scale 2] [--only agent-run,dashboard,new-run,context-meter,context-meter-warn,plan-usage]
+//                                         [--locale hu] [--scale 2] [--only agent-run,question,dashboard,new-run,context-meter,context-meter-warn,plan-usage]
 // Playwright comes from PW_DIR (a folder with playwright-core, default .scratch/pw) or from a global install.
 import { createRequire } from "node:module";
 import fs from "node:fs";
@@ -62,7 +64,7 @@ function audit() {
   const base = () => { const dark = document.documentElement.getAttribute("data-theme") !== "light"; const glass = document.documentElement.getAttribute("data-skin") === "glass"; return glass ? (dark ? { r: 13, g: 16, b: 34, a: 1 } : { r: 238, g: 240, b: 251, a: 1 }) : parse(getComputedStyle(document.body).backgroundColor) ?? { r: 255, g: 255, b: 255, a: 1 }; };
   const bgOf = (el) => { const layers = []; for (let n = el; n && n.nodeType === 1; n = n.parentElement) { const c = parse(getComputedStyle(n).backgroundColor); if (c && c.a > 0) { layers.push(c); if (c.a >= 1) break; } } let bg = layers.length && layers[layers.length - 1].a >= 1 ? layers.pop() : base(); for (const l of layers.reverse()) bg = over(l, bg); return bg; };
   const visible = (el) => { const r = el.getBoundingClientRect(); const cs = getComputedStyle(el); return r.width > 1 && r.height > 1 && cs.visibility !== "hidden" && cs.display !== "none" && +cs.opacity > 0.05 && r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth; };
-  const hiddenUp = (el) => { for (let n = el; n && n.nodeType === 1; n = n.parentElement) { const cs = getComputedStyle(n); if (cs.visibility === "hidden" || +cs.opacity < 0.05 || n.hasAttribute("inert") || n.getAttribute("aria-hidden") === "true") return true; } return false; };
+  const hiddenUp = (el) => { for (let n = el; n && n.nodeType === 1; n = n.parentElement) { const cs = getComputedStyle(n); if (cs.visibility === "hidden" || +cs.opacity < 0.05 || n.hasAttribute("inert")) return true; } return false; };
   // A modal dialog covers the window on purpose: with one open, only what is inside it is checked.
   const modal = [...document.querySelectorAll('[role="dialog"], [role="alertdialog"]')].filter(visible).pop();
   const inScope = (el) => !modal || modal.contains(el);
@@ -72,7 +74,7 @@ function audit() {
   for (let t = walker.nextNode(); t; t = walker.nextNode()) {
     const el = t.parentElement; if (!el || seen.has(el) || !t.nodeValue.trim()) continue; seen.add(el);
     if (!visible(el) || hiddenUp(el) || !inScope(el)) continue;
-    if (el.closest("[disabled], [aria-disabled='true'], .ui-sr-only, .cm-editor, .xterm, .dpv__sign, .ui-kbd, .ui-seg__item[aria-checked='true']")) continue;
+    if (el.closest("[disabled], [aria-disabled='true'], .ui-sr-only, .cm-editor, .xterm, .dpv__sign, .ui-kbd, .pmark, .ui-seg__item[aria-checked='true']")) continue;
     const cs = getComputedStyle(el); const fg0 = parse(cs.color); if (!fg0) continue;
     const bg = bgOf(el); const fg = over(fg0, bg); const r = ratio(fg, bg);
     const big = parseFloat(cs.fontSize) >= 18.66 || (parseFloat(cs.fontSize) >= 14 && +cs.fontWeight >= 700);
@@ -96,7 +98,33 @@ function audit() {
       if (!clipped) covered.push(`covered "${label}" by ${top.className && typeof top.className === "string" ? "." + top.className.split(" ")[0] : top.tagName}`);
     }
   }
-  return { low: [...new Set(low)].slice(0, 25), covered: [...new Set(covered)].slice(0, 25), hscroll: document.documentElement.scrollWidth > innerWidth };
+  // What has the keyboard focus must be on screen: inside the window and inside every scroller or clip around it. A focused
+  // "Allow once" under the run header would be pressed by Enter without having been seen.
+  const focus = [];
+  const active = document.activeElement;
+  if (active && active !== document.body && inScope(active)) {
+    const r = active.getBoundingClientRect();
+    let box = { top: 0, left: 0, bottom: innerHeight, right: innerWidth };
+    for (let n = active.parentElement; n; n = n.parentElement) {
+      const cs = getComputedStyle(n);
+      if (!/(auto|scroll|hidden|clip)/.test(cs.overflowY + cs.overflowX)) continue;
+      const pr = n.getBoundingClientRect();
+      box = { top: Math.max(box.top, pr.top), left: Math.max(box.left, pr.left), bottom: Math.min(box.bottom, pr.bottom), right: Math.min(box.right, pr.right) };
+    }
+    if (r.top < box.top - 1 || r.bottom > box.bottom + 1 || r.left < box.left - 1 || r.right > box.right + 1) {
+      focus.push(`the focused control "${(active.getAttribute("aria-label") ?? active.textContent ?? "").trim().slice(0, 30)}" is not fully on screen (${Math.round(r.top)}-${Math.round(r.bottom)} in ${Math.round(box.top)}-${Math.round(box.bottom)})`);
+    }
+  }
+  // The conversation must keep a usable height in the smallest window, and nothing may hide content behind a sideways scroller.
+  const room = [];
+  const transcript = document.querySelector('[data-testid="transcript"]');
+  if (transcript && !modal && visible(transcript)) {
+    const h = Math.round(transcript.getBoundingClientRect().height);
+    if (h < 200) room.push(`the transcript is ${h} px tall (minimum 200)`);
+    const chips = document.querySelector(".run-header__chips");
+    if (chips && chips.scrollWidth > chips.clientWidth + 1 && getComputedStyle(chips).display !== "contents") room.push("the header chips scroll sideways");
+  }
+  return { low: [...new Set(low)].slice(0, 25), covered: [...new Set([...covered, ...focus, ...room])].slice(0, 25), hscroll: document.documentElement.scrollWidth > innerWidth };
 }
 
 const VIEWS = {
@@ -105,6 +133,16 @@ const VIEWS = {
     steps: async (page) => {
       await page.locator(".run-card, .run-row__main").first().click();
       await page.locator('[data-testid="composer"]').waitFor();
+      // the request that waits: its card takes the focus when it appears
+      await page.locator('section.perm[role="group"]').waitFor();
+    },
+  },
+  // A question that waits for an answer: the focused option and the Send button must be on screen too.
+  question: {
+    url: "/?scenario=agent-question&mode=agent",
+    steps: async (page) => {
+      await page.locator(".run-card, .run-row__main").first().click();
+      await page.locator(".perm.q").waitFor();
     },
   },
   dashboard: {
@@ -157,7 +195,7 @@ Object.assign(VIEWS, {
     },
   },
 });
-const SIZES = [[1440, 900], [960, 600]];
+const SIZES = [[1440, 900], [1100, 700], [960, 600]];
 
 const dir = arg("dir");
 const out = arg("out", ".scratch/refresh-shots");

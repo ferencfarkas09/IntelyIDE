@@ -41,7 +41,9 @@ describe("<RunHeader> provider", () => {
     expect(document.querySelector('.run-header__provider .pmark[data-provider="gemini"]')?.textContent).toBe("Ge");
     // The role tile carries the first two letters of the role; the run's title is the heading.
     expect(document.querySelector(".run-header__tile")?.textContent).toMatch(/^[A-Z]{2}$/);
-    expect(screen.getByRole("heading", { level: 1 })).toBeTruthy();
+    // one h1 per window (the workspace name): the run title is a second-level heading
+    expect(screen.getByRole("heading", { level: 2 })).toBeTruthy();
+    expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
     expect(screen.getByRole("note").getAttribute("aria-label")).toMatch(/Enforcement: Weak/);
   });
 

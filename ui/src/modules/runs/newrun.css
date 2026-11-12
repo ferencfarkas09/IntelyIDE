@@ -101,6 +101,12 @@
 .newrun .runpicker .ui-select__chevron { inset-inline-end: 10px; }
 .newrun .runpicker__other { margin-block-start: calc(var(--space-2) - var(--newrun-gap)); }
 .newrun .runpicker__remembered { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 2px var(--space-2); margin-block-start: calc(var(--space-1) - var(--newrun-gap)); }
+/* five translated level names side by side in 320 px: slim side padding, a text that shrinks a little with the row and never spills */
+.newrun .runpicker__effort { container: runpicker-effort / inline-size; }
+.newrun .runpicker .ui-seg[data-full] .ui-seg__item { padding-inline: 2px; font-size: clamp(10.5px, 4.2cqi, var(--text-sm)); }
+.newrun .runpicker .ui-seg__item > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* "Role default" comes and goes with a picked effort: the label row keeps its height */
+.newrun .runpicker__effort .newrun__links { margin-block: -2px; }
 /* no level is the run's own (the role's effort is unknown): the thumb has nothing to sit under */
 .newrun .runpicker .ui-seg:not(:has([aria-checked="true"])) .ui-seg__thumb { opacity: 0; }
 

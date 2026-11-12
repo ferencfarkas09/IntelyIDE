@@ -111,10 +111,10 @@
   :root[data-skin="glass"]:not([data-transparency="reduced"]) .splash { background: var(--bg-gradient), var(--glass-base); }
 
   /* -- One panel tint per pane. */
-  :root[data-skin="glass"]:not([data-transparency="reduced"]) :is(.tool, .centre, .ui-splitter__pane.dock, .bottom-panel, .sessions, .agent-centre, .inspector, .glass-panel) {
+  :root[data-skin="glass"]:not([data-transparency="reduced"]) :is(.tool, .centre, .ui-splitter__pane.dock, .bottom-panel, .sessions, .glass-panel) {
     background: var(--glass-panel);
   }
-  :root[data-skin="glass"]:not([data-transparency="reduced"]) :is(.tool, .centre, .ui-splitter__pane.dock, .bottom-panel, .sessions, .agent-centre, .inspector) :is(.tool, .centre, .ui-splitter__pane.dock, .bottom-panel) {
+  :root[data-skin="glass"]:not([data-transparency="reduced"]) :is(.tool, .centre, .ui-splitter__pane.dock, .bottom-panel, .sessions) :is(.tool, .centre, .ui-splitter__pane.dock, .bottom-panel) {
     background: transparent;
   }
   /* Panes float as rounded sheets over the gradient (shell.css gives every skin the gaps, the hairline and the radius); here they get the soft shadow. The rail, title bar and status bar stay on the gradient. */
@@ -162,7 +162,7 @@
   :root[data-skin="glass"]:not([data-transparency="reduced"]) .ui-tree-row[data-has-actions]:is(:hover, :focus-within, [data-cursor]) .ui-tree-row__trailing { opacity: 0; }
   /* Small ink and rings that borrowed the darkest surface colour. */
   :root[data-skin="glass"]:not([data-transparency="reduced"]) .ui-badge[data-variant="solid"] { --b-fg: var(--pane-1); }
-  :root[data-skin="glass"]:not([data-transparency="reduced"]) .rail__badge { color: var(--pane-1); box-shadow: none; }
+  :root[data-skin="glass"]:not([data-transparency="reduced"]) :is(.rail__badge, .sessions__inbox-count) { color: var(--pane-1); box-shadow: none; }
 }
 
 /* ---- Chrome and kit shape (with or without translucency) ------------------------------------------------------------ */
