@@ -133,7 +133,8 @@ export function PermissionCard(props: { item: PermissionItem; onAnswer: (decisio
   const paths = () => (props.item.intent.paths ?? []).filter((p) => !props.item.intent.summary.includes(p));
   const answer = (d: PermissionDecision, extra?: { feedback?: string; confirmAlways?: boolean }) => {
     refocusAfterAnswer(card); // before the answer: the card can leave the DOM as soon as it is sent
-    props.onAnswer(d, extra);
+    if (extra) props.onAnswer(d, extra);
+    else props.onAnswer(d);
   };
   const primary = () => offered()[0]?.id;
   // ---- tier 2: a stop the person may lift (secret file of the project, Claude CLI prompt) ----

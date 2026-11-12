@@ -74,9 +74,9 @@ describe("tier-2 card", () => {
   it("answers once, for the run, and deny with a note", () => {
     const on = show(perm());
     fireEvent.click(btn("Allow once"));
-    expect(on).toHaveBeenLastCalledWith("allowOnce", undefined);
+    expect(on).toHaveBeenLastCalledWith("allowOnce");
     fireEvent.click(btn("Allow for this run"));
-    expect(on).toHaveBeenLastCalledWith("allowRun", undefined);
+    expect(on).toHaveBeenLastCalledWith("allowRun");
     fireEvent.input(screen.getByLabelText("Optional note for the agent"), { target: { value: " use the example file " } });
     fireEvent.click(btn("Deny, tell the agent no"));
     expect(on).toHaveBeenLastCalledWith("deny", { feedback: "use the example file" });
@@ -85,7 +85,7 @@ describe("tier-2 card", () => {
   it("Escape denies and never allows; Enter in the note denies", () => {
     const on = show(perm());
     fireEvent.keyDown(screen.getByRole("group"), { key: "Escape" });
-    expect(on).toHaveBeenLastCalledWith("deny", undefined);
+    expect(on).toHaveBeenLastCalledWith("deny");
     fireEvent.keyDown(screen.getByLabelText("Optional note for the agent"), { key: "Enter" });
     expect(on).toHaveBeenCalledTimes(2);
     expect(on.mock.calls.every((c) => c[0] === "deny")).toBe(true);
@@ -113,7 +113,7 @@ describe("tier-2 card", () => {
   it("always for a CLI reason is one click and carries no confirmAlways", () => {
     const on = show(perm({ confirm: cli, intent: { class: "exec", rawCommand: "x", summary: "x" } }));
     fireEvent.click(btn("Always allow this reason in this repository"));
-    expect(on).toHaveBeenCalledWith("allowAlways", undefined);
+    expect(on).toHaveBeenCalledWith("allowAlways");
   });
 
   it("shows the host's refusal in words", () => {
