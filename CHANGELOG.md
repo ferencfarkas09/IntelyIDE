@@ -6,8 +6,18 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 
 ### Added
 
+- A refreshed look for the window, the runs list, the run view, the New run dialog and the Dashboard, in both styles (Standard and Glass) and both themes. The layout and the information are the same; spacing, type, cards and controls are cleaner. Panels are rounded sheets with small gaps between them (rounder in Glass, flatter in Standard).
+- Title bar: the Agent / Editor switch is a pill whose chosen mode is filled with the accent colour, with the number of waiting runs inside it. The workspace switcher is a bordered button, repositories and their branches are quiet chips (what does not fit is under "N more"), and a "Search or run a command" field with its shortcut opens the command palette.
+- Runs list: a "Runs" title with a "New run" button, filter chips (All, Needs you, To review) above the role and repository filters, and run cards with a status dot, a line in the status colour that says what the run does or asks, and a quiet row with the role, the repository and the time.
+- Run view: the run's title is the heading, with a role tile, a status pill and quiet chips for the role, the model and effort, the mode and the enforcement level; tokens and cost sit at the end of that row. Your messages are bubbles on the right, the agent's text is plain, tool calls are compact cards that show the lines added and removed, and a diff sits in an inset block. The composer is one rounded card with a "Saved prompts" button that opens the prompt library. Run details on the right are stacked cards instead of tabs.
 - Work in progress, not released: the Windows 10 and 11 unsigned beta. The code for it is in place (window chrome and menu for Windows, the Windows environment variables the agent and the runner need, NSIS and MSI installer settings, a Windows CI job) but no Windows installer is published with 1.14.0. The agent safety is weaker than on macOS and the app says so. See `docs/install-windows.md`.
 - Work in progress, not released: the code compiles for Linux (x86_64, webkit2gtk 4.1), Windows 10/11 (x86_64, WebView2) and Apple Silicon Macs, in addition to Intel Macs. Linux passes its tests; on Windows the permission checks and many tests are not yet verified. No Linux or Windows package is published; see `docs/install-linux.md` and `docs/install-windows.md` for what works and what is different. Secrets use Windows Credential Manager and the Linux Secret Service (one vault entry, split over several Credential Manager entries when it is large), banners use a Windows toast and `notify-send`, files and links open with `explorer.exe` and `xdg-open`, the terminal starts PowerShell on Windows, and connections to servers are not shared on Windows (OpenSSH for Windows has no `ControlMaster`). Process groups, the process table and the disk-space check are macOS and Linux features; the update swap of the app bundle stays macOS only.
+
+### Changed
+
+- Permission and question cards: a larger title with one line of explanation, the command or path on its own row, and bigger buttons. "Deny" is now the first button; a new request still puts the keyboard focus on "Allow once", and Escape still denies.
+- The left rail has larger buttons (40 x 40); the open tool window is marked with a tinted button instead of a bar at the edge.
+- The title bar is 48 px tall (it was 40 px).
 
 ### Fixed
 
