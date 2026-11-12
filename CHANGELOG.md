@@ -11,7 +11,7 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 
 ### Security
 
-- Updated `rustix` from 1.1.5 to 1.1.6 (a lock file update only) for RustSec advisory RUSTSEC-2026-0486: its extended-attribute functions marked bytes as initialised after a zero-length query. The app reaches `rustix` through `tempfile` and a few file tools; none of them passes a zero-length buffer.
+- Updated `rustix` from 1.1.5 to 1.1.6 (a lock file update only) for RustSec advisory RUSTSEC-2026-0486: its extended-attribute functions marked bytes as initialised after a zero-length query. The app's own code does not call those functions (it uses `rustix` for directory-handle file access and through `tempfile`), so this closes the advisory check and the exposure alike.
 
 ## [1.14.1] - 2026-10-30
 
