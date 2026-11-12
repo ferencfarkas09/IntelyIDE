@@ -45,7 +45,10 @@ fn a_step_per_prompt_a_save_point_and_a_restore_that_keeps_later_edits() {
     host.send(&id, "again").expect("send");
     sink.wait(&id, "second turn end", 20, |e| e.seq > last && matches!(e.kind, EventKind::TurnEnd { .. }));
     let steps = wait_steps(&host, &id, 2);
-    assert_eq!((steps[1].seq, steps[1].kind.as_str(), steps[1].changed), (1, "turn", 1));
+    // on a slow machine the end-of-turn checkpoint of the first turn runs after the write above and takes the change itself; the
+    // prompt step then has nothing left to take: either step is right, there is exactly one
+    assert!(matches!(steps[1].kind.as_str(), "turn" | "end"), "{steps:?}");
+    assert_eq!((steps[1].seq, steps[1].changed), (1, 1), "{steps:?}");
     assert_eq!(steps[1].repos[0].repo_id, repo.id);
 
     let save = host.save_point(&id, "before the risky part").unwrap();
