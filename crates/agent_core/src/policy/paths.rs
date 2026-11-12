@@ -481,6 +481,18 @@ pub fn never_read_reason(path: &Path) -> Option<&'static str> {
     SECRET_GLOBS.iter().any(|g| glob_match(&g.to_ascii_lowercase(), &base)).then_some("secret file")
 }
 
+/// A file name that is on the secret list only through an extension entry (`*.key`, `*.pem`, `*.p8`, ...): no other entry
+/// (`.env`, `.env.*`, `id_rsa*`, `credentials.json`, ...) matches it. Such a name is also an everyday word of program text
+/// (`line.key`, `event.key`, `props.key`), so the command route checks the disk for it before a token of program text counts.
+pub fn secret_by_extension_only(name: &str) -> bool {
+    let base = name.to_ascii_lowercase();
+    if base.ends_with(".pub") {
+        return false;
+    }
+    let (ext, other): (Vec<&str>, Vec<&str>) = SECRET_GLOBS.iter().partition(|g| g.starts_with("*.") && !g[2..].contains('*'));
+    ext.iter().any(|g| glob_match(&g.to_ascii_lowercase(), &base)) && !other.iter().any(|g| glob_match(&g.to_ascii_lowercase(), &base))
+}
+
 fn glob_match(pattern: &str, text: &str) -> bool {
     match pattern.split_once('*') {
         None => pattern == text,
@@ -874,6 +886,17 @@ mod tests {
         assert!(flags[..9].iter().all(|f| *f), "{flags:?}");
         assert!(flags[9..].iter().all(|f| !*f), "{flags:?}");
         assert!(exec_surface_flags(&[]).is_empty());
+    }
+
+    #[test]
+    fn only_extension_entries_make_a_name_secret_by_extension_only() {
+        for n in ["line.key", "Event.KEY", "server.pem", "a.p8", "b.p12", "c.jks", "d.keystore", "e.pfx"] {
+            assert!(secret_by_extension_only(n), "{n}");
+        }
+        // an exact-name entry matches too (`id_rsa*`, `.env.*`), not secret at all, or a public key
+        for n in ["id_rsa.key", "id_ed25519.pem", ".env.key", ".env", "credentials.json", ".npmrc", "line.keys", "key", "a.pub", "readme.md"] {
+            assert!(!secret_by_extension_only(n), "{n}");
+        }
     }
 
     #[test]

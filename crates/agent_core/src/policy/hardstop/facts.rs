@@ -196,6 +196,14 @@ fn spaced_path(t: &str) -> bool {
     t.contains(char::is_whitespace) && !t.trim().is_empty() && !t.contains(['\n', ';', '|', '&', '<', '>', '(', ')', '{', '}', '"', '\'', '`', '$'])
 }
 
+/// Distinct (directory, extension) looks per command for names of program text that are secret only by their extension; the rest count as found.
+pub(super) const MAX_EXT_CHECKS: usize = 64;
+
+/// A plain file name: no separator, not `~`, `.`/`..`-relative or absolute (`line.key`, `server.key`; not `./certs/server.pem`).
+fn bare_name(t: &str) -> bool {
+    !t.is_empty() && !t.contains(['/', '\\']) && !t.starts_with('~') && t != "." && t != ".."
+}
+
 /// A token of program text names something that exists, or sits in a directory that does (a URL route such as `/api/users`
 /// does not): only those count as a path the program could open.
 fn plausible(p: &Path) -> bool {
@@ -319,7 +327,16 @@ impl<'a> Walker<'a> {
                     && (self.jail.is_claude_memory_folder(&p) || (self.jail.is_claude_memory_note(&p) && !fsview::is_dir(&p)) || pattern_in_memory);
                 if !own_memory {
                     if let Some(why) = self.jail.never_read_reason(&p) {
-                        self.stop("read.never-read", &format!("{} is a secret or IDE-state path and is never read by an agent ({why})", p.display()));
+                        // ...except a bare name that is secret only by its extension (`line.key`, `event.key`: a property access in
+                        // code), which counts only when a file of that name is where the command runs (one look per name, capped)
+                        if program_text && why == "secret file" && !cand.starts_with("file://") && bare_name(lit) && paths::secret_by_extension_only(lit) && !self.ext_name_exists(&p) {
+                            return;
+                        }
+                        if program_text {
+                            self.stop("read.never-read", &format!("the script or inline code mentions {lit}, which names a secret file ({}); a secret or IDE-state path is never read by an agent ({why})", p.display()));
+                        } else {
+                            self.stop("read.never-read", &format!("{} is a secret or IDE-state path and is never read by an agent ({why})", p.display()));
+                        }
                         return;
                     }
                 }
@@ -343,6 +360,64 @@ impl<'a> Walker<'a> {
                 self.a.paths.push(text);
             }
         }
+    }
+
+    /// Is a key file of the extension of `p` (`x.pem` of `item.pem`) near the command: in the directory it runs in, in the run's
+    /// folder, or one folder below either (a link too, even a dangling one)? A name that is only an extension (`.key`, what is left of
+    /// `'server' + '.key'`) is never a property access and counts as found. One look per extension and directory per command; a
+    /// folder that cannot be listed, a huge one or a failed look counts as found (fail closed, `fsview::mark_failed`).
+    fn ext_name_exists(&mut self, p: &Path) -> bool {
+        let Some(name) = p.file_name().and_then(|n| n.to_str()) else { return true };
+        let Some((_, ext)) = name.rsplit_once('.').filter(|(stem, _)| !stem.is_empty()) else { return true };
+        let ext = ext.to_ascii_lowercase();
+        let key = self.cwd.join(format!(".{ext}"));
+        if let Some((_, found)) = self.ext_checks.iter().find(|(q, _)| *q == key) {
+            return *found;
+        }
+        if self.ext_checks.len() >= MAX_EXT_CHECKS {
+            return true;
+        }
+        let found = self.ext_files_near(&ext);
+        self.ext_checks.push((key, found));
+        found
+    }
+
+    fn ext_files_near(&self, ext: &str) -> bool {
+        const MAX_ENTRIES: usize = 4000;
+        const MAX_SUBFOLDERS: usize = 32;
+        let suffix = format!(".{ext}");
+        let mut roots = vec![self.cwd.clone()];
+        if self.jail.cwd != self.cwd {
+            roots.push(self.jail.cwd.clone());
+        }
+        for root in roots {
+            let Some(entries) = fsview::read_dir(&root) else {
+                fsview::mark_failed();
+                return true;
+            };
+            if entries.len() > MAX_ENTRIES {
+                return true;
+            }
+            let mut subs = Vec::new();
+            for e in &entries {
+                if e.name.to_ascii_lowercase().ends_with(&suffix) {
+                    return true;
+                }
+                if e.is_dir && !e.is_symlink && !matches!(e.name.as_str(), "node_modules" | ".git" | "target") {
+                    subs.push(&e.name);
+                }
+            }
+            if subs.len() > MAX_SUBFOLDERS {
+                return true;
+            }
+            for s in subs {
+                let Some(inner) = fsview::read_dir(&root.join(s)) else { return true };
+                if inner.len() > MAX_ENTRIES || inner.iter().any(|e| e.name.to_ascii_lowercase().ends_with(&suffix)) {
+                    return true;
+                }
+            }
+        }
+        false
     }
 
     /// `~` expanded, joined to the working directory and normalised, without touching the filesystem.
