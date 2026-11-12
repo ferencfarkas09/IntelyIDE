@@ -11,7 +11,7 @@ import { installDomStubs } from "../../store/testing-u2";
 import { toast } from "../../ui-kit";
 import { closedRuns, closeRuns, resetClosed } from "./closed";
 import { SessionsSidebar } from "./SessionsSidebar";
-import { setSessionFilter } from "./state";
+import { sessionStatus, setSessionFilter, setSessionStatus } from "./state";
 import { NO_FILTER } from "./sessionsLogic";
 
 installDomStubs();
@@ -63,6 +63,7 @@ afterEach(() => {
   resetAgents();
   resetClosed();
   setSessionFilter(NO_FILTER);
+  setSessionStatus("all");
   vi.restoreAllMocks();
 });
 
@@ -276,5 +277,79 @@ describe("the finished runs of the dock list", () => {
     expect(screen.getByText("All runs are closed")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Closed (2)" }));
     expect(screen.getAllByRole("treeitem")).toHaveLength(2);
+  });
+});
+
+describe("the filter pills of the runs list", () => {
+  const pill = (name: RegExp) => within(screen.getByRole("group", { name: "Filter runs" })).getByRole("button", { name });
+  const groupTitles = () => [...document.querySelectorAll(".sessions__group")].map((g) => g.getAttribute("aria-label"));
+  const mixedIpc = (): Ipc => {
+    const base = createMockIpc("normal", { delayScale: 0 });
+    const list = [
+      summary(0, { agentId: "ask-1", title: "Asking run", status: "needsYou", startedAt: NOW - 1000 }),
+      summary(0, { agentId: "live-1", title: "Working run", status: "running", startedAt: NOW - 2000 }),
+      summary(0, { agentId: "fresh-1", title: "Fresh run", status: "done", startedAt: NOW - 60_000, role: "reviewer" }),
+      summary(1),
+    ];
+    return { ...base, agentList: async () => structuredClone(list), agentHistory: async () => [] };
+  };
+
+  it("shows All, Needs you and To review with their counts and narrows the list to one group", async () => {
+    startAgentStore(mixedIpc());
+    await until(() => agentRows().length === 4, "runs");
+    render(() => <SessionsSidebar />);
+    expect(screen.getByRole("heading", { level: 2, name: "Runs" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "New run" })).toBeTruthy();
+    expect(pill(/^All/).textContent).toBe("All4");
+    expect(pill(/^Needs you/).textContent).toBe("Needs you1");
+    expect(pill(/^To review/).textContent).toBe("To review1");
+    expect(pill(/^All/).getAttribute("aria-pressed")).toBe("true");
+    expect(groupTitles()).toEqual(["Needs you", "Running", "Ready for review", "Done"]);
+
+    fireEvent.click(pill(/^Needs you/));
+    expect(sessionStatus()).toBe("needsYou");
+    expect(pill(/^Needs you/).getAttribute("aria-pressed")).toBe("true");
+    expect(pill(/^All/).getAttribute("aria-pressed")).toBe("false");
+    expect(groupTitles()).toEqual(["Needs you"]);
+    expect(screen.getByText("Asking run").closest(".run-card")).toBeTruthy();
+    expect(screen.queryByText("Working run")).toBeNull();
+
+    fireEvent.click(pill(/^To review/));
+    expect(groupTitles()).toEqual(["Ready for review"]);
+    expect(rowTitles()).toEqual(["Fresh run"]);
+
+    fireEvent.click(pill(/^All/));
+    expect(groupTitles()).toHaveLength(4);
+  });
+
+  it("keeps the role and repository filters, and the counts of the pills follow them", async () => {
+    startAgentStore(mixedIpc());
+    await until(() => agentRows().length === 4, "runs");
+    render(() => <SessionsSidebar />);
+    expect(screen.getByLabelText("Filter by role")).toBeTruthy();
+    expect(screen.getByLabelText("Filter by repository")).toBeTruthy();
+    setSessionFilter({ role: "reviewer", repoId: "" });
+    expect(pill(/^All/).textContent).toBe("All1");
+    expect(pill(/^Needs you/).textContent).toBe("Needs you0");
+    // a pill with nothing behind it says so and offers to clear every filter, the pill included
+    fireEvent.click(pill(/^Needs you/));
+    expect(screen.getByText("No run matches")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+    expect(sessionStatus()).toBe("all");
+    expect(pill(/^All/).textContent).toBe("All4");
+  });
+
+  it("a run card says what the run asks in the status colour and keeps role, repository and time in a quiet row", async () => {
+    startAgentStore(mixedIpc());
+    await until(() => agentRows().length === 4, "runs");
+    render(() => <SessionsSidebar />);
+    const card = screen.getByText("Asking run").closest(".run-card") as HTMLElement;
+    expect(card.querySelector(".run-card__activity")?.getAttribute("data-tone")).toBe("warn");
+    const meta = card.querySelector(".run-card__meta") as HTMLElement;
+    expect(meta.querySelector(".run-card__role")?.textContent).toBe("developer");
+    expect(within(meta).getByRole("group", { name: "Repositories" }).textContent).toContain("admin");
+    expect(meta.querySelector(".run-card__ago")?.textContent).toBeTruthy();
+    // the enforcement level is an icon with a text alternative, not colour alone
+    expect(within(meta).getByRole("img", { name: "Best effort" })).toBeTruthy();
   });
 });

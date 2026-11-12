@@ -31,7 +31,7 @@ await clickButton("Start run", dlg);
 await waitFor(() => !dlg.isConnected || !qa('[role="dialog"]').includes(dlg), { what: "the dialog to close", timeout: 30000 });
 
 const sessions = () => q('aside[aria-label="Agent sessions"]');
-const inboxButton = () => qa("button", sessions()).find((b) => /^Inbox/.test(text(b)));
+const inboxButton = () => qa("button", sessions()).find((b) => /^Inbox/.test(b.getAttribute("aria-label") ?? text(b)));
 await waitFor(() => qa(".run-card", sessions()).length === 1, { what: "the run in Sessions", timeout: 30000 });
 check("Sessions lists the new run with its role", /mock-tool-permission/.test(text(sessions())), text(sessions()).slice(0, 300));
 const card = await waitFor(() => q('section[aria-label="Permission request"]', ws), { what: "the permission request", timeout: 30000 });
