@@ -17,7 +17,7 @@ src/content/en.mjs      all English copy      (hu.mjs has the same shape)
 src/pages.mjs           page templates        src/lib.mjs: release data, <picture>, icons
 src/static/             copied verbatim into dist/ (CSS, JS, fonts, images, favicons)
 scripts/build.mjs       builds dist/          scripts/check-site.mjs: release gate
-scripts/gen-placeholders.mjs / shots.mjs / make-images.sh   screenshot slots and variants
+scripts/gen-placeholders.mjs / shots.mjs / make-images.sh / make-images.py   screenshot slots and variants
 scripts/import-shots.mjs / import-opti-shots.mjs            one-off screenshot importers (macOS sips)
 data/intelyopti-release.json                                IntelyOpti version/date/size/sha256 (optional, null fields are hidden)
 ```
@@ -64,6 +64,18 @@ node site/scripts/capture-shots.mjs [names] [--theme light|dark] [--quick]   # n
 sh site/scripts/make-images.sh                                              # 1440/720 PNG + WebP (+ AVIF if avifenc is installed)
 ```
 
+Without a Mac (no `sips`), the same two steps work against a build of the mock UI in any Chromium:
+
+```sh
+VITE_MOCK_IPC=1 pnpm --dir ui exec vite build --outDir ../.scratch/mock-ui     # serve that folder on a local port, e.g. 1431
+SHOTS_CHROME=/path/to/chrome SHOTS_NO_SANDBOX=1 node site/scripts/capture-shots.mjs --url http://127.0.0.1:1431 --out /tmp/shots
+python3 site/scripts/make-images.py /tmp/shots                                  # 2880/1440/720 PNG and WebP (Python 3 with Pillow)
+```
+
+The 1.15 pictures were made this way from the branch of the visual refresh (#117). `hero` is the Agent window in the Glass style,
+`agent-approval` the same run in the Standard style, `dashboard` and `new-run` the Dashboard and the New run dialog. The `mongo-studio`
+recipe no longer finds its text in the static build and `team-chat` needs the dev server (`pnpm --dir ui exec vite`, with `VITE_MOCK_IPC=1`).
+
 The capture script drives Google Chrome over CDP and expects the macOS path. On another machine point `SHOTS_CHROME` at a Chrome or Chromium binary, and add `SHOTS_NO_SANDBOX=1` in a container that runs as root.
 
 Files are `<name>-<light|dark>-<2880|1440|720>.<png|webp|avif>`; the build picks them up automatically.
@@ -73,8 +85,9 @@ gradient mask, so the line stays at 45 degrees for any aspect ratio, and the pic
 always shown, whatever theme the visitor chose; the light picture carries the alt text and the dark one is hidden from screen readers.
 A slot that has only one theme is shown as a plain picture, so capture both (`--theme light` and `--theme dark`) for every name.
 A slot without real files falls back to a generated SVG placeholder (`node scripts/gen-placeholders.mjs`).
-Names: `hero`, `changes-tree`, `push-dialog`, `agent-approval`, `rewind`, `workspaces-welcome`, `preview`,
-`remote`, `mongo-studio`, `providers`, `integrations`, `api-contract`, `api-explorer`. All shots are English.
+Names: `hero`, `agent-approval`, `dashboard`, `new-run`, `changes-tree`, `push-dialog`, `rewind`, `workspaces-welcome`, `preview`,
+`remote`, `mongo-studio`, `providers`, `integrations`, `mcp-catalog`, `versions`, `versions-diff`, `intelyfix`, `team`, `team-chat`,
+`team-commits`, `team-memory`, `api-contract`, `api-explorer`. All shots are English.
 The About dialog shot is not used: it still shows "your Happy tools" copy, a dev version and the old lockup subline.
 
 `assets/img/og.png` (1200x630, Open Graph and Twitter) and `social-preview.png` (1280x640, for the GitHub
@@ -101,10 +114,15 @@ See [DEPLOY.md](DEPLOY.md) for GitHub Pages.
 
 - The logo files in `assets/brand/` include a lockup with an old "INTELYSWITCH IDE" subline. The site uses
   the mark plus a live-text wordmark instead.
+- The look follows the app's 1.15 refresh (its Glass style): a soft gradient page, rounded sheets and cards, pill buttons and one
+  violet accent (`#6a3bf0` light, `#7447f5` dark). The IntelyIDE page has a centred hero with the product shot (`heroCenter` in
+  `src/pages.mjs`); the home page and the IntelyOpti page keep the hero with the frosted cards and the arcs (`heroSplit`).
+- Long tick lists show their first three points; the rest is behind a `<details>` ("More details"), so nothing is left out of the page.
 - Theme: tokens on `:root`, redefined under `prefers-color-scheme: dark` and `[data-theme]`; the toggle
   persists in `localStorage` with a safe fallback. Screenshots do not follow it: they always show both themes.
 - CSP is a `<meta>` tag with no `unsafe-inline`; the one inline script (theme restore) is allowed by hash.
-- Download button text is dark on the gradient (contrast 5.3:1 or better at every stop).
+- Buttons are white text on the accent (5.3:1 on the dark accent, 6.0:1 on the light one). Body and secondary text are 4.5:1 or
+  better on the page gradient, the cards and the bands, in both themes.
 
 ## Products, trial and pricing
 

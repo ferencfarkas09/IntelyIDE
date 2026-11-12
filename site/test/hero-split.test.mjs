@@ -1,5 +1,6 @@
-// The one hero every page uses: five frosted cards, thin ring arcs behind, and a motion system with a reduced mode that keeps
-// the non-motion effects (border, glow, sheen, breathing arcs) and a footer toggle for visitors whose system asks for less motion.
+// The hero of the home page and the IntelyOpti page: five frosted cards, thin ring arcs behind, and a motion system with a reduced mode
+// that keeps the non-motion effects (border, glow, sheen, breathing arcs) and a footer toggle for visitors whose system asks for less motion.
+// The IntelyIDE page has the centred hero of the 1.15 page design: headline, download, the product shot and the three figures.
 // node --test site/test/hero-split.test.mjs   (builds into a temporary directory; no network)
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
@@ -13,7 +14,8 @@ import hu from '../src/content/hu.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p) => readFileSync(join(ROOT, p), 'utf8');
-const PAGES = [['home', '', (t) => t.home.hero], ['ide', 'intelyide/', (t) => t.hero], ['opti', 'intelyopti/', (t) => t.opti.hero]];
+const PAGES = [['home', '', (t) => t.home.hero], ['opti', 'intelyopti/', (t) => t.opti.hero]];
+const heroOf = (page, cls) => page.slice(page.indexOf(`class="hero ${cls}"`), page.indexOf('</section>', page.indexOf(`class="hero ${cls}"`)));
 
 describe('shared hero', () => {
   let dist;
@@ -21,7 +23,7 @@ describe('shared hero', () => {
   before(() => {
     dist = mkdtempSync(join(tmpdir(), 'site-hero-'));
     execFileSync('node', [join(ROOT, 'scripts/build.mjs')], { cwd: ROOT, env: { ...process.env, SITE_DIST_DIR: dist }, stdio: 'pipe' });
-    for (const [key, dir] of PAGES) for (const lang of ['en', 'hu']) html[`${key}-${lang}`] = readFileSync(join(dist, lang === 'hu' ? 'hu' : '', dir, 'index.html'), 'utf8');
+    for (const [key, dir] of [...PAGES, ['ide', 'intelyide/']]) for (const lang of ['en', 'hu']) html[`${key}-${lang}`] = readFileSync(join(dist, lang === 'hu' ? 'hu' : '', dir, 'index.html'), 'utf8');
   });
   after(() => rmSync(dist, { recursive: true, force: true }));
 
@@ -59,11 +61,29 @@ describe('shared hero', () => {
     }
   }
 
+  for (const [lang, t] of [['en', en], ['hu', hu]]) {
+    it(`IntelyIDE ${lang}: one centred hero with the headline, the download, the product shot in both themes and no cards or arcs`, () => {
+      const page = html[`ide-${lang}`];
+      assert.equal((page.match(/class="hero hero-center"/g) ?? []).length, 1);
+      assert.doesNotMatch(page, /class="hero hero-split"|class="gcard|class="arc /);
+      const hero = heroOf(page, 'hero-center');
+      assert.match(hero, /<p class="kicker">[^<]{10,}<\/p>\s*<h1 id="hero-h">/);
+      assert.match(hero, /id="hero-dl"[\s\S]*class="dl-btn"/);
+      assert.match(hero, /<div class="hero-shot"><figure class="shot"><span class="duo"><picture class="duo-light">/);
+      assert.equal((hero.match(/fetchpriority="high"/g) ?? []).length, 2);
+      assert.ok(hero.includes(`alt="${t.hero.shotAlt}"`));
+      assert.ok(hero.indexOf('class="hero-shot"') < hero.indexOf('class="stats"'), 'the shot comes before the figures');
+      assert.doesNotMatch(page, /<[a-z][^>]* style="/);
+      assert.ok(page.indexOf('assets/motion.js') < page.indexOf('assets/hero-fx.js'));
+      assert.match(page, /data-motion-toggle data-label="[^"]+" data-on="[^"]+" data-off="[^"]+" aria-pressed="false"/);
+    });
+  }
+
   it('shows the three figures and the "Results vary" note on the IntelyIDE page and the home page, not on IntelyOpti', () => {
     for (const [lang, t] of [['en', en], ['hu', hu]]) {
       for (const key of ['ide', 'home']) {
         const page = html[`${key}-${lang}`];
-        const hero = page.slice(page.indexOf('class="hero hero-split"'), page.indexOf('</section>', page.indexOf('class="hero hero-split"')));
+        const hero = heroOf(page, key === 'ide' ? 'hero-center' : 'hero-split');
         assert.equal((hero.match(/<li class="stat">/g) ?? []).length, 3, `${key} ${lang}`);
         for (const x of t.hero.stats) assert.ok(hero.includes(`<b class="stat-n">${x.n}</b>`));
         assert.ok(hero.includes(`<p class="stats-note">${t.hero.note}</p>`));

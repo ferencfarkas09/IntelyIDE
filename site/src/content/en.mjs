@@ -42,6 +42,7 @@ export default {
     themeDark: 'Dark',
     themeSwitch: 'Screenshot theme',
     external: 'opens in a new tab',
+    moreDetails: 'More details',
   },
   nav: {
     products: 'Products',
@@ -56,7 +57,7 @@ export default {
     optiCta: 'Start free trial',
   },
   subnav: {
-    ide: [['speed', 'Speed'], ['agents-fast', 'Agents'], ['features', 'Features'], ['trust', 'Trust'], ['open-source', 'Open source'], ['install', 'Install'], ['faq', 'FAQ']],
+    ide: [['new', 'New in 1.15'], ['trust', 'Trust'], ['speed', 'Speed'], ['agents-fast', 'Agents'], ['highlights', 'At a glance'], ['features', 'Features'], ['open-source', 'Open source'], ['install', 'Install'], ['faq', 'FAQ']],
     opti: [['features', 'Features'], ['modes', 'Pro Modes'], ['advisor', 'AI Advisor'], ['trial', 'Trial'], ['pricing', 'Pricing'], ['security', 'Security'], ['faq', 'FAQ']],
   },
   cross: {
@@ -91,7 +92,7 @@ export default {
         p: 'A fast multi-repo desktop IDE. One Changes tree across all your repositories, AI agents that can edit but never commit or push, and a Rewind snapshot for every run.',
         cta: 'Download free',
         more: 'About IntelyIDE',
-        shotAlt: 'IntelyIDE main window with the multi-repository Changes tree, an editor and an agent panel.',
+        shotAlt: 'The IntelyIDE Agent window: the list of runs, a run in which a commit was blocked by a hard stop, and a card asking for permission to run a command.',
       },
       opti: {
         tag: '{{trial}}-day free trial · from {{yearly}} / year',
@@ -161,9 +162,9 @@ export default {
       title: 'See both apps, light and dark',
       lead: 'Every screenshot shows the light and the dark theme side by side, split by a diagonal. The switch changes the theme of this whole site.',
       items: [
-        { slot: 'hero', kind: 'ide', alt: 'IntelyIDE main window with the Changes tree, an editor and an agent panel.', cap: 'IntelyIDE: four repositories, one Changes tree' },
+        { slot: 'hero', kind: 'ide', alt: 'The IntelyIDE Agent window with the list of runs, a blocked commit and a permission card.', cap: 'IntelyIDE: an agent run that waits for you' },
         { slot: 'opti-dashboard', kind: 'opti', alt: 'IntelyOpti Smart Care dashboard with the health score.', cap: 'IntelyOpti: Smart Care and the health score' },
-        { slot: 'agent-approval', kind: 'ide', alt: 'IntelyIDE safety card: an approval waiting for you.', cap: 'IntelyIDE: an agent waits for your approval' },
+        { slot: 'changes-tree', kind: 'ide', alt: 'The IntelyIDE Changes tree with four repositories and their changes.', cap: 'IntelyIDE: four repositories, one Changes tree' },
         { slot: 'opti-health', kind: 'opti', alt: 'IntelyOpti Mac Health with temperatures, fans and battery.', cap: 'IntelyOpti: Mac Health' },
         { slot: 'rewind', kind: 'ide', alt: 'IntelyIDE Rewind view with the snapshot taken at the start of a run.', cap: 'IntelyIDE: Rewind takes a run back' },
         { slot: 'opti-turbo', kind: 'opti', alt: 'IntelyOpti Turbo with background services and priorities.', cap: 'IntelyOpti: Turbo' },
@@ -192,16 +193,8 @@ export default {
   hero: {
     kicker: 'By developers, for developers · Free and open source',
     title: 'Every repo. One window. <span class="grad">Agents that finish sooner.</span>',
-    lead: 'IntelyIDE is a fast, lightweight desktop IDE for people who work across several git repositories at once. It opens up to 7x faster than the most used IDEs on a basic system, and its agents start and finish up to 6x sooner. Agents can read and edit, but they never commit or push. You do.',
-    shotAlt: 'IntelyIDE main window showing the multi-repository Changes tree next to an editor and an agent panel.',
-    cardsLabel: 'Key features',
-    cards: [
-      { icon: 'layers', h: 'Multi-repo workspace', p: 'One Changes tree for every repository.' },
-      { icon: 'shield', h: 'Never commit or push', p: 'Agents edit. You commit and push.' },
-      { icon: 'users', h: 'Lead and workers', p: 'A lead splits the task, workers share it.' },
-      { icon: 'zap', h: 'Parallel runs', p: 'Several runs at once, even on one repository.' },
-      { icon: 'plug', h: 'MCP and DeepPattern', p: 'Your tools and integrations in one catalog.' },
-    ],
+    lead: 'A fast, lightweight desktop IDE for working across several git repositories at once. Its agents can read and edit, but they never commit or push: you do. Version 1.15 brings a calmer look and cards that ask you instead of refusing.',
+    shotAlt: 'The IntelyIDE Agent window in the 1.15 look: the list of runs on the left; in the middle a run where a git commit was blocked by a hard stop and a card asks whether the agent may run a command, with Deny and Allow once; the run details and its checkpoints on the right.',
     statsLabel: 'IntelyIDE in three figures',
     stats: [
       { n: 'up to 7x', h: 'faster startup', p: 'with any workspace, compared with the most used IDEs on a basic system.', href: '#speed' },
@@ -209,6 +202,61 @@ export default {
       { n: 'about 30%', h: 'fewer tokens', p: 'thanks to the intelligent sub-agent settings.', href: '#agents-fast' },
     ],
     note: 'Results vary with workspace, machine and task.',
+  },
+  whatsNew: {
+    eyebrow: 'New in 1.15',
+    title: 'Asks you, shows you, stays out of your way',
+    lead: 'A quieter window, a card where there used to be a flat refusal, and a clearer view of what a long run costs.',
+    cards: [
+      { icon: 'sparkles', to: 'gallery', more: 'See the screenshots', h: 'A calmer, clearer look', p: 'The window, the runs list, the run view, the New run dialog and the Dashboard are redrawn in both styles, Standard and Glass, light and dark. Everything is where it was; spacing, type, cards and controls are cleaner.' },
+      { icon: 'shield', to: 'ask', more: 'What it asks, and what it never does', h: 'It asks instead of blocking', p: 'When an agent wants to read or edit a secret-looking file of your project, the run shows a card. You answer at your computer: deny, allow once, allow for this run, or always allow that file.' },
+      { icon: 'pie', to: 'context', more: 'How it works', h: 'Long runs that cost less', p: 'When the context of a run gets large, a card offers to continue in a fresh run or to compact the conversation, and the run shows how much of its cost is the conversation being read again.' },
+    ],
+    items: [
+      {
+        id: 'ask',
+        h: 'Ask instead of block',
+        p: 'Until now an agent that reached for a <code>.env</code> file was refused, and often tried again and again. Now the refusal comes with a question for you.',
+        list: [
+          'It asks for secret-looking files inside the folders of the run (<code>.env</code>, <code>*.pem</code>, <code>*.key</code>, <code>credentials.json</code> and the like), and for a short list of prompts of the Claude CLI that a run could not answer by itself',
+          'Four answers: Deny, Allow once, Allow for this run, or Always allow for this repository. Always needs a second confirmation, and Settings &gt; Safety lists what you allowed, with Revoke',
+          'A yes covers the IDE’s file tools on that exact file: Read and Grep, and Edit and Write for a <code>.env</code> file. Reading and editing are two separate questions',
+          'Shell commands that name a secret file stay refused in every mode, whatever you allowed',
+          'Only a person at the IDE window on the computer can say yes. A paired phone shows the card with Deny only, and for a run on a server the stop stays a refusal',
+          'The card says plainly that the content of the file goes to the model provider and may land in logs and transcripts. The run log and the run summary record every answer',
+          'Everything else stays a hard stop that nothing lifts: commit, push, merge, anything inside <code>.git</code>, lockfiles, and keys and credentials outside the project',
+        ],
+        note: 'Best effort, like the other safety layers. The safety model in the repository lists every rule and what is not proven yet.',
+      },
+      {
+        id: 'context',
+        h: 'Token saver for long runs',
+        p: 'Every turn of a run sends the whole conversation to the model again, so a long run gets more expensive with each step. The Context panel of a run now helps you act on it.',
+        list: [
+          'Past a threshold (60% of the estimated context by default) a card offers Continue in a fresh run: the New run dialog opens with the task, a summary of the run and the files it changed. Nothing starts until you press Start run',
+          'Compact the conversation is offered when the Claude Code CLI of the run supports it',
+          'Tell the agent: beside the warning that a file was read again and again in large chunks, one button asks the agent to keep notes and read only the part it needs',
+          'When the provider reported usage, one line says about how much of the cost was the conversation being read again',
+          'Optional token-saving habits for Claude runs, off by default: read a file once, read big files in parts, skip build and cache folders. Settings shows the exact text',
+        ],
+        note: 'The size of the context is an estimate, and a nudge is a request to the agent, not a rule.',
+      },
+    ],
+    fixesH: 'Also fixed',
+    fixes: [
+      'Code such as <code>line.key</code> or <code>event.key</code> in a command is no longer mistaken for a secret key file.',
+      'The conversation of a run no longer goes blank while the agent keeps working.',
+    ],
+  },
+  gallery: {
+    title: 'See it, light and dark',
+    lead: 'Every screenshot shows both themes, split by a diagonal. The demo workspace and its repositories are made up.',
+    items: [
+      { slot: 'agent-approval', alt: 'A run in the Standard style: the runs list, the conversation with tool cards, a blocked git commit and a permission card, and the run details with checkpoints.', cap: 'A run in the Standard style: flatter panels, the same layout' },
+      { slot: 'dashboard', alt: 'The Dashboard: a heading with the workspace name, number tiles for runs that need you, runs ready for review and the weekly plan used, then Run pulse, Burn-down, Repo heartbeat and Stack tips.', cap: 'The Dashboard: what needs you, what is ready to review, how much of the plan is used' },
+      { slot: 'new-run', alt: 'The New run dialog: the prompt with saved prompts under it, the repositories as tick cards, and the permission mode, model and effort in a side column.', cap: 'New run: the prompt first, then repositories, mode, model and effort' },
+      { slot: 'changes-tree', alt: 'Editor mode: the Changes tree with four repositories on the left, the diff of a file beside it, and the commit message with the Commit button under the tree.', cap: 'Editor mode: the Changes tree of four repositories, a diff and one commit message' },
+    ],
   },
   perf: {
     speed: {
@@ -291,9 +339,12 @@ export default {
     signedNote: 'Signed with a Developer ID and notarized by Apple. It opens without warnings.',
   },
   highlights: {
-    title: 'Highlights',
+    title: 'What you get, at a glance',
+    lead: 'Each card leads to the details further down.',
     more: 'Learn more',
     items: [
+      { id: 'gallery', h: 'A dashboard that answers “what now?”', p: 'What needs you, what is ready for review, how much of your plan is used, and the state of your repositories, in one tab of cards.' },
+      { id: 'toolkit', h: 'A toolkit for building by prompting', p: 'Saved prompts, Fix with agent on any error, tests and a plain-language summary after a run, project notes, a Setup doctor and three safety presets.' },
       { id: 'multi-repo', h: 'Multi-repo Changes tree', p: 'Every repository’s changes in one grouped tree. Review, commit and push across all of them.' },
       { id: 'agents', h: 'Agents with guardrails', p: 'Agents edit but never commit or push. A Rewind snapshot undoes any run.' },
       { id: 'team', h: 'Team (Beta)', p: 'See colleagues’ agent runs live, chat in a run, send a note or a follow-up into one, see each other’s commits and share Claude memory, all end-to-end encrypted through your own relay.' },
@@ -311,25 +362,9 @@ export default {
       { id: 'trust', h: 'Signed and notarized', p: 'Signed with a Developer ID and notarized by Apple, so it opens without warnings.' },
     ],
   },
-  why: {
-    title: 'Why IntelyIDE',
-    cards: [
-      {
-        h: 'Many repos, one view',
-        p: 'Changes from every repository sit in one grouped tree. Review, commit and push across all of them without switching windows.',
-      },
-      {
-        h: 'Agents that stay in their lane',
-        p: 'Agents can read and edit files. They cannot commit or push. Every run starts with a Rewind snapshot, so one click undoes it.',
-      },
-      {
-        h: 'Light and fast',
-        p: 'A native shell built with Rust and Tauri, not Electron. Designed to stay light and responsive while you work.',
-      },
-    ],
-  },
   features: {
-    title: 'What you get',
+    title: 'What you get, in detail',
+    lead: 'The first points of each feature are shown; “More details” opens the rest.',
     items: [
       {
         id: 'multi-repo',
@@ -356,9 +391,23 @@ export default {
         ],
         note: 'IntelyIDE does not ship Claude Code. Anthropic does not endorse IntelyIDE.',
         shots: [
-          ['agent-approval', 'An agent safety card showing an approval waiting in the needs-you inbox.'],
           ['rewind', 'The Rewind view showing the snapshot taken when an agent run started.'],
         ],
+      },
+      {
+        id: 'toolkit',
+        h: 'A toolkit for building by prompting',
+        p: 'For people who build mostly by describing what they want. Each part is an extra that starts switched on and can be turned off in Settings.',
+        list: [
+          'Prompt library: saved prompts with placeholders, and starter prompts for React, React Native, iOS, Android, Node and CSS',
+          'Fix with agent and Explain this error on terminal output, logs, failed checks and the preview, with secrets masked before anything is quoted',
+          'After a run: the unit tests of the repositories it worked in, once you trusted the repository, and a summary in plain words of what changed and what to check',
+          'Checkpoints: undo one step of a run instead of the whole run, or go back to a point you saved',
+          'Project notes for <code>CLAUDE.md</code>, showing exactly what a run is told',
+          'Setup doctor: checks Node, the Agent SDK, the Claude login, Git and the Xcode and Android tools, and gives the command that fixes each',
+          'Three safety presets over the permission modes: Careful, Balanced and Autonomous',
+        ],
+        shots: [],
       },
       {
         id: 'workspaces',
@@ -408,7 +457,7 @@ export default {
         p: 'Pair your phone with the IDE through a relay you deploy on your own Cloudflare account. Watch agent runs, and approve or answer them when you are away from your desk. Everything is end-to-end encrypted, and the project hosts no relay for you.',
         list: ['Pair a phone with a one-time code and a safety code you confirm on the Mac', 'Approve a permission or answer a question from the phone', 'Optional and off until you set it up'],
         pill: 'Experimental: not yet verified against a real Cloudflare account or iPhone',
-        shots: [['remote', 'The phone companion showing an agent run in progress.']],
+        shots: [['remote', 'Settings, Remote: the switch for IntelyIDE Remote, the note on end-to-end encryption and the choice of relay.']],
       },
       {
         id: 'notifications',
@@ -561,6 +610,14 @@ export default {
   trust: {
     title: 'Built for trust',
     lead: 'An agent can propose and edit. Only you commit and push.',
+    points: [
+      ['Hard stops in every mode.', 'Commit, push, merge, rebase and anything inside <code>.git</code> are refused, in Bypass too.'],
+      ['Your keys stay yours.', 'SSH keys, cloud credentials and password stores outside the project are off limits to agents, and no card lifts that.'],
+      ['It asks where asking is safe.', 'For a secret-looking file of your own project a card asks you, at your computer. A phone can only deny.'],
+      ['Undo any step.', 'Every run starts with a Rewind snapshot and keeps checkpoints, so you can go back one step or to the start.'],
+      ['Honest about limits.', 'The protections are layered and best effort, and the safety model says where they end.'],
+    ],
+    safetyLink: 'Read the safety model',
     flow: [
       ['Agent', 'Reads and edits files in your repositories.'],
       ['Policy', 'Permission policy, hard stops, a git shim and hooks check each action.'],
@@ -618,6 +675,7 @@ export default {
   faq: {
     title: 'Questions',
     items: [
+      ['Can an agent commit or push?', 'No. Agents read and edit files. Staging, committing and pushing are yours, in every mode, and the hard stops that enforce it cannot be lifted by a card or a setting.'],
       ['Is it free?', 'Yes. IntelyIDE is free to download and open source under GPL-3.0-or-later.'],
       [
         'Does it send my code anywhere?',

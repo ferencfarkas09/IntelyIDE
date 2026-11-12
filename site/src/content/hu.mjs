@@ -41,6 +41,7 @@ export default {
     themeDark: 'Sötét',
     themeSwitch: 'Képernyőképek témája',
     external: 'új lapon nyílik meg',
+    moreDetails: 'További részletek',
   },
   nav: {
     products: 'Termékek',
@@ -55,7 +56,7 @@ export default {
     optiCta: 'Ingyenes próba indítása',
   },
   subnav: {
-    ide: [['speed', 'Sebesség'], ['agents-fast', 'Ügynökök'], ['features', 'Funkciók'], ['trust', 'Bizalom'], ['open-source', 'Nyílt forrás'], ['install', 'Telepítés'], ['faq', 'GYIK']],
+    ide: [['new', 'Újdonságok az 1.15-ben'], ['trust', 'Bizalom'], ['speed', 'Sebesség'], ['agents-fast', 'Ügynökök'], ['highlights', 'Röviden'], ['features', 'Funkciók'], ['open-source', 'Nyílt forrás'], ['install', 'Telepítés'], ['faq', 'GYIK']],
     opti: [['features', 'Funkciók'], ['modes', 'Pro módok'], ['advisor', 'MI-tanácsadó'], ['trial', 'Próba'], ['pricing', 'Árak'], ['security', 'Biztonság'], ['faq', 'GYIK']],
   },
   cross: {
@@ -90,7 +91,7 @@ export default {
         p: 'Gyors, több repós asztali IDE. Egyetlen Változások fa az összes repódhoz, MI-ügynökök, amelyek szerkeszthetnek, de sosem commitolnak és nem pusholnak, és minden futás előtt egy Rewind pillanatkép.',
         cta: 'Ingyenes letöltés',
         more: 'Az IntelyIDE-ről',
-        shotAlt: 'Az IntelyIDE főablaka a több repós Változások fával, egy szerkesztővel és egy ügynökpanellel.',
+        shotAlt: 'Az IntelyIDE Ügynök ablaka: a futások listája, egy futás, amelyben egy commitot kemény tiltás állított meg, és egy kártya, amely engedélyt kér egy parancs futtatására.',
       },
       opti: {
         tag: '{{trial}} napos ingyenes próba · {{yearly}} / évtől',
@@ -160,9 +161,9 @@ export default {
       title: 'Mindkét alkalmazás, világosan és sötéten',
       lead: 'Minden képernyőkép a világos és a sötét témát mutatja egymás mellett, átlósan elválasztva. A kapcsoló az egész oldal témáját állítja át.',
       items: [
-        { slot: 'hero', kind: 'ide', alt: 'Az IntelyIDE főablaka a Változások fával, egy szerkesztővel és egy ügynökpanellel.', cap: 'IntelyIDE: négy repó, egyetlen Változások fa' },
+        { slot: 'hero', kind: 'ide', alt: 'Az IntelyIDE Ügynök ablaka a futások listájával, egy megállított committal és egy engedélykérő kártyával.', cap: 'IntelyIDE: egy ügynökfutás, amely rád vár' },
         { slot: 'opti-dashboard', kind: 'opti', alt: 'Az IntelyOpti Smart Care irányítópultja az egészségi pontszámmal.', cap: 'IntelyOpti: Smart Care és az egészségi pontszám' },
-        { slot: 'agent-approval', kind: 'ide', alt: 'Az IntelyIDE biztonsági kártyája: egy jóváhagyás vár rád.', cap: 'IntelyIDE: egy ügynök a jóváhagyásodra vár' },
+        { slot: 'changes-tree', kind: 'ide', alt: 'Az IntelyIDE Változások fája négy repóval és a változásaikkal.', cap: 'IntelyIDE: négy repó, egyetlen Változások fa' },
         { slot: 'opti-health', kind: 'opti', alt: 'Az IntelyOpti Mac Health nézete hőmérsékletekkel, ventilátorokkal és akkumulátorral.', cap: 'IntelyOpti: Mac Health' },
         { slot: 'rewind', kind: 'ide', alt: 'Az IntelyIDE Rewind nézete a futás elején készült pillanatképpel.', cap: 'IntelyIDE: a Rewind visszaviszi a futást' },
         { slot: 'opti-turbo', kind: 'opti', alt: 'Az IntelyOpti Turbo nézete háttérszolgáltatásokkal és prioritásokkal.', cap: 'IntelyOpti: Turbo' },
@@ -191,16 +192,8 @@ export default {
   hero: {
     kicker: 'Fejlesztőktől fejlesztőknek · Ingyenes és nyílt forráskódú',
     title: 'Minden repó. Egy ablak. <span class="grad">Hamarabb végző ügynökök.</span>',
-    lead: 'Az IntelyIDE gyors, könnyű asztali IDE azoknak, akik egyszerre több git repóban dolgoznak. Akár 7x gyorsabban indul, mint a leggyakrabban használt IDE-k egy átlagos gépen, az ügynökei pedig akár 6x gyorsabban indulnak és végeznek. Az ügynökök olvashatnak és szerkeszthetnek, de sosem commitolnak és nem pusholnak. Azt te teszed.',
-    shotAlt: 'Az IntelyIDE főablaka: a több repót összefogó Változások fa a szerkesztő és egy ügynökpanel mellett.',
-    cardsLabel: 'Fő funkciók',
-    cards: [
-      { icon: 'layers', h: 'Többrepós munkaterület', p: 'Egyetlen Változások fa minden repóhoz.' },
-      { icon: 'shield', h: 'Sosem commitol, nem pushol', p: 'Az ügynök szerkeszt. Te commitolsz és pusholsz.' },
-      { icon: 'users', h: 'Vezető és dolgozók', p: 'A vezető felosztja a feladatot, a dolgozók megosztoznak rajta.' },
-      { icon: 'zap', h: 'Párhuzamos futások', p: 'Több futás egyszerre, akár ugyanazon a repón.' },
-      { icon: 'plug', h: 'MCP és DeepPattern', p: 'Az eszközeid és integrációid egy katalógusban.' },
-    ],
+    lead: 'Gyors, könnyű asztali IDE azoknak, akik egyszerre több git repóban dolgoznak. Az ügynökei olvashatnak és szerkeszthetnek, de sosem commitolnak és nem pusholnak: az a te dolgod. Az 1.15-ös verzió letisztultabb külsőt hoz, és kártyákat, amelyek elutasítás helyett megkérdeznek.',
+    shotAlt: 'Az IntelyIDE Ügynök ablaka az 1.15-ös külsővel: balra a futások listája; középen egy futás, amelyben egy git commitot kemény tiltás állított meg, alatta egy kártya kérdezi, hogy az ügynök lefuttathat-e egy parancsot, Elutasítás és Egyszeri engedély gombbal; jobbra a futás adatai és az ellenőrzőpontjai.',
     statsLabel: 'Az IntelyIDE három számban',
     stats: [
       { n: 'akár 7x', h: 'gyorsabb indulás', p: 'bármilyen munkaterülettel, a leggyakrabban használt IDE-khez képest, egy átlagos gépen.', href: '#speed' },
@@ -208,6 +201,61 @@ export default {
       { n: 'kb. 30%', h: 'kevesebb token', p: 'az intelligens alügynök-beállításoknak köszönhetően.', href: '#agents-fast' },
     ],
     note: 'Az eredmények a munkaterülettől, a géptől és a feladattól függően változnak.',
+  },
+  whatsNew: {
+    eyebrow: 'Újdonságok az 1.15-ben',
+    title: 'Megkérdez, megmutatja, és nincs útban',
+    lead: 'Nyugodtabb ablak, kártya ott, ahol eddig csak egy kurta elutasítás volt, és tisztább kép arról, mibe kerül egy hosszú futás.',
+    cards: [
+      { icon: 'sparkles', to: 'gallery', more: 'Nézd meg a képeken', h: 'Letisztultabb, átláthatóbb külső', p: 'Újrarajzoltuk az ablakot, a futások listáját, a futás nézetét, az Új futás ablakot és az Irányítópultot, mindkét stílusban (Standard és Üveg), világosban és sötétben is. Minden ott van, ahol eddig; a térközök, a betűk, a kártyák és a vezérlők lettek rendezettebbek.' },
+      { icon: 'shield', to: 'ask', more: 'Mit kérdez meg, és mit nem enged soha', h: 'Tiltás helyett megkérdez', p: 'Ha az ügynök a projekted egy titoknak látszó fájlját olvasná vagy szerkesztené, a futásban megjelenik egy kártya. A gépednél ülve te döntesz: elutasítod, egyszer engedélyezed, erre a futásra engedélyezed, vagy azt a fájlt mindig engedélyezed.' },
+      { icon: 'pie', to: 'context', more: 'Így működik', h: 'Olcsóbb hosszú futások', p: 'Ha egy futás kontextusa megnő, egy kártya felajánlja, hogy folytasd friss futásban, vagy tömörítsd a beszélgetést, a futás pedig megmutatja, a költség mekkora része megy el a beszélgetés újraolvasására.' },
+    ],
+    items: [
+      {
+        id: 'ask',
+        h: 'Tiltás helyett kérdés',
+        p: 'Eddig ha az ügynök egy <code>.env</code> fájlhoz nyúlt, elutasítást kapott, és sokszor újra meg újra próbálkozott. Mostantól az elutasítás mellé te is kapsz egy kérdést.',
+        list: [
+          'A futás mappáin belüli, titoknak látszó fájloknál kérdez (<code>.env</code>, <code>*.pem</code>, <code>*.key</code>, <code>credentials.json</code> és társaik), valamint a Claude CLI néhány olyan kérdésénél, amelyre a futás magától nem tudott válaszolni',
+          'Négy válasz közül választhatsz: Elutasítom, Egyszer engedélyezem, Engedélyezem erre a futásra, vagy Mindig engedélyezem ehhez a repóhoz. A „mindig” külön megerősítést kér, és a Beállítások &gt; Biztonság alatt látod, mit engedélyeztél; ott vissza is vonhatod',
+          'Az igen az IDE fájleszközeire szól, pontosan arra az egy fájlra: a Read és a Grep eszközre, <code>.env</code> fájlnál az Edit és a Write eszközre is. Az olvasás és a szerkesztés két külön kérdés',
+          'A titkos fájlt megnevező shell-parancsok minden módban tiltva maradnak, bármit engedélyeztél is',
+          'Igent csak az mondhat, aki a gépnél, az IDE ablaka előtt ül. A párosított telefonon a kártya csak elutasítani enged, a szerveren futó futásnál pedig a tiltás tiltás marad',
+          'A kártya kimondja: a fájl tartalma eljut a modell szolgáltatójához, és naplókba, átiratokba kerülhet. Minden választ rögzít a futás naplója és az összefoglalója',
+          'Minden más kemény tiltás marad, amelyet semmi sem old fel: a commit, a push, a merge, a <code>.git</code> teljes tartalma, a lockfájlok, valamint a projekten kívüli kulcsok és hitelesítő adatok',
+        ],
+        note: 'Legjobb szándék szerint működik, mint a többi védelmi réteg. A repóban lévő biztonsági modell minden szabályt felsorol, és azt is, ami még nincs bizonyítva.',
+      },
+      {
+        id: 'context',
+        h: 'Tokenspórolás hosszú futásoknál',
+        p: 'A futás minden köre újra elküldi a modellnek a teljes beszélgetést, ezért a hosszú futás lépésről lépésre drágul. A futás Kontextus panelje mostantól abban is segít, hogy tegyél ellene.',
+        list: [
+          'Egy küszöb fölött (alapból a becsült kontextus 60%-ánál) egy kártya felajánlja a Folytatás friss futásban lehetőséget: megnyílik az Új futás ablak a feladattal, a futás összefoglalójával és a módosított fájlok listájával. Semmi sem indul el, amíg meg nem nyomod a Futás indítása gombot',
+          'A beszélgetés tömörítése akkor jelenik meg, ha a futás Claude Code CLI-je támogatja',
+          'Szólj az ügynöknek: ha egy fájlt újra meg újra nagy darabokban olvas be, a figyelmeztetés melletti gombbal megkérheted, hogy jegyzeteljen, és csak azt a részt olvassa, amire szüksége van',
+          'Ha a szolgáltató közölte a felhasználást, egy sor megmondja, a költség nagyjából mekkora része ment el a beszélgetés újraolvasására',
+          'Választható tokenspóroló szokások a Claude-futásokhoz, alapból kikapcsolva: egy fájlt egyszer olvasson el, a nagy fájlokat részletekben, a build- és gyorsítótár-mappákat hagyja ki. A pontos szöveget a Beállításokban látod',
+        ],
+        note: 'A kontextus mérete becslés, a figyelmeztetés pedig kérés az ügynökhöz, nem szabály.',
+      },
+    ],
+    fixesH: 'Javítottuk is',
+    fixes: [
+      'A parancsokban szereplő <code>line.key</code> vagy <code>event.key</code> jellegű kódot az app már nem nézi titkos kulcsfájlnak.',
+      'A futás beszélgetése többé nem tűnik el, miközben az ügynök tovább dolgozik.',
+    ],
+  },
+  gallery: {
+    title: 'Nézd meg világosban és sötétben',
+    lead: 'Minden képernyőképen mindkét téma látszik, átlósan kettéosztva. A bemutató munkaterület és a repói kitaláltak.',
+    items: [
+      { slot: 'agent-approval', alt: 'Egy futás Standard stílusban: a futások listája, a beszélgetés az eszközkártyákkal, egy megállított git commit és egy engedélykérő kártya, jobbra a futás adatai az ellenőrzőpontokkal.', cap: 'Futás Standard stílusban: laposabb panelek, ugyanaz az elrendezés' },
+      { slot: 'dashboard', alt: 'Az Irányítópult: fejléc a munkaterület nevével, számcsempék a rád váró és az átnézésre kész futásokról meg a heti keret felhasználásáról, alattuk a Futások pulzusa, a Fogyás, a repók állapota és a Tippek a stackhez kártya.', cap: 'Irányítópult: mi vár rád, mi kész az átnézésre, mennyi fogyott a keretből' },
+      { slot: 'new-run', alt: 'Az Új futás ablak: a prompt, alatta a mentett promptok, a repók kipipálható kártyákon, oldalt a jogosultsági mód, a modell és az erőfeszítés.', cap: 'Új futás: elöl a prompt, utána a repók, a mód, a modell és az erőfeszítés' },
+      { slot: 'changes-tree', alt: 'Szerkesztő mód: balra a Változások fa négy repóval, mellette egy fájl diffje, a fa alatt a commitüzenet és a Commit gomb.', cap: 'Szerkesztő mód: négy repó Változások fája, egy diff és egyetlen commitüzenet' },
+    ],
   },
   perf: {
     speed: {
@@ -290,9 +338,12 @@ export default {
     signedNote: 'Developer ID-vel aláírva és az Apple által hitelesítve. Figyelmeztetés nélkül megnyílik.',
   },
   highlights: {
-    title: 'Kiemelt funkciók',
+    title: 'Mit kapsz, röviden',
+    lead: 'Minden kártya a lejjebb olvasható részletekhez visz.',
     more: 'Részletek',
     items: [
+      { id: 'gallery', h: 'Irányítópult, amely megmondja, mi a következő lépés', p: 'Mi vár rád, mi kész az átnézésre, mennyi fogyott a keretedből, és hogy állnak a repóid: mindez kártyákon, egyetlen lapon.' },
+      { id: 'toolkit', h: 'Eszköztár azoknak, akik promptolva építenek', p: 'Mentett promptok, Javítás ügynökkel bármelyik hibára, tesztek és közérthető összefoglaló a futás után, projektjegyzetek, rendszerellenőrzések és három biztonsági előbeállítás.' },
       { id: 'multi-repo', h: 'Több repós Változások fa', p: 'Minden repó változása egy csoportosított fában. Nézd át, commitold és told fel mindet.' },
       { id: 'agents', h: 'Ügynökök korlátokkal', p: 'Az ügynökök szerkesztenek, de sosem commitolnak és nem pusholnak. A Rewind pillanatkép bármely futást visszavon.' },
       { id: 'team', h: 'Csapat (Béta)', p: 'Lásd élőben a kollégák ügynökfutásait, csevegjetek egy futásban, küldj jegyzetet vagy folytatási javaslatot egy futásba, lássátok egymás commitjait, és osszátok meg a Claude memóriát, mindezt végpontok közt titkosítva, a saját relédon át.' },
@@ -310,25 +361,9 @@ export default {
       { id: 'trust', h: 'Aláírt és hitelesített', p: 'Developer ID-vel aláírva és az Apple által hitelesítve (notarizálva), ezért figyelmeztetés nélkül megnyílik.' },
     ],
   },
-  why: {
-    title: 'Miért az IntelyIDE',
-    cards: [
-      {
-        h: 'Sok repó, egy nézet',
-        p: 'Minden repó változása egy csoportosított fában van. Nézd át, commitold és told fel mindet ablakváltás nélkül.',
-      },
-      {
-        h: 'Ügynökök a maguk sávjában',
-        p: 'Az ügynökök olvashatnak és szerkeszthetnek. Commitolni és pusholni nem tudnak. Minden futás Rewind pillanatképpel indul, így egy kattintással visszavonható.',
-      },
-      {
-        h: 'Könnyű és gyors',
-        p: 'Natív héj Rusttal és Tauri-val, nem Electron. Úgy tervezték, hogy munka közben könnyű és reszponzív maradjon.',
-      },
-    ],
-  },
   features: {
-    title: 'Mit kapsz',
+    title: 'Mit kapsz, részletesen',
+    lead: 'Minden funkciónál az első pontok látszanak; a többit a „További részletek” nyitja ki.',
     items: [
       {
         id: 'multi-repo',
@@ -355,9 +390,23 @@ export default {
         ],
         note: 'Az IntelyIDE nem tartalmazza a Claude Code-ot. Az Anthropic nem támogatja az IntelyIDE-t.',
         shots: [
-          ['agent-approval', 'Ügynök biztonsági kártya egy jóváhagyással, amely a „rád vár” postaládában várakozik.'],
           ['rewind', 'A Rewind nézet az ügynök futásának indulásakor készült pillanatképpel.'],
         ],
+      },
+      {
+        id: 'toolkit',
+        h: 'Eszköztár azoknak, akik promptolva építenek',
+        p: 'Azoknak készült, akik főleg úgy fejlesztenek, hogy leírják, mit szeretnének. Minden része alapból bekapcsolt kiegészítő, és a Beállításokban kikapcsolható.',
+        list: [
+          'Promptkönyvtár: mentett promptok helyőrzőkkel, és kezdő promptok Reacthez, React Native-hez, iOS-hez, Androidhoz, Node-hoz és CSS-hez',
+          'Javítás ügynökkel és Magyarázd el ezt a hibát a terminál kimenetén, a naplókon, a megbukott ellenőrzéseken és az előnézeten; a titkokat az app kitakarja, mielőtt bármit idézne',
+          'Futás után: lefutnak azoknak a repóknak az egységtesztjei, amelyekben a futás dolgozott (ha a repót megbízhatónak jelölted), és közérthető összefoglalót kapsz arról, mi változott és mit érdemes ellenőrizned',
+          'Ellenőrzőpontok: a teljes futás helyett egyetlen lépést is visszavonhatsz, vagy visszatérhetsz egy elmentett ponthoz',
+          'Projektjegyzetek a <code>CLAUDE.md</code>-hez: pontosan azt mutatja, amit egy futás megkap',
+          'Rendszerellenőrzések: megnézi a Node-ot, az Agent SDK-t, a Claude-bejelentkezést, a Gitet, valamint az Xcode- és Android-eszközöket, és mindegyikhez megadja a javító parancsot',
+          'Három biztonsági előbeállítás a jogosultsági módok fölött: Óvatos, Kiegyensúlyozott és Önálló',
+        ],
+        shots: [],
       },
       {
         id: 'workspaces',
@@ -407,7 +456,7 @@ export default {
         p: 'Párosítsd a telefonodat az IDE-vel egy relén át, amelyet a saját Cloudflare fiókodban telepítesz. Kövesd az ügynökfutásokat, és hagyd jóvá vagy válaszold meg őket, amikor nem vagy az asztalodnál. Minden végpontok közt titkosított, a projekt pedig nem üzemeltet relét helyetted.',
         list: ['A telefon párosítása egyszer használható kóddal és biztonsági kóddal, amelyet a Macen erősítesz meg', 'Engedély jóváhagyása vagy kérdés megválaszolása a telefonról', 'Opcionális, amíg be nem állítod, ki van kapcsolva'],
         pill: 'Kísérleti: valódi Cloudflare fiókkal és iPhone-nal még nem ellenőrizték',
-        shots: [['remote', 'A telefonos társalkalmazás egy futó ügynökkel.']],
+        shots: [['remote', 'Beállítások, Távoli: az IntelyIDE Remote kapcsolója, a végpontok közti titkosítás leírása és a relé kiválasztása.']],
       },
       {
         id: 'notifications',
@@ -560,6 +609,14 @@ export default {
   trust: {
     title: 'A bizalomra építve',
     lead: 'Az ügynök javasolhat és szerkeszthet. Csak te commitolsz és pusholsz.',
+    points: [
+      ['Kemény tiltások minden módban.', 'A commit, a push, a merge, a rebase és a <code>.git</code> teljes tartalma tiltott, Bypass módban is.'],
+      ['A kulcsaid a tieid maradnak.', 'A projekten kívüli SSH-kulcsokhoz, felhős hitelesítő adatokhoz és jelszótárolókhoz az ügynök nem nyúlhat, és ezt kártya sem oldja fel.'],
+      ['Ott kérdez, ahol kérdezni biztonságos.', 'A saját projekted titoknak látszó fájljánál egy kártya kérdez meg, a gépednél. Telefonról csak elutasítani lehet.'],
+      ['Bármelyik lépés visszavonható.', 'Minden futás Rewind pillanatképpel indul és ellenőrzőpontokat őriz, így visszaléphetsz egy lépést, vagy vissza az elejére.'],
+      ['Őszintén a korlátokról.', 'A védelem több rétegből áll és legjobb szándék szerint működik; hogy meddig ér, azt a biztonsági modell leírja.'],
+    ],
+    safetyLink: 'A biztonsági modell (angolul)',
     flow: [
       ['Ügynök', 'Fájlokat olvas és szerkeszt a repóidban.'],
       ['Szabályzat', 'Jogosultsági szabályzat, kemény tiltások, git shim és hookok ellenőrzik minden lépését.'],
@@ -617,6 +674,7 @@ export default {
   faq: {
     title: 'Kérdések',
     items: [
+      ['Commitolhat vagy pusholhat az ügynök?', 'Nem. Az ügynökök fájlokat olvasnak és szerkesztenek. A stage-elés, a commit és a push a te dolgod, minden módban, és az ezt kikényszerítő kemény tiltásokat sem kártya, sem beállítás nem oldja fel.'],
       ['Ingyenes?', 'Igen. Az IntelyIDE ingyen letölthető, és GPL-3.0-or-later licenc alatt nyílt forráskódú.'],
       [
         'Elküldi valahová a kódomat?',
