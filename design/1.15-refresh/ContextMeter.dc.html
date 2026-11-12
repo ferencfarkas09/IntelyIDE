@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>IntelyIDE context meter and usage bar</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./intely-theme.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+</style>
+</helmet>
+<div class="iy" data-theme="{{theme}}" data-skin="{{skin}}" style="width: 880px; height: 760px; display: flex; flex-direction: column; background: var(--bg); color: var(--t1); font-family: var(--font-ui); font-size: 13px; line-height: 1.45;">
+
+  <div style="flex-grow: 1; display: flex; gap: 28px; padding: 28px 32px 20px;">
+
+    <div style="flex: 0 0 380px; display: flex; flex-direction: column; gap: 10px;">
+      <span style="font-size: 12px; font-weight: 600; color: var(--t2);">In the run header</span>
+      <button type="button" aria-expanded="true" aria-label="Context meter: 31 percent of the context used" style="align-self: flex-start; display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 10px 0 8px; border: 1px solid var(--accent-border); border-radius: 999px; background: var(--accent-subtle);">
+        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 36 36" style="transform: rotate(-90deg);"><circle cx="18" cy="18" r="14" fill="none" stroke="var(--track)" stroke-width="5"></circle><circle cx="18" cy="18" r="14" fill="none" stroke="var(--accent-text)" stroke-width="5" stroke-linecap="round" stroke-dasharray="27.3 88"></circle></svg>
+        <span style="font-size: 12px; font-weight: 500;">31%</span>
+      </button>
+
+      <div role="dialog" aria-labelledby="cm-title" style="display: flex; flex-direction: column; gap: 14px; padding: 18px; background: var(--card); border: 1px solid var(--border); border-radius: 18px; box-shadow: var(--shadow-pop);">
+        <div style="display: flex; align-items: center;">
+          <h1 id="cm-title" style="margin: 0; flex-grow: 1; font-size: 16px; font-weight: 600;">Context meter</h1>
+          <button type="button" aria-label="Close" style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border: 0; border-radius: 8px; background: transparent; color: var(--t2);"><svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <div style="display: flex; align-items: baseline; gap: 6px;"><span style="font-size: 24px; font-weight: 600; letter-spacing: -0.01em;">62k</span><span style="font-size: 14px; color: var(--t2);">of 200k tokens</span></div>
+          <div role="img" aria-label="31 percent of the context used" style="height: 8px; border-radius: 999px; background: var(--track); overflow: hidden;"><div style="width: 31%; height: 100%; border-radius: 999px; background: var(--accent-text);"></div></div>
+          <p style="margin: 0; color: var(--t2);">How much of this run the agent can keep in mind. It never limits search, history or the files it can open.</p>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 6px; padding-top: 12px; border-top: 1px solid var(--border-soft);">
+          <div style="display: flex;"><span style="flex-grow: 1; color: var(--t2);">Model</span><span style="font-weight: 500;">Sonnet 5.5 &#183; 200k window</span></div>
+          <div style="display: flex;"><span style="flex-grow: 1; color: var(--t2);">At this pace</span><span style="font-weight: 500;">about 14 turns left</span></div>
+        </div>
+
+        <button type="button" style="display: flex; flex-direction: column; gap: 2px; padding: 14px; text-align: left; border: 1px solid var(--accent-border); border-radius: 14px; background: var(--accent-subtle);">
+          <span style="font-size: 14px; font-weight: 600;">Continue in a fresh run</span>
+          <span style="color: var(--t2);">Summarise this run and carry it into a new one before the limit.</span>
+        </button>
+
+        <div style="display: flex; gap: 8px;">
+          <button type="button" style="flex: 1; height: 34px; border: 1px solid var(--border); border-radius: var(--r-ctl); background: var(--card-2); font-weight: 500;">Compact now</button>
+          <button type="button" style="flex: 1; height: 34px; border: 1px solid var(--border); border-radius: var(--r-ctl); background: var(--card-2); font-weight: 500;">Copy summary</button>
+        </div>
+
+        <p style="margin: 0; font-size: 12px; color: var(--t3);">Counted from the last turn of this run. Nothing leaves this computer.</p>
+      </div>
+    </div>
+
+    <div style="flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 10px;">
+      <span style="font-size: 12px; font-weight: 600; color: var(--t2);">From the bottom bar</span>
+      <div role="dialog" aria-labelledby="pu-title" style="display: flex; flex-direction: column; gap: 14px; padding: 18px; background: var(--card); border: 1px solid var(--border); border-radius: 18px; box-shadow: var(--shadow-pop);">
+        <h2 id="pu-title" style="margin: 0; font-size: 16px; font-weight: 600;">Plan usage</h2>
+
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <div style="display: flex; align-items: baseline;"><span style="flex-grow: 1; font-weight: 500;">Weekly, all models</span><span style="font-size: 18px; font-weight: 600;">42%</span></div>
+          <div role="img" aria-label="42 percent used" style="height: 8px; border-radius: 999px; background: var(--track); overflow: hidden;"><div style="width: 42%; height: 100%; border-radius: 999px; background: var(--accent-text);"></div></div>
+          <span style="font-size: 12px; color: var(--t3);">Resets Monday 09:00</span>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <div style="display: flex; align-items: baseline;"><span style="flex-grow: 1; font-weight: 500;">Weekly, Fable</span><span style="font-size: 18px; font-weight: 600;">18%</span></div>
+          <div role="img" aria-label="18 percent used" style="height: 8px; border-radius: 999px; background: var(--track); overflow: hidden;"><div style="width: 18%; height: 100%; border-radius: 999px; background: var(--ok);"></div></div>
+          <span style="font-size: 12px; color: var(--t3);">Resets Monday 09:00</span>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <div style="display: flex; align-items: baseline;"><span style="flex-grow: 1; font-weight: 500;">5-hour window</span><span style="font-size: 18px; font-weight: 600;">76%</span></div>
+          <div role="img" aria-label="76 percent used" style="height: 8px; border-radius: 999px; background: var(--track); overflow: hidden;"><div style="width: 76%; height: 100%; border-radius: 999px; background: var(--warn);"></div></div>
+          <span style="font-size: 12px; color: var(--warn);">Getting close. Resets at 18:50</span>
+        </div>
+
+        <button type="button" style="height: 34px; border: 1px solid var(--border); border-radius: var(--r-ctl); background: var(--card-2); font-weight: 500;">Open usage details</button>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 8px; padding: 14px; border: 1px dashed var(--border); border-radius: 14px;">
+        <span style="font-size: 12px; font-weight: 600; color: var(--t2);">States of a bar item</span>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 12px; color: var(--t2);">
+          <span style="display: inline-flex; align-items: center; gap: 8px;">Weekly<span aria-hidden="true" style="width: 72px; height: 5px; border-radius: 999px; background: var(--track); overflow: hidden;"><span style="display: block; width: 42%; height: 100%; background: var(--accent-text);"></span></span><span style="color: var(--t1); font-weight: 500;">42%</span></span>
+          <span style="display: inline-flex; align-items: center; gap: 8px;">Weekly<span aria-hidden="true" style="width: 72px; height: 5px; border-radius: 999px; background: var(--track); overflow: hidden;"><span style="display: block; width: 78%; height: 100%; background: var(--warn);"></span></span><span style="color: var(--warn); font-weight: 600;">78%</span></span>
+          <span style="display: inline-flex; align-items: center; gap: 8px;">Weekly<span aria-hidden="true" style="width: 72px; height: 5px; border-radius: 999px; background: var(--track); overflow: hidden;"><span style="display: block; width: 96%; height: 100%; background: var(--danger);"></span></span><span style="color: var(--danger); font-weight: 600;">96%</span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer style="display: flex; align-items: center; gap: 18px; padding: 8px 20px 10px; border-top: 1px solid var(--border-soft); font-size: 12px; color: var(--t2);">
+    <span style="display: inline-flex; align-items: center; gap: 6px;"><span aria-hidden="true" style="width: 7px; height: 7px; border-radius: 999px; background: var(--ok);"></span>Environment ready</span>
+    <span style="flex-grow: 1;"></span>
+    <button type="button" aria-expanded="true" aria-label="Weekly plan usage: 42 percent, resets Monday 09:00" style="display: inline-flex; align-items: center; gap: 8px; height: 26px; padding: 0 10px; border: 1px solid var(--accent-border); border-radius: 999px; background: var(--accent-subtle); color: var(--t2);">Weekly<span aria-hidden="true" style="width: 72px; height: 5px; border-radius: 999px; background: var(--track); overflow: hidden;"><span style="display: block; width: 42%; height: 100%; border-radius: 999px; background: var(--accent-text);"></span></span><span style="color: var(--t1); font-weight: 500;">42%</span></button>
+    <button type="button" aria-label="Fable weekly usage: 18 percent, resets Monday 09:00" style="display: inline-flex; align-items: center; gap: 8px; height: 26px; padding: 0 10px; border: 0; border-radius: 999px; background: transparent; color: var(--t2);">Fable<span aria-hidden="true" style="width: 72px; height: 5px; border-radius: 999px; background: var(--track); overflow: hidden;"><span style="display: block; width: 18%; height: 100%; border-radius: 999px; background: var(--ok);"></span></span><span style="color: var(--t1); font-weight: 500;">18%</span></button>
+    <span style="color: var(--t3);">18 files in 4 repos selected</span>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark","section":"Look"},"skin":{"editor":"enum","options":["glass","standard"],"default":"glass","section":"Look"},"$preview":{"width":880,"height":760}}'>
+class Component extends DCLogic {
+renderVals() {
+return { theme: this.props.theme ?? 'dark', skin: this.props.skin ?? 'glass' };
+}
+}
+</script>
+</body>
+</html>

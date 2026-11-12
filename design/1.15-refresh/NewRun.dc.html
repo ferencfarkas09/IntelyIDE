@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>IntelyIDE new run dialog</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./intely-theme.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+</style>
+</helmet>
+<div class="iy" data-theme="{{theme}}" data-skin="{{skin}}" style="width: 1080px; height: 760px; display: flex; align-items: center; justify-content: center; background: var(--bg); color: var(--t1); font-family: var(--font-ui); font-size: 13px; line-height: 1.45;">
+  <div role="dialog" aria-labelledby="nr-title" style="width: 960px; display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--border); border-radius: 18px; box-shadow: var(--shadow-pop); overflow: hidden;">
+
+    <div style="display: flex; align-items: center; gap: 12px; padding: 18px 22px 14px;">
+      <div style="flex-grow: 1;">
+        <h1 id="nr-title" style="margin: 0; font-size: 18px; font-weight: 600;">New run</h1>
+        <p style="margin: 2px 0 0; color: var(--t2);">Describe the job. The agent edits files; only you commit and push.</p>
+      </div>
+      <button type="button" aria-label="Close" style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border: 0; border-radius: var(--r-ctl); background: transparent; color: var(--t2);"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+    </div>
+
+    <div style="display: flex; gap: 20px; padding: 4px 22px 18px;">
+      <div style="flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 14px;">
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <label for="nr-prompt" style="font-weight: 600;">What should the agent do?</label>
+          <textarea id="nr-prompt" rows="7" style="width: 100%; resize: none; padding: 12px 14px; border: 1px solid var(--accent-border); border-radius: 14px; background: var(--inset); color: var(--t1); font: inherit; font-size: 14px; line-height: 1.55;">Show order totals with the shop currency and a thousands separator. Update the orders table and the dashboard card, and add a test for the formatter.</textarea>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <span style="font-size: 12px; font-weight: 600; color: var(--t2);">Saved prompts</span>
+          <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+            <button type="button" style="height: 28px; padding: 0 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--card-2); font-size: 12px;">Add tests for my changes</button>
+            <button type="button" style="height: 28px; padding: 0 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--card-2); font-size: 12px;">Make this screen responsive</button>
+            <button type="button" style="height: 28px; padding: 0 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--card-2); font-size: 12px;">Fix accessibility issues</button>
+            <button type="button" style="height: 28px; padding: 0 12px; border: 1px dashed var(--border); border-radius: 999px; background: transparent; color: var(--t2); font-size: 12px;">All prompts</button>
+          </div>
+        </div>
+
+        <fieldset style="margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 6px;">
+          <legend style="padding: 0; margin-bottom: 6px; font-weight: 600;">Where may it work?</legend>
+          <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px;">
+            <label style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--accent-border); border-radius: var(--r-ctl); background: var(--accent-subtle);"><input type="checkbox" checked style="width: 16px; height: 16px; accent-color: var(--accent);"><span style="min-width: 0;"><span style="display: block; font-weight: 500;">storefront-admin</span><span style="display: block; font-family: var(--font-mono); font-size: 11.5px; color: var(--t2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">feat/dark-dashboard</span></span></label>
+            <label style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r-ctl); background: transparent;"><input type="checkbox" style="width: 16px; height: 16px; accent-color: var(--accent);"><span style="min-width: 0;"><span style="display: block; font-weight: 500;">orders-api</span><span style="display: block; font-family: var(--font-mono); font-size: 11.5px; color: var(--t2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">feature/loyalty-points</span></span></label>
+            <label style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r-ctl); background: transparent;"><input type="checkbox" style="width: 16px; height: 16px; accent-color: var(--accent);"><span style="min-width: 0;"><span style="display: block; font-weight: 500;">mobile-app</span><span style="display: block; font-family: var(--font-mono); font-size: 11.5px; color: var(--t2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">feat/booking-slots</span></span></label>
+            <label style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r-ctl); background: transparent;"><input type="checkbox" style="width: 16px; height: 16px; accent-color: var(--accent);"><span style="min-width: 0;"><span style="display: block; font-weight: 500;">pos-device</span><span style="display: block; font-family: var(--font-mono); font-size: 11.5px; color: var(--t2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">fix/receipt-rounding</span></span></label>
+          </div>
+        </fieldset>
+      </div>
+
+      <div style="flex: 0 0 320px; display: flex; flex-direction: column; gap: 14px;">
+        <fieldset style="margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 6px;">
+          <legend style="padding: 0; margin-bottom: 6px; font-weight: 600;">How much freedom?</legend>
+          <label style="display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r-ctl);"><input type="radio" name="preset" style="margin-top: 2px; width: 16px; height: 16px; accent-color: var(--accent);"><span><span style="display: block; font-weight: 600;">Careful</span><span style="display: block; font-size: 12px; color: var(--t2);">Asks before every change and command</span></span></label>
+          <label style="display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid var(--accent-border); border-radius: var(--r-ctl); background: var(--accent-subtle);"><input type="radio" name="preset" checked style="margin-top: 2px; width: 16px; height: 16px; accent-color: var(--accent);"><span><span style="display: block; font-weight: 600;">Balanced</span><span style="display: block; font-size: 12px; color: var(--t2);">Edits files by itself, asks before commands</span></span></label>
+          <label style="display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r-ctl);"><input type="radio" name="preset" style="margin-top: 2px; width: 16px; height: 16px; accent-color: var(--accent);"><span><span style="display: block; font-weight: 600;">Autonomous</span><span style="display: block; font-size: 12px; color: var(--t2);">Works alone inside the chosen folders</span></span></label>
+        </fieldset>
+
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <label for="nr-model" style="font-weight: 600;">Model</label>
+          <select id="nr-model" style="height: 36px; padding: 0 10px; border: 1px solid var(--border); border-radius: var(--r-ctl); background: var(--inset); color: var(--t1); font: inherit;">
+            <option>Sonnet 5.5</option>
+            <option>Opus 5.5</option>
+            <option>Fable 5.2</option>
+            <option>Haiku 5.5</option>
+          </select>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <span id="nr-effort" style="font-weight: 600;">Effort</span>
+          <div role="group" aria-labelledby="nr-effort" style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2px; padding: 3px; border-radius: var(--r-ctl); background: var(--card-2);">
+            <button type="button" aria-pressed="false" style="height: 28px; border: 0; border-radius: 7px; background: transparent; color: var(--t2); font-size: 12px;">low</button>
+            <button type="button" aria-pressed="true" style="height: 28px; border: 0; border-radius: 7px; background: var(--card); box-shadow: var(--shadow-card); font-size: 12px; font-weight: 600;">medium</button>
+            <button type="button" aria-pressed="false" style="height: 28px; border: 0; border-radius: 7px; background: transparent; color: var(--t2); font-size: 12px;">high</button>
+            <button type="button" aria-pressed="false" style="height: 28px; border: 0; border-radius: 7px; background: transparent; color: var(--t2); font-size: 12px;">xhigh</button>
+            <button type="button" aria-pressed="false" style="height: 28px; border: 0; border-radius: 7px; background: transparent; color: var(--t2); font-size: 12px;">max</button>
+          </div>
+        </div>
+
+        <label style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r-ctl);"><span style="flex-grow: 1;"><span style="display: block; font-weight: 600;">Ultracode</span><span style="display: block; font-size: 12px; color: var(--t2);">Starts helper agents. Uses more of your plan.</span></span><input type="checkbox" role="switch" style="width: 18px; height: 18px; accent-color: var(--accent);"></label>
+      </div>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 10px; padding: 14px 22px; border-top: 1px solid var(--border-soft); background: var(--card-2);">
+      <span style="flex-grow: 1; font-size: 12px; color: var(--t2);">Sonnet 5.5 &#183; medium &#183; 1 repository</span>
+      <button type="button" style="height: 36px; padding: 0 16px; border: 1px solid var(--border); border-radius: var(--r-ctl); background: var(--card); font-weight: 500;">Cancel</button>
+      <button type="button" style="display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 16px; border: 0; border-radius: var(--r-ctl); background: var(--accent); color: var(--on-accent); font-weight: 600;">Start run<span style="font-family: var(--font-mono); font-size: 11px; padding: 1px 5px; border-radius: 5px; background: rgba(255,255,255,0.22);">&#8984;&#8629;</span></button>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark","section":"Look"},"skin":{"editor":"enum","options":["glass","standard"],"default":"glass","section":"Look"},"$preview":{"width":1080,"height":760}}'>
+class Component extends DCLogic {
+renderVals() {
+return { theme: this.props.theme ?? 'dark', skin: this.props.skin ?? 'glass' };
+}
+}
+</script>
+</body>
+</html>

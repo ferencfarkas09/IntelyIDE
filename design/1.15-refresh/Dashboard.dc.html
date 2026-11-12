@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>IntelyIDE dashboard</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./intely-theme.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+body{margin:0}
+a{color:inherit}a:hover{color:inherit}
+</style>
+</helmet>
+<div class="iy" data-theme="{{theme}}" data-skin="{{skin}}" style="min-height: 900px; display: flex; flex-direction: column; background: var(--bg); color: var(--t1); font-family: var(--font-ui); font-size: 13px; line-height: 1.45;">
+
+  <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 8px 12px; min-height: 48px;">
+    <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" style="color: var(--accent-text); flex-shrink: 0;"><path d="M5 7h9"></path><path d="M5 12h14"></path><path d="M5 17h7"></path></svg>
+    <div role="group" aria-label="Mode" style="display: flex; padding: 3px; gap: 2px; border-radius: 999px; background: var(--card-2);">
+      <button type="button" aria-pressed="true" style="display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; border: 0; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-weight: 600;">Agent <span style="display: inline-flex; align-items: center; justify-content: center; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: rgba(255,255,255,0.24); font-size: 11px;">1</span></button>
+      <button type="button" aria-pressed="false" style="height: 28px; padding: 0 12px; border: 0; border-radius: 999px; background: transparent; color: var(--t2); font-weight: 500;">Editor</button>
+    </div>
+    <button type="button" style="display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 10px; border: 1px solid var(--border); border-radius: var(--r-ctl); background: var(--panel); font-weight: 600;">
+      <span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 999px; background: var(--accent);"></span>Acme Shop
+      <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--t3);"><path d="M6 9l6 6 6-6"></path></svg>
+    </button>
+    <span style="flex: 1 1 120px;"></span>
+    <button type="button" style="display: flex; align-items: center; gap: 8px; height: 32px; width: 240px; max-width: 100%; padding: 0 10px; border: 1px solid var(--border); border-radius: var(--r-ctl); background: var(--panel); color: var(--t3); text-align: left;">
+      <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6"></circle><path d="M20 20l-4.5-4.5"></path></svg>
+      <span style="flex-grow: 1;">Search or run a command</span>
+      <span style="font-family: var(--font-mono); font-size: 11px; padding: 1px 5px; border-radius: 5px; background: var(--card-2); color: var(--t2);">&#8984;K</span>
+    </button>
+  </header>
+
+  <div style="flex-grow: 1; display: flex; flex-wrap: wrap; gap: 8px; padding: 0 8px 8px;">
+    <nav aria-label="Tools" style="flex: 0 0 52px; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 4px 0;">
+      <button type="button" aria-label="Dashboard" aria-current="page" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border: 0; border-radius: 12px; background: var(--accent-subtle); color: var(--accent-text);"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"></rect><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"></rect><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"></rect><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"></rect></svg></button>
+      <button type="button" aria-label="Agent runs, 1 needs you" style="position: relative; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border: 0; border-radius: 12px; background: transparent; color: var(--t3);"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="11" rx="3"></rect><path d="M12 4v4"></path><circle cx="9" cy="13.5" r="1"></circle><circle cx="15" cy="13.5" r="1"></circle></svg><span aria-hidden="true" style="position: absolute; top: 4px; right: 4px; min-width: 15px; height: 15px; padding: 0 4px; border-radius: 999px; background: var(--warn); color: #1a1205; font-size: 10px; font-weight: 600; line-height: 15px; text-align: center;">1</span></button>
+      <button type="button" aria-label="Changes" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border: 0; border-radius: 12px; background: transparent; color: var(--t3);"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6z"></path><path d="M9 13h6"></path><path d="M12 10v6"></path></svg></button>
+      <button type="button" aria-label="Branches" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border: 0; border-radius: 12px; background: transparent; color: var(--t3);"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2"></circle><circle cx="6" cy="18" r="2"></circle><circle cx="18" cy="8" r="2"></circle><path d="M6 8v8"></path><path d="M18 10v1a4 4 0 0 1-4 4H9"></path></svg></button>
+      <button type="button" aria-label="Terminal" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border: 0; border-radius: 12px; background: transparent; color: var(--t3);"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2.5"></rect><path d="M7 9l3 3-3 3"></path><path d="M13 15h4"></path></svg></button>
+      <span style="flex-grow: 1;"></span>
+      <button type="button" aria-label="Settings" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border: 0; border-radius: 12px; background: transparent; color: var(--t3);"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"></path></svg></button>
+    </nav>
+
+    <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 16px; padding: 20px 24px 24px; background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-panel);">
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px;">
+        <div style="flex: 1 1 260px; min-width: 0;">
+          <h1 style="margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.01em;">Today in Acme Shop</h1>
+          <p style="margin: 2px 0 0; color: var(--t2);">One run is waiting for you. Two are ready to review.</p>
+        </div>
+        <button type="button" style="height: 36px; padding: 0 14px; border: 1px solid var(--border); border-radius: var(--r-ctl); background: var(--card); font-weight: 500;">Edit layout</button>
+        <button type="button" style="display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border: 0; border-radius: var(--r-ctl); background: var(--accent); color: var(--on-accent); font-weight: 600;"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>New run</button>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px;">
+        <div style="display: flex; flex-direction: column; gap: 4px; padding: 16px; border: 1px solid var(--warn-border); border-radius: var(--r-card); background: var(--card); box-shadow: var(--shadow-card);">
+          <span style="font-size: 12px; color: var(--t2);">Needs you</span>
+          <span style="font-size: 30px; font-weight: 600; line-height: 1.1;">1</span>
+          <span style="font-size: 12px; color: var(--warn);">Asks to read .env</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 4px; padding: 16px; border: 1px solid var(--border); border-radius: var(--r-card); background: var(--card); box-shadow: var(--shadow-card);">
+          <span style="font-size: 12px; color: var(--t2);">Ready for review</span>
+          <span style="font-size: 30px; font-weight: 600; line-height: 1.1;">2</span>
+          <span style="font-size: 12px; color: var(--t3);">3 files changed in total</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 4px; padding: 16px; border: 1px solid var(--border); border-radius: var(--r-card); background: var(--card); box-shadow: var(--shadow-card);">
+          <span style="font-size: 12px; color: var(--t2);">Weekly plan used</span>
+          <span style="font-size: 30px; font-weight: 600; line-height: 1.1;">42%</span>
+          <span role="img" aria-label="42 percent used" style="height: 5px; margin-top: 4px; border-radius: 999px; background: var(--track); overflow: hidden;"><span style="display: block; width: 42%; height: 100%; border-radius: 999px; background: var(--accent-text);"></span></span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 4px; padding: 16px; border: 1px solid var(--border); border-radius: var(--r-card); background: var(--card); box-shadow: var(--shadow-card);">
+          <span style="font-size: 12px; color: var(--t2);">Unit tests after runs</span>
+          <span style="font-size: 30px; font-weight: 600; line-height: 1.1;">3 of 4</span>
+          <span style="font-size: 12px; color: var(--danger);">orders-api has 2 failing</span>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px;">
+        <section aria-label="Run pulse" style="display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid var(--border); border-radius: var(--r-card); background: var(--card); box-shadow: var(--shadow-card);">
+          <div style="display: flex; align-items: center; gap: 8px;"><h2 style="margin: 0; flex-grow: 1; font-size: 14px; font-weight: 600;">Run pulse</h2><button type="button" style="height: 28px; padding: 0 10px; border: 0; border-radius: var(--r-ctl); background: transparent; color: var(--accent-text); font-weight: 500;">Open runs</button></div>
+          <ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column;">
+            <li style="display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--border-soft);"><span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 999px; background: var(--warn); flex-shrink: 0;"></span><span style="flex-grow: 1; min-width: 0;"><span style="display: block; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Show order totals with the shop currency</span><span style="font-size: 12px; color: var(--t3);">developer &#183; storefront-admin</span></span><button type="button" style="height: 30px; padding: 0 12px; border: 0; border-radius: var(--r-ctl); background: var(--accent); color: var(--on-accent); font-weight: 600;">Answer</button></li>
+            <li style="display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--border-soft);"><span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 999px; background: var(--ok); flex-shrink: 0;"></span><span style="flex-grow: 1; min-width: 0;"><span style="display: block; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Review the OrderRow change</span><span style="font-size: 12px; color: var(--t3);">reviewer &#183; finished 1 h ago</span></span><button type="button" style="height: 30px; padding: 0 12px; border: 1px solid var(--border); border-radius: var(--r-ctl); background: transparent; font-weight: 500;">Review</button></li>
+            <li style="display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--border-soft);"><span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 999px; background: var(--ok); flex-shrink: 0;"></span><span style="flex-grow: 1; min-width: 0;"><span style="display: block; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Which routes touch the orders table?</span><span style="font-size: 12px; color: var(--t3);">researcher &#183; finished 1 h ago</span></span><button type="button" style="height: 30px; padding: 0 12px; border: 1px solid var(--border); border-radius: var(--r-ctl); background: transparent; font-weight: 500;">Review</button></li>
+          </ul>
+        </section>
+
+        <section aria-label="Plan usage" style="display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid var(--border); border-radius: var(--r-card); background: var(--card); box-shadow: var(--shadow-card);">
+          <div style="display: flex; align-items: baseline; gap: 8px;"><h2 style="margin: 0; flex-grow: 1; font-size: 14px; font-weight: 600;">Plan usage, last 14 days</h2><span style="font-size: 12px; color: var(--t3);">resets Mon 09:00</span></div>
+          <div role="img" aria-label="Daily usage for the last 14 days, highest on day 9" style="height: 120px; display: flex; align-items: flex-end; gap: 6px;">
+            <span style="flex: 1; height: 22%; border-radius: 4px; background: var(--track);"></span>
+            <span style="flex: 1; height: 35%; border-radius: 4px; background: var(--track);"></span>
+            <span style="flex: 1; height: 28%; border-radius: 4px; background: var(--track);"></span>
+            <span style="flex: 1; height: 8%; border-radius: 4px; background: var(--track);"></span>
+            <span style="flex: 1; height: 6%; border-radius: 4px; background: var(--track);"></span>
+            <span style="flex: 1; height: 44%; border-radius: 4px; background: var(--track);"></span>
+            <span style="flex: 1; height: 52%; border-radius: 4px; background: var(--track);"></span>
+            <span style="flex: 1; height: 61%; border-radius: 4px; background: var(--track);"></span>
+            <span style="flex: 1; height: 88%; border-radius: 4px; background: var(--track);"></span>
+            <span style="flex: 1; height: 40%; border-radius: 4px; background: var(--track);"></span>
+            <span style="flex: 1; height: 12%; border-radius: 4px; background: var(--track);"></span>
+            <span style="flex: 1; height: 9%; border-radius: 4px; background: var(--track);"></span>
+            <span style="flex: 1; height: 47%; border-radius: 4px; background: var(--accent-text);"></span>
+            <span style="flex: 1; height: 30%; border-radius: 4px; background: var(--accent-text);"></span>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;">
+            <div style="display: flex; flex-direction: column; gap: 6px;"><div style="display: flex; font-size: 12px;"><span style="flex-grow: 1; color: var(--t2);">Weekly, all models</span><span style="font-weight: 500;">42%</span></div><span aria-hidden="true" style="height: 5px; border-radius: 999px; background: var(--track); overflow: hidden;"><span style="display: block; width: 42%; height: 100%; border-radius: 999px; background: var(--accent-text);"></span></span></div>
+            <div style="display: flex; flex-direction: column; gap: 6px;"><div style="display: flex; font-size: 12px;"><span style="flex-grow: 1; color: var(--t2);">Weekly, Fable</span><span style="font-weight: 500;">18%</span></div><span aria-hidden="true" style="height: 5px; border-radius: 999px; background: var(--track); overflow: hidden;"><span style="display: block; width: 18%; height: 100%; border-radius: 999px; background: var(--ok);"></span></span></div>
+          </div>
+        </section>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px;">
+        <section aria-label="Repositories" style="display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid var(--border); border-radius: var(--r-card); background: var(--card); box-shadow: var(--shadow-card);">
+          <h2 style="margin: 0; font-size: 14px; font-weight: 600;">Repositories</h2>
+          <ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column;">
+            <li style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 9px 0; border-top: 1px solid var(--border-soft);"><span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 999px; background: #4caf7d;"></span><span style="font-weight: 500;">orders-api</span><span style="flex-grow: 1; font-family: var(--font-mono); font-size: 12px; color: var(--t3);">feature/loyalty-points</span><span style="font-size: 12px; color: var(--t2);">6 changed &#183; 2 to push</span></li>
+            <li style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 9px 0; border-top: 1px solid var(--border-soft);"><span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 999px; background: #8b6cf0;"></span><span style="font-weight: 500;">storefront-admin</span><span style="flex-grow: 1; font-family: var(--font-mono); font-size: 12px; color: var(--t3);">feat/dark-dashboard</span><span style="font-size: 12px; color: var(--t2);">4 changed &#183; 1 to push</span></li>
+            <li style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 9px 0; border-top: 1px solid var(--border-soft);"><span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 999px; background: #f0a23a;"></span><span style="font-weight: 500;">mobile-app</span><span style="flex-grow: 1; font-family: var(--font-mono); font-size: 12px; color: var(--t3);">feat/booking-slots</span><span style="font-size: 12px; color: var(--t2);">5 changed</span></li>
+            <li style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 9px 0; border-top: 1px solid var(--border-soft);"><span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 999px; background: #3b9ae8;"></span><span style="font-weight: 500;">pos-device</span><span style="flex-grow: 1; font-family: var(--font-mono); font-size: 12px; color: var(--t3);">fix/receipt-rounding</span><span style="font-size: 12px; color: var(--t2);">3 changed &#183; 1 to pull</span></li>
+          </ul>
+        </section>
+
+        <section aria-label="Start something" style="display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid var(--border); border-radius: var(--r-card); background: var(--card); box-shadow: var(--shadow-card);">
+          <h2 style="margin: 0; font-size: 14px; font-weight: 600;">Start something</h2>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px;">
+            <button type="button" style="display: flex; flex-direction: column; gap: 2px; padding: 12px; text-align: left; border: 1px solid var(--border); border-radius: var(--r-ctl); background: var(--card-2);"><span style="font-weight: 600;">Add tests for my changes</span><span style="font-size: 12px; color: var(--t2);">Covers the files changed today</span></button>
+            <button type="button" style="display: flex; flex-direction: column; gap: 2px; padding: 12px; text-align: left; border: 1px solid var(--border); border-radius: var(--r-ctl); background: var(--card-2);"><span style="font-weight: 600;">Fix the failing tests</span><span style="font-size: 12px; color: var(--t2);">orders-api, 2 failing</span></button>
+            <button type="button" style="display: flex; flex-direction: column; gap: 2px; padding: 12px; text-align: left; border: 1px solid var(--border); border-radius: var(--r-ctl); background: var(--card-2);"><span style="font-weight: 600;">Explain this repository</span><span style="font-size: 12px; color: var(--t2);">A plain-language tour</span></button>
+            <button type="button" style="display: flex; flex-direction: column; gap: 2px; padding: 12px; text-align: left; border: 1px solid var(--border); border-radius: var(--r-ctl); background: var(--card-2);"><span style="font-weight: 600;">Make this screen responsive</span><span style="font-size: 12px; color: var(--t2);">For React and CSS projects</span></button>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <footer style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; padding: 6px 14px 8px; font-size: 12px; color: var(--t2);">
+    <span style="display: inline-flex; align-items: center; gap: 6px;"><span aria-hidden="true" style="width: 7px; height: 7px; border-radius: 999px; background: var(--ok);"></span>Environment ready</span>
+    <span style="flex-grow: 1;"></span>
+    <button type="button" aria-label="Weekly plan usage: 42 percent, resets Monday 09:00" style="display: inline-flex; align-items: center; gap: 8px; height: 24px; padding: 0 8px; border: 0; border-radius: 999px; background: transparent; color: var(--t2);">Weekly<span aria-hidden="true" style="width: 72px; height: 5px; border-radius: 999px; background: var(--track); overflow: hidden;"><span style="display: block; width: 42%; height: 100%; border-radius: 999px; background: var(--accent-text);"></span></span><span style="color: var(--t1); font-weight: 500;">42%</span></button>
+    <button type="button" aria-label="Fable weekly usage: 18 percent, resets Monday 09:00" style="display: inline-flex; align-items: center; gap: 8px; height: 24px; padding: 0 8px; border: 0; border-radius: 999px; background: transparent; color: var(--t2);">Fable<span aria-hidden="true" style="width: 72px; height: 5px; border-radius: 999px; background: var(--track); overflow: hidden;"><span style="display: block; width: 18%; height: 100%; border-radius: 999px; background: var(--ok);"></span></span><span style="color: var(--t1); font-weight: 500;">18%</span></button>
+    <span style="color: var(--t3);">18 files in 4 repos selected</span>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark","section":"Look"},"skin":{"editor":"enum","options":["glass","standard"],"default":"glass","section":"Look"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+renderVals() {
+return { theme: this.props.theme ?? 'dark', skin: this.props.skin ?? 'glass' };
+}
+}
+</script>
+</body>
+</html>

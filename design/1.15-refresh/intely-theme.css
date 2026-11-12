@@ -1,0 +1,60 @@
+/* IntelyIDE tokens for the 1.15 refresh mock-ups (from ui/src/theme/tokens.css and glass.css). */
+.iy {
+  --font-ui: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --r-panel: 10px;
+  --r-card: 10px;
+  --r-ctl: 8px;
+  box-sizing: border-box;
+}
+.iy * { box-sizing: border-box; }
+.iy button { font: inherit; color: inherit; cursor: pointer; }
+.iy button:focus-visible, .iy a:focus-visible, .iy input:focus-visible, .iy textarea:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+
+.iy[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0d0e10; --panel: #131417; --pane: #131417; --card: #1a1b1f; --card-2: #202226; --inset: #0e0f11;
+  --hover: rgba(255, 255, 255, 0.055); --track: rgba(255, 255, 255, 0.11);
+  --border: rgba(255, 255, 255, 0.095); --border-soft: rgba(255, 255, 255, 0.06);
+  --t1: #ececee; --t2: #b0b3b9; --t3: #8d9199;
+  --accent: #7447f5; --accent-hover: #7c4dff; --accent-text: #a68aff; --accent-subtle: rgba(140, 100, 255, 0.15); --accent-border: rgba(155, 123, 255, 0.45); --on-accent: #ffffff; --focus: #a68aff;
+  --ok: #4cc38a; --ok-subtle: rgba(76, 195, 138, 0.13); --ok-border: rgba(76, 195, 138, 0.32);
+  --warn: #e6a73c; --warn-subtle: rgba(230, 167, 60, 0.13); --warn-border: rgba(230, 167, 60, 0.32);
+  --danger: #f0706e; --danger-subtle: rgba(240, 112, 110, 0.13); --danger-border: rgba(240, 112, 110, 0.34);
+  --info: #58b0f0; --info-subtle: rgba(88, 176, 240, 0.13);
+  --diff-add: rgba(76, 195, 138, 0.12); --diff-del: rgba(240, 112, 110, 0.1);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-pop: 0 0 0 1px rgba(255, 255, 255, 0.075), 0 10px 28px rgba(0, 0, 0, 0.52), 0 2px 6px rgba(0, 0, 0, 0.4);
+  --scrim: rgba(4, 5, 7, 0.58);
+}
+.iy[data-theme="light"] {
+  color-scheme: light;
+  --bg: #e6e8ec; --panel: #f8f9fa; --pane: #ffffff; --card: #ffffff; --card-2: #f0f1f4; --inset: #f3f4f7;
+  --hover: rgba(16, 20, 32, 0.05); --track: rgba(16, 20, 32, 0.12);
+  --border: rgba(16, 20, 32, 0.115); --border-soft: rgba(16, 20, 32, 0.07);
+  --t1: #16181c; --t2: #454952; --t3: #5d626b;
+  --accent: #6a3bf0; --accent-hover: #5d2fe0; --accent-text: #6330e0; --accent-subtle: rgba(106, 59, 240, 0.1); --accent-border: rgba(106, 59, 240, 0.4); --on-accent: #ffffff; --focus: #6a3bf0;
+  --ok: #0c7350; --ok-subtle: rgba(15, 122, 84, 0.1); --ok-border: rgba(15, 122, 84, 0.3);
+  --warn: #8f5b00; --warn-subtle: rgba(180, 115, 0, 0.12); --warn-border: rgba(160, 100, 0, 0.32);
+  --danger: #c0302d; --danger-subtle: rgba(200, 49, 47, 0.09); --danger-border: rgba(200, 49, 47, 0.3);
+  --info: #17659f; --info-subtle: rgba(26, 111, 176, 0.1);
+  --diff-add: rgba(15, 122, 84, 0.1); --diff-del: rgba(200, 49, 47, 0.08);
+  --shadow-card: 0 1px 2px rgba(16, 20, 32, 0.08);
+  --shadow-pop: 0 0 0 1px rgba(16, 20, 32, 0.08), 0 10px 28px rgba(16, 20, 32, 0.16), 0 2px 6px rgba(16, 20, 32, 0.08);
+  --scrim: rgba(22, 26, 38, 0.32);
+}
+/* Glass: panels float as rounded sheets over a soft gradient; reading panes stay solid. */
+.iy[data-skin="glass"] { --r-panel: 16px; --r-card: 14px; --r-ctl: 10px; }
+.iy[data-skin="glass"][data-theme="dark"] {
+  --bg: radial-gradient(1100px 760px at 0% 0%, #1a245e, transparent 70%), radial-gradient(1000px 700px at 100% 0%, #2b1a5a, transparent 70%), radial-gradient(1200px 820px at 100% 100%, #0a2c3a, transparent 70%), #0d1022;
+  --panel: rgba(20, 22, 40, 0.72); --pane: #13162a; --card: #1b1e34; --card-2: #23263f; --inset: #0f1124;
+  --border: rgba(255, 255, 255, 0.085);
+  --shadow-card: 0 10px 30px rgba(2, 4, 16, 0.32), 0 1px 3px rgba(2, 4, 16, 0.25);
+  --shadow-pop: 0 0 0 1px rgba(255, 255, 255, 0.085), 0 24px 60px rgba(2, 4, 16, 0.55), 0 4px 14px rgba(2, 4, 16, 0.35);
+}
+.iy[data-skin="glass"][data-theme="light"] {
+  --bg: radial-gradient(1100px 760px at 0% 0%, #dde7ff, transparent 70%), radial-gradient(1000px 700px at 100% 0%, #e9e2ff, transparent 70%), radial-gradient(1200px 820px at 100% 100%, #ffe1d2, transparent 70%), #eef0fb;
+  --panel: rgba(255, 255, 255, 0.72); --pane: #fbfbfe; --card: #ffffff; --card-2: #f3f4fa; --inset: #f3f4fa;
+  --shadow-card: 0 10px 30px rgba(60, 64, 120, 0.1), 0 1px 3px rgba(60, 64, 120, 0.08);
+  --shadow-pop: 0 0 0 1px rgba(60, 64, 120, 0.1), 0 24px 60px rgba(60, 64, 120, 0.2), 0 4px 14px rgba(60, 64, 120, 0.1);
+}
