@@ -66,7 +66,8 @@ describe('what is new in 1.15', () => {
     assert.match(ask(en), /Only a person at the IDE window on the computer can say yes/);
     assert.match(ask(en), /stays a hard stop that nothing lifts: commit, push, merge/);
     assert.match(ask(en), /Best effort/);
-    assert.match(ask(en), /Three answers: Deny, Allow once, or Allow for this run/);
+    assert.match(ask(en), /Three answers: Deny, Allow once, or Allow all secret files in this run\. The last one asks you to confirm/);
+    assert.match(ask(en), /every secret-looking file inside the folders of the run/);
     for (const t of [en, hu]) assert.doesNotMatch(textOf({ n: t.whatsNew, tr: t.trust }), /always allow|Always allow|mindig engedélyez|Mindig engedélyez/);
     assert.match(ask(hu), /shell-parancsok minden módban tiltva maradnak/);
     assert.match(ask(hu), /pontosan arra az egy fájlra/);
