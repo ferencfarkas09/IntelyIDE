@@ -192,9 +192,15 @@ impl HostHub {
 
     fn on_events_register_only(&self, e: &AgentEvent) {
         match &e.kind {
-            EventKind::PermissionRequest { req_id, tool_id, intent, plan, .. } => {
+            EventKind::PermissionRequest { req_id, tool_id, intent, plan, confirm, .. } => {
                 if let Some(ctx) = self.policy_context(&e.agent_id) {
-                    self.table.register(pending_with_plan(&e.agent_id, req_id, tool_id, intent, plan.as_deref(), &ctx, &self.low));
+                    let mut p = pending_with_plan(&e.agent_id, req_id, tool_id, intent, plan.as_deref(), &ctx, &self.low);
+                    // a stop that a person may lift is answered on the computer only: the phone sees "answer on your computer" up front
+                    if confirm.is_some() {
+                        p.eligibility = intely_agent_core::hub::Eligibility::DesktopOnly;
+                        p.risk = intely_agent_core::hub::Risk::Blocked;
+                    }
+                    self.table.register(p);
                 }
             }
             EventKind::QuestionRequest { req_id, tool_id, prompt, .. } => self.table.register(pending_question(&e.agent_id, req_id, tool_id.as_deref(), prompt, now_ms())),
