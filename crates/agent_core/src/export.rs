@@ -28,11 +28,11 @@ const FILES: &[(&str, &[&str])] = &[
         "events",
         &[
             "AgentEvent", "AttachmentRef", "BatchEvent", "EventKind", "Effective", "EffectiveChange", "AuthFact", "ToolDiff", "PermissionOption", "QuestionOption", "PlanItem", "PeerCard",
-            "ToolKind", "ToolStatus", "DecidedBy", "PermissionOutcome", "ModeChangeReason", "StatusState", "ErrorClass", "StopReason", "Violation", "ViolationCode", "McpServerState", "McpServerInfo", "McpToolInfo", "McpServerStatus", "NoteState",
+            "ToolKind", "ToolStatus", "DecidedBy", "PermissionOutcome", "ModeChangeReason", "StatusState", "ErrorClass", "StopReason", "Violation", "ViolationCode", "McpServerState", "McpServerInfo", "McpToolInfo", "McpServerStatus", "NoteState", "StopGrantScope",
         ],
     ),
     ("api", &["RunStatus", "PermissionDecision", "Requested", "AgentEffective", "AgentSummary", "AutoQueue", "AutoInfo", "RoleInfo", "AgentStartRequest", "AgentAttachment", "QuestionAnswer"]),
-    ("policy", &["ToolClass", "ToolIntent", "Actor", "SubagentFlags", "WorkflowCheck", "PolicyRequest", "Decision", "PolicyDecision", "SessionAllowKind", "SessionAllowOffer"]),
+    ("policy", &["ToolClass", "ToolIntent", "Actor", "SubagentFlags", "WorkflowCheck", "PolicyRequest", "Decision", "PolicyDecision", "SessionAllowKind", "SessionAllowOffer", "ConfirmKind", "ConfirmOffer"]),
     ("mcp", &["McpPolicy", "McpExposure"]),
     ("delegates", &["DelegateScope", "ExcludeReason", "DelegateSpec", "DelegateInfo", "ExcludedDelegate"]),
     (
@@ -83,6 +83,9 @@ pub fn type_collection() -> Types {
         .register::<AutoInfo>()
         .register::<SessionAllowKind>()
         .register::<SessionAllowOffer>()
+        .register::<crate::policy::confirm::ConfirmKind>()
+        .register::<crate::policy::confirm::ConfirmOffer>()
+        .register::<crate::events::types::StopGrantScope>()
         .register::<McpPolicy>()
         .register::<McpExposure>()
 }

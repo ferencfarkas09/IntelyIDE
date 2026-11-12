@@ -8,6 +8,7 @@ pub mod remote;
 pub mod roles;
 pub mod run;
 pub mod sidecar;
+pub mod stop_allow;
 
 pub use config::{automatic_memory_budget, limits_from_settings, limits_supplier, scrub_env, AcpMock, AgentDefaults, DefaultsSupplier, UserMemorySupplier, EnvSupplier, HostConfig, LaunchSupplier, PolicyFault, ProviderLaunch, RoleResolver, VersionSupplier};
 pub use host::{repo_files, AgentHost, AnswerExtra, CreatedHook, HostSink, SetModeOpts, StartOptions, NO_SAFETY_NET};

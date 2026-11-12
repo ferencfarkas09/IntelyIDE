@@ -725,6 +725,11 @@ impl Jail {
         shown.join(", ")
     }
 
+    /// The canonical folders of the run (its working directory first): what an always-list entry is stored against.
+    pub fn roots(&self) -> &[PathBuf] {
+        &self.roots
+    }
+
     pub fn contains(&self, resolved: &Path) -> bool {
         self.roots.iter().any(|r| resolved.starts_with(r))
     }

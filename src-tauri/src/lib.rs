@@ -121,6 +121,8 @@ pub fn run() {
             agents::agent_send,
             agents::agent_interrupt,
             agents::agent_answer_permission,
+            agents::stop_allow_list,
+            agents::stop_allow_revoke,
             agents::agent_set_permission,
             agents::agent_modes,
             agents::agent_mcp_status,

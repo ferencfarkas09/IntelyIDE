@@ -11,6 +11,29 @@ export type Actor = {
 	role: string,
 };
 
+/**  What kind of thing a confirmable stop is about. */
+export type ConfirmKind = 
+/**  A secret-looking file inside a folder of the run (`.env`, `*.pem`, ...) that is READ, or only named in script text. */
+"secretFile" | 
+/**  A `.env` file inside a folder of the run that is EDITED or written. Kept apart from reading: allowing a read never allows an edit. */
+"secretEdit" | 
+/**  The Claude CLI raised its own prompt that an Automatic or Bypass run cannot answer. */
+"cliPrompt";
+
+/**  What a person could allow instead of the refusal. Rides on the refusal (`PolicyDecision::confirm`) and on the card. */
+export type ConfirmOffer = {
+	kind: ConfirmKind,
+	/**  The rule that stopped it (`read.never-read`, `fs.protected`, `fs.protected-arg`, `script.protected-path`, `cli.prompt-denied`). */
+	rule: string,
+	/**  The exact thing: a canonical path (`SecretFile`) or the CLI's own reason text (`CliPrompt`). */
+	scope: string,
+	/**
+	 *  The folder of the run that holds the path (the repository the always-list entry belongs to); for a CLI prompt the run's
+	 *  working directory.
+	 */
+	repo: string,
+};
+
 export type Decision = "allow" | "deny" | "ask";
 
 /**  Reply to `policy/decide`. */
@@ -22,6 +45,11 @@ export type PolicyDecision = {
 	rule?: string | null,
 	/**  Set only on an Ask the user could answer with "allow always in this session". */
 	sessionAllow?: SessionAllowOffer | null,
+	/**
+	 *  Set only on a `Deny` by a tier-2 hard stop (`policy::confirm`): what a person could allow through a card. The decision itself
+	 *  stays a refusal; only a grant in the run's context lifts the stop.
+	 */
+	confirm?: ConfirmOffer | null,
 };
 
 /**  Body of `policy/decide`. */

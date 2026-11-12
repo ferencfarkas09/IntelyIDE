@@ -134,6 +134,10 @@ pub struct PendingPermission {
     /// The intent exactly as the `permission.request` event carried it (already redacted by the sidecar).
     /// The host derives a session allow and recognises an ExitPlanMode request from it; it never trusts the event's own offer.
     pub intent: ToolIntent,
+    /// The tool call the card belongs to (a "once" grant names it).
+    pub tool_id: String,
+    /// Set on a card of a confirmable stop: the host answers it by its own rules (see `AgentHost::answer_permission_with`).
+    pub confirm: Option<intely_agent_core::policy::confirm::ConfirmOffer>,
 }
 
 pub struct PendingQuestion {
@@ -219,8 +223,8 @@ impl RunState {
             EventKind::ToolResult { tool_id, .. } => {
                 self.open_tools.remove(tool_id);
             }
-            EventKind::PermissionRequest { req_id, options, intent, .. } => {
-                self.perms.insert(req_id.clone(), PendingPermission { options: options.clone(), answering: false, intent: intent.clone() });
+            EventKind::PermissionRequest { req_id, tool_id, options, intent, confirm, .. } => {
+                self.perms.insert(req_id.clone(), PendingPermission { options: options.clone(), answering: false, intent: intent.clone(), tool_id: tool_id.clone(), confirm: confirm.clone() });
             }
             EventKind::PermissionResolved { req_id, .. } => {
                 self.perms.remove(req_id);
@@ -382,7 +386,7 @@ impl Run {
         }
         let mut out = Vec::new();
         for id in self.state.perms.keys() {
-            out.push(EventKind::PermissionResolved { req_id: id.clone(), outcome: PermissionOutcome::Cancelled, by });
+            out.push(EventKind::PermissionResolved { req_id: id.clone(), outcome: PermissionOutcome::Cancelled, by, grant: None });
         }
         for id in &self.state.open_tools {
             out.push(EventKind::ToolResult { tool_id: id.clone(), status: ToolStatus::Cancelled, output: None, diff: None, duration_ms: None });

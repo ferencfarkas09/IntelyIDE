@@ -58,7 +58,8 @@ wire_types! {
         pub session_allow: Option<SessionAllowOffer>,
         /// Set only on a `Deny` by a tier-2 hard stop (`policy::confirm`): what a person could allow through a card. The decision itself
         /// stays a refusal; only a grant in the run's context lifts the stop.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(default)]
+        #[cfg_attr(not(feature = "specta"), serde(skip_serializing_if = "Option::is_none"))]
         #[cfg_attr(feature = "specta", specta(optional))]
         pub confirm: Option<ConfirmOffer>,
     }
@@ -480,6 +481,7 @@ fn judge(ctx: &PolicyContext, intent: &ToolIntent, tool_id: &str, strict_backgro
     let jail = Jail::new(&ctx.cwd, &ctx.add_dirs, ctx.home.as_deref()).with_state_dir(ctx.state_dir.as_deref()).with_mcp_code_paths(&ctx.mcp_code_paths).with_scratch(&ctx.scratch_dirs).with_grants(&ctx.stop_grants, tool_id);
     let eff = effective(ctx, intent, strict_background);
     let d = match intent.class {
+        ToolClass::Other if intent.tool.as_deref() == Some(CLI_PROMPT_TOOL) => decide_cli_prompt(&eff, intent, tool_id),
         ToolClass::Exec => decide_exec(&eff, intent, &jail),
         ToolClass::Write => decide_write(&eff, intent, &jail),
         ToolClass::Read => decide_read(&eff, intent, &jail),
@@ -972,6 +974,37 @@ pub const OTHER_STATE_CHANGE: [&str; 16] = [
     "EnterWorktree", "ExitWorktree", "CronCreate", "CronDelete", "RemoteTrigger", "ScheduleWakeup", "Workflow", "Artifact", "Projects", "ClaudeDesign", "SendFeedback", "PushNotification",
     "ProposeSkills", "ProposeGoal", "Mcp", "Monitor",
 ];
+
+/// The pseudo tool the sidecar's gate asks about when the Claude CLI raised its own prompt in Automatic or Bypass and the prompt's reason is
+/// not one that was measured as harmless: "may a person allow this one?". The name has a colon, which no tool of the CLI or an MCP server has.
+pub const CLI_PROMPT_TOOL: &str = "intely:cli-prompt";
+
+/// The longest CLI reason kept as an always-list scope.
+pub const MAX_CLI_REASON: usize = 300;
+
+/// The intent the gate (and the host, when it judges a card again) uses to ask about a CLI prompt: the reason is the only argument.
+pub fn cli_prompt_intent(base: &ToolIntent, reason: &str) -> ToolIntent {
+    let mut i = base.clone();
+    i.class = ToolClass::Other;
+    i.tool = Some(CLI_PROMPT_TOOL.to_string());
+    i.args = vec![reason.trim().chars().take(MAX_CLI_REASON).collect()];
+    i
+}
+
+/// A prompt of the Claude CLI that an Automatic or Bypass run cannot answer. Every other rule has judged the call already (the gate asks only
+/// after a Rust allow); what is left is the CLI's own text heuristics. Tier 2 unless the reason is on the never list
+/// ([`confirm::cli_reason_confirmable`](super::confirm::cli_reason_confirmable)); lifted only by a grant of this exact reason (or a run grant).
+fn decide_cli_prompt(eff: &Eff, intent: &ToolIntent, tool_id: &str) -> PolicyDecision {
+    let reason = intent.args.first().map(|r| r.trim().chars().take(MAX_CLI_REASON).collect::<String>()).unwrap_or_default();
+    if !super::confirm::cli_reason_confirmable(&reason) {
+        return hard_stop("cli.prompt-denied", format!("the Claude CLI raised a prompt that is never answered for the person ({reason})"));
+    }
+    if eff.ctx.stop_grants.iter().any(|g| g.covers(super::confirm::ConfirmKind::CliPrompt, &reason, tool_id)) {
+        return verdict(Decision::Allow, DecidedBy::Saved, "cli.prompt-granted", "a person allowed this kind of Claude CLI prompt");
+    }
+    let offer = ConfirmOffer { kind: super::confirm::ConfirmKind::CliPrompt, rule: "cli.prompt-denied".into(), scope: reason.clone(), repo: eff.ctx.cwd.to_string_lossy().into_owned() };
+    hard_stop_offer(eff, "cli.prompt-denied", format!("the Claude CLI raised its own prompt ({reason}), which this run cannot answer on its own"), Some(offer), false)
+}
 
 fn decide_other(eff: &Eff, intent: &ToolIntent) -> PolicyDecision {
     use PermissionMode::*;

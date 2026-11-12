@@ -130,6 +130,11 @@ impl AgentSlot {
         }
         // the servers a run may execute on (Settings > Servers): the registry also answers the settings page
         cfg.servers = app.try_state::<crate::modules::servers::ServersState>().map(|s| s.registry());
+        // the always-list of confirmable stops lives next to the other IDE state, never inside a repository; a card of such a stop is shown
+        // only while a window of the IDE is open on this computer
+        cfg.stop_allow = Some(Arc::new(intely_agent_host::stop_allow::StopAllow::open(&cfg.data_dir)));
+        let ui_app = app.clone();
+        cfg.ui_attached = Some(Arc::new(move || !ui_app.webview_windows().is_empty()));
         let git = cfg.git.clone();
         // track E: file roles and the run supervisor sit on this one host (one sidecar, one gate)
         let (observer, roles) = crate::modules::roles::prepare(&mut cfg, Arc::new(TauriHostSink { app: app.clone() }));
@@ -483,9 +488,24 @@ pub async fn agent_answer_permission(
     decision: PermissionDecision,
     mode: Option<PermissionMode>,
     feedback: Option<String>,
+    confirm_always: Option<bool>,
 ) -> Res<()> {
     let host = agents.host.clone();
-    blocking(move || host.answer_permission_with(&agent_id, &request_id, decision, AnswerExtra { mode, feedback })).await
+    blocking(move || host.answer_permission_with(&agent_id, &request_id, decision, AnswerExtra { mode, feedback, remote: false, confirm_always: confirm_always.unwrap_or(false) })).await
+}
+
+/// The always-list of confirmable stops (Settings > Safety): what a person allowed "always" for a repository.
+#[tauri::command]
+pub async fn stop_allow_list(agents: State<'_, AgentSlot>) -> Res<Vec<intely_agent_host::stop_allow::AllowEntry>> {
+    let host = agents.host.clone();
+    blocking(move || Ok(host.stop_allow_list())).await
+}
+
+/// Removes one entry of the always-list, from the file and from the runs that are open.
+#[tauri::command]
+pub async fn stop_allow_revoke(agents: State<'_, AgentSlot>, id: String) -> Res<bool> {
+    let host = agents.host.clone();
+    blocking(move || host.stop_allow_revoke(&id)).await
 }
 
 /// Switches the permission mode of a run live (permission-modes spec 4.9, 5.1). `confirm_bypass` is the user's yes to the Bypass dialog.

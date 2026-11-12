@@ -881,7 +881,7 @@ impl GatewayCore {
                     self.push_msg(link, &ServerMsg::ReqNew { req: card }, outs);
                 }
             }
-            EventKind::PermissionResolved { req_id, outcome, by } => {
+            EventKind::PermissionResolved { req_id, outcome, by, .. } => {
                 let origin = self.hub.resolved_origin(req_id).unwrap_or(Origin::Desktop);
                 self.push_msg(link, &ServerMsg::ReqResolved { req_id: req_id.clone(), agent_id: e.agent_id.clone(), outcome: *outcome, by: *by, origin }, outs);
                 if let Some(Link::Session(s)) = self.links.get_mut(link) {

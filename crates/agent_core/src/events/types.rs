@@ -6,6 +6,7 @@
 use specta_typescript::{Number, Unknown};
 
 use crate::delegates::DelegateInfo;
+use crate::policy::confirm::ConfirmOffer;
 use crate::policy::decide::SessionAllowOffer;
 use crate::policy::intent::ToolIntent;
 use crate::providers::{AuthMode, CapDelta, Effort, ModelInfo, PermissionMode, ProviderCaps};
@@ -56,6 +57,16 @@ wire_enums! {
         FailClosed,
     }
 
+    /// How far an allowed tier-2 card reaches.
+    pub enum StopGrantScope {
+        /// This one tool call.
+        Once,
+        /// Every stop of the same kind until the run ends.
+        Run,
+        /// This exact thing in this repository, from now on (the IDE's always-list).
+        Always,
+    }
+
     pub enum PermissionOutcome {
         Allow,
         Deny,
@@ -69,6 +80,9 @@ wire_enums! {
         /// "Allow always in this session" (a saved allow the host keeps for the run). Offered only when `session_allow` is present.
         #[serde(rename = "allow_run")]
         AllowRun,
+        /// "Always allow this for this repository" (a tier-2 card only; stored in the IDE's own state, never in the repository).
+        #[serde(rename = "allow_always")]
+        AllowAlways,
         #[serde(rename = "deny")]
         Deny,
     }
@@ -329,9 +343,25 @@ wire_types! {
             #[serde(default)]
             #[cfg_attr(feature = "specta", specta(optional))]
             peer: Option<PeerCard>,
+            /// A tier-2 stop (`policy::confirm`): the card is a "may this one thing be allowed?" card. Display only: the host judges the
+            /// request again when it is answered and trusts only its own result.
+            #[serde(default)]
+            #[cfg_attr(not(feature = "specta"), serde(skip_serializing_if = "Option::is_none"))]
+            #[cfg_attr(feature = "specta", specta(optional))]
+            confirm: Option<ConfirmOffer>,
         },
         #[serde(rename = "permission.resolved")]
-        PermissionResolved { req_id: String, outcome: PermissionOutcome, by: DecidedBy },
+        PermissionResolved {
+            req_id: String,
+            outcome: PermissionOutcome,
+            by: DecidedBy,
+            /// A tier-2 card that was allowed: how far the person's yes reaches. The run log, the run summary and the Needs-You inbox
+            /// read "you allowed reading .env once" from this and the request's `confirm`.
+            #[serde(default)]
+            #[cfg_attr(not(feature = "specta"), serde(skip_serializing_if = "Option::is_none"))]
+            #[cfg_attr(feature = "specta", specta(optional))]
+            grant: Option<StopGrantScope>,
+        },
         #[serde(rename = "question.request")]
         QuestionRequest {
             req_id: String,
