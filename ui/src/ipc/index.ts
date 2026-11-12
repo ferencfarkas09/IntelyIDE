@@ -96,7 +96,11 @@ export interface Ipc extends IpcNamespaces {
    * `extra.mode`: an ExitPlanMode approval continues the run in this mode (`ask`, `edit` or `automatic`).
    * `extra.feedback`: the user's text when an ExitPlanMode request is rejected.
    */
-  agentAnswerPermission(agentId: string, requestId: string, decision: PermissionDecision, extra?: { mode?: PermissionMode; feedback?: string }): Promise<void>;
+  agentAnswerPermission(agentId: string, requestId: string, decision: PermissionDecision, extra?: { mode?: PermissionMode; feedback?: string; confirmAlways?: boolean }): Promise<void>;
+  /** The always-list of confirmable stops (Settings > Safety): what the person allowed "always" for a repository. Kept in the IDE's own data, never in a repository. */
+  stopAllowList(): Promise<StopAllowEntry[]>;
+  /** Removes one entry (from the file and from the runs that are open); false = there was none. */
+  stopAllowRevoke(id: string): Promise<boolean>;
   /** Switches the permission mode of a run live; rejects with the codes of the modes spec (`modeNotSupported`, `bypassNotConfirmed`, `writeLease`, ...). */
   agentSetPermission(agentId: string, mode: PermissionMode, opts?: { confirmBypass?: boolean }): Promise<AgentSummary>;
   /** The modes a NEW run of this provider may start in (provider support minus what the kill switch disables). */

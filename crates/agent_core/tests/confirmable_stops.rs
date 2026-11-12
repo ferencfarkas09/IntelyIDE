@@ -323,3 +323,14 @@ fn a_cli_prompt_is_a_tier_two_question_with_its_own_grants() {
     }
     assert_eq!(cli_prompt_intent(&base, " x ").tool.as_deref(), Some(CLI_PROMPT_TOOL));
 }
+
+#[test]
+fn the_classification_table_in_the_safety_doc_lists_every_rule_with_its_tier() {
+    use intely_agent_core::policy::confirm::{Tier, CLASSIFICATION};
+    let doc = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/safety.md")).unwrap();
+    for r in CLASSIFICATION {
+        let tier = if r.tier == Tier::Confirm { "**2: ask**" } else { "1: never" };
+        let row = format!("| `{}` | {tier} |", r.rule);
+        assert!(doc.contains(&row), "docs/safety.md has no row `{row}`: regenerate the classification table from policy/confirm.rs");
+    }
+}

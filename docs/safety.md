@@ -51,7 +51,7 @@ The Git engine reports three error codes (`EngineError.code`) for the jail and c
 
 ## Permission modes (Plan, Ask, Accept edits, Automatic, Bypass)
 
-The run mode (`PermissionMode`) decides how the broker answers when no hard stop applies. Hard stops come first in every mode and nothing below changes them.
+The run mode (`PermissionMode`) decides how the broker answers when no hard stop applies. Hard stops come first in every mode and nothing below changes them. A few of them (a secret-looking file inside the run's folders, a prompt of the Claude CLI itself) ask you instead of refusing; see "Confirmable stops: allow, ask, never".
 
 | Mode | Wire | What the broker does |
 |---|---|---|
@@ -79,6 +79,106 @@ The run mode (`PermissionMode`) decides how the broker answers when no hard stop
 **Session allow ("allow always in this session").** The host derives an in-memory saved allow from the stored intent of the pending request, never persists it, and clears it when the session ends or restarts. Exec: one simple-command argv prefix from an allowlist of programs that read or edit files and start nothing (`git status/log/diff/show/blame/rev-parse/ls-files/ls-tree/cat-file/describe/shortlog/rev-list/add`, `ls`, `cat`, `head`, `tail`, `wc`, `rg`, `grep`, `stat`, `file`, `du`, `pwd`, `which`, `echo`, `diff`, `cmp`, `cut`, `tr`, `basename`, `dirname`, `realpath`, `mkdir`, `touch`); never a shell, interpreter, wrapper, package manager, `cargo`, network program or destructive program, and it applies only when the whole command is clean (no assignment, redirect, script, exec-surface write, outside path, network operand, inline code or refused option). Net: a public host. MCP: `server.tool`. Writes: `WriteInside`, edits inside the run's folders that touch no exec-surface, protected or outside path. It never covers a hard stop, a script or an exec-surface write.
 
 **Every tool the SDK can offer is classified.** `SDK_TOOL_COVERAGE` (exported as `sdkToolCoverage`) lists every `*Input` interface of the pinned `sdk-tools.d.ts` with one kind; tools that publish, upload or act outside the machine (`Artifact`, `Projects`, `SendFeedback`, `PushNotification`, `ScheduleWakeup`, `Workflow`, `ClaudeDesign`, `ProposeSkills`, `ProposeGoal`, `Mcp`, a `Monitor` on a `ws` URL) are denied in Automatic and Bypass. The one exception is `Workflow` in a run the user started with ultracode on (layer 7d). A tool the pin does not declare keeps the Bypass behaviour (allowed there, denied in Automatic) until the pin is bumped and the sidecar test S-12 forces a decision.
+
+## Confirmable stops: allow, ask, never
+
+Every hard stop of the permission broker is either **tier 1: never** (no mode, card or setting lifts it) or **tier 2: ask** (the agent is refused as before, but the IDE puts one card to you and lifts that one stop only if you say yes on this computer). When a rule was in doubt it is tier 1.
+
+**What asks (tier 2).** Three things, and nothing else:
+
+1. A **secret-looking file inside a folder of the run**: `.env`, `.env.*`, `*.pem`, `*.key`, `*.p8`, `*.p12`, `*.pfx`, `*.jks`, `*.keystore`, `google-services.json`, `credentials.json`. It asks when the file is read (the Read tool, a shell operand, a name in script text) or when a `.env` file is edited (the Edit and Write tools, a shell command, a name in a script). A read and an edit are two different questions: allowing a read never allows an edit. The credential files of other tools stay tier 1 even inside a repository: `.npmrc`, `.netrc`, `.git-credentials`, the shell history files, `id_rsa*`, `id_ed25519*`, `.vault-token`, `.pypirc`, `.terraformrc`, `.credentials.json`, `.envrc`.
+2. A **prompt of the Claude CLI itself** that Automatic cannot answer on its own (`Contains brace with quote character (expansion obfuscation)`, `Compound command contains cd with output redirection`, `Contains command_substitution`, parser limits, and every other reason that was not measured as harmless). Before this change the run was refused with `cli.prompt-denied` and the agent looped. The CLI's sensitive-file prompt (`.bashrc`, `.mcp.json`, `.vscode/settings.json`) and a path outside the run's folders in Automatic stay refusals. Bypass has never refused the CLI's text heuristics (the Rust hard stops speak first); nothing changes there.
+3. Lockfiles are **not** on the list (see the table): a hand edit of a lockfile can swap where a dependency comes from, and the package managers write them.
+
+**The card.** It says what is wanted (the exact path, or the CLI's own reason), why it is normally stopped, the exact command (masked), and who asks (the lead or a named helper agent). Four answers:
+
+| Answer | Reach |
+|---|---|
+| Allow once | this one tool call |
+| Allow for this run | every stop of the same kind until the run ends (not kept anywhere) |
+| Always allow this for this repository | this exact normalized path (or this exact CLI reason) in this repository, stored by the IDE; listed in Settings > Safety > *Allowed stops* with **Revoke**, at most 100 entries |
+| Deny | the agent gets a clear message that says what was declined and that it stays stopped, with your note if you wrote one |
+
+The focus starts on **Deny**. "Always" for a secret file needs a second click on a warning (the content goes to the model provider and may be written to logs and transcripts); the host refuses it without that second confirmation, so a client that skips the warning cannot save the entry.
+
+**Modes.** A tier-2 stop asks in Ask, Accept edits, Automatic and Bypass, for the lead and for helper agents (the card names the helper). In Plan a read of a secret asks; a write is never allowed and never offered. After a yes the ordinary rules of the mode still apply: Ask asks its usual question next (so in Ask a secret edit can show two cards), Edit, Automatic and Bypass go on. Bypass skips ordinary questions, not these.
+
+**Who can answer.** Only a person at the IDE window on this computer. The Automatic mode has no approver that answers a card, and no classifier or auto-allow path can: a tier-2 verdict stays a refusal (`Deny`, `by: hardStop`) in the broker, and only a grant in the run's context lifts it. The phone (remote) sees the card with Deny only ("answer on your computer"), and the host refuses an allow that arrives from a remote client (`answerOnComputer`). With no IDE window open, or in a run on a server, the card is refused at once with the reason. A card whose rules changed while it waited (a mode switch, a new MCP policy) is withdrawn.
+
+**The host does not trust the card.** At the click the host judges the call again with the current rules and takes the exact path from its own verdict; a card that names another file, or an intent that no longer stops, lifts nothing (`rulesMoved`). A path that leaves the run's folders (`../x`, a symlink that points out) is never offered and never matched, and an always entry matches one exact canonical path of one repository: a sibling folder, another repository and a file with the same name elsewhere ask again.
+
+**Where the always-list lives, and why an agent cannot change it.** `stop-allow.json` in the IDE's own data directory, mode 0600, never inside a repository. That directory is the IDE state directory, which is a tier-1 path in every mode: the Read, Write and Edit tools and shell commands that read, write, copy or redirect into it are hard stops. The grants of a run come from the file when the run starts; Revoke removes an entry from the file and from the runs that are open.
+
+**Audit.** The run log records every override: the card and its answer (`permission.request` with `confirm`, then `permission.resolved` with `grant: once | run | always`), and a stop that a standing grant (this run, or the always-list) lifted without a card is written as the same pair (request id `ovr-...`, resolved by `saved`). The run summary lists them ("You allowed reading .env once"), and a card that waits appears in the Needs-You inbox like any other permission card.
+
+**Not proven.** The macOS window check (`ui_attached`) and the Tauri commands were not compiled on the machine this was written on; the Claude CLI's behaviour when a PreToolUse hook answers `ask` in Automatic and Bypass is covered by unit tests of the gate, not by a live run; a run on a server never lifts a tier-2 stop; the card for several secrets in one command asks once per file (at most four cards per tool call).
+
+### Classification of every hard-stop rule
+
+| Rule id | Tier | What the rule stops | Why |
+|---|---|---|---|
+| `read.never-read` | **2: ask** | a secret-looking file inside a folder of the run | the file is the person's own project file; content that is read goes to the model provider, which the card says |
+| `fs.protected` | **2: ask** | a `.env` file inside a folder of the run | an edit to a project-local env file is visible in the diff before any commit; the card names the exact path |
+| `fs.protected-arg` | **2: ask** | a `.env` file inside a folder of the run | the same file as `fs.protected`, named by a shell command |
+| `script.protected-path` | **2: ask** | a `.env` file inside a folder of the run, named in a script or inline code | a spelling hit in program text: the script may only mention the name; the card names the exact path and the script |
+| `cli.prompt-denied` | **2: ask** | a prompt of the Claude CLI that Automatic and Bypass cannot answer | the command is still judged by every other rule here; the CLI's text heuristics (braces with quotes, `cd` with a redirect, parser limits) are about its own matching |
+| `read.never-read` | 1: never | | everything else: credential folders and stores of other tools (~/.ssh, ~/.aws, ~/.gnupg, ~/.kube, ~/.azure, ~/.op, ~/.config/gh, Library/Keychains), history files, .npmrc/.netrc/.git-credentials, private keys by name (id_rsa*, id_ed25519*), ~/.claude secrets and transcripts, the IDE state directory, wrangler credentials, tunnel and MCP temp folders, and any secret outside the run's folders |
+| `fs.protected` | 1: never | | everything else: `.git`, `.husky`, `.claude`, refs/intely, lockfiles (a hand edit can swap a dependency source: package managers write them), the IDE state and settings, code of enabled MCP servers, persistence places |
+| `fs.protected-arg` | 1: never | | everything else, as for `fs.protected` |
+| `fs.outside-jail` | 1: never | | writes outside the run's folders: the folders are the boundary the person chose |
+| `exec.raw-text` | 1: never | | the Bypass text search for what the analyser cannot judge: it guards git writes and credentials |
+| `exec.too-long` | 1: never | | an oversized command that mentions a git write or Cloudflare credentials cannot be judged |
+| `exec.catastrophic` | 1: never | | disk wipes, device writes, recursive removal of the home or run folders |
+| `exec.proc-env` | 1: never | | other processes' environments hold secrets |
+| `exec.system-secrets` | 1: never | | security, osascript, dscl reach the Keychain, accounts and system scripting |
+| `shim.token` | 1: never | | the human-only IDE token |
+| `hooks.install` | 1: never | | git hooks run on the person's commits |
+| `alias.git-write` | 1: never | | an alias that hides a git write |
+| `remote.git-write` | 1: never | | a git write run elsewhere |
+| `inline.git-write` | 1: never | | a git write inside inline code |
+| `script.git-write` | 1: never | | a git write inside a script |
+| `script.protected-path` | 1: never | | everything else: a script names a protected path (.git, .claude, hooks, lockfiles, the IDE state) |
+| `pm.publish` | 1: never | | publishing or logging in changes a package registry |
+| `git.intely-refs` | 1: never | | refs/intely holds the Rewind snapshot and checkpoints |
+| `git.binary-copy` | 1: never | | a copy of the git binary hides git from name-based checks |
+| `git.exec-option` | 1: never | | an option that makes git run other programs |
+| `git.xargs` | 1: never | | the git subcommand would come from stdin |
+| `git.credential` | 1: never | | credential helpers hand out stored secrets |
+| `git.reset-hard` | 1: never | | destroys work |
+| `git.lfs-push` | 1: never | | uploads to the remote |
+| `git.stash` | 1: never | | rewrites the working tree and the stash list |
+| `git.branch` | 1: never | | moves or deletes refs |
+| `git.remote` | 1: never | | changes where pushes go |
+| `git.fetch-local` | 1: never | | writes refs of this repository |
+| `git.fetch-refspec` | 1: never | | moves or deletes local refs |
+| `git.reflog` | 1: never | | destroys recovery points |
+| `git.symbolic-ref` | 1: never | | moves HEAD |
+| `git.config` | 1: never | | changes identity, executes commands or redirects remotes |
+| `git.add-xargs` | 1: never | | stages paths nobody can see |
+| `git.add-all` | 1: never | | stages everything (an index write) |
+| `git.add-pathspec-file` | 1: never | | stages paths nobody can see |
+| `git.add-glob` | 1: never | | stages unintended files |
+| `git.add-magic` | 1: never | | stages unintended files |
+| `git.add-root` | 1: never | | stages the whole tree |
+| `env.git-override` | 1: never | | changes git identity, config or target |
+| `env.loader-override` | 1: never | | makes git or the loader run other code |
+| `env.path-override` | 1: never | | removes the git shim |
+| `mcp.args-unjudgeable` | 1: never | | arguments too large or deep to check |
+| `mcp.protected-arg` | 1: never | | an argument points at a protected path |
+| `delegate.isolation` | 1: never | | a worktree or remote environment is outside the run's folders |
+| `workflow.isolation` | 1: never | | a workflow must run its agents here, in the run's folders |
+| `wrangler.api` | 1: never | | the Cloudflare API |
+| `wrangler.binary-copy` | 1: never | | hides wrangler from name-based checks |
+| `wrangler.credentials` | 1: never | | Cloudflare credentials |
+| `wrangler.env` | 1: never | | Cloudflare tokens in the environment |
+| `wrangler.exec` | 1: never | | wrangler or Cloudflare deployment tooling |
+| `wrangler.inline` | 1: never | | inline code that runs or loads wrangler |
+| `wrangler.node-entry` | 1: never | | the wrangler entry point |
+| `wrangler.pm-exec` | 1: never | | a package-manager run of wrangler |
+| `wrangler.remote` | 1: never | | wrangler run elsewhere |
+| `wrangler.script` | 1: never | | a script that spawns wrangler or reads its credentials |
+
+(`cli.prompt-denied` is raised by the sidecar's gate; the broker answers "may a person allow this reason?" through the pseudo tool `intely:cli-prompt`. A test fails when a rule id exists in the policy sources without a row here.)
 
 ## Running the checks
 

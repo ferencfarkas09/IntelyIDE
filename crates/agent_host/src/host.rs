@@ -2745,10 +2745,12 @@ impl Inner {
         // a card of a confirmable stop needs a window on this computer and a run on this computer
         let on_server = st.agents.get(agent_id).is_some_and(|r| r.meta.location.is_some());
         let ui = self.cfg.ui_attached.as_ref().is_some_and(|f| f());
+        // (a request that resolved in the same batch is a log entry of an override, not a card)
+        let resolved: std::collections::HashSet<&String> = stored.iter().filter_map(|e| if let EventKind::PermissionResolved { req_id, .. } = &e.kind { Some(req_id) } else { None }).collect();
         let unanswerable: Vec<String> = stored
             .iter()
             .filter_map(|e| match &e.kind {
-                EventKind::PermissionRequest { req_id, confirm: Some(_), .. } if on_server || !ui => Some(req_id.clone()),
+                EventKind::PermissionRequest { req_id, confirm: Some(_), .. } if (on_server || !ui) && !resolved.contains(req_id) => Some(req_id.clone()),
                 _ => None,
             })
             .collect();
