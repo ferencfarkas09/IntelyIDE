@@ -96,7 +96,9 @@ impl<'a> Walker<'a> {
                 for tok in code_tokens(text) {
                     let p = paths::resolve(&self.cwd, tok, self.jail.home.as_deref());
                     if let Some(why) = self.jail.mention_protected_reason(&p) {
-                        self.stop("script.protected-path", &format!("{label} names {why} ({tok})"));
+                        // a `.env` file of the run's own project named in a script is a spelling hit a person may allow (tier 2)
+                        let offer = if why == ".env*" { self.jail.confirm_offer("script.protected-path", &p, true) } else { None };
+                        self.stop_confirmable("script.protected-path", &format!("{label} names {why} ({tok})"), offer);
                         break;
                     }
                 }

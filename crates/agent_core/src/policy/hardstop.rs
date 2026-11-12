@@ -24,6 +24,8 @@ pub(crate) use facts::HARMLESS_DEVICES;
 pub struct HardStop {
     pub rule: String,
     pub reason: String,
+    /// Set only by a tier-2 stop (`policy::confirm`): what a person could allow. `None` = tier 1.
+    pub confirm: Option<super::confirm::ConfirmOffer>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -294,7 +296,14 @@ impl<'a> Walker<'a> {
 
     fn stop(&mut self, rule: &str, reason: &str) {
         if self.a.hard_stop.is_none() {
-            self.a.hard_stop = Some(HardStop { rule: rule.to_string(), reason: reason.to_string() });
+            self.a.hard_stop = Some(HardStop { rule: rule.to_string(), reason: reason.to_string(), confirm: None });
+        }
+    }
+
+    /// [`Walker::stop`] for a tier-2 rule: `confirm` is what a person could allow instead.
+    fn stop_confirmable(&mut self, rule: &str, reason: &str, confirm: Option<super::confirm::ConfirmOffer>) {
+        if self.a.hard_stop.is_none() {
+            self.a.hard_stop = Some(HardStop { rule: rule.to_string(), reason: reason.to_string(), confirm });
         }
     }
 

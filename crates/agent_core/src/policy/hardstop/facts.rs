@@ -332,10 +332,12 @@ impl<'a> Walker<'a> {
                         if program_text && why == "secret file" && !cand.starts_with("file://") && bare_name(lit) && paths::secret_by_extension_only(lit) && !self.ext_name_exists(&p) {
                             return;
                         }
+                        // a secret-looking file of the run's own project may be allowed by a person (tier 2); every other place is not
+                        let offer = if why == "secret file" { self.jail.confirm_offer("read.never-read", &p, false) } else { None };
                         if program_text {
-                            self.stop("read.never-read", &format!("the script or inline code mentions {lit}, which names a secret file ({}); a secret or IDE-state path is never read by an agent ({why})", p.display()));
+                            self.stop_confirmable("read.never-read", &format!("the script or inline code mentions {lit}, which names a secret file ({}); a secret or IDE-state path is never read by an agent ({why})", p.display()), offer);
                         } else {
-                            self.stop("read.never-read", &format!("{} is a secret or IDE-state path and is never read by an agent ({why})", p.display()));
+                            self.stop_confirmable("read.never-read", &format!("{} is a secret or IDE-state path and is never read by an agent ({why})", p.display()), offer);
                         }
                         return;
                     }

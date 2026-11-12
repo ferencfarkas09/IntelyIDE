@@ -7,6 +7,7 @@
 use std::ffi::OsString;
 use std::path::{Component, Path, PathBuf};
 
+use super::confirm::{confirmable_env_write_name, confirmable_secret_path, ConfirmKind, ConfirmOffer, StopGrant};
 use super::fsview;
 
 const PROTECTED_DIRS: &[&str] = &[".git", ".husky", ".claude"];
@@ -548,6 +549,10 @@ pub struct Jail {
     /// Scratch roots (`/tmp`): Automatic may keep temporary files there (a `git show HEAD:f > /tmp/x` next to an edit). Not part of
     /// the jail for any other purpose; see [`Jail::in_scratch`].
     scratch: Vec<PathBuf>,
+    /// Confirmable stops a person has lifted (`PolicyContext::stop_grants`), already narrowed to this tool call.
+    grants: Vec<StopGrant>,
+    /// The tool call being judged; a "once" grant names it.
+    tool_id: String,
 }
 
 impl Jail {
@@ -556,7 +561,7 @@ impl Jail {
         let mut roots = vec![cwd.clone()];
         roots.extend(add_dirs.iter().map(|d| canonical_lossy(&abs_or_lexical(d))));
         let home_real = home.map(|h| canonical_lossy(&abs_or_lexical(h)));
-        Self { roots, cwd, home: home.map(Path::to_path_buf), home_real, state_dir: None, mcp_code_paths: Vec::new(), scratch: Vec::new() }
+        Self { roots, cwd, home: home.map(Path::to_path_buf), home_real, state_dir: None, mcp_code_paths: Vec::new(), scratch: Vec::new(), grants: Vec::new(), tool_id: String::new() }
     }
 
     pub fn with_state_dir(mut self, dir: Option<&Path>) -> Self {
@@ -574,6 +579,43 @@ impl Jail {
     pub fn with_scratch(mut self, dirs: &[PathBuf]) -> Self {
         self.scratch = dirs.iter().map(|d| canonical_lossy(&abs_or_lexical(d))).collect();
         self
+    }
+
+    /// The confirmable stops a person has lifted for this run (`PolicyContext::stop_grants`) and the tool call being judged.
+    pub fn with_grants(mut self, grants: &[StopGrant], tool_id: &str) -> Self {
+        self.grants = grants.to_vec();
+        self.tool_id = tool_id.to_string();
+        self
+    }
+
+    /// The canonical path of `resolved` when it is a secret-looking file a person may allow: it is spelled like one (the positive list
+    /// of `confirm::confirmable_secret_name`), it lies INSIDE a folder of the run once symlinks are followed, and both the spelling and the
+    /// real path say "secret file". A path that leaves the run's folders (`../x`, a link that points out) has no scope: it is never offered.
+    fn secret_scope(&self, resolved: &Path) -> Option<PathBuf> {
+        let real = canonical_lossy(resolved);
+        let inside = self.roots.iter().any(|r| real.starts_with(r));
+        let ok = inside && confirmable_secret_path(&real) && never_read_reason(&real) == Some("secret file") && never_read_reason(resolved) == Some("secret file");
+        ok.then_some(real)
+    }
+
+    /// Like [`Jail::secret_scope`] for an edit of a `.env` file: the part of the path below its folder says `.env*` and nothing worse.
+    fn env_edit_scope(&self, resolved: &Path) -> Option<PathBuf> {
+        let real = canonical_lossy(resolved);
+        let rel = self.roots.iter().find_map(|r| real.strip_prefix(r).ok())?;
+        let lexical_inside = self.roots.iter().any(|r| resolved.starts_with(r));
+        (lexical_inside && confirmable_env_write_name(&real.file_name()?.to_string_lossy()) && protected_reason(rel) == Some(".env*")).then_some(real)
+    }
+
+    /// What a person could allow for a refused read of `resolved` (`edit` false) or edit (`edit` true); `None` = tier 1.
+    pub fn confirm_offer(&self, rule: &str, resolved: &Path, edit: bool) -> Option<ConfirmOffer> {
+        let real = if edit { self.env_edit_scope(resolved)? } else { self.secret_scope(resolved)? };
+        let repo = self.roots.iter().find(|r| real.starts_with(r))?;
+        Some(ConfirmOffer { kind: if edit { ConfirmKind::SecretEdit } else { ConfirmKind::SecretFile }, rule: rule.to_string(), scope: real.to_string_lossy().into_owned(), repo: repo.to_string_lossy().into_owned() })
+    }
+
+    fn granted(&self, kind: ConfirmKind, real: &Path) -> bool {
+        let scope = real.to_string_lossy();
+        self.grants.iter().any(|g| g.covers(kind, &scope, &self.tool_id))
     }
 
     /// The memory folder of one of the run's OWN folders: `~/.claude/projects/<slug of a run folder>/memory`, for tools that only list names
@@ -642,7 +684,12 @@ impl Jail {
         if self.in_state_dir(resolved) && !self.in_attachments(resolved) {
             return Some("IDE state directory");
         }
-        never_read_reason(resolved).or_else(|| self.home_never_read_reason(resolved))
+        let why = never_read_reason(resolved).or_else(|| self.home_never_read_reason(resolved));
+        // a secret-looking file of the run's own project that a person allowed (once, for the run, or always) is not a stop
+        if why == Some("secret file") && self.secret_scope(resolved).is_some_and(|real| self.granted(ConfirmKind::SecretFile, &real)) {
+            return None;
+        }
+        why
     }
 
     /// Credential and profile locations that are only secret at one place, directly under the home directory: a repository's
@@ -695,6 +742,19 @@ impl Jail {
     /// [`protected_reason`] judged relative to the root the path is in, so a repo that itself lives under
     /// `.claude/worktrees` stays writable; outside every root the full path counts.
     pub fn protected_reason(&self, resolved: &Path) -> Option<&'static str> {
+        let why = self.protected_reason_raw(resolved);
+        self.env_edit_allowed(why, resolved)
+    }
+
+    /// A `.env` file that a person allowed to be edited is not protected; every other reason stands.
+    fn env_edit_allowed(&self, why: Option<&'static str>, resolved: &Path) -> Option<&'static str> {
+        if why == Some(".env*") && self.env_edit_scope(resolved).is_some_and(|real| self.granted(ConfirmKind::SecretEdit, &real)) {
+            return None;
+        }
+        why
+    }
+
+    fn protected_reason_raw(&self, resolved: &Path) -> Option<&'static str> {
         if self.mcp_code_paths.iter().any(|c| c == resolved) {
             return Some("code of an enabled MCP server");
         }
@@ -710,6 +770,11 @@ impl Jail {
     /// [`Jail::protected_reason`] for a path that a script or inline code only MENTIONS (not a write operand): the repository
     /// protections plus the original git and ssh places, without the system PATH directories and startup files.
     pub fn mention_protected_reason(&self, resolved: &Path) -> Option<&'static str> {
+        let why = self.mention_protected_reason_raw(resolved);
+        self.env_edit_allowed(why, resolved)
+    }
+
+    fn mention_protected_reason_raw(&self, resolved: &Path) -> Option<&'static str> {
         if self.mcp_code_paths.iter().any(|c| c == resolved) {
             return Some("code of an enabled MCP server");
         }

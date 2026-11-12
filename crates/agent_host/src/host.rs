@@ -2732,7 +2732,7 @@ impl Inner {
             if matches!(sm, PermissionMode::Automatic | PermissionMode::Bypass) {
                 return fail_peer("peer.privilege-unattended", "this run works without asking, so it cannot be asked about a message to a run that may do more");
             }
-            d = PolicyDecision { decision: Decision::Ask, reason: "a run that may do more than this one would read the message: you decide for every message".into(), rule: Some("peer.privilege".into()), session_allow: None, ..d };
+            d = PolicyDecision { decision: Decision::Ask, reason: "a run that may do more than this one would read the message: you decide for every message".into(), rule: Some("peer.privilege".into()), session_allow: None, confirm: None, ..d };
         } else if unattended_target {
             d.session_allow = None;
         }
@@ -3123,7 +3123,7 @@ impl Handler for Inner {
 }
 
 fn fail_peer(rule: &str, reason: &str) -> PolicyDecision {
-    PolicyDecision { decision: Decision::Deny, by: DecidedBy::RoleDeny, reason: reason.into(), rule: Some(rule.into()), session_allow: None }
+    PolicyDecision { decision: Decision::Deny, by: DecidedBy::RoleDeny, reason: reason.into(), rule: Some(rule.into()), session_allow: None, confirm: None }
 }
 
 fn tail_suffix(sc: &Sidecar) -> String {
