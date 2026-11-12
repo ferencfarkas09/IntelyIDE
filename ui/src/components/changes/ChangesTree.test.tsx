@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
 import { lazy, type Component } from "solid-js";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -20,12 +20,13 @@ afterEach(() => {
 });
 
 const tree = () => screen.getByRole("tree", { name: "Changes" });
-const row = (name: string) => screen.getByText(name).closest<HTMLElement>('[role="treeitem"]')!;
+// Scoped to the tree: the title bar names the repositories too (its branch chips).
+const row = (name: string) => within(tree()).getByText(name).closest<HTMLElement>('[role="treeitem"]')!;
 const press = (key: string) => fireEvent.keyDown(tree(), { key });
 
 async function mountLoaded() {
   render(() => <App />);
-  await screen.findByText("shop-backend", {}, { timeout: 3000 });
+  await waitFor(() => expect(within(tree()).getByText("shop-backend")).toBeTruthy(), { timeout: 3000 });
   await screen.findByText("orderController.js", {}, { timeout: 3000 });
 }
 
