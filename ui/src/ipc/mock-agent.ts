@@ -623,7 +623,7 @@ export function createMockAgents(scenarioName: string, scale: number): AgentApi 
         const total = agent.cumulative;
         const priced = agent.summary.provider === "claude";
         const counts = (i: number, o: number) => ({ inputTokens: i, outputTokens: o, cacheRead: 0, cacheWrite: 0, reasoningTokens: 0, ...(priced ? { costUsd: i * 0.000003 + o * 0.000015 } : {}) });
-        const usage: UsageRecord = { costBasis: priced ? "subscription" : "unknown", model: agent.summary.model, contextSize: 200_000, contextUsed: total.input, perTurn: counts(input, output), cumulative: counts(total.input, total.output), ...(perModel ? { perModel } : {}) };
+        const usage: UsageRecord = { costBasis: priced ? "subscription" : "unknown", model: agent.summary.model, contextSize: 200_000, contextUsed: DEMO_CONTEXT_BASE + total.input, perTurn: counts(input, output), cumulative: counts(total.input, total.output), ...(perModel ? { perModel } : {}) };
         ctx.emit({ kind: "usage", usage });
       },
       permission: async (reqId, toolId, intent, options, sessionAllow) => {
@@ -708,8 +708,10 @@ export function createMockAgents(scenarioName: string, scale: number): AgentApi 
   /** A finished run for the list: its log is stored but nothing is broadcast. */
   function seedFinished(req: StartRequest): void {
     const agent = makeAgent(req, "agent-normal");
-    for (const p of finishedLog(req.prompt, agent.summary.model)) agent.log.push({ agentId: agent.summary.agentId, seq: ++agent.seq, ts: agent.summary.startedAt, provider: agent.summary.provider, ...toWire(p) } as AgentEvent);
-    agent.summary = { ...agent.summary, status: "done", startedAt: Date.now() - 3_600_000 };
+    const fills = DEMO_FILLS[req.role] ?? [];
+    for (const p of finishedLog(req.prompt, agent.summary.model, fills)) agent.log.push({ agentId: agent.summary.agentId, seq: ++agent.seq, ts: agent.summary.startedAt, provider: agent.summary.provider, ...toWire(p) } as AgentEvent);
+    const last = finishedUsage(agent.summary.model, fills).at(-1);
+    agent.summary = { ...agent.summary, status: "done", startedAt: Date.now() - 3_600_000, ...(last ? { usage: last } : {}) };
   }
 
   let started = false;
@@ -841,7 +843,24 @@ export function createMockAgents(scenarioName: string, scale: number): AgentApi 
   };
 }
 
-function finishedLog(prompt: string, model: string): MockPayload[] {
+/** What a demo conversation already holds when it starts (the system prompt, the tools, the project notes): the context meter then reads like a real run. */
+const DEMO_CONTEXT_BASE = 50_000;
+
+/** The context size after each turn of the two finished demo runs: one past the meter's warning colour, one past danger. */
+const DEMO_FILLS: Record<string, number[]> = { researcher: [96_000, 118_000, 137_000, 156_000], reviewer: [170_000, 178_000, 186_000] };
+
+function finishedUsage(model: string, fills: readonly number[]): UsageRecord[] {
+  let input = 0;
+  let output = 0;
+  return fills.map((contextUsed, i) => {
+    const turn = { inputTokens: 2400 + i * 600, outputTokens: 380 + i * 90, cacheRead: Math.round(contextUsed * 0.9), cacheWrite: 1200, reasoningTokens: 0, costUsd: 0.02 + i * 0.01 };
+    input += turn.inputTokens;
+    output += turn.outputTokens;
+    return { costBasis: "subscription", model, contextSize: 200_000, contextUsed, perTurn: turn, cumulative: { ...turn, inputTokens: input, outputTokens: output, cacheRead: turn.cacheRead * (i + 1), cacheWrite: turn.cacheWrite * (i + 1), costUsd: 0.02 * (i + 1) + 0.005 * i * (i + 1) } };
+  });
+}
+
+function finishedLog(prompt: string, model: string, fills: readonly number[] = []): MockPayload[] {
   return [
     { kind: "session.started", nativeId: "native-old", model, effective: { permission: "readOnly" } },
     { kind: "user.message", messageId: "u1", text: prompt },
@@ -849,6 +868,7 @@ function finishedLog(prompt: string, model: string): MockPayload[] {
     { kind: "tool.result", toolId: "t1", status: "ok", output: "src/api/routes/orders.js:12", durationMs: 180 },
     { kind: "text.delta", messageId: "m1", text: "The orders table is read by `routes/orders.js` and `services/orderService.js`." },
     { kind: "text.done", messageId: "m1", text: "The orders table is read by `routes/orders.js` and `services/orderService.js`." },
+    ...finishedUsage(model, fills).map((usage): MockPayload => ({ kind: "usage", usage })),
     { kind: "turn.end", stopReason: "endTurn" },
   ];
 }
