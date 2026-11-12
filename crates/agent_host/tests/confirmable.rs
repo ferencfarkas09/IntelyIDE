@@ -102,10 +102,6 @@ impl Rig {
         i.summary = "Read .env".into();
         decide(&ctx, &PolicyRequest { agent_id: id.into(), tool_id: tool_id.into(), provider: "claude".into(), intent: i }).decision
     }
-
-    fn resolved(&self, id: &str, req: &str) {
-        self.sink.wait(id, "permission.resolved", 15, |e| matches!(&e.kind, EventKind::PermissionResolved { req_id, .. } if req_id == req));
-    }
 }
 
 fn code<T: std::fmt::Debug>(r: Result<T, intely_core::EngineError>) -> String {
@@ -272,8 +268,12 @@ fn a_forged_card_grants_nothing_the_host_derives_the_thing_itself() {
     // a card that claims a secret for an intent that touches none
     let intent = json!({"class": "read", "tool": "Read", "paths": [r.repo.path.join("a.txt").to_string_lossy()], "summary": "Read a.txt"});
     r.card(&id, "p1", intent, json!({"kind": "secretFile", "rule": "read.never-read", "scope": "/etc/passwd", "repo": "/etc"}));
-    assert_eq!(code(r.host.answer_permission(&id, "p1", PermissionDecision::AllowRun)), "rulesMoved");
-    assert!(r.host.context(&id).unwrap().stop_grants.is_empty());
+    // (the rules allow that read anyway: the click is a plain yes and nothing is granted)
+    r.host.answer_permission(&id, "p1", PermissionDecision::AllowRun).expect("a yes to something the rules allow");
+    assert!(r.host.context(&id).unwrap().stop_grants.is_empty(), "a forged card grants nothing");
+    r.card(&id, "p1b", json!({"class": "read", "tool": "Read", "paths": [r.repo.path.join("a.txt").to_string_lossy()], "summary": "Read a.txt"}), json!({"kind": "secretFile", "rule": "read.never-read", "scope": "/etc/passwd", "repo": "/etc"}));
+    assert_eq!(code(r.host.answer_permission_with(&id, "p1b", PermissionDecision::AllowAlways, AnswerExtra { confirm_always: true, ..Default::default() })), "rulesMoved", "always is never taken from the card");
+    assert!(r.store.list().is_empty());
     // a card whose scope names another file: the grant is for what the rules say, not what the card says
     let env = r.env();
     let intent = json!({"class": "read", "tool": "Read", "paths": [env], "summary": "Read .env"});
@@ -318,5 +318,20 @@ fn the_always_list_file_is_a_tier_one_path_for_the_agent() {
         assert_eq!(d.decision, Decision::Deny, "{tool}: {d:?}");
         assert!(d.confirm.is_none(), "{tool} must carry no offer: {d:?}");
     }
+    r.host.shutdown();
+}
+
+#[test]
+fn a_second_card_for_the_same_stop_is_a_plain_yes_once_the_first_was_allowed_for_the_run() {
+    let r = Rig::new(true);
+    let id = r.start(Automatic).agent_id;
+    r.env_card(&id, "p1");
+    r.env_card(&id, "p2");
+    r.host.answer_permission(&id, "p1", PermissionDecision::AllowRun).unwrap();
+    r.host.answer_permission(&id, "p2", PermissionDecision::AllowOnce).expect("nothing left to grant, the click is still a yes");
+    assert_eq!(r.answers("p2")[0]["outcome"], "allow");
+    // ...but "always" is never derived from a card: it needs the host's own verdict
+    r.env_card(&id, "p3");
+    assert_eq!(code(r.host.answer_permission_with(&id, "p3", PermissionDecision::AllowAlways, AnswerExtra { confirm_always: true, ..Default::default() })), "rulesMoved");
     r.host.shutdown();
 }

@@ -24,6 +24,7 @@ import type {
   AgentStartRequest,
   AgentSummary,
   AutoInfo,
+  ConfirmKind,
   McpServerStatus,
   PermissionDecision,
   PermissionMode,
@@ -44,6 +45,18 @@ export type Unsubscribe = () => void;
  * Rejections of every command carry an `EngineError` (see `toEngineError` in `rpc.ts`). The flat methods predate the modules;
  * new features add methods to their own namespace (`ipc.files`, `ipc.graph`, ... see `namespaces.ts`) instead.
  */
+/** One entry of the always-list of confirmable stops (Settings > Safety). */
+export interface StopAllowEntry {
+  id: string;
+  /** The folder of the run that holds the thing: the repository the entry belongs to. */
+  repo: string;
+  kind: ConfirmKind;
+  /** The exact normalized path (secret file) or the exact Claude CLI reason. */
+  scope: string;
+  rule: string;
+  addedMs: number;
+}
+
 export interface Ipc extends IpcNamespaces {
   workspaceGet(): Promise<Workspace>;
   workspaceSave(ws: Workspace): Promise<Workspace>;

@@ -76,7 +76,7 @@ pub const ALL_OF_KIND: &str = "*";
 impl StopGrant {
     /// Whether this grant lifts a stop of `kind` on `scope` for the tool call `tool_id`.
     pub fn covers(&self, kind: ConfirmKind, scope: &str, tool_id: &str) -> bool {
-        self.kind == kind && (self.scope == ALL_OF_KIND || self.scope == scope) && self.tool_id.as_deref().is_none_or(|t| t == tool_id)
+        self.kind == kind && (self.scope == ALL_OF_KIND || self.scope == scope) && self.tool_id.as_deref().map_or(true, |t| t == tool_id)
     }
 }
 

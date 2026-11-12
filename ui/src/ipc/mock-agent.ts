@@ -8,6 +8,7 @@ import type {
   McpServerInfo,
   McpServerStatus,
   ModelTokens,
+  ConfirmOffer,
   PermissionDecision,
   PermissionMode,
   ProviderCaps,
@@ -18,14 +19,17 @@ import type {
 } from "../store/agent-types";
 import { attachmentRefs } from "../modules/attachments/refs";
 import type { AttachmentRef } from "@intely/protocol";
-import type { Ipc, Unsubscribe } from "./index";
+import type { Ipc, StopAllowEntry, Unsubscribe } from "./index";
+
+/** The cap of the always-list (the host holds the same number). */
+export const MAX_STOP_ALLOW = 100;
 import { capsOfProvider } from "./providerCaps";
 import { mockTier } from "./mock/providers";
 import { ACP_SCENARIOS, ACP_SCRIPTS, type AcpScenario } from "./mock-acp";
 import { AFTER_PLAN, isUnattended, MODE_ORDER } from "../store/permissionModes";
 
 /** Scenario names understood by the agent part of the mock (`?scenario=agent-...`); any other scenario plays `agent-normal`. */
-export const AGENT_SCENARIOS = ["agent-normal", "agent-permission", "agent-question", "agent-error", "agent-throttle", "agent-subagents", "agent-notes", "agent-delegation", "agent-plan"] as const;
+export const AGENT_SCENARIOS = ["agent-normal", "agent-permission", "agent-question", "agent-error", "agent-throttle", "agent-subagents", "agent-notes", "agent-delegation", "agent-plan", "agent-stops"] as const;
 export type AgentScenario = (typeof AGENT_SCENARIOS)[number];
 /** What a run plays: a scenario, or the reviewer script every `reviewer` run gets (the Review UI parses its findings). */
 type ScriptKey = AgentScenario | AcpScenario | "agent-review" | "showcase";
@@ -175,7 +179,7 @@ function toWire(p: MockPayload): EventPayload {
     case "text.done":
       return { ...p, text: p.text ?? "" };
     case "permission.request":
-      return { ...p, options: p.options.map((o) => (o === "deny" ? "deny" : o === "allowRun" ? "allow_run" : "allow_once")).filter((o, i, all) => all.indexOf(o) === i) };
+      return { ...p, options: p.options.map((o) => (o === "deny" ? "deny" : o === "allowRun" ? "allow_run" : o === "allowAlways" ? "allow_always" : "allow_once")).filter((o, i, all) => all.indexOf(o) === i) };
     case "question.request": {
       const { multi: _multi, ...rest } = p;
       return { ...rest, options: p.options.map((o) => ({ label: o.label, description: o.description })) };
@@ -192,6 +196,8 @@ export interface Ctx {
   tool(toolId: string, p: { name: string; toolKind: Extract<EventPayload, { kind: "tool.start" }>["toolKind"]; summary: string; input?: unknown; parentToolId?: string }, result: { status?: "ok" | "error" | "denied"; output?: string; diff?: ToolDiff; ms?: number }, runMs?: number): Promise<void>;
   usage(input: number, output: number, perModel?: ModelTokens[]): void;
   permission(reqId: string, toolId: string, intent: Extract<EventPayload, { kind: "permission.request" }>["intent"], options: PermissionDecision[], sessionAllow?: { kind: "exec" | "net" | "mcp" | "write"; scope: string }): Promise<PermissionDecision>;
+  /** A tier-2 stop: a card that asks in EVERY mode (Automatic and Bypass too), is never answered by a saved allow, and logs how far the yes reaches. */
+  confirmCard(reqId: string, toolId: string, intent: Extract<EventPayload, { kind: "permission.request" }>["intent"], confirm: ConfirmOffer): Promise<{ decision: PermissionDecision; feedback?: string }>;
   /** ExitPlanMode: the approval card with the full plan. Approving continues in `mode` (the run is switched), rejecting keeps Plan and returns the note. */
   plan(reqId: string, toolId: string, text: string): Promise<{ approved: boolean; mode?: PermissionMode; feedback?: string }>;
   question(reqId: string, prompt: string, options: { id: string; label: string; description?: string }[], multi?: boolean): Promise<QuestionAnswer>;
@@ -304,6 +310,30 @@ const SCRIPTS: Record<ScriptKey, Script> = {
     c.emit({ kind: "tool.result", toolId: "t3", status: "ok", output: "Packages: +2\nDone in 3.1s", durationMs: 3100 });
     await c.stream("m2", ["Installed and done."]);
     c.usage(4100, 520);
+  },
+
+  // Tier-2 stops: a secret file of the project, a `.env` edit and a prompt of the Claude CLI. They ask in every mode, and a no is a clear message to the agent.
+  "agent-stops": async (c) => {
+    c.emit({ kind: "status", state: "running" });
+    await c.stream("m1", ["I need the database settings from `.env` and to run a script the CLI flagged.\n\n"]);
+    c.emit({ kind: "tool.start", toolId: "t2", name: "Read", toolKind: "read", summary: ".env", input: { file_path: "/work/admin/.env" } });
+    const d1 = await c.confirmCard("p1", "t2", { class: "read", tool: "Read", paths: ["/work/admin/.env"], summary: "Read /work/admin/.env" }, { kind: "secretFile", rule: "read.never-read", scope: "/work/admin/.env", repo: "/work/admin" });
+    if (d1.decision === "deny") {
+      c.emit({ kind: "tool.result", toolId: "t2", status: "denied", output: d1.feedback ?? "The user declined. This stays stopped; carry on without it." });
+      await c.stream("m2", ["Understood, I will not read `.env`."]);
+      return;
+    }
+    c.emit({ kind: "tool.result", toolId: "t2", status: "ok", output: "DB_HOST=…", durationMs: 30 });
+    c.emit({ kind: "tool.start", toolId: "t3", name: "Bash", toolKind: "exec", summary: "node patch.js", input: { command: "node /tmp/patch.js && sed -n 1,25p src/a.ts" } });
+    const d2 = await c.confirmCard("p2", "t3", { class: "exec", tool: "Bash", rawCommand: "node /tmp/patch.js && sed -n 1,25p src/a.ts", summary: "Run the patch" }, { kind: "cliPrompt", rule: "cli.prompt-denied", scope: "Contains brace with quote character (expansion obfuscation)", repo: "/work/admin" });
+    if (d2.decision === "deny") {
+      c.emit({ kind: "tool.result", toolId: "t3", status: "denied", output: d2.feedback ?? "The user declined." });
+      await c.stream("m3", ["Skipping the script."]);
+      return;
+    }
+    c.emit({ kind: "tool.result", toolId: "t3", status: "ok", output: "done", durationMs: 90 });
+    await c.stream("m3", ["Both done."]);
+    c.usage(2100, 300);
   },
 
   "agent-question": async (c) => {
@@ -460,6 +490,8 @@ interface MockAgent {
   notes: { noteId: string; target: string }[];
   /** `Agent`/`Task` calls that have started and have no result yet. */
   openAgents: Set<string>;
+  /** The offers of the tier-2 cards that wait (an answer to one is checked against its kind). */
+  confirms: Map<string, ConfirmOffer>;
 }
 
 /** What the card answered with: the decision, and for ExitPlanMode the mode to continue in or the note sent back. */
@@ -467,6 +499,7 @@ interface Answer {
   decision: PermissionDecision;
   mode?: PermissionMode;
   feedback?: string;
+  confirmAlways?: boolean;
 }
 
 /** A saved allow covers the same kind of call: a command by its first words, a write by its class. */
@@ -487,7 +520,7 @@ function checkMode(provider: string, mode: PermissionMode, confirmBypass: boolea
 
 type AgentApi = Pick<
   Ipc,
-  "agentRoles" | "agentsAutoInfo" | "agentStart" | "agentSend" | "agentInterrupt" | "agentNote" | "agentAnswerPermission" | "agentSetPermission" | "agentModes" | "agentMcpStatus" | "agentMcpReconnect" | "agentAnswerQuestion" | "agentList" | "agentHistory" | "agentRewind" | "agentRepoFiles" | "onAgentEvents"
+  "agentRoles" | "agentsAutoInfo" | "agentStart" | "agentSend" | "agentInterrupt" | "agentNote" | "agentAnswerPermission" | "agentSetPermission" | "agentModes" | "agentMcpStatus" | "agentMcpReconnect" | "agentAnswerQuestion" | "agentList" | "agentHistory" | "agentRewind" | "agentRepoFiles" | "onAgentEvents" | "stopAllowList" | "stopAllowRevoke"
 >;
 
 /** Deterministic agent backend for the browser and tests. `scale` multiplies every delay (0 = as fast as the event loop allows). */
@@ -499,6 +532,7 @@ export function createMockAgents(scenarioName: string, scale: number): AgentApi 
   let queue: AgentEvent[] = [];
   let timer: ReturnType<typeof setTimeout> | undefined;
   let counter = 0;
+  const stopAllow: StopAllowEntry[] = [];
   const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms * scale));
 
   const flush = () => {
@@ -550,7 +584,7 @@ export function createMockAgents(scenarioName: string, scale: number): AgentApi 
       switchableModes: supportsAllModes(provider) ? [...ALL_MODES] : [],
       ...(req.location ? { location: req.location } : {}),
     };
-    const agent: MockAgent = { summary, log: [], seq: 0, turn: 0, retries: 0, script, running: false, cancelled: false, openTools: new Set(), pending: new Map(), cumulative: { input: 0, output: 0 }, saved: new Set(), notes: [], openAgents: new Set() };
+    const agent: MockAgent = { summary, log: [], seq: 0, turn: 0, retries: 0, script, running: false, cancelled: false, openTools: new Set(), pending: new Map(), cumulative: { input: 0, output: 0 }, saved: new Set(), notes: [], openAgents: new Set(), confirms: new Map() };
     agents.set(id, agent);
     return agent;
   }
@@ -644,6 +678,16 @@ export function createMockAgents(scenarioName: string, scale: number): AgentApi 
         ctx.emit({ kind: "permission.resolved", reqId, outcome: decision === "deny" ? "deny" : "allow", by: "user" });
         ctx.emit({ kind: "status", state: "running" });
         return decision;
+      },
+      confirmCard: async (reqId, toolId, intent, confirm) => {
+        agent.confirms.set(reqId, confirm);
+        ctx.emit({ kind: "permission.request", reqId, toolId, intent, options: ["allowOnce", "allowRun", "allowAlways", "deny"], confirm } as MockPayload);
+        ctx.emit({ kind: "status", state: "waitingUser" });
+        const a = await ask<Answer>(reqId);
+        const grant = a.decision === "allowRun" ? "run" : a.decision === "allowAlways" ? "always" : "once";
+        ctx.emit({ kind: "permission.resolved", reqId, outcome: a.decision === "deny" ? "deny" : "allow", by: "user", ...(a.decision === "deny" ? {} : { grant }) } as Extract<EventPayload, { kind: "permission.resolved" }>);
+        ctx.emit({ kind: "status", state: "running" });
+        return { decision: a.decision, feedback: a.feedback };
       },
       plan: async (reqId, toolId, text) => {
         const intent = { class: "other", tool: "ExitPlanMode", summary: "ExitPlanMode: leave plan mode" } as Extract<EventPayload, { kind: "permission.request" }>["intent"];
@@ -785,8 +829,14 @@ export function createMockAgents(scenarioName: string, scale: number): AgentApi 
       if (!agent || !resolve) return;
       // The host refuses an answer for a request that is no longer allowed: a tightening made it a denial.
       if (decision !== "deny" && agent.withdrawn?.has(requestId)) throw { code: "modeChanged", message: "The rules changed while this was waiting" };
+      const offer = agent.confirms.get(requestId);
+      if (offer && decision === "allowAlways") {
+        if ((offer.kind === "secretFile" || offer.kind === "secretEdit") && !extra?.confirmAlways) throw { code: "confirmationRequired", message: "Allowing a secret file for good needs a second confirmation" };
+        if (stopAllow.length >= MAX_STOP_ALLOW) throw { code: "allowListFull", message: `The always-list holds ${MAX_STOP_ALLOW} entries; revoke one in Settings > Safety first` };
+        if (!stopAllow.some((e) => e.repo === offer.repo && e.kind === offer.kind && e.scope === offer.scope)) stopAllow.push({ id: `sa-${++counter}`, repo: offer.repo, kind: offer.kind, scope: offer.scope, rule: offer.rule, addedMs: Date.now() });
+      }
       if (extra?.mode && extra.mode !== "ask" && extra.mode !== "edit" && extra.mode !== "automatic") throw { code: "invalidMode", message: `${extra.mode} cannot be chosen when leaving plan mode` };
-      resolve({ decision, mode: extra?.mode, feedback: extra?.feedback } satisfies Answer);
+      resolve({ decision, mode: extra?.mode, feedback: extra?.feedback, confirmAlways: extra?.confirmAlways } satisfies Answer);
     },
     agentSetPermission: async (agentId, mode, opts) => {
       const agent = agents.get(agentId);
@@ -829,6 +879,13 @@ export function createMockAgents(scenarioName: string, scale: number): AgentApi 
     },
     agentHistory: async (agentId, afterSeq = 0) => structuredClone((agents.get(agentId)?.log ?? []).filter((e) => e.seq > afterSeq)),
     agentRewind: async () => {},
+    stopAllowList: async () => structuredClone(stopAllow),
+    stopAllowRevoke: async (id) => {
+      const at = stopAllow.findIndex((e) => e.id === id);
+      if (at < 0) return false;
+      stopAllow.splice(at, 1);
+      return true;
+    },
     agentRepoFiles: async (repoId, query, limit) => {
       const q = query.toLowerCase();
       const all = FILES[repoId] ?? [];

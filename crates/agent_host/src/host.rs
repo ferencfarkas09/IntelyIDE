@@ -2193,6 +2193,11 @@ impl Inner {
     ) -> Result<(Option<StopGrant>, Option<String>, StopGrantScope), EngineError> {
         let base = if card.kind == ConfirmKind::CliPrompt { cli_prompt_intent(intent, &card.scope) } else { intent.clone() };
         let fresh = rejudge(&run.ctx, agent_id, &format!("perm-{tool_id}"), &run.meta.provider, &base);
+        // another answer got there first (a grant for the run, or an always entry, now lifts this very stop): the click is a yes and there is
+        // nothing left to grant; "always" still needs the host's own derivation below
+        if fresh.decision == Decision::Allow && matches!(decision, PermissionDecision::AllowOnce | PermissionDecision::AllowRun) {
+            return Ok((None, None, if decision == PermissionDecision::AllowOnce { StopGrantScope::Once } else { StopGrantScope::Run }));
+        }
         let offer = fresh.confirm.filter(|_| fresh.decision == Decision::Deny && fresh.by == DecidedBy::HardStop);
         let Some(offer) = offer.filter(|o| o.kind == card.kind && (card.kind != ConfirmKind::CliPrompt || o.scope == card.scope)) else {
             return Err(err("rulesMoved", "the rules no longer offer to allow this; the request was refused. Ask again if it still applies"));
