@@ -8,6 +8,7 @@ export const SHOTS = {
   'push-dialog': 'Push dialog with one checkbox per repository',
   'agent-approval': 'Agent window (Standard): the same run, with the hard stop and the permission card',
   dashboard: 'Dashboard (Glass): the heading, the number tiles, Run pulse, Burn-down, Repo heartbeat and Stack tips',
+  'context-meter': 'Agent window (Glass) with the context meter open under the ring of the run header, and the weekly plan usage in the bottom bar',
   'new-run': 'New run dialog (Glass): the prompt, saved prompts, repositories as tick cards, and mode, model and effort in the side column',
   rewind: 'Rewind: the snapshot taken at the start of an agent run',
   'workspaces-welcome': 'Welcome screen with recent workspaces and the workspace switcher',

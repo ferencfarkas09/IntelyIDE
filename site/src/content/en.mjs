@@ -193,7 +193,7 @@ export default {
   hero: {
     kicker: 'By developers, for developers · Free and open source',
     title: 'Every repo. One window. <span class="grad">Agents that finish sooner.</span>',
-    lead: 'A fast, lightweight desktop IDE for working across several git repositories at once. Its agents can read and edit, but they never commit or push: you do. Version 1.15 brings a calmer look and cards that ask you instead of refusing.',
+    lead: 'A fast, lightweight desktop IDE for working across several git repositories at once. Its agents can read and edit, but they never commit or push: you do. Version 1.15 brings a calmer look, a context meter and cards that ask you instead of refusing.',
     shotAlt: 'The IntelyIDE Agent window in the 1.15 look: the list of runs on the left; in the middle a run where a git commit was blocked by a hard stop and a card asks whether the agent may run a command, with Deny and Allow once; the run details and its checkpoints on the right.',
     statsLabel: 'IntelyIDE in three figures',
     stats: [
@@ -206,11 +206,11 @@ export default {
   whatsNew: {
     eyebrow: 'New in 1.15',
     title: 'Asks you, shows you, stays out of your way',
-    lead: 'A quieter window, a card where there used to be a flat refusal, and a clearer view of what a long run costs.',
+    lead: 'A quieter window, a card where there used to be a flat refusal, and a meter that shows how much room a long run has left.',
     cards: [
       { icon: 'sparkles', to: 'gallery', more: 'See the screenshots', h: 'A calmer, clearer look', p: 'The window, the runs list, the run view, the New run dialog and the Dashboard are redrawn in both styles, Standard and Glass, light and dark. Everything is where it was; spacing, type, cards and controls are cleaner.' },
       { icon: 'shield', to: 'ask', more: 'What it asks, and what it never does', h: 'It asks instead of blocking', p: 'When an agent wants to read or edit a secret-looking file of your project, the run shows a card. You answer at your computer: deny, allow once, allow for this run, or always allow that file.' },
-      { icon: 'pie', to: 'context', more: 'How it works', h: 'Long runs that cost less', p: 'When the context of a run gets large, a card offers to continue in a fresh run or to compact the conversation, and the run shows how much of its cost is the conversation being read again.' },
+      { icon: 'pie', to: 'context', more: 'How it works', h: 'A context meter and plan usage', p: 'A ring in the header of a run shows how much of the model’s context window the run uses, and lets you carry a summary into a fresh run before the limit. The bottom bar shows how much of your weekly plan limit is used.' },
     ],
     items: [
       {
@@ -227,19 +227,23 @@ export default {
           'Everything else stays a hard stop that nothing lifts: commit, push, merge, anything inside <code>.git</code>, lockfiles, and keys and credentials outside the project',
         ],
         note: 'Best effort, like the other safety layers. The safety model in the repository lists every rule and what is not proven yet.',
+        shot: [],
       },
       {
         id: 'context',
-        h: 'Token saver for long runs',
-        p: 'Every turn of a run sends the whole conversation to the model again, so a long run gets more expensive with each step. The Context panel of a run now helps you act on it.',
+        h: 'Context meter, plan usage and the token saver',
+        p: 'Every turn of a run sends the whole conversation to the model again, so a long run fills its context and costs more with each step. Now you can see both, and act before a run hits the limit.',
         list: [
-          'Past a threshold (60% of the estimated context by default) a card offers Continue in a fresh run: the New run dialog opens with the task, a summary of the run and the files it changed. Nothing starts until you press Start run',
-          'Compact the conversation is offered when the Claude Code CLI of the run supports it',
-          'Tell the agent: beside the warning that a file was read again and again in large chunks, one button asks the agent to keep notes and read only the part it needs',
-          'When the provider reported usage, one line says about how much of the cost was the conversation being read again',
+          'A ring in the header of a run shows the percent of the model’s context window in use. It shows only what the run reported: it does not estimate, and a run that reported nothing has no ring',
+          'A click opens the context meter: the tokens used of the model’s real window (200k or 1M), about how many turns are left at this pace, Continue in a fresh run, Compact now where the Claude Code CLI of the run supports it, and Copy summary',
+          'Continue in a fresh run opens the New run dialog with the task, a summary of the run and the files it changed. Nothing starts until you press Start run, and the old run stays as it is',
+          'The bottom bar shows Weekly: how much of the weekly limit of your Claude plan is used, and the week of a single model class when your plan data names one. A click lists every window with its reset time',
+          'The plan numbers are read through your own Claude Code CLI a few seconds after the app starts and then every five minutes. Settings &gt; Usage switches the items off',
+          'In the Context panel: Tell the agent, beside the warning that a file was read again and again in large chunks, and, when the provider reported usage, about how much of the cost was the conversation being read again',
           'Optional token-saving habits for Claude runs, off by default: read a file once, read big files in parts, skip build and cache folders. Settings shows the exact text',
         ],
-        note: 'The size of the context is an estimate, and a nudge is a request to the agent, not a rule.',
+        note: 'The meter shows what the run reported and limits nothing the agent can search or open. A nudge is a request to the agent, not a rule.',
+        shot: ['context-meter', 'The context meter open under the ring in the header of a run: the tokens used of the model’s window with a bar, the model, about how many turns are left at this pace, and the buttons Continue in a fresh run and Copy summary. The bottom bar of the window shows the weekly plan usage and the week of two model classes.'],
       },
     ],
     fixesH: 'Also fixed',

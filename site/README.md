@@ -73,7 +73,8 @@ python3 site/scripts/make-images.py /tmp/shots                                  
 ```
 
 The 1.15 pictures were made this way from the branch of the visual refresh (#117). `hero` is the Agent window in the Glass style,
-`agent-approval` the same run in the Standard style, `dashboard` and `new-run` the Dashboard and the New run dialog. The `mongo-studio`
+`agent-approval` the same run in the Standard style, `dashboard` and `new-run` the Dashboard and the New run dialog. `context-meter`
+needs a build that has the context meter (the token saver branch, #100, until it is merged). The `mongo-studio`
 recipe no longer finds its text in the static build and `team-chat` needs the dev server (`pnpm --dir ui exec vite`, with `VITE_MOCK_IPC=1`).
 
 The capture script drives Google Chrome over CDP and expects the macOS path. On another machine point `SHOTS_CHROME` at a Chrome or Chromium binary, and add `SHOTS_NO_SANDBOX=1` in a container that runs as root.
@@ -85,7 +86,7 @@ gradient mask, so the line stays at 45 degrees for any aspect ratio, and the pic
 always shown, whatever theme the visitor chose; the light picture carries the alt text and the dark one is hidden from screen readers.
 A slot that has only one theme is shown as a plain picture, so capture both (`--theme light` and `--theme dark`) for every name.
 A slot without real files falls back to a generated SVG placeholder (`node scripts/gen-placeholders.mjs`).
-Names: `hero`, `agent-approval`, `dashboard`, `new-run`, `changes-tree`, `push-dialog`, `rewind`, `workspaces-welcome`, `preview`,
+Names: `hero`, `agent-approval`, `dashboard`, `new-run`, `context-meter`, `changes-tree`, `push-dialog`, `rewind`, `workspaces-welcome`, `preview`,
 `remote`, `mongo-studio`, `providers`, `integrations`, `mcp-catalog`, `versions`, `versions-diff`, `intelyfix`, `team`, `team-chat`,
 `team-commits`, `team-memory`, `api-contract`, `api-explorer`. All shots are English.
 The About dialog shot is not used: it still shows "your Happy tools" copy, a dev version and the old lockup subline.

@@ -372,6 +372,7 @@ function whatsNew(ctx) {
 <p>${f.p}</p>
 ${tickList(ctx.t, f.list, 4)}
 <p class="note">${f.note}</p>
+${f.shot.length ? frame(picture(ctx.root, f.shot[0], f.shot[1], { sizes: '(min-width: 1200px) 510px, 92vw' })) : ''}
 </article>`)
     .join('\n');
   return `<section class="section" id="new" aria-labelledby="new-h">

@@ -129,6 +129,18 @@ const SHOTS = {
     await sleep(900);
     await dismissToasts(c);
   },
+  // The ring of the run header and its popover, with the plan usage in the bottom bar (the mock's demo numbers). The run that is
+  // past the warning colour has enough turns for the "At this pace" row.
+  async "context-meter"(c) {
+    await waitText(c, "Which routes touch the orders table?");
+    await c.clickEl(".run-card, .run-row__main", "Which routes touch the orders table?");
+    await c.waitFor(`!!document.querySelector('[data-testid="context-ring"]') && !!document.querySelector('[data-testid="plan-item-weekly"]')`, WAIT, "the context ring and the weekly plan item");
+    await sleep(600);
+    await dismissToasts(c);
+    await c.clickEl('[data-testid="context-ring"]');
+    await c.waitFor(`!!document.querySelector('[data-testid="context-meter-pace"]')`, WAIT, "the context meter with its pace row");
+    await sleep(600);
+  },
   async "new-run"(c) {
     await waitText(c, "Runs");
     await dismissToasts(c);
@@ -352,6 +364,7 @@ SHOTS["agent-approval"].meta = { query: "mode=agent&skin=standard" };
 // the Commit panel closed, so the Dashboard has the width of the window
 SHOTS.dashboard.meta = { query: "mode=editor&skin=glass", storage: { "intely.layout.panel": "0" } };
 SHOTS["new-run"].meta = { query: "mode=agent&skin=glass" };
+SHOTS["context-meter"].meta = { query: "mode=agent&skin=glass" };
 
 /** Team (Beta): the Team tab with the mock team of three (`team=on`). */
 async function openTeamTab(c) {

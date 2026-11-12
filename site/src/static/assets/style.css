@@ -635,6 +635,7 @@ ol.cards { list-style: none; padding: 0; }
 .detail { padding: clamp(22px, 3vw, 32px); background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); scroll-margin-top: 130px; }
 .detail > p { color: var(--ink-mute); }
 .detail .note { margin: 0; color: var(--ink-3); font-size: .875rem; }
+.detail .shot { margin-top: 20px; }
 .fixes { margin-top: 28px; }
 .fixes h3 { font-size: 1.0625rem; margin-bottom: .6em; }
 .fixes ul { margin: 0; padding-left: 1.2em; color: var(--ink-mute); display: grid; gap: 6px; }

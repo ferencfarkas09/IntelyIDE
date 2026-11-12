@@ -192,7 +192,7 @@ export default {
   hero: {
     kicker: 'Fejlesztőktől fejlesztőknek · Ingyenes és nyílt forráskódú',
     title: 'Minden repó. Egy ablak. <span class="grad">Hamarabb végző ügynökök.</span>',
-    lead: 'Gyors, könnyű asztali IDE azoknak, akik egyszerre több git repóban dolgoznak. Az ügynökei olvashatnak és szerkeszthetnek, de sosem commitolnak és nem pusholnak: az a te dolgod. Az 1.15-ös verzió letisztultabb külsőt hoz, és kártyákat, amelyek elutasítás helyett megkérdeznek.',
+    lead: 'Gyors, könnyű asztali IDE azoknak, akik egyszerre több git repóban dolgoznak. Az ügynökei olvashatnak és szerkeszthetnek, de sosem commitolnak és nem pusholnak: az a te dolgod. Az 1.15-ös verzió letisztultabb külsőt, kontextusmérőt és olyan kártyákat hoz, amelyek elutasítás helyett megkérdeznek.',
     shotAlt: 'Az IntelyIDE Ügynök ablaka az 1.15-ös külsővel: balra a futások listája; középen egy futás, amelyben egy git commitot kemény tiltás állított meg, alatta egy kártya kérdezi, hogy az ügynök lefuttathat-e egy parancsot, Elutasítás és Egyszeri engedély gombbal; jobbra a futás adatai és az ellenőrzőpontjai.',
     statsLabel: 'Az IntelyIDE három számban',
     stats: [
@@ -205,11 +205,11 @@ export default {
   whatsNew: {
     eyebrow: 'Újdonságok az 1.15-ben',
     title: 'Megkérdez, megmutatja, és nincs útban',
-    lead: 'Nyugodtabb ablak, kártya ott, ahol eddig csak egy kurta elutasítás volt, és tisztább kép arról, mibe kerül egy hosszú futás.',
+    lead: 'Nyugodtabb ablak, kártya ott, ahol eddig csak egy kurta elutasítás volt, és egy mérő, amely megmutatja, mennyi hely maradt még egy hosszú futásban.',
     cards: [
       { icon: 'sparkles', to: 'gallery', more: 'Nézd meg a képeken', h: 'Letisztultabb, átláthatóbb külső', p: 'Újrarajzoltuk az ablakot, a futások listáját, a futás nézetét, az Új futás ablakot és az Irányítópultot, mindkét stílusban (Standard és Üveg), világosban és sötétben is. Minden ott van, ahol eddig; a térközök, a betűk, a kártyák és a vezérlők lettek rendezettebbek.' },
       { icon: 'shield', to: 'ask', more: 'Mit kérdez meg, és mit nem enged soha', h: 'Tiltás helyett megkérdez', p: 'Ha az ügynök a projekted egy titoknak látszó fájlját olvasná vagy szerkesztené, a futásban megjelenik egy kártya. A gépednél ülve te döntesz: elutasítod, egyszer engedélyezed, erre a futásra engedélyezed, vagy azt a fájlt mindig engedélyezed.' },
-      { icon: 'pie', to: 'context', more: 'Így működik', h: 'Olcsóbb hosszú futások', p: 'Ha egy futás kontextusa megnő, egy kártya felajánlja, hogy folytasd friss futásban, vagy tömörítsd a beszélgetést, a futás pedig megmutatja, a költség mekkora része megy el a beszélgetés újraolvasására.' },
+      { icon: 'pie', to: 'context', more: 'Így működik', h: 'Kontextusmérő és csomaghasználat', p: 'A futás fejlécében egy gyűrű mutatja, mennyit használ a futás a modell kontextusablakából, és még a határ előtt átviheted az összefoglalót egy friss futásba. Az alsó sávban látod, mennyi fogyott a csomagod heti keretéből.' },
     ],
     items: [
       {
@@ -226,19 +226,23 @@ export default {
           'Minden más kemény tiltás marad, amelyet semmi sem old fel: a commit, a push, a merge, a <code>.git</code> teljes tartalma, a lockfájlok, valamint a projekten kívüli kulcsok és hitelesítő adatok',
         ],
         note: 'Legjobb szándék szerint működik, mint a többi védelmi réteg. A repóban lévő biztonsági modell minden szabályt felsorol, és azt is, ami még nincs bizonyítva.',
+        shot: [],
       },
       {
         id: 'context',
-        h: 'Tokenspórolás hosszú futásoknál',
-        p: 'A futás minden köre újra elküldi a modellnek a teljes beszélgetést, ezért a hosszú futás lépésről lépésre drágul. A futás Kontextus panelje mostantól abban is segít, hogy tegyél ellene.',
+        h: 'Kontextusmérő, csomaghasználat és tokenspórolás',
+        p: 'A futás minden köre újra elküldi a modellnek a teljes beszélgetést, ezért a hosszú futás kontextusa telik, és lépésről lépésre drágul. Mostantól mindkettőt látod, és még a határ előtt tehetsz ellene.',
         list: [
-          'Egy küszöb fölött (alapból a becsült kontextus 60%-ánál) egy kártya felajánlja a Folytatás friss futásban lehetőséget: megnyílik az Új futás ablak a feladattal, a futás összefoglalójával és a módosított fájlok listájával. Semmi sem indul el, amíg meg nem nyomod a Futás indítása gombot',
-          'A beszélgetés tömörítése akkor jelenik meg, ha a futás Claude Code CLI-je támogatja',
-          'Szólj az ügynöknek: ha egy fájlt újra meg újra nagy darabokban olvas be, a figyelmeztetés melletti gombbal megkérheted, hogy jegyzeteljen, és csak azt a részt olvassa, amire szüksége van',
-          'Ha a szolgáltató közölte a felhasználást, egy sor megmondja, a költség nagyjából mekkora része ment el a beszélgetés újraolvasására',
+          'A futás fejlécében egy gyűrű mutatja, hány százalékát használja a futás a modell kontextusablakának. Csak azt mutatja, amit a futás jelentett: nem becsül, és ha a futás semmit sem jelentett, gyűrű sincs',
+          'Kattintásra megnyílik a kontextusmérő: a felhasznált tokenek a modell valódi ablakához mérve (200 ezer vagy 1 millió), az, hogy ilyen ütemben még nagyjából hány kör fér bele, a Folytatás friss futásban, a Tömörítés most (ha a futás Claude Code CLI-je támogatja) és az Összegzés másolása',
+          'A Folytatás friss futásban megnyitja az Új futás ablakot a feladattal, a futás összefoglalójával és a módosított fájlok listájával. Semmi sem indul el, amíg meg nem nyomod a Futás indítása gombot, a régi futás pedig érintetlen marad',
+          'Az alsó sávban ott a Heti elem: mennyi fogyott a Claude-csomagod heti keretéből, és ha a csomagod adatai egyetlen modellosztályra külön heti keretet neveznek meg, az is megjelenik. Kattintásra minden ablakot látsz, azzal együtt, hogy mikor áll vissza',
+          'A csomag számait az app a saját Claude Code CLI-den keresztül olvassa be, néhány másodperccel az indulás után, majd ötpercenként. A Beállítások &gt; Használat alatt kikapcsolhatod',
+          'A Kontextus panelen: Szólj az ügynöknek, ha egy fájlt újra meg újra nagy darabokban olvas be; és ha a szolgáltató közölte a felhasználást, egy sor megmondja, a költség nagyjából mekkora része ment el a beszélgetés újraolvasására',
           'Választható tokenspóroló szokások a Claude-futásokhoz, alapból kikapcsolva: egy fájlt egyszer olvasson el, a nagy fájlokat részletekben, a build- és gyorsítótár-mappákat hagyja ki. A pontos szöveget a Beállításokban látod',
         ],
-        note: 'A kontextus mérete becslés, a figyelmeztetés pedig kérés az ügynökhöz, nem szabály.',
+        note: 'A mérő azt mutatja, amit a futás jelentett, és semmiben sem korlátozza, mit kereshet vagy nyithat meg az ügynök. A figyelmeztetés kérés az ügynökhöz, nem szabály.',
+        shot: ['context-meter', 'A kontextusmérő nyitva a futás fejlécében lévő gyűrű alatt: a felhasznált tokenek a modell ablakához mérve egy sávval, a modell, az, hogy ilyen ütemben nagyjából hány kör van hátra, valamint a Folytatás friss futásban és az Összegzés másolása gomb. Az ablak alsó sávjában a heti csomaghasználat és két modellosztály heti kerete látszik.'],
       },
     ],
     fixesH: 'Javítottuk is',
