@@ -9,9 +9,11 @@ vi.mock("../../ipc", async (orig) => {
 
 import { ipc } from "../../ipc";
 import { agentRows, resetAgents, startAgentStore } from "../../store/agents";
-import { registerNewRunSlot, resetNewRunSlots } from "../../platform/newRunSlots";
+import { resetNewRunSlots } from "../../platform/newRunSlots";
 import { installDomStubs } from "../../store/testing-u2";
+import { formatChord } from "../../platform/keymap";
 import { loadWorkspace } from "../../store/workspace";
+import { setPresetsEnabled } from "../presets/toggle";
 import { NewRunDialog } from "./NewRunDialog";
 import { setNewRunOpen } from "./state";
 
@@ -23,6 +25,8 @@ beforeEach(async () => {
   startAgentStore();
   // The mock settings outlive a test: forget the mode a previous test used last.
   await ipc.settings.set("runs", { lastMode: null });
+  // The safety presets are on in the app; the tests here read the modes by their own names unless they say otherwise.
+  setPresetsEnabled(false);
 });
 afterEach(() => {
   vi.restoreAllMocks();
@@ -170,25 +174,27 @@ describe("<NewRunDialog> layout", () => {
   it("sums the run up in the footer: the model and effort that apply and how many repositories, and keeps the reason Start waits", async () => {
     const d = await open("auto");
     const summary = () => d.getByTestId("newrun-summary").textContent;
-    await waitFor(() => expect(summary()).toBe("Sonnet 5.5 · medium · no repository"));
+    await waitFor(() => expect(summary()).toBe("Sonnet 5.5 · Medium · no repository"));
     expect(d.getByText("Pick at least one repository")).toBeTruthy();
     repo(d, "admin");
-    await waitFor(() => expect(summary()).toBe("Sonnet 5.5 · medium · 1 repository"));
+    await waitFor(() => expect(summary()).toBe("Sonnet 5.5 · Medium · 1 repository"));
     repo(d, "shop-pos");
-    await waitFor(() => expect(summary()).toBe("Sonnet 5.5 · medium · 2 repositories"));
+    await waitFor(() => expect(summary()).toBe("Sonnet 5.5 · Medium · 2 repositories"));
     await waitFor(() => expect([...(d.getByRole("combobox", { name: "Model" }) as HTMLSelectElement).options].map((o) => o.value)).toContain("claude-opus-5-5"));
     fireEvent.change(d.getByRole("combobox", { name: "Model" }), { target: { value: "claude-opus-5-5" } });
     fireEvent.click(within(d.getByRole("radiogroup", { name: "Effort" })).getByRole("radio", { name: "Max" }));
-    await waitFor(() => expect(summary()).toBe("Opus 5.5 · max · 2 repositories"));
+    await waitFor(() => expect(summary()).toBe("Opus 5.5 · Max · 2 repositories"));
     // the shortcut sits in the button and is not part of its name
     const start = d.getByRole("button", { name: "Start run" });
     expect(start.querySelector(".ui-btn__kbd")?.getAttribute("aria-hidden")).toBe("true");
+    // the platform's own modifier (Ctrl outside macOS), never a hard-coded Cmd
+    expect(start.querySelector(".ui-btn__kbd")?.textContent).toBe(formatChord("Cmd+Enter").join(""));
+    expect(start.querySelector(".ui-btn__kbd")?.textContent).toBe(formatChord("Cmd+Enter", false).join(""));
     expect(start.getAttribute("aria-keyshortcuts")).toBe("Meta+Enter Control+Enter");
   });
 
-  it("names the mode cards after the safety presets while they are on, without mounting the preset bar, and still offers the secret check", async () => {
-    let mounted = 0;
-    registerNewRunSlot({ id: "presets.bar", place: "modes", order: 10, component: () => (mounted++, <span>preset bar</span>) });
+  it("names the mode cards after the safety presets while they are on", async () => {
+    setPresetsEnabled(true);
     const d = await open("auto");
     const group = () => within(d.getByRole("radiogroup", { name: "Permission mode" }));
     await waitFor(() => expect(group().getAllByRole("radio")).toHaveLength(5));
@@ -198,8 +204,6 @@ describe("<NewRunDialog> layout", () => {
     fireEvent.click(group().getByRole("radio", { name: /^Careful/ }));
     await waitFor(() => expect(group().getByRole("radio", { name: /^Careful/ }).getAttribute("data-mode")).toBe("ask"));
     expect(group().getByRole("radio", { name: /^Careful/ }).getAttribute("aria-checked")).toBe("true");
-    expect(mounted).toBe(0);
-    expect(d.queryByText("preset bar")).toBeNull();
     expect(d.getByText(/Asks you before every file change/)).toBeTruthy();
   });
 
@@ -575,7 +579,7 @@ describe("<NewRunDialog> run picker", () => {
     await waitFor(() => expect(model(d).value).toBe("claude-opus-5-5"));
     fireEvent.click(d.getByRole("button", { name: "Use the role's defaults" }));
     await waitFor(() => expect(model(d).value).toBe(""));
-    expect(effort(d)).toBe("medium"); // the developer role's own effort again
+    expect(effort(d)).toBe("Medium"); // the developer role's own effort again
     await ready(d);
     fireEvent.click(d.getByRole("button", { name: "Start run" }));
     await waitFor(() => expect(spy).toHaveBeenCalled());

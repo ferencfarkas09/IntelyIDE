@@ -1,5 +1,5 @@
 import type { Effort } from "@intely/protocol";
-import { createUniqueId, Show } from "solid-js";
+import { createMemo, Show } from "solid-js";
 import { modelLabel } from "../../components/chat/format";
 import { t, type MessageKey } from "../../i18n";
 import type { RoleProviderCaps } from "../../ipc/roles";
@@ -32,10 +32,18 @@ const EFFORT_KEY: Record<Effort, MessageKey> = {
   max: "runpicker.effortLevel.max",
 };
 export const effortText = (e: Effort): string => t(EFFORT_KEY[e]);
+/** The names that fit five segments side by side ("X-high"); the full name stays the accessible name and the tooltip. */
+const EFFORT_SHORT_KEY: Record<Effort, MessageKey> = {
+  low: "runpicker.effortShort.low",
+  medium: "runpicker.effortShort.medium",
+  high: "runpicker.effortShort.high",
+  xhigh: "runpicker.effortShort.xhigh",
+  max: "runpicker.effortShort.max",
+};
 
 /** New run: the exact model and effort of the run, and ultracode. Untouched, it picks nothing and the role's own values apply. */
 export default function RunPicker(props: RunPickerProps) {
-  const ids = { note: createUniqueId() };
+  let effortField: HTMLDivElement | undefined;
   const models = () => modelChoices(props.caps, props.provider);
   const listed = (id: string | undefined) => id !== undefined && models().some((m) => m.id === id);
   /** "Other model id..." is open: a picked model that is not in the list (an empty one right after choosing it). */
@@ -52,8 +60,17 @@ export default function RunPicker(props: RunPickerProps) {
   ];
   /** The effort the run gets now: the picked level, else the role's own (none when that is unknown or the model has none). */
   const effortNow = () => (props.value.effort && effort().levels.includes(props.value.effort) ? props.value.effort : props.defaultEffort && effort().levels.includes(props.defaultEffort) ? props.defaultEffort : undefined);
-  // The segments show the level's id as the CLI spells it (low ... max); the full name is the accessible name and the tooltip.
-  const effortOptions = () => effort().levels.map((l) => ({ value: l, label: l, ariaLabel: effortText(l), tooltip: effortText(l), disabled: props.disabled }));
+  // The same option objects for as long as the levels, the language and `disabled` stay the same: the segmented control keys its
+  // buttons by them, so new objects on every pick would remount the buttons and drop the keyboard focus of the one just chosen.
+  const levelsKey = createMemo(() => effort().levels.join(" "));
+  const effortOptions = createMemo(() => {
+    const disabled = props.disabled;
+    return (levelsKey() ? (levelsKey().split(" ") as Effort[]) : []).map((l) => {
+      const full = effortText(l);
+      const short = t(EFFORT_SHORT_KEY[l]);
+      return { value: l, label: short, ariaLabel: full, tooltip: full === short ? undefined : full, disabled };
+    });
+  });
   const picked = () => props.value.model !== undefined || props.value.effort !== undefined;
 
   const setModel = (model: string | undefined) => {
@@ -61,6 +78,12 @@ export default function RunPicker(props: RunPickerProps) {
     props.onChange({ ...props.value, model, effort: effortAfterModelChange(props.value.effort, levels) });
   };
   const chooseModel = (v: string) => (v === OTHER_MODEL ? setModel("") : setModel(v || undefined));
+  /** Back to the role's own effort; the picked model stays. The button goes away, so the focus moves to the level that now applies. */
+  const resetEffort = () => {
+    const { effort: _picked, ...rest } = props.value;
+    props.onChange(rest);
+    queueMicrotask(() => effortField?.querySelector<HTMLElement>('[role="radio"][tabindex="0"]')?.focus());
+  };
   const badTyped = () => otherOpen() && !isClaudeModelId(props.value.model!.trim());
 
   return (
@@ -89,12 +112,21 @@ export default function RunPicker(props: RunPickerProps) {
           </small>
         </Show>
       </Show>
-      <div class="newrun__field runpicker__effort">
-        <span class="newrun__label">{t("runpicker.effort")}</span>
+      <div class="newrun__field runpicker__effort" ref={effortField}>
+        <span class="newrun__label">
+          {t("runpicker.effort")}
+          <Show when={props.value.effort !== undefined}>
+            <span class="newrun__links">
+              <Button size="sm" variant="ghost" onClick={resetEffort} disabled={props.disabled}>
+                {t("runpicker.effortReset")}
+              </Button>
+            </span>
+          </Show>
+        </span>
         <Show when={effort().levels.length > 0}>
           <SegmentedControl<Effort | ""> size="lg" fullWidth aria-label={t("runpicker.effort")} options={effortOptions()} value={effortNow() ?? ""} onChange={(v) => v && props.onChange({ ...props.value, effort: v })} />
         </Show>
-        <small class="newrun__provider-note" id={ids.note}>
+        <small class="newrun__provider-note">
           {effort().unknownModel ? t("runpicker.unknownModel") : effort().levels.length === 0 && runModel() ? t("runpicker.noEffort") : t("runpicker.effortHint")}
         </small>
       </div>
