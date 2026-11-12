@@ -212,6 +212,85 @@ describe("<Transcript> follow mode", () => {
   });
 });
 
+describe("<Transcript> measuring", () => {
+  /** A ResizeObserver whose callbacks the test fires by hand (every observer of the element, with a real entry). */
+  function observers() {
+    const seen = new Map<Element, Array<(e: unknown[]) => void>>();
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(private cb: (e: unknown[]) => void) {}
+        observe(el: Element) {
+          seen.set(el, [...(seen.get(el) ?? []), this.cb]);
+        }
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    return seen;
+  }
+  /** The pane gets this box (0 x 0 = hidden): the observers of the scroller are told, as a browser would. */
+  function resize(seen: Map<Element, Array<(e: unknown[]) => void>>, el: HTMLElement, w: number, h: number) {
+    vi.spyOn(Element.prototype, "clientHeight", "get").mockReturnValue(h);
+    vi.spyOn(Element.prototype, "clientWidth", "get").mockReturnValue(w);
+    Object.defineProperties(el, { clientWidth: { value: w, configurable: true }, clientHeight: { value: h, configurable: true } });
+    const entry = { target: el, contentRect: { width: w, height: h }, borderBoxSize: [{ inlineSize: w, blockSize: h }], contentBoxSize: [{ inlineSize: w, blockSize: h }] };
+    for (const cb of seen.get(el) ?? []) cb([entry]);
+  }
+  /** Row heights as the "browser" currently lays them out; a hidden pane lays everything out at 0. */
+  function layout(heights: { value: number }) {
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(function (this: HTMLElement) {
+      return this.classList.contains("transcript__row") ? heights.value : 400;
+    });
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(700);
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      const h = this.classList.contains("transcript__row") ? heights.value : 400;
+      return { x: 0, y: 0, top: 0, left: 0, right: 700, bottom: h, width: 700, height: h, toJSON: () => ({}) } as DOMRect;
+    });
+  }
+  const tops = () => [...document.querySelectorAll<HTMLElement>(".transcript__row")].map((r) => Number.parseInt(r.style.transform.replace(/\D/g, "") || "0"));
+  const talk = () => view([{ kind: "text.delta", messageId: "m", text: "answer" }, { kind: "text.done", messageId: "m" }]);
+
+  it("reads the rows again when its pane comes back from a zero size: no row keeps a stale height, none is dropped", async () => {
+    const seen = observers();
+    const heights = { value: 60 };
+    layout(heights);
+    resize(seen, document.body, 700, 400);
+    render(() => <Transcript agentId="a1" view={talk()} />);
+    const log = await screen.findByRole("log");
+    await new Promise((r) => setTimeout(r, 0));
+    await waitFor(() => expect(tops().length).toBeGreaterThan(1));
+    const count = tops().length;
+    expect(tops()[1]).toBe(60);
+
+    // hidden: display:none lays everything out at 0
+    heights.value = 0;
+    resize(seen, log, 0, 0);
+
+    // shown again with taller rows, and WebKit never delivered the rows' own resize notifications
+    heights.value = 140;
+    resize(seen, log, 700, 400);
+    await waitFor(() => expect(tops().length).toBe(count));
+    await waitFor(() => expect(tops()[1]).toBe(140));
+    vi.restoreAllMocks();
+  });
+
+  it("leaves the rows alone for a resize that keeps the width", async () => {
+    const seen = observers();
+    const heights = { value: 60 };
+    layout(heights);
+    resize(seen, document.body, 700, 400);
+    render(() => <Transcript agentId="a1" view={talk()} />);
+    const log = await screen.findByRole("log");
+    await new Promise((r) => setTimeout(r, 0));
+    await waitFor(() => expect(tops().length).toBeGreaterThan(1));
+    heights.value = 140;
+    resize(seen, log, 700, 380);
+    expect(tops()[1]).toBe(60);
+    vi.restoreAllMocks();
+  });
+});
+
 describe("<Transcript> step limit", () => {
   beforeEach(() => {
     vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(900);

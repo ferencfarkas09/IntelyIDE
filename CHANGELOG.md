@@ -12,6 +12,7 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 ### Fixed
 
 - Agents: a property access such as `line.key`, `event.key` or `props.key` in inline code or in a script a command runs is no longer refused as a secret file. A bare name that is secret only by its extension (`*.key`, `*.pem`, `*.p8`, `*.p12`, `*.jks`, `*.keystore`, `*.pfx`) now counts only when no key file of that extension is near the command (its folder, the run's folder, or one folder below either), and a bare extension such as `.key` (what is left of a name built at run time) always counts; `.env`, `id_rsa`, names with a folder and home paths are judged as before, in every mode.
+- Agent window: the text of the conversation no longer goes blank while the agent keeps working (it came back only after switching the layout and back). The hover copy button on each message and the follow button of the run log no longer use the frosted-glass blur, which the Mac's web view could stop painting inside the scrolling list; they are plain tinted buttons now. The conversation list also measures its rows again when its pane returns from a zero size or changes width. This part is checked in tests only: the blank screen itself could not be reproduced outside a Mac.
 
 ### Security
 

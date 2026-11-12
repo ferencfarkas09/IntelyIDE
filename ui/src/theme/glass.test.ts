@@ -66,12 +66,18 @@ describe("glass.css", () => {
 
 describe("frosted overlays", () => {
   // Floating elements that paint --surface-3/4 (86-90% alpha on Glass) need the frost too, or text behind shows through.
-  const FLOATING = [".composer__pop", ".hc-mention-list", ".results-sheet", ".msg__copy", ".run-log__follow", ".pi__style", ".att-overlay__pill", ".att-lightbox__bar"];
+  const FLOATING = [".composer__pop", ".hc-mention-list", ".results-sheet", ".pi__style", ".att-overlay__pill", ".att-lightbox__bar"];
   const rules = (prop: RegExp) => [...glassCss.matchAll(/^\s*(:root\[data-skin="glass"\]:not\(\[data-transparency="reduced"\]\) :is\([^)]*\))\s*\{([^}]*)\}/gm)].filter((m) => prop.test(m[2])).map((m) => m[1]);
 
   it.each(FLOATING)("%s gets the backdrop blur and the glass tint", (sel) => {
     expect(rules(/backdrop-filter/).some((r) => r.includes(sel))).toBe(true);
     expect(rules(/background:\s*var\(--glass-bg\)/).some((r) => r.includes(sel))).toBe(true);
+  });
+
+  // Inside the scrolling transcript and run log a backdrop-filter can blank the text in WebKit: opaque pane colour, no blur.
+  it.each([".msg__copy", ".run-log__follow"])("%s is a solid pane-coloured button without the blur", (sel) => {
+    expect(rules(/backdrop-filter/).some((r) => r.includes(sel))).toBe(false);
+    expect(rules(/background:\s*var\(--pane-3\)/).some((r) => r.includes(sel))).toBe(true);
   });
 });
 
