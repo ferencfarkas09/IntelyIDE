@@ -122,7 +122,7 @@ pre { background: var(--surface); border: 1px solid var(--line); border-radius: 
   html:not(.js) .nav { flex-basis: 100%; order: 3; }
   html:not(.js) .nav ul { flex-wrap: wrap; }
 }
-@media (max-width: 480px) { .hdr-dl span { display: none; } .hdr-dl { padding: 0; width: 44px; justify-content: center; } }
+@media (max-width: 480px) { .hdr-dl span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; } .btn.hdr-dl { padding: 0; width: 44px; justify-content: center; } }
 
 /* Buttons */
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 48px; padding: 0 24px; background: var(--btn-bg); color: var(--btn-ink); border: 1px solid transparent; border-radius: 999px; font: inherit; font-weight: 600; text-decoration: none; cursor: pointer; }
