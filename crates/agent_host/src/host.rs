@@ -1128,7 +1128,7 @@ impl AgentHost {
             let pending = run.state.perms.get(req_id).ok_or_else(|| err("unknownRequest", format!("no pending permission request {req_id}")))?;
             let confirm_card = pending.confirm.clone();
             if confirm_card.is_some() && !extra.on_computer && allowing {
-                return Err(err("answerOnComputer", "this stop is lifted on your computer only: open the IDE there to answer it (the phone can refuse it)"));
+                return Err(err("answerOnComputer", "this stop is allowed only by a click in the main window of the IDE on your computer: open the IDE there (a phone cannot answer it)"));
             }
             let wanted = match decision {
                 PermissionDecision::AllowOnce => PermissionOption::AllowOnce,
@@ -1204,7 +1204,7 @@ impl AgentHost {
                                 undo.saved = Some((role, saved));
                             }
                         }
-                        // the rules already allow it (another card of the same kind was answered "always" first, or the user loosened the
+                        // the rules already allow it (another card of the same kind was answered for the run first, or the user loosened the
                         // mode meanwhile): the click is an allow and there is nothing left to remember
                         None if fresh.as_ref().is_some_and(|f| f.decision == Decision::Allow) => {}
                         None => return Err(err("optionNotOffered", "no session allow can be derived for this request")),
@@ -2180,6 +2180,9 @@ impl Inner {
         let Some(offer) = offer.filter(|o| o.kind == card.kind && o.scope == card.scope) else {
             return Err(err("rulesMoved", "the rules no longer offer to allow this; the request was refused. Ask again if it still applies"));
         };
+        if decision == PermissionDecision::AllowRun && offer.once_only && offer.kind != ConfirmKind::CliPrompt {
+            return Err(err("runWideNotAllowed", "allowing all secret files is not offered when the run's folder is the home folder or above it; allow this one file once"));
+        }
         let (grant, scope) = match decision {
             PermissionDecision::AllowOnce => (StopGrant { kind: offer.kind, scope: offer.scope.clone(), tool_id: Some(tool_id.to_string()) }, StopGrantScope::Once),
             // "for this run": every secret of the kind inside the run's folders (the card says so), but a CLI prompt only for this exact reason

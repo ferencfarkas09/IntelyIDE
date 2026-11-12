@@ -17,6 +17,8 @@ fn with(fx: &Fx, mode: M, f: impl FnOnce(&mut PolicyContext)) -> PolicyContext {
     let mut c = ctx(fx, mode);
     // a window is open: a card can be raised (only then does a shell refusal point at the file tools)
     c.stops_askable = true;
+    // the home folder is elsewhere (a run folder that contains it is its own case: a run-wide grant is never offered there)
+    c.home = Some(std::path::PathBuf::from("/nonexistent-home-of-the-test"));
     f(&mut c);
     c
 }
@@ -202,7 +204,10 @@ fn tier_one_never_carries_an_offer_and_no_grant_lifts_it() {
     let home = fx.cwd.join("home");
     for p in [".ssh/id_rsa", ".aws/credentials", ".claude/.credentials.json", ".zsh_history"] {
         for m in ALL_MODES {
-            let c = with(&fx, m, |c| c.stop_grants.extend(all.clone()));
+            let c = with(&fx, m, |c| {
+                c.home = Some(home.clone());
+                c.stop_grants.extend(all.clone());
+            });
             let d = decide_tool(&c, "Read", json!({ "file_path": home.join(p).to_string_lossy() }));
             assert_eq!(d.decision, Decision::Deny, "{p} in {m:?}: {d:?}");
             assert!(d.confirm.is_none(), "{p} in {m:?}: {d:?}");
@@ -428,7 +433,10 @@ fn with_the_home_folder_inside_the_run_the_home_credential_places_stay_tier_one(
     // a normal secret of the project next to them still asks
     std::fs::write(fx.cwd.join(".env"), "A=1\n").unwrap();
     for m in ALL_MODES {
-        let granted = with(&fx, m, |c| c.stop_grants = every_grant(&files));
+        let granted = with(&fx, m, |c| {
+            c.home = Some(home.clone());
+            c.stop_grants = every_grant(&files);
+        });
         for f in &files {
             for c in [&ctx(&fx, m), &granted] {
                 let d = decide_tool(c, "Read", json!({ "file_path": f }));
@@ -675,39 +683,76 @@ fn a_directory_is_never_offered_whatever_its_name() {
     let fx = fx();
     std::fs::create_dir_all(fx.cwd.join("certs.key")).unwrap();
     std::fs::create_dir_all(fx.cwd.join(".env")).unwrap();
+    std::fs::write(fx.cwd.join("other.pem"), "x").unwrap();
     for m in WORKING_MODES {
-        let c = ctx(&fx, m);
-        for p in ["certs.key", ".env"] {
-            let path = fx.cwd.join(p).to_string_lossy().into_owned();
-            let r = decide_tool(&c, "Grep", json!({ "pattern": "x", "path": path }));
-            assert!(r.confirm.is_none(), "Grep on directory {p} in {m:?}: {r:?}");
+        for granted in [false, true] {
+            let c = with(&fx, m, |c| {
+                if granted {
+                    c.stop_grants = vec![grant(ConfirmKind::SecretFile, ALL_OF_KIND, None), grant(ConfirmKind::SecretEdit, ALL_OF_KIND, None)];
+                }
+            });
+            for p in ["certs.key", ".env"] {
+                let path = fx.cwd.join(p).to_string_lossy().into_owned();
+                for (tool, input) in [
+                    ("Grep", json!({ "pattern": "x", "path": path })),
+                    ("Read", json!({ "file_path": path })),
+                    ("Edit", json!({ "file_path": path, "old_string": "a", "new_string": "b" })),
+                ] {
+                    let r = decide_tool(&c, tool, input);
+                    assert!(r.confirm.is_none(), "{tool} on directory {p} in {m:?}: {r:?}");
+                    // the verdict is the one without any grant (a directory is not lifted)
+                    let plain = decide_tool(&with(&fx, m, |_| {}), tool, match tool { "Edit" => json!({ "file_path": path, "old_string": "a", "new_string": "b" }), "Read" => json!({ "file_path": path }), _ => json!({ "pattern": "x", "path": path }) });
+                    assert_eq!((r.decision, r.rule.clone()), (plain.decision, plain.rule.clone()), "{tool} {p} {m:?} granted={granted}");
+                }
+            }
         }
     }
 }
 
 #[test]
 fn only_the_four_file_tools_that_edit_ask_for_an_env_edit_and_never_in_plan_mode() {
+    use intely_agent_core::policy::intent::ToolClass;
     let fx = fx();
     std::fs::write(fx.cwd.join(".env"), "A=1\n").unwrap();
     let env = fx.cwd.join(".env").to_string_lossy().into_owned();
     let granted = |m| with(&fx, m, |c| c.stop_grants.push(grant(ConfirmKind::SecretEdit, &env, None)));
+    let raw = |tool: &str| {
+        // a raw write-class intent, as another adapter (Codex apply_patch, ACP fs/write_text_file) would send it
+        let mut i = ToolIntent::from_claude_tool("Write", &json!({ "file_path": env, "content": "x" }));
+        i.class = ToolClass::Write;
+        i.tool = Some(tool.to_string());
+        i
+    };
     for m in WORKING_MODES {
-        // Codex apply_patch and ACP fs/write_text_file name a path too; they are refused as on main, with no offer, grant or not
         for tool in ["apply_patch", "fs/write_text_file", "write_text_file", "Delete"] {
-            for c in [ctx(&fx, m), granted(m)] {
-                let d = decide_tool(&c, tool, json!({ "file_path": env, "path": env, "content": "x" }));
-                assert!(d.confirm.is_none(), "{tool} in {m:?}: {d:?}");
-                assert_ne!(d.rule.as_deref(), Some("fs.protected-granted"));
-                if d.decision == Decision::Allow {
-                    // allowed only if main allows it too: the same call without a grant gives the same verdict
-                    assert_eq!(decide_tool(&ctx(&fx, m), tool, json!({ "file_path": env, "path": env, "content": "x" })).decision, Decision::Allow, "{tool} {m:?}");
-                }
-            }
+            let plain = decide_intent(&ctx(&fx, m), raw(tool));
+            assert_eq!((plain.decision, plain.rule.as_deref()), (Decision::Deny, Some("fs.protected")), "{tool} {m:?}: {plain:?}");
+            assert!(plain.confirm.is_none(), "{tool} {m:?}: {plain:?}");
+            let with_grant = decide_intent(&granted(m), raw(tool));
+            assert_eq!((with_grant.decision, with_grant.rule.as_deref(), with_grant.confirm.is_none()), (Decision::Deny, Some("fs.protected"), true), "a grant lifts nothing for {tool} in {m:?}: {with_grant:?}");
+        }
+        // ...and the four file tools do ask, and are lifted by the grant
+        for tool in ["Edit", "Write", "MultiEdit"] {
+            let input = json!({ "file_path": env, "old_string": "A", "new_string": "B", "content": "x", "edits": [{ "old_string": "A", "new_string": "B" }] });
+            assert!(decide_tool(&ctx(&fx, m), tool, input.clone()).confirm.is_some(), "{tool} {m:?}");
+            assert_ne!(decide_tool(&granted(m), tool, input).decision, Decision::Deny, "{tool} {m:?}");
         }
     }
-    // Plan mode: no offer for an edit
+    // the same raw intent from a provider other than Claude never gets an offer or a lift, even under the name of a file tool
+    let mut i = ToolIntent::from_claude_tool("Write", &json!({ "file_path": env, "content": "x" }));
+    i.class = ToolClass::Write;
+    for tool in ["Write", "Edit", "Read"] {
+        i.tool = Some(tool.to_string());
+        for c in [ctx(&fx, M::Automatic), granted(M::Automatic)] {
+            let d = decide(&c, &intely_agent_core::policy::intent::PolicyRequest { agent_id: "a1".into(), tool_id: "t1".into(), provider: "codex".into(), intent: i.clone() });
+            assert_eq!(d.decision, Decision::Deny, "{tool}: {d:?}");
+            assert!(d.confirm.is_none(), "{tool}: {d:?}");
+        }
+    }
+    // Plan mode: no offer for an edit, and a grant does not lift it
     let d = decide_tool(&ctx(&fx, M::ReadOnly), "Edit", json!({ "file_path": env, "old_string": "A", "new_string": "B" }));
     assert!(d.confirm.is_none(), "{d:?}");
+    assert_eq!(decide_tool(&granted(M::ReadOnly), "Edit", json!({ "file_path": env, "old_string": "A", "new_string": "B" })).decision, Decision::Deny);
 }
 
 #[test]
@@ -724,3 +769,153 @@ fn a_shell_refusal_points_at_the_file_tools_only_when_a_card_can_be_raised() {
         assert!(bash(&c, "cat .env").reason.contains("Use the Read tool"), "{m:?}");
     }
 }
+
+#[test]
+fn a_shell_refusal_hint_is_given_only_where_the_named_tool_can_work() {
+    use intely_agent_core::policy::decide::DelegateRule;
+    let fx = fx();
+    std::fs::write(fx.cwd.join(".env"), "A=1\n").unwrap();
+    let rule = |mode, allowed: Option<Vec<&str>>, deny: Vec<&str>| DelegateRule { mode, allowed_tools: allowed.map(|v| v.into_iter().map(String::from).collect()), role_deny: deny.into_iter().map(String::from).collect(), capped: false };
+    let edits = ["echo X=1 > .env", "echo X=1 | tee .env", "cp a.txt .env", "sed -i s/A/B/ .env", "printf x >> .env"];
+    let with_helper = |m: M| {
+        with(&fx, m, |c| {
+            c.delegates = Some(
+                [
+                    ("ro".to_string(), rule(M::ReadOnly, None, vec![])),
+                    ("noread".to_string(), rule(M::Automatic, None, vec!["Read"])),
+                    ("noedit".to_string(), rule(M::Automatic, None, vec!["Edit", "Write"])),
+                    ("rw".to_string(), rule(M::Automatic, None, vec![])),
+                ]
+                .into_iter()
+                .collect(),
+            );
+        })
+    };
+    let as_role = |c: &PolicyContext, role: &str, cmd: &str| {
+        let mut i = ToolIntent::from_claude_tool("Bash", &json!({ "command": cmd }));
+        i.actor = Some(intely_agent_core::policy::intent::Actor { agent_id: "x".into(), role: role.into() });
+        decide_intent(c, i)
+    };
+    // the lead: edits say "Edit or Write" in every mode but Plan
+    for m in [M::Ask, M::Edit, M::Automatic, M::Bypass] {
+        let c = with_helper(m);
+        for cmd in edits {
+            let d = bash(&c, cmd);
+            assert_eq!(d.decision, Decision::Deny, "{cmd} {m:?}: {d:?}");
+            assert!(d.reason.contains("Edit or Write tool"), "{cmd} in {m:?}: {d:?}");
+        }
+    }
+    let plan = with_helper(M::ReadOnly);
+    for cmd in edits {
+        assert!(!bash(&plan, cmd).reason.contains("Edit or Write tool"), "{cmd}: no edit hint in Plan");
+    }
+    // helpers of an Automatic run
+    let c = with_helper(M::Automatic);
+    for cmd in edits {
+        assert!(!as_role(&c, "ro", cmd).reason.contains("Edit or Write tool"), "{cmd}: a read-only helper cannot edit");
+        assert!(!as_role(&c, "noedit", cmd).reason.contains("Edit or Write tool"), "{cmd}: a role without Edit/Write");
+        assert!(as_role(&c, "rw", cmd).reason.contains("Edit or Write tool"), "{cmd}: a writing helper");
+    }
+    assert!(!as_role(&c, "noread", "cat .env").reason.contains("Use the Read tool"));
+    assert!(as_role(&c, "rw", "cat .env").reason.contains("Use the Read tool"));
+    assert!(as_role(&c, "ro", "cat .env").reason.contains("Use the Read tool"), "a read-only helper may read");
+}
+
+#[test]
+fn no_card_is_offered_for_a_call_the_role_rules_refuse_anyway() {
+    use intely_agent_core::policy::decide::DelegateRule;
+    let fx = fx();
+    std::fs::write(fx.cwd.join(".env"), "A=1\n").unwrap();
+    let env = fx.cwd.join(".env").to_string_lossy().into_owned();
+    let read = json!({ "file_path": env });
+    let edit = json!({ "file_path": env, "old_string": "A", "new_string": "B" });
+    for m in WORKING_MODES {
+        // the lead's own deny list
+        let c = with(&fx, m, |c| c.role_deny = vec!["Read".into(), "Edit".into()]);
+        assert!(decide_tool(&c, "Read", read.clone()).confirm.is_none(), "{m:?}");
+        assert!(decide_tool(&c, "Edit", edit.clone()).confirm.is_none(), "{m:?}");
+        // a helper: unknown role, deny list, a tool list that lacks the tool
+        let rule = |allowed: Option<Vec<&str>>, deny: Vec<&str>| DelegateRule { mode: M::Automatic, allowed_tools: allowed.map(|v| v.into_iter().map(String::from).collect()), role_deny: deny.into_iter().map(String::from).collect(), capped: false };
+        let c = with(&fx, m, |c| {
+            c.delegates = Some([("denied".to_string(), rule(None, vec!["Read", "Edit"])), ("bashonly".to_string(), rule(Some(vec!["Bash"]), vec![]))].into_iter().collect());
+        });
+        for role in ["denied", "bashonly", "ghost", "?"] {
+            for (tool, input) in [("Read", read.clone()), ("Edit", edit.clone())] {
+                let mut i = ToolIntent::from_claude_tool(tool, &input);
+                i.actor = Some(intely_agent_core::policy::intent::Actor { agent_id: "x".into(), role: role.into() });
+                let d = decide_intent(&c, i);
+                assert_eq!(d.decision, Decision::Deny, "{role} {tool} {m:?}: {d:?}");
+                assert!(d.confirm.is_none(), "no card for a call the role rules refuse: {role} {tool} {m:?}: {d:?}");
+            }
+        }
+    }
+}
+
+#[test]
+fn a_run_folder_that_is_or_contains_the_home_directory_offers_once_only() {
+    let fx = fx();
+    std::fs::create_dir_all(fx.cwd.join(".minikube")).unwrap();
+    std::fs::write(fx.cwd.join(".minikube/ca.key"), "x").unwrap();
+    std::fs::write(fx.cwd.join(".env"), "A=1\n").unwrap();
+    let key = fx.cwd.join(".minikube/ca.key").to_string_lossy().into_owned();
+    let env = fx.cwd.join(".env").to_string_lossy().into_owned();
+    // (here the home folder is the run folder itself; a run folder that lies ABOVE the home folder is the same case)
+    for home in [fx.cwd.clone(), fx.cwd.join("home")] {
+        for m in WORKING_MODES {
+            let base = |g: Vec<StopGrant>| with(&fx, m, |c| {
+                c.home = Some(home.clone());
+                c.stop_grants = g;
+            });
+            let d = decide_tool(&base(vec![]), "Read", json!({ "file_path": key }));
+            assert_eq!(d.confirm.as_ref().map(|o| o.once_only), Some(true), "{m:?}: {d:?}");
+            // a run-wide grant (however it got there) lifts nothing; a once grant for the exact file still does
+            let wide = base(vec![grant(ConfirmKind::SecretFile, ALL_OF_KIND, None), grant(ConfirmKind::SecretEdit, ALL_OF_KIND, None)]);
+            assert_eq!(decide_tool(&wide, "Read", json!({ "file_path": env })).decision, Decision::Deny, "{m:?}");
+            assert_eq!(decide_tool(&wide, "Edit", json!({ "file_path": env, "old_string": "a", "new_string": "b" })).decision, Decision::Deny, "{m:?}");
+            let once = base(vec![grant(ConfirmKind::SecretFile, &env, Some("t1"))]);
+            assert_eq!(decide_tool(&once, "Read", json!({ "file_path": env })).decision, Decision::Allow, "{m:?}");
+        }
+    }
+    // an ordinary project (the home folder elsewhere) offers the run-wide choice
+    let d = decide_tool(&with(&fx, M::Automatic, |_| {}), "Read", json!({ "file_path": env }));
+    assert_eq!(d.confirm.as_ref().map(|o| o.once_only), Some(false));
+    // the root of the file system as a run folder is the same case
+    let mut c = ctx(&fx, M::Automatic);
+    c.cwd = std::path::PathBuf::from("/");
+    c.home = Some(std::path::PathBuf::from("/nonexistent-home-of-the-test"));
+    c.stops_askable = true;
+    let d = decide_tool(&c, "Read", json!({ "file_path": "/etc/ssl/private/x.key" }));
+    assert!(d.confirm.as_ref().map_or(true, |o| o.once_only), "{d:?}");
+}
+
+#[test]
+fn the_tier_one_folders_are_judged_by_the_absolute_path_whatever_the_run_folders_are() {
+    let fx = fx();
+    // the run folder itself lies inside a `.git/modules` tree, and the project is added as a second folder
+    let modules = fx.cwd.join(".git/modules/mod");
+    std::fs::create_dir_all(&modules).unwrap();
+    std::fs::write(modules.join("x.key"), "k").unwrap();
+    for m in WORKING_MODES {
+        let c = with(&fx, m, |c| {
+            c.cwd = modules.clone();
+            c.add_dirs = vec![fx.cwd.clone()];
+            c.stop_grants = vec![grant(ConfirmKind::SecretFile, ALL_OF_KIND, None)];
+        });
+        let d = decide_tool(&c, "Read", json!({ "file_path": modules.join("x.key").to_string_lossy() }));
+        assert_eq!(d.decision, Decision::Deny, "{m:?}: {d:?}");
+        assert!(d.confirm.is_none(), "{m:?}: {d:?}");
+    }
+}
+
+#[test]
+fn in_ask_mode_a_lifted_edit_keeps_the_report_of_the_grant_that_lifted_it() {
+    let fx = fx();
+    std::fs::write(fx.cwd.join(".env"), "A=1\n").unwrap();
+    let env = fx.cwd.join(".env").to_string_lossy().into_owned();
+    let c = with(&fx, M::Ask, |c| c.stop_grants = vec![grant(ConfirmKind::SecretEdit, ALL_OF_KIND, None)]);
+    let d = decide_tool(&c, "Edit", json!({ "file_path": env, "old_string": "A", "new_string": "B" }));
+    assert_eq!(d.decision, Decision::Ask, "Ask's own question follows the lift: {d:?}");
+    assert_eq!(d.used_grants.len(), 1, "the lift is still reported so it is written to the log: {d:?}");
+    assert_eq!(d.used_grants[0].offer.scope, env);
+}
+

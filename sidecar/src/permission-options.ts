@@ -8,8 +8,8 @@ import type { PermissionMode, PermissionOption, PolicyDecision } from './types.j
  * itself is derived and kept by the host, never by the sidecar. ExitPlanMode never gets it (its card is built by `planPayload`).
  */
 export function offeredOptions(d: Pick<PolicyDecision, 'sessionAllow' | 'confirm'>): PermissionOption[] {
-  // a confirmable (tier 2) stop: this one time, for the run, for good in this repository, or no
-  if (d.confirm) return ['allow_once', 'allow_run', 'deny'];
+  // a confirmable (tier 2) stop: this one time, for the run (not when Rust says only once: the run's folder is the home folder or above it), or no
+  if (d.confirm) return ['allow_once', ...(d.confirm.onceOnly ? [] : (['allow_run'] as const)), 'deny'];
   return ['allow_once', ...(d.sessionAllow ? (['allow_run'] as const) : []), 'deny'];
 }
 

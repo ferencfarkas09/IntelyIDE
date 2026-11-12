@@ -315,6 +315,8 @@ impl Run {
     pub fn reset_session_state(&mut self) {
         self.ctx.saved.clear();
         self.ctx.saved_by_role.clear();
+        // a grant of a confirmable stop lives as long as the session: a resumed run asks again
+        self.ctx.stop_grants.clear();
         self.ctx.mcp_servers.clear();
         self.ctx.mcp_tools.clear();
         self.ctx.mcp_code_paths.clear();
@@ -328,6 +330,7 @@ impl Run {
         self.busy_until = None;
         self.ctx.saved.clear();
         self.ctx.saved_by_role.clear();
+        self.ctx.stop_grants.clear();
     }
 
     /// The session is open and nothing is going on in it: the run is finished (or failed) and nobody is asked anything. Such a session may

@@ -29,6 +29,11 @@ export type ConfirmOffer = {
 	scope: string,
 	/**  The folder of the run that holds the path; for a CLI prompt the run's working directory. */
 	repo: string,
+	/**
+	 *  The run-wide choice is NOT offered (the run's folder is the home directory or one of its ancestors, so "every secret file of the run"
+	 *  would reach the home's key stores): only "allow once" for this exact file. Absent when false.
+	 */
+	onceOnly?: boolean,
 };
 
 export type Decision = "allow" | "deny" | "ask";
@@ -48,7 +53,7 @@ export type PolicyDecision = {
 	 */
 	confirm?: ConfirmOffer | null,
 	/**
-	 *  Set only on an `Allow` that a standing grant made possible (this run, or the repository's always-list): the gate writes each to
+	 *  Set only on an `Allow` (or, in Ask mode, the `Ask` that follows) that a standing grant for this run made possible: the gate writes each to
 	 *  the run log. Empty for everything else.
 	 */
 	usedGrants?: UsedGrant[],

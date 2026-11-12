@@ -17,10 +17,8 @@ export const DENY_MARK = 'INTELY-HARDSTOP';
 /** How many tier-2 cards one tool call may raise in a row (a file tool names one file, so one or two in practice; the cap is a backstop). */
 export const MAX_CONFIRM_ROUNDS = 4;
 
-/** The texts of a result that the CLI itself made when it refused or interrupted a call (it never ran). */
 /** The tools a tier-2 card is raised for: they act on one file, so an error result means that nothing was read or written. */
 const FILE_TOOLS = new Set(['Read', 'Grep', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
-const CLI_OWN_REFUSAL = /^(The user doesn't want to proceed|\[Request interrupted|Permission to use .{1,80} has been denied|User rejected|INTELY-HARDSTOP)/i;
 
 /**
  * What the model is told when the person declined a tier-2 stop (or nobody could answer it): which stop, that it stays, and what to do instead.
@@ -281,16 +279,15 @@ export class ToolGate {
    * ever answering it (the CLI skipped the question) is a breach: a stop AFTER THE FACT, not a prevention (the call cannot be undone). A call
    * that ended in an error was refused or never started, so it is not one.
    */
-  noteResult(toolUseId: string, isError: boolean, text = ''): void {
+  noteResult(toolUseId: string, isError: boolean, _text = ''): void {
     const tool = this.askedByHook.get(toolUseId);
     if (tool === undefined) return;
     this.askedByHook.delete(toolUseId);
     const answered = this.confirmedTools.delete(toolUseId);
     if (answered || this.o.denied.has(toolUseId)) return;
-    // only the CLI's own refusal or interruption is no breach: an error result with output is a call that RAN and failed (`exit 1`)
-    if (isError && CLI_OWN_REFUSAL.test(text.trim())) return;
     // a FILE tool that ended in an error read nothing and wrote nothing (a failed Read or Edit changes no file): the CLI's own permission text
     // ("Claude requested permissions to write to .env, but you haven't granted it yet.") is such an error, not a call that ran
+    // (every call the hook asks about is one of these file tools, so any error result means it did not run)
     if (isError && FILE_TOOLS.has(tool)) return;
     this.breach(toolUseId);
   }
@@ -324,7 +321,8 @@ export class ToolGate {
       }
     }
     d = this.unattendedGuard(d);
-    if (d.decision === 'allow' && d.usedGrants?.length) this.auditOverrides(toolId, intent, d);
+    // (an Ask too: in Ask mode a lifted stop is followed by the mode's own question, and the lift is still logged)
+    if ((d.decision === 'allow' || d.decision === 'ask') && d.usedGrants?.length) this.auditOverrides(toolId, intent, d);
     this.decisions.set(toolId, { d, epoch, intent });
     if (this.decisions.size > 512) this.decisions.delete(this.decisions.keys().next().value as string);
     if (this.o.delegating && !actor) {

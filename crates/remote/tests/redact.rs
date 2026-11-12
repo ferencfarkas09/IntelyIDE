@@ -225,7 +225,7 @@ fn a_confirm_card_reaches_the_phone_with_deny_only_and_no_scope_or_folder() {
         plan_truncated: None,
         modes: Vec::new(),
         peer: None,
-        confirm: Some(ConfirmOffer { kind: ConfirmKind::SecretFile, rule: "read.never-read".into(), scope: "/work/app/.env".into(), repo: "/work/app".into() }),
+        confirm: Some(ConfirmOffer { kind: ConfirmKind::SecretFile, rule: "read.never-read".into(), scope: "/work/app/.env".into(), repo: "/work/app".into(), once_only: false }),
     });
     let w = r.wire_event(&e).expect("the card is sent");
     match w.kind {

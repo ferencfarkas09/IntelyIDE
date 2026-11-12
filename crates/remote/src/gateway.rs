@@ -1153,7 +1153,7 @@ impl GatewayCore {
         let rank = self.rank_of(&p);
         let (elig, why) = self.effective_eligibility(cap, &p, rank, forced);
         if elig == Eligibility::DesktopOnly {
-            self.store.audit(Record::new("answer.forged").device(&dev.id).req(&a.req_id).agent(&a.agent_id).risk(&risk).intent(&ihash).detail("desktop-only request answered remotely"));
+            self.store.audit(Record::new("answer.desktop-only").device(&dev.id).req(&a.req_id).agent(&a.agent_id).risk(&risk).intent(&ihash).detail("answered on the phone, not accepted: this request is decided on the computer"));
             return self.push_msg(link, &ack_err(&op, "desktopOnly", why.as_deref().unwrap_or("This can only be decided on the Mac.")), outs);
         }
 

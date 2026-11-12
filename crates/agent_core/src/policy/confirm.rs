@@ -8,10 +8,12 @@
 //! * A tier-2 refusal is still a `Deny` with `by: HardStop`. The only addition is `PolicyDecision::confirm`, an offer. Anything that
 //!   does not know about offers (an old sidecar, a remote client, a test) keeps refusing.
 //! * The stop is lifted only by a [`StopGrant`] in the run's [`PolicyContext`](super::decide::PolicyContext), put there by the host
-//!   when a person answers a card on the computer. The agent cannot create one: grants are never read from a tool input, and a
-//!   write to the file that stores the always-list is itself a tier-1 stop (the IDE state directory).
-//! * A grant names one exact thing: the canonical path of a secret-looking file INSIDE a folder of the run, or one exact CLI reason.
-//!   A path that leaves the run's folders (`../x`, a symlink that points out) is never offered and never matched.
+//!   when a person answers a card in the IDE's main window on this computer. The agent cannot create one: grants are never read from a
+//!   tool input, they live in memory for the session only, and the host drops them when the session ends or is resumed.
+//! * A "once" grant names one exact file (a canonical path INSIDE a folder of the run) for one tool call; a CLI prompt grant names one
+//!   exact reason. A run-wide secret grant (scope `*`) covers every secret-looking file inside the run's folders but is never offered or
+//!   matched in a tier-1 place (`.git`, `.claude`, `.ssh`, the IDE state, a directory, a path outside the folders) nor when a run folder is
+//!   the home directory or above it. A path that leaves the run's folders (`../x`, a symlink that points out) is never offered.
 
 use std::path::Path;
 
@@ -41,6 +43,12 @@ pub struct ConfirmOffer {
     pub scope: String,
     /// The folder of the run that holds the path; for a CLI prompt the run's working directory.
     pub repo: String,
+    /// The run-wide choice is NOT offered (the run's folder is the home directory or one of its ancestors, so "every secret file of the run"
+    /// would reach the home's key stores): only "allow once" for this exact file. Absent when false.
+    #[serde(default)]
+    #[cfg_attr(not(feature = "specta"), serde(skip_serializing_if = "std::ops::Not::not"))]
+    #[cfg_attr(feature = "specta", specta(optional))]
+    pub once_only: bool,
 }
 
 /// A standing grant (for this run) that lifted a stop while a call was judged. The gate writes it to the run
@@ -81,7 +89,7 @@ impl StopGrant {
 pub enum Tier {
     /// Never overridable.
     Never,
-    /// A person may lift it for one exact thing through a card.
+    /// A person may lift it through a card (one exact thing, or for a secret file every secret of the run's folders).
     Confirm,
 }
 
@@ -105,7 +113,7 @@ const fn confirm(rule: &'static str, variant: &'static str, reason: &'static str
 /// Every hard-stop rule id of the policy (and `cli.prompt-denied` of the sidecar), classified. A test reads the policy sources and fails
 /// when a rule id is missing here, so a new stop must be classified when it is added.
 pub const CLASSIFICATION: &[RuleClass] = &[
-    // ---- tier 2: the person may allow one exact thing ----
+    // ---- tier 2: the person may allow it through a card ----
     confirm("read.never-read", "a secret-looking file inside a folder of the run, read with the Read or Grep tool", "the file is the person's own project file and the card says that the content goes to the model provider; no shell command is ever lifted: the shell cannot be asked about a file"),
     confirm("fs.protected", "a `.env` file inside a folder of the run, edited with the Edit, Write, MultiEdit or NotebookEdit tool", "an env file of the project is the person's own (it is usually git-ignored, so it is not seen in a diff); the card names the exact path"),
     confirm("cli.prompt-denied", "a prompt of the Claude CLI that Automatic and Bypass cannot answer", "the command is still judged by every other rule here; the CLI's text heuristics (braces with quotes, `cd` with a redirect, parser limits) are about its own matching"),

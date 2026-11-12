@@ -742,6 +742,13 @@ describe('confirmable stops: the card, the grant and the audit', () => {
     expect(kinds(g2.out, 'permission.request').filter((e) => e.options.length === 3)).toHaveLength(4);
   });
 
+  it('a stop that is once-only (the run folder is the home folder) offers no run-wide button', async () => {
+    const { gate, out } = rig(fixed({ ...stop, confirm: { ...offer, onceOnly: true } }), { mode: 'automatic' });
+    void gate.canUseTool('Read', { file_path: '/work/.env' }, { toolUseID: 'o1', signal: new AbortController().signal } as never);
+    await settle();
+    expect(kinds(out, 'permission.request')[0]).toMatchObject({ options: ['allow_once', 'deny'], confirm: { onceOnly: true } });
+  });
+
   it('a stop without an offer, or one that did not come from a hard stop, is refused as before (no card)', async () => {
     for (const d of [{ ...stop, confirm: undefined }, { ...stop, by: 'roleDeny' as const }]) {
       const { gate, out } = rig(fixed(d), { mode: 'automatic' });
@@ -850,12 +857,12 @@ describe('a tier-2 call that runs without its card being answered', () => {
     gate.noteResult('f2', false);
     expect(breached).toBe(0);
   });
-  it('is a breach when the call RAN and failed (an error result with output): a non-zero exit does not hide it', async () => {
+  it('is a breach when a file tool RAN (a successful result), whatever its output says', async () => {
     let breached = 0;
     const { gate } = rig(fixed(stop), { mode: 'automatic' });
     (gate as any).o.onBreach = () => { breached++; };
-    await hook(gate, 'Bash', { command: 'echo {"a":1}' }, 'x1');
-    gate.noteResult('x1', true, 'Exit code 1\nsome output');
+    await hook(gate, 'Read', { file_path: '/work/.env' }, 'x1');
+    gate.noteResult('x1', false, 'Exit code 1\nsome output');
     expect(breached).toBe(1);
   });
   it('is no breach when a FILE tool ended in an error: nothing was read or written (the CLI\'s own "has not been granted" text)', async () => {

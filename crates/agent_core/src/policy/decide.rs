@@ -62,7 +62,7 @@ wire_types! {
         #[cfg_attr(not(feature = "specta"), serde(skip_serializing_if = "Option::is_none"))]
         #[cfg_attr(feature = "specta", specta(optional))]
         pub confirm: Option<ConfirmOffer>,
-        /// Set only on an `Allow` that a standing grant made possible (this run, or the repository's always-list): the gate writes each to
+        /// Set only on an `Allow` (or, in Ask mode, the `Ask` that follows) that a standing grant for this run made possible: the gate writes each to
         /// the run log. Empty for everything else.
         #[serde(default)]
         #[cfg_attr(not(feature = "specta"), serde(skip_serializing_if = "Vec::is_empty"))]
@@ -443,7 +443,7 @@ pub fn session_allow_for(ctx: &PolicyContext, intent: &ToolIntent) -> Option<(Sa
     }
     // the same files as the decision looked at (a run on a server: the server's), and nothing is offered on a half-seen tree
     fsview::with_fs(ctx.fs.clone(), || {
-        let (d, eff_mode) = judge(ctx, intent, "", STRICT_BACKGROUND);
+        let (d, eff_mode) = judge(ctx, intent, "", "claude", STRICT_BACKGROUND);
         if d.decision != Decision::Ask || !matches!(eff_mode, PermissionMode::Ask | PermissionMode::Edit) || fsview::failed() {
             return None;
         }
@@ -475,7 +475,7 @@ pub fn decide(ctx: &PolicyContext, req: &PolicyRequest) -> PolicyDecision {
 pub fn decide_with(ctx: &PolicyContext, req: &PolicyRequest, strict_background: bool) -> PolicyDecision {
     // every look at a file (symlinks, globs, scripts) goes to the run's own file system, on the thread that does the judging
     fsview::with_fs(ctx.fs.clone(), || {
-        let (d, eff_mode) = judge(ctx, &req.intent, &req.tool_id, strict_background);
+        let (d, eff_mode) = judge(ctx, &req.intent, &req.tool_id, &req.provider, strict_background);
         let d = settle_unattended(ctx, eff_mode, d);
         // A look that could not be answered (the server did not reply, a listing was cut off) is not "the file is not there": a hard stop
         // may have been hidden by it. What the rules said about a tree seen in part is not trusted; a denial stands as it is.
@@ -487,9 +487,17 @@ pub fn decide_with(ctx: &PolicyContext, req: &PolicyRequest, strict_background: 
 }
 
 /// The verdict of the class rules and the mode the call was judged in.
-fn judge(ctx: &PolicyContext, intent: &ToolIntent, tool_id: &str, strict_background: bool) -> (PolicyDecision, PermissionMode) {
-    let jail = Jail::new(&ctx.cwd, &ctx.add_dirs, ctx.home.as_deref()).with_state_dir(ctx.state_dir.as_deref()).with_mcp_code_paths(&ctx.mcp_code_paths).with_scratch(&ctx.scratch_dirs).with_grants(&ctx.stop_grants, tool_id, ctx.stops_askable);
+fn judge(ctx: &PolicyContext, intent: &ToolIntent, tool_id: &str, provider: &str, strict_background: bool) -> (PolicyDecision, PermissionMode) {
+    // grants and offers exist for the Claude adapter only (its tools are the four file tools of the card): a raw intent that merely NAMES one of
+    // them, from another adapter, gets neither
+    // (the mock adapter stands in for Claude in the demo and in the end-to-end tests, and runs no real tool)
+    let claude = matches!(provider, "claude" | "mock");
+    let grants: &[StopGrant] = if claude { &ctx.stop_grants } else { &[] };
+    let jail = Jail::new(&ctx.cwd, &ctx.add_dirs, ctx.home.as_deref()).with_state_dir(ctx.state_dir.as_deref()).with_mcp_code_paths(&ctx.mcp_code_paths).with_scratch(&ctx.scratch_dirs).with_grants(grants, tool_id, ctx.stops_askable && claude, claude);
     let eff = effective(ctx, intent, strict_background);
+    // what a shell refusal may say: the file tools it names must be usable by THIS caller (its role lists them, and an edit is not read-only)
+    let tool_ok = |name: &str| denied_by_role_list(&eff, &ToolIntent::from_claude_tool(name, &serde_json::json!({ "file_path": "x" }))).is_none();
+    let jail = jail.with_hints(tool_ok("Read"), eff.mode != PermissionMode::ReadOnly && tool_ok("Edit") && tool_ok("Write"));
     let d = match intent.class {
         ToolClass::Other if intent.tool.as_deref() == Some(CLI_PROMPT_TOOL) => decide_cli_prompt(&eff, intent, tool_id),
         ToolClass::Exec => decide_exec(&eff, intent, &jail),
@@ -500,7 +508,7 @@ fn judge(ctx: &PolicyContext, intent: &ToolIntent, tool_id: &str, strict_backgro
         ToolClass::Other => decide_other(&eff, intent),
     };
     let used = jail.take_used();
-    let d = if d.decision == Decision::Allow && !used.is_empty() { PolicyDecision { used_grants: used, ..d } } else { d };
+    let d = if d.decision != Decision::Deny && !used.is_empty() { PolicyDecision { used_grants: used, ..d } } else { d };
     (d, eff.mode)
 }
 
@@ -661,7 +669,7 @@ fn decide_write(eff: &Eff, intent: &ToolIntent, jail: &Jail) -> PolicyDecision {
         // (the file tools that write: Edit, Write, MultiEdit, NotebookEdit)
         // (a grant is consulted only for the four file tools that edit, and never in Plan mode; Codex apply_patch, ACP fs/write_text_file
         // and the rest keep the refusal that main gives)
-        let asks = eff.mode != PermissionMode::ReadOnly && matches!(intent.tool.as_deref(), Some("Edit" | "Write" | "MultiEdit" | "NotebookEdit"));
+        let asks = eff.mode != PermissionMode::ReadOnly && jail.grants_apply() && denied_by_role_list(eff, intent).is_none() && matches!(intent.tool.as_deref(), Some("Edit" | "Write" | "MultiEdit" | "NotebookEdit"));
         let refused = if asks { jail.protected_reason_ask(p) } else { jail.protected_reason(p) };
         if let Some(why) = refused {
             // (only a `.env` file is a question; the IDE state directory inside a run folder is not)
@@ -738,7 +746,7 @@ fn decide_read(eff: &Eff, intent: &ToolIntent, jail: &Jail) -> PolicyDecision {
         return allow("read.memory-note", "a Claude memory note of one of this run's folders");
     }
     // (a grant is consulted only for the Read and Grep tools: Glob and LS name no content, and nothing else is a question)
-    let asks = matches!(intent.tool.as_deref(), Some("Read" | "Grep"));
+    let asks = jail.grants_apply() && denied_by_role_list(eff, intent).is_none() && matches!(intent.tool.as_deref(), Some("Read" | "Grep"));
     let never = |p: &PathBuf| if asks { jail.never_read_reason_ask(p) } else { jail.never_read_reason(p) };
     if let Some((p, why)) = resolved.iter().find_map(|p| never(p).map(|w| (p, w))) {
         return hard_stop_offer(eff, "read.never-read", format!("{why}: {} is on the agent never-read list", p.display()), jail.confirm_offer("read.never-read", p, false).filter(|_| asks), true);
@@ -1017,7 +1025,7 @@ pub fn cli_prompt_intent(base: &ToolIntent, reason: &str) -> ToolIntent {
 
 /// A prompt of the Claude CLI that an Automatic or Bypass run cannot answer. Every other rule has judged the call already (the gate asks only
 /// after a Rust allow); what is left is the CLI's own text heuristics. Tier 2 unless the reason is on the never list
-/// ([`confirm::cli_reason_confirmable`](super::confirm::cli_reason_confirmable)); lifted only by a grant of this exact reason (or a run grant).
+/// ([`confirm::cli_reason_confirmable`](super::confirm::cli_reason_confirmable)); lifted only by a grant of this exact reason (a run-wide secret grant never covers a CLI prompt).
 fn decide_cli_prompt(eff: &Eff, intent: &ToolIntent, tool_id: &str) -> PolicyDecision {
     let reason = intent.args.first().map(|r| r.trim().chars().take(MAX_CLI_REASON).collect::<String>()).unwrap_or_default();
     if !super::confirm::cli_reason_confirmable(&reason) {
@@ -1030,13 +1038,13 @@ fn decide_cli_prompt(eff: &Eff, intent: &ToolIntent, tool_id: &str) -> PolicyDec
         let mut d = verdict(Decision::Allow, DecidedBy::Saved, "cli.prompt-granted", "a person allowed this kind of Claude CLI prompt");
         // (a "once" grant was logged with its card)
         if g.tool_id.is_none() {
-            let offer = ConfirmOffer { kind: super::confirm::ConfirmKind::CliPrompt, rule: "cli.prompt-denied".into(), scope: reason.clone(), repo: canonical_lossy(&eff.ctx.cwd).to_string_lossy().into_owned() };
+            let offer = ConfirmOffer { kind: super::confirm::ConfirmKind::CliPrompt, rule: "cli.prompt-denied".into(), scope: reason.clone(), repo: canonical_lossy(&eff.ctx.cwd).to_string_lossy().into_owned(), once_only: false };
             d.used_grants = vec![UsedGrant { offer, via }];
         }
         return d;
     }
     // (the canonical folder of the run)
-    let offer = ConfirmOffer { kind: super::confirm::ConfirmKind::CliPrompt, rule: "cli.prompt-denied".into(), scope: reason.clone(), repo: canonical_lossy(&eff.ctx.cwd).to_string_lossy().into_owned() };
+    let offer = ConfirmOffer { kind: super::confirm::ConfirmKind::CliPrompt, rule: "cli.prompt-denied".into(), scope: reason.clone(), repo: canonical_lossy(&eff.ctx.cwd).to_string_lossy().into_owned(), once_only: false };
     hard_stop_offer(eff, "cli.prompt-denied", format!("the Claude CLI raised its own prompt ({reason}), which this run cannot answer on its own"), Some(offer), false)
 }
 

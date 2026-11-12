@@ -101,7 +101,7 @@
   "stops.note": "Opcionális üzenet az ügynöknek",
   "stops.confirm.cancel": "Mégse",
   "stops.phone": "Ezt a számítógépeden válaszold meg",
-  "stops.err.answerOnComputer": "Erre a tiltásra csak ezen a számítógépen, az IDE főablakában lehet válaszolni. Nyisd meg ott az IDE-t; a telefon és a többi ablak sem engedélyezni, sem elutasítani nem tudja.",
+  "stops.err.answerOnComputer": "Ezt a tiltást csak ezen a számítógépen, az IDE főablakában lehet engedélyezni. Nyisd meg ott az IDE-t; a telefon nem tud rá válaszolni.",
   "stops.err.confirmationRequired": "Egy futás összes titkos fájljának engedélyezéséhez második megerősítés kell.",
   "stops.err.rulesMoved": "A szabályok megváltoztak a várakozás közben, ezért semmi nem lett engedélyezve. Az ügynök újra kérdez, ha még kell neki.",
   "stops.err.runWideNotAllowed": "Az összes titkos fájl engedélyezése nem érhető el, ha a futás mappája a saját mappád; engedélyezd ezt az egy fájlt egyszer.",

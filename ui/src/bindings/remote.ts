@@ -129,6 +129,11 @@ export type ConfirmOffer = {
 	scope: string,
 	/**  The folder of the run that holds the path; for a CLI prompt the run's working directory. */
 	repo: string,
+	/**
+	 *  The run-wide choice is NOT offered (the run's folder is the home directory or one of its ancestors, so "every secret file of the run"
+	 *  would reach the home's key stores): only "allow once" for this exact file. Absent when false.
+	 */
+	onceOnly?: boolean,
 };
 
 export type CostBasis = "billed" | "estimated" | "subscription" | "included" | "unknown";

@@ -98,6 +98,13 @@ impl Rig {
         self.host.answer_permission_on_computer(id, req, d, true)
     }
 
+    fn kill_sidecar(&self) {
+        let pid = self.host.sidecar_pid().expect("sidecar");
+        // SAFETY: SIGKILL to the sidecar this test spawned.
+        unsafe { libc::kill(pid as i32, libc::SIGKILL) };
+        wait_until(10, "the sidecar to be gone", || self.host.sidecar_pid().is_none());
+    }
+
     fn env(&self) -> String {
         self.repo.path.join(".env").to_string_lossy().into_owned()
     }
@@ -305,6 +312,29 @@ fn a_shell_card_is_never_honoured_the_host_derives_no_offer_for_a_command() {
     for d in [PermissionDecision::AllowOnce, PermissionDecision::AllowRun] {
         assert_eq!(code(r.click_broad(&id, "s1", d)), "rulesMoved");
     }
+    assert!(r.host.context(&id).unwrap().stop_grants.is_empty());
+    r.host.shutdown();
+}
+
+#[test]
+fn a_run_wide_grant_ends_with_the_session_and_a_resumed_run_asks_again() {
+    let r = Rig::new(true);
+    let id = r.start(Automatic).agent_id;
+    r.env_card(&id, "p1");
+    r.click_broad(&id, "p1", PermissionDecision::AllowRun).expect("for the run");
+    assert_ne!(r.judged(&id, "t-x"), Decision::Deny);
+    // the idle reaper ends the session: the grant goes with it
+    assert!(r.host.suspend_idle(0) >= 1);
+    wait_until(10, "the session to end", || r.host.leases().is_empty());
+    assert!(r.host.context(&id).unwrap().stop_grants.is_empty(), "closed with the session");
+    r.host.send(&id, "again").expect("resume");
+    assert!(r.host.context(&id).unwrap().stop_grants.is_empty(), "a resumed run starts without its grants");
+    assert_eq!(r.judged(&id, "t-y"), Decision::Deny, "and is refused again");
+    // a once grant goes the same way, and so does a dead sidecar
+    r.env_card(&id, "p2");
+    r.click_broad(&id, "p2", PermissionDecision::AllowRun).expect("a fresh session asks again");
+    assert!(!r.host.context(&id).unwrap().stop_grants.is_empty());
+    r.kill_sidecar();
     assert!(r.host.context(&id).unwrap().stop_grants.is_empty());
     r.host.shutdown();
 }

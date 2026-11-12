@@ -101,7 +101,7 @@
   "stops.note": "Optional note for the agent",
   "stops.confirm.cancel": "Cancel",
   "stops.phone": "Answer this on your computer",
-  "stops.err.answerOnComputer": "This stop is answered only in the main window of the IDE on this computer. Open the IDE there; the phone and other windows can neither allow nor refuse it.",
+  "stops.err.answerOnComputer": "This stop can be allowed only in the main window of the IDE on this computer. Open the IDE there; the phone cannot answer it.",
   "stops.err.confirmationRequired": "Allowing every secret file of this run needs the second confirmation.",
   "stops.err.rulesMoved": "The rules changed while this was waiting, so nothing was allowed. The agent will ask again if it still needs it.",
   "stops.err.runWideNotAllowed": "Allowing all secret files is not offered when the run's folder is your home folder; allow this one file once.",
