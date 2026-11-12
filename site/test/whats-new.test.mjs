@@ -14,7 +14,8 @@ import hu from '../src/content/hu.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SHOTS = join(ROOT, 'src/static/assets/img/shots');
-const textOf = (node) => JSON.stringify(node).replace(/<[^>]+>/g, '');
+// the copy as one string, markup included: the phrases checked below have none inside them
+const textOf = (node) => JSON.stringify(node);
 
 describe('what is new in 1.15', () => {
   let dist;
