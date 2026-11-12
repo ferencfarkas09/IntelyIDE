@@ -13,6 +13,10 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 
 - Agent window: the text of the conversation no longer goes blank while the agent keeps working (it came back only after switching the layout and back). The hover copy button on each message and the follow button of the run log no longer use the frosted-glass blur, which the Mac's web view could stop painting inside the scrolling list; they are plain tinted buttons now. The conversation list also measures its rows again when its pane returns from a zero size or changes width. This part is checked in tests only: the blank screen itself could not be reproduced outside a Mac.
 
+### Security
+
+- Updated `rustix` from 1.1.5 to 1.1.6 (a lock file update only) for RustSec advisory RUSTSEC-2026-0486: its extended-attribute functions marked bytes as initialised after a zero-length query. The app's own code does not call those functions (it uses `rustix` for directory-handle file access and through `tempfile`), so this closes the advisory check and the exposure alike.
+
 ## [1.14.1] - 2026-10-30
 
 ### Added
