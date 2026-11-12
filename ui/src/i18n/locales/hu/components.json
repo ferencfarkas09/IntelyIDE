@@ -207,6 +207,7 @@
   "chat.tool.moreChars": "… (még {n} karakter)",
   "chat.tool.subagent": "Részügynök",
   "chat.tool.calls": "{n, plural, one {# hívás} other {# hívás}}",
+  "chat.tool.delta": "{added} sor hozzáadva, {removed} törölve",
   "chat.you": "Te",
   "chat.waiting": "Várakozás az első eseményekre",
   "chat.waitingDesc": "Az átirat itt jelenik meg, ahogy az ügynök dolgozik.",

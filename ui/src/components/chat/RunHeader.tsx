@@ -24,6 +24,13 @@ function shownStatus(a: AgentRow): { text: string; tone: "accent" | "warn" | "ok
   return { text: t(STATUS_TEXT[a.status]), tone: STATUS_TONE[a.status] };
 }
 
+/** Two letters for the role tile: the first letters of the first two words, or the first two letters of one word. */
+export function initials(name: string): string {
+  const words = name.trim().split(/[\s_\-]+/).filter(Boolean);
+  const pick = words.length > 1 ? words[0][0] + words[1][0] : (words[0] ?? "").slice(0, 2);
+  return pick.toLocaleUpperCase();
+}
+
 export function RunHeader(props: { agent: AgentRow; stopping: boolean; onInterrupt: () => void; onRewind: () => void }) {
   const a = () => props.agent;
   const effort = () => effortChip(a());
@@ -35,6 +42,7 @@ export function RunHeader(props: { agent: AgentRow; stopping: boolean; onInterru
     return sandbox.cap !== "yes" && sandbox.note ? t("chat.header.sandbox", { title: TIER_TITLE[tier()], note: sandbox.note }) : TIER_TITLE[tier()];
   };
   const active = () => a().status === "running" || a().status === "needsYou";
+  const roleName = () => (a().role === "auto" ? t("runs.role.auto") : a().role);
   // A run of another workspace is read-only: Rewind would overwrite folders this workspace does not hold.
   const foreign = () => isForeign(a().repoIds);
   // Rewind overwrites the working tree, so it needs a second click within a few seconds.
@@ -55,48 +63,52 @@ export function RunHeader(props: { agent: AgentRow; stopping: boolean; onInterru
     <header class="run-header" data-testid="run-header" data-bypass={effectiveMode(a()) === "bypass" ? "" : undefined}>
       <div class="run-header__top">
         <span class="run-header__role" title={t("chat.header.provider", { name: a().provider })}>
-          <ProviderMark id={a().provider} size={18} />
-          <span class="run-header__name">{a().role === "auto" ? t("runs.role.auto") : a().role}</span>
+          <span class="run-header__tile" aria-hidden="true">{initials(roleName())}</span>
         </span>
-        <Show when={a().location}>{(id) => <LocationChip id={id()} />}</Show>
-        <Show when={(a().delegates?.length ?? 0) > 0}>
-          <span class="run-header__lead" title={t("runs.leadTip")}>{t("runs.leadChip", { model: modelLabel(a().model), count: a().delegates!.length })}</span>
-        </Show>
-        <StatusDot tone={shownStatus(a()).tone} label={shownStatus(a()).text} />
-        <span class="run-header__status">{shownStatus(a()).text}</span>
-        <span class="run-header__grow" />
-        <span class="run-header__usage ui-tnum" title={cost().title}>
-          <Show when={a().usage}>{(u) => (
-              <span class="run-header__tokens">
-                {t("chat.header.tokens", { input: fmtTokens(u().cumulative.inputTokens), output: fmtTokens(u().cumulative.outputTokens) })}
-              </span>
-            )}</Show>
-          <span class="run-header__cost">{cost().text}</span>
+        <h1 class="run-header__title">{a().title}</h1>
+        <span class="run-header__state" data-tone={shownStatus(a()).tone}>
+          <StatusDot tone={shownStatus(a()).tone} size={6} label={shownStatus(a()).text} />
+          <span class="run-header__status">{shownStatus(a()).text}</span>
         </span>
-        <HeaderShare runId={a().agentId} />
-        <RunSlots place="header" agent={a()} />
-        <IconButton icon={FileSearch} label={t("chat.header.inspect")} tooltip={t("chat.header.inspectTip")} size="sm" onClick={() => void execute("inspector.open")} />
-        <IconButton
-          icon={Rewind}
-          label={armed() ? t("chat.header.confirmRewind") : t("chat.header.rewind")}
-          tooltip={foreign() ? t("scope.rewindOff") : armed() ? t("chat.header.rewindArmedTip") : t("chat.header.rewindTip")}
-          size="sm"
-          disabled={active() || foreign()}
-          onClick={rewind}
-        />
-        <Show when={active()}>
-          <IconButton icon={Square} label={t("chat.header.interrupt")} tooltip={t("chat.header.interruptTip")} size="sm" loading={props.stopping} onClick={props.onInterrupt} />
-        </Show>
+        <span class="run-header__actions">
+          {/* Slot for what other modules add to the header (the context ring of the token saver lands here). */}
+          <RunSlots place="header" agent={a()} />
+          <HeaderShare runId={a().agentId} />
+          <IconButton icon={FileSearch} variant="secondary" label={t("chat.header.inspect")} tooltip={t("chat.header.inspectTip")} size="lg" onClick={() => void execute("inspector.open")} />
+          <IconButton
+            icon={Rewind}
+            variant="secondary"
+            label={armed() ? t("chat.header.confirmRewind") : t("chat.header.rewind")}
+            tooltip={foreign() ? t("scope.rewindOff") : armed() ? t("chat.header.rewindArmedTip") : t("chat.header.rewindTip")}
+            size="lg"
+            disabled={active() || foreign()}
+            onClick={rewind}
+          />
+          <Show when={active()}>
+            <IconButton icon={Square} variant="secondary" label={t("chat.header.interrupt")} tooltip={t("chat.header.interruptTip")} size="lg" loading={props.stopping} onClick={props.onInterrupt} />
+          </Show>
+        </span>
       </div>
       <Show when={foreign()}>
         <p class="run-header__scope" role="note">{foreignReason(a().repoIds)}</p>
       </Show>
       <div class="run-header__chips">
-        <Badge title={t("chat.header.providerBadge", { name: a().provider })}>{providerName(a().provider)}</Badge>
-        <Badge title={t("chat.header.modelBadge", { name: a().model })}>{modelLabel(a().model)}</Badge>
-        <Badge tone={effort().tone} title={effort().title}>
-          {t("chat.header.effort", { text: effort().text })}
-        </Badge>
+        <span class="run-header__chip run-header__name">{roleName()}</span>
+        <Show when={a().location}>{(id) => <LocationChip id={id()} />}</Show>
+        <Show when={(a().delegates?.length ?? 0) > 0}>
+          <span class="run-header__chip run-header__lead" title={t("runs.leadTip")}>{t("runs.leadChip", { model: modelLabel(a().model), count: a().delegates!.length })}</span>
+        </Show>
+        <span class="run-header__chip run-header__provider">
+          <ProviderMark id={a().provider} size={14} />
+          <Badge title={t("chat.header.providerBadge", { name: a().provider })}>{providerName(a().provider)}</Badge>
+        </span>
+        <span class="run-header__chip">
+          <Badge title={t("chat.header.modelBadge", { name: a().model })}>{modelLabel(a().model)}</Badge>
+          <span aria-hidden="true">·</span>
+          <Badge tone={effort().tone} title={effort().title}>
+            {t("chat.header.effort", { text: effort().text })}
+          </Badge>
+        </span>
         <Show when={a().requested.ultracode}>
           <Badge tone="info" title={t("runpicker.chipTitle")}>
             {t("runpicker.chip")}
@@ -126,6 +138,15 @@ export function RunHeader(props: { agent: AgentRow; stopping: boolean; onInterru
               </Show>
             )}
           </For>
+        </span>
+        <span class="run-header__grow" />
+        <span class="run-header__usage ui-tnum" title={cost().title}>
+          <Show when={a().usage}>{(u) => (
+              <span class="run-header__tokens">
+                {t("chat.header.tokens", { input: fmtTokens(u().cumulative.inputTokens), output: fmtTokens(u().cumulative.outputTokens) })}
+              </span>
+            )}</Show>
+          <span class="run-header__cost">{cost().text}</span>
         </span>
       </div>
     </header>

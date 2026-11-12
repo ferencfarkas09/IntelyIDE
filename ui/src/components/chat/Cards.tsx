@@ -8,12 +8,13 @@ import { isRoleRule, refusalHeadline } from "./refusal";
 import { MODE_META, modeErrorText } from "./modes";
 import "./modes.css";
 
+/** In the order of the buttons: Deny comes first, so the choice that changes nothing is the nearest one; Allow once is the filled button. */
 const DECISIONS: { id: PermissionDecision; label: MessageKey; variant: "primary" | "secondary"; title: MessageKey }[] = [
+  { id: "deny", label: "chat.decision.deny", variant: "secondary", title: "chat.decision.denyTip" },
   { id: "allowOnce", label: "chat.decision.allowOnce", variant: "primary", title: "chat.decision.allowOnceTip" },
   // The session allow: what exactly it allows is the sentence under the buttons (`scopeSentence`), which is also this button's tooltip.
   { id: "allowRun", label: "modes.allowSession", variant: "secondary", title: "modes.allowSession" },
   { id: "allowAlways", label: "chat.decision.allowAlways", variant: "secondary", title: "chat.decision.allowAlwaysTip" },
-  { id: "deny", label: "chat.decision.deny", variant: "secondary", title: "chat.decision.denyTip" },
 ];
 
 const focused = new Set<string>();
@@ -121,7 +122,8 @@ export function PermissionCard(props: { item: PermissionItem; onAnswer: (decisio
     refocusAfterAnswer(card); // before the answer: the card can leave the DOM as soon as it is sent
     props.onAnswer(d);
   };
-  const primary = () => offered()[0]?.id;
+  /** The button a new request puts the focus on: the first allow that is offered (Deny when nothing else is). */
+  const primary = () => (offered().find((d) => d.id !== "deny") ?? offered()[0])?.id;
   return (
     <Show
       when={!props.item.outcome}
@@ -161,8 +163,13 @@ export function PermissionCard(props: { item: PermissionItem; onAnswer: (decisio
         }}
       >
         <header class="perm__head">
-          <Icon icon={ShieldAlert} size={14} />
-          <span class="perm__title">{t("chat.perm.title")}</span>
+          <span class="perm__tile" aria-hidden="true">
+            <Icon icon={ShieldAlert} size={16} />
+          </span>
+          <span class="perm__titles">
+            <span class="perm__title">{t("chat.perm.title")}</span>
+            <span class="perm__explain">{risk().label}</span>
+          </span>
           <Show when={actor()}>
             {(a) => (
               <Badge size="sm" tone={fromRepo() ? "warn" : "neutral"} title={fromRepo() ? t("roles.trust.fromRepo") : undefined}>
@@ -171,9 +178,6 @@ export function PermissionCard(props: { item: PermissionItem; onAnswer: (decisio
               </Badge>
             )}
           </Show>
-          <Badge tone={risk().tone} size="sm">
-            {risk().label}
-          </Badge>
         </header>
         <Show when={peerTarget()}>{(run) => <p class="perm__summary" data-testid="peer-ask">{t("peer.card.ask", { run: run() })}</p>}</Show>
         <Show when={props.item.peer}>
@@ -201,7 +205,7 @@ export function PermissionCard(props: { item: PermissionItem; onAnswer: (decisio
           <For each={offered()}>
             {(d) => (
               <Button
-                size="sm"
+                size="xl"
                 variant={d.variant}
                 class={d.id === "deny" ? "perm__deny" : undefined}
                 data-primary={d.id === primary() ? "" : undefined}
@@ -286,8 +290,12 @@ export function QuestionCard(props: { item: QuestionItem; onAnswer: (answer: Que
         aria-label={t("chat.q.aria")}
       >
         <header class="perm__head">
-          <Icon icon={CircleQuestionMark} size={14} />
-          <span class="perm__title">{t("chat.q.title")}</span>
+          <span class="perm__tile" aria-hidden="true">
+            <Icon icon={CircleQuestionMark} size={16} />
+          </span>
+          <span class="perm__titles">
+            <span class="perm__title">{t("chat.q.title")}</span>
+          </span>
         </header>
         <p class="perm__summary">{props.item.prompt}</p>
         <div class="q__options" role={props.item.multi ? "group" : "radiogroup"} aria-label={t("chat.q.options")}>
@@ -316,7 +324,7 @@ export function QuestionCard(props: { item: QuestionItem; onAnswer: (answer: Que
         </div>
         <Input size="sm" aria-label={t("chat.q.own")} placeholder={t("chat.q.own")} value={text()} onInput={(e) => setText(e.currentTarget.value)} onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), submit())} />
         <div class="perm__actions">
-          <Button size="sm" variant="primary" disabled={!canSend()} onClick={submit}>
+          <Button size="xl" variant="primary" disabled={!canSend()} onClick={submit}>
             {t("chat.q.send")}
           </Button>
         </div>

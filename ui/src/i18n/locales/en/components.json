@@ -207,6 +207,7 @@
   "chat.tool.moreChars": "… ({n} more characters)",
   "chat.tool.subagent": "Subagent",
   "chat.tool.calls": "{n, plural, one {# call} other {# calls}}",
+  "chat.tool.delta": "{added} lines added, {removed} removed",
   "chat.you": "You",
   "chat.waiting": "Waiting for the first events",
   "chat.waitingDesc": "The transcript appears here as the agent works.",

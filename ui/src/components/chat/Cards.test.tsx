@@ -81,7 +81,7 @@ describe("<PermissionCard>", () => {
     render(() => <PermissionCard item={perm()} onAnswer={answer} />);
     expect(screen.queryByRole("button", { name: "Allow always in this session" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Always for role + repo" })).toBeNull();
-    expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual(["Allow once", "Deny"]);
+    expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual(["Deny", "Allow once"]);
     expect(screen.getByText(/can only be allowed once/)).toBeTruthy();
   });
 
@@ -149,9 +149,12 @@ describe("<PermissionCard>", () => {
 describe("<PermissionCard> allow always in this session", () => {
   const offered = (over: Partial<PermissionItem>) => perm({ options: ["allowOnce", "allowRun", "deny"], ...over });
 
-  it("offers the session allow only when the request carries allow_run, between Allow once and Deny", () => {
+  it("offers the session allow only when the request carries allow_run, after Allow once; Deny comes first", () => {
     const { unmount } = render(() => <PermissionCard item={offered({ sessionAllow: { kind: "exec", scope: "git status" } })} onAnswer={() => {}} />);
-    expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual(["Allow once", "Allow always in this session", "Deny"]);
+    expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual(["Deny", "Allow once", "Allow always in this session"]);
+    // A new request still puts the focus on Allow once, not on the first button.
+    expect(screen.getByRole("button", { name: "Allow once" }).hasAttribute("data-primary")).toBe(true);
+    expect(screen.getByRole("button", { name: "Deny" }).hasAttribute("data-primary")).toBe(false);
     unmount();
     render(() => <PermissionCard item={perm()} onAnswer={() => {}} />);
     expect(screen.queryByRole("button", { name: "Allow always in this session" })).toBeNull();
