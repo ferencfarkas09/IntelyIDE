@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>IntelyIDE product page</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./intely-theme.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+body{margin:0}
+a{color:inherit;text-decoration:none}a:hover{color:inherit;text-decoration:underline}
+</style>
+</helmet>
+<div class="iy" data-theme="{{theme}}" data-skin="glass" style="min-height: 4300px; background: var(--bg); color: var(--t1); font-family: var(--font-ui); font-size: 16px; line-height: 1.55;">
+
+  <header style="max-width: 1160px; margin: 0 auto; padding: 18px 24px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 28px;">
+    <a href="#top" style="display: flex; align-items: center; gap: 10px; min-height: 44px; font-weight: 700; font-size: 17px;"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" style="color: var(--accent-text);"><path d="M5 7h9"></path><path d="M5 12h14"></path><path d="M5 17h7"></path></svg>IntelyHome</a>
+    <nav aria-label="Main" style="flex: 1 1 320px; display: flex; flex-wrap: wrap; gap: 4px 22px; font-size: 15px; color: var(--t2);">
+      <a href="#top" aria-current="page" style="display: inline-flex; align-items: center; min-height: 44px; color: var(--t1); font-weight: 600;">IntelyIDE</a>
+      <a href="#opti" style="display: inline-flex; align-items: center; min-height: 44px;">IntelyOpti</a>
+      <a href="#new" style="display: inline-flex; align-items: center; min-height: 44px;">What is new</a>
+      <a href="#trust" style="display: inline-flex; align-items: center; min-height: 44px;">Trust</a>
+      <a href="#faq" style="display: inline-flex; align-items: center; min-height: 44px;">Questions</a>
+    </nav>
+    <a href="#hu" style="display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 14px; border: 1px solid var(--border); border-radius: 999px; font-size: 14px; color: var(--t2);">Magyar</a>
+    <a href="#download" style="display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 20px; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-weight: 600; font-size: 15px;">Download</a>
+  </header>
+
+  <section id="top" style="max-width: 1160px; margin: 0 auto; padding: 56px 24px 32px; display: flex; flex-direction: column; align-items: center; gap: 22px; text-align: center;">
+    <span style="display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 999px; background: var(--accent-subtle); border: 1px solid var(--accent-border); color: var(--accent-text); font-size: 14px; font-weight: 500;">By developers, for developers &#183; Free and open source</span>
+    <h1 style="margin: 0; max-width: 900px; font-size: clamp(38px, 5.4vw, 68px); line-height: 1.05; letter-spacing: -0.03em; font-weight: 700;">Every repo. One window. <span style="color: var(--accent-text);">Agents that finish sooner.</span></h1>
+    <p style="margin: 0; max-width: 680px; font-size: 19px; color: var(--t2);">A desktop Git client for several repositories at once, with coding agents that can edit but never commit or push. Now with a calmer look, a context meter and cards that ask you instead of blocking.</p>
+    <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 12px;">
+      <a href="#download" style="display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 52px; padding: 0 26px; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-weight: 600; font-size: 17px;"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11"></path><path d="M7 11l5 5 5-5"></path><path d="M5 20h14"></path></svg>Download for macOS</a>
+      <a href="#github" style="display: inline-flex; align-items: center; justify-content: center; min-height: 52px; padding: 0 24px; border: 1px solid var(--border); border-radius: 999px; background: var(--panel); font-weight: 600; font-size: 17px;">View on GitHub</a>
+    </div>
+    <p style="margin: 0; font-size: 14px; color: var(--t3);">Version 1.15.0 &#183; macOS 13.5 or later &#183; Intel and Apple Silicon &#183; signed and notarized</p>
+
+    <div role="img" aria-label="The IntelyIDE agent run window: a list of runs, a conversation with an edit card and a card asking whether the agent may read a file, and plan usage in the bottom bar" style="width: 100%; max-width: 1060px; margin-top: 18px; display: flex; flex-direction: column; text-align: left; font-size: 13px; line-height: 1.45; background: var(--pane); border: 1px solid var(--border); border-radius: 20px; box-shadow: var(--shadow-pop); overflow: hidden;">
+      <div style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border-soft);">
+        <span style="display: inline-flex; padding: 3px; gap: 2px; border-radius: 999px; background: var(--card-2); font-size: 12px;"><span style="padding: 3px 12px; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-weight: 600;">Agent</span><span style="padding: 3px 12px; color: var(--t2);">Editor</span></span>
+        <span style="font-weight: 600;">Acme Shop</span>
+        <span style="flex-grow: 1;"></span>
+        <span style="padding: 4px 12px; border: 1px solid var(--border); border-radius: 8px; color: var(--t3); font-size: 12px;">Search or run a command</span>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; gap: 10px; padding: 10px;">
+        <div style="flex: 1 1 220px; max-width: 260px; display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 14px; background: var(--panel); border: 1px solid var(--border-soft);">
+          <span style="font-weight: 600; font-size: 14px;">Runs</span>
+          <span style="display: flex; flex-direction: column; gap: 3px; padding: 10px; border-radius: 12px; background: var(--card); border: 1px solid var(--accent-border);"><span style="font-weight: 600;">Show order totals</span><span style="font-size: 12px; color: var(--warn);">Asks to read .env</span></span>
+          <span style="display: flex; flex-direction: column; gap: 3px; padding: 10px; border-radius: 12px; border: 1px solid var(--border-soft);"><span style="font-weight: 500;">Review the OrderRow change</span><span style="font-size: 12px; color: var(--t3);">Ready for review</span></span>
+          <span style="display: flex; flex-direction: column; gap: 3px; padding: 10px; border-radius: 12px; border: 1px solid var(--border-soft);"><span style="font-weight: 500;">Which routes touch orders?</span><span style="font-size: 12px; color: var(--t3);">Ready for review</span></span>
+        </div>
+        <div style="flex: 999 1 420px; min-width: 0; display: flex; flex-direction: column; gap: 12px; padding: 14px 16px;">
+          <span style="align-self: flex-end; max-width: 80%; padding: 8px 12px; border-radius: 14px 14px 4px 14px; background: var(--accent-subtle); border: 1px solid var(--accent-border);">Show order totals with the shop currency.</span>
+          <span>I found where the total is built. It drops the currency symbol, so I will format it with Intl.NumberFormat.</span>
+          <span style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--card);"><span style="font-weight: 600;">Edit</span><span style="flex-grow: 1; font-family: var(--font-mono); font-size: 12px; color: var(--t2);">src/utils/format.ts</span><span style="font-family: var(--font-mono); font-size: 12px; color: var(--ok);">+2</span><span style="font-family: var(--font-mono); font-size: 12px; color: var(--danger);">-2</span></span>
+          <span style="display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1px solid var(--warn-border); border-radius: 12px; background: var(--warn-subtle);">
+            <span style="font-weight: 600; font-size: 14px;">Let the agent read .env?</span>
+            <span style="font-size: 12px; color: var(--t2);">This file is normally blocked. Only you can answer, on this computer.</span>
+            <span style="display: flex; flex-wrap: wrap; gap: 6px; font-size: 12px; font-weight: 600;"><span style="padding: 6px 12px; border-radius: 8px; background: var(--card); border: 1px solid var(--border);">Deny</span><span style="padding: 6px 12px; border-radius: 8px; background: var(--accent); color: var(--on-accent);">Allow once</span><span style="padding: 6px 12px; border-radius: 8px; background: var(--card); border: 1px solid var(--border); font-weight: 500;">Allow for this run</span></span>
+          </span>
+        </div>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; padding: 8px 14px; border-top: 1px solid var(--border-soft); font-size: 12px; color: var(--t2);">
+        <span>Environment ready</span><span style="flex-grow: 1;"></span>
+        <span style="display: inline-flex; align-items: center; gap: 8px;">Weekly<span style="width: 64px; height: 5px; border-radius: 999px; background: var(--track); overflow: hidden;"><span style="display: block; width: 42%; height: 100%; background: var(--accent-text);"></span></span>42%</span>
+        <span style="display: inline-flex; align-items: center; gap: 8px;">Fable<span style="width: 64px; height: 5px; border-radius: 999px; background: var(--track); overflow: hidden;"><span style="display: block; width: 18%; height: 100%; background: var(--ok);"></span></span>18%</span>
+      </div>
+    </div>
+    <p style="margin: 0; font-size: 13px; color: var(--t3);">In the built page this is the real screenshot, split light and dark by the diagonal as today.</p>
+  </section>
+
+  <section aria-label="Speed" style="max-width: 1160px; margin: 0 auto; padding: 40px 24px;">
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px;">
+      <div style="padding: 26px; border-radius: 20px; background: var(--panel); border: 1px solid var(--border);"><div style="font-size: 44px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1;">up to 7x</div><div style="margin-top: 6px; color: var(--t2);">faster startup of a workspace</div></div>
+      <div style="padding: 26px; border-radius: 20px; background: var(--panel); border: 1px solid var(--border);"><div style="font-size: 44px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1;">up to 6x</div><div style="margin-top: 6px; color: var(--t2);">faster agents from start to finish</div></div>
+      <div style="padding: 26px; border-radius: 20px; background: var(--panel); border: 1px solid var(--border);"><div style="font-size: 44px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1;">about 30%</div><div style="margin-top: 6px; color: var(--t2);">fewer tokens for the same job</div></div>
+    </div>
+    <p style="margin: 12px 0 0; font-size: 13px; color: var(--t3);">Results vary with the workspace, the machine and the task.</p>
+  </section>
+
+  <section id="new" style="max-width: 1160px; margin: 0 auto; padding: 56px 24px; display: flex; flex-direction: column; gap: 28px;">
+    <div style="max-width: 720px;">
+      <span style="font-size: 14px; font-weight: 600; color: var(--accent-text);">New in 1.15</span>
+      <h2 style="margin: 6px 0 8px; font-size: clamp(28px, 3.4vw, 40px); line-height: 1.15; letter-spacing: -0.02em;">Asks you, shows you, stays out of your way</h2>
+      <p style="margin: 0; font-size: 18px; color: var(--t2);">Three things people asked for most, and a quieter window around them.</p>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px;">
+      <article style="display: flex; flex-direction: column; gap: 14px; padding: 24px; border-radius: 20px; background: var(--card); border: 1px solid var(--border); box-shadow: var(--shadow-card);">
+        <div style="display: flex; flex-direction: column; gap: 8px; padding: 14px; border: 1px solid var(--warn-border); border-radius: 14px; background: var(--warn-subtle); font-size: 13px;"><span style="font-weight: 600;">Let the agent read .env?</span><span style="display: flex; flex-wrap: wrap; gap: 6px; font-size: 12px; font-weight: 600;"><span style="padding: 5px 10px; border-radius: 8px; background: var(--card); border: 1px solid var(--border);">Deny</span><span style="padding: 5px 10px; border-radius: 8px; background: var(--accent); color: var(--on-accent);">Allow once</span><span style="padding: 5px 10px; border-radius: 8px; background: var(--card); border: 1px solid var(--border); font-weight: 500;">For this run</span></span></div>
+        <h3 style="margin: 0; font-size: 20px;">It asks instead of blocking</h3>
+        <p style="margin: 0; color: var(--t2);">When an agent needs a secret-looking file of your project, a card asks you: once, for this run, or always for this repository. Commits, pushes and your keys stay off limits.</p>
+      </article>
+      <article style="display: flex; flex-direction: column; gap: 14px; padding: 24px; border-radius: 20px; background: var(--card); border: 1px solid var(--border); box-shadow: var(--shadow-card);">
+        <div style="display: flex; flex-direction: column; gap: 8px; padding: 14px; border: 1px solid var(--border); border-radius: 14px; background: var(--card-2); font-size: 13px;"><span style="display: flex; align-items: baseline; gap: 6px;"><span style="font-size: 20px; font-weight: 600;">62k</span><span style="color: var(--t2);">of 200k tokens</span></span><span style="height: 7px; border-radius: 999px; background: var(--track); overflow: hidden;"><span style="display: block; width: 31%; height: 100%; background: var(--accent-text);"></span></span><span style="color: var(--t2);">about 14 turns left</span></div>
+        <h3 style="margin: 0; font-size: 20px;">A context meter</h3>
+        <p style="margin: 0; color: var(--t2);">See how much of a run the agent can still keep in mind, and carry a summary into a fresh run before the limit.</p>
+      </article>
+      <article style="display: flex; flex-direction: column; gap: 14px; padding: 24px; border-radius: 20px; background: var(--card); border: 1px solid var(--border); box-shadow: var(--shadow-card);">
+        <div style="display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1px solid var(--border); border-radius: 14px; background: var(--card-2); font-size: 13px;"><span style="display: flex; align-items: center; gap: 10px;"><span style="width: 56px;">Weekly</span><span style="flex-grow: 1; height: 7px; border-radius: 999px; background: var(--track); overflow: hidden;"><span style="display: block; width: 42%; height: 100%; background: var(--accent-text);"></span></span><span style="font-weight: 600;">42%</span></span><span style="display: flex; align-items: center; gap: 10px;"><span style="width: 56px;">Fable</span><span style="flex-grow: 1; height: 7px; border-radius: 999px; background: var(--track); overflow: hidden;"><span style="display: block; width: 18%; height: 100%; background: var(--ok);"></span></span><span style="font-weight: 600;">18%</span></span></div>
+        <h3 style="margin: 0; font-size: 20px;">Plan usage at a glance</h3>
+        <p style="margin: 0; color: var(--t2);">The bottom bar shows how much of your weekly plan is used, so a long run does not surprise you.</p>
+      </article>
+    </div>
+  </section>
+
+  <section id="trust" style="max-width: 1160px; margin: 0 auto; padding: 56px 24px;">
+    <div style="display: flex; flex-wrap: wrap; gap: 32px; padding: clamp(24px, 4vw, 48px); border-radius: 28px; background: var(--panel); border: 1px solid var(--border);">
+      <div style="flex: 1 1 320px; min-width: 0;">
+        <h2 style="margin: 0 0 10px; font-size: clamp(28px, 3.4vw, 40px); line-height: 1.15; letter-spacing: -0.02em;">Built for trust</h2>
+        <p style="margin: 0; font-size: 18px; color: var(--t2);">An agent can propose and edit. Only you commit and push.</p>
+      </div>
+      <ul style="flex: 1 1 420px; min-width: 0; margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 16px;">
+        <li style="display: flex; gap: 14px;"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 2px; color: var(--ok);"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg><span><strong>Hard stops in every mode.</strong> <span style="color: var(--t2);">Commit, push, merge, rebase and anything inside .git are refused, also in Bypass.</span></span></li>
+        <li style="display: flex; gap: 14px;"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 2px; color: var(--ok);"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg><span><strong>Your keys stay yours.</strong> <span style="color: var(--t2);">SSH keys, cloud credentials and password stores are never read by an agent.</span></span></li>
+        <li style="display: flex; gap: 14px;"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 2px; color: var(--ok);"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg><span><strong>Undo any step.</strong> <span style="color: var(--t2);">Every run keeps checkpoints, so you can go back one step or to the start.</span></span></li>
+        <li style="display: flex; gap: 14px;"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 2px; color: var(--ok);"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg><span><strong>Honest about limits.</strong> <span style="color: var(--t2);">The protections are layered and best effort, and the safety page says where they end.</span></span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section aria-labelledby="get" style="max-width: 1160px; margin: 0 auto; padding: 56px 24px; display: flex; flex-direction: column; gap: 28px;">
+    <h2 id="get" style="margin: 0; font-size: clamp(28px, 3.4vw, 40px); line-height: 1.15; letter-spacing: -0.02em;">What you get</h2>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px;">
+      <article style="padding: 24px; border-radius: 20px; background: var(--card); border: 1px solid var(--border);"><h3 style="margin: 0 0 6px; font-size: 19px;">Every repo in one window</h3><p style="margin: 0; color: var(--t2);">Changes, branches, diffs and pushes of a whole workspace side by side.</p></article>
+      <article style="padding: 24px; border-radius: 20px; background: var(--card); border: 1px solid var(--border);"><h3 style="margin: 0 0 6px; font-size: 19px;">Agents with roles</h3><p style="margin: 0; color: var(--t2);">Developer, reviewer, researcher: pick the model, the effort and how much freedom each run gets.</p></article>
+      <article style="padding: 24px; border-radius: 20px; background: var(--card); border: 1px solid var(--border);"><h3 style="margin: 0 0 6px; font-size: 19px;">A dashboard that answers "what now?"</h3><p style="margin: 0; color: var(--t2);">What needs you, what is ready to review, how much of the plan is used.</p></article>
+      <article style="padding: 24px; border-radius: 20px; background: var(--card); border: 1px solid var(--border);"><h3 style="margin: 0 0 6px; font-size: 19px;">Tests and summaries after a run</h3><p style="margin: 0; color: var(--t2);">Unit tests run when a run ends, and a plain-language summary says what changed and what to check.</p></article>
+      <article style="padding: 24px; border-radius: 20px; background: var(--card); border: 1px solid var(--border);"><h3 style="margin: 0 0 6px; font-size: 19px;">MCP servers, ready to switch on</h3><p style="margin: 0; color: var(--t2);">A catalog of servers for web and mobile work, each checked by a real launch.</p></article>
+      <article style="padding: 24px; border-radius: 20px; background: var(--card); border: 1px solid var(--border);"><h3 style="margin: 0 0 6px; font-size: 19px;">Versions in one place</h3><p style="margin: 0; color: var(--t2);">Bump package.json, Xcode, Gradle, Cargo and more across repos, with the exact diff first.</p></article>
+    </div>
+  </section>
+
+  <section aria-labelledby="shots" style="max-width: 1160px; margin: 0 auto; padding: 56px 24px; display: flex; flex-direction: column; gap: 20px;">
+    <div><h2 id="shots" style="margin: 0 0 6px; font-size: clamp(28px, 3.4vw, 40px); line-height: 1.15; letter-spacing: -0.02em;">See it, light and dark</h2><p style="margin: 0; font-size: 18px; color: var(--t2);">Every screenshot shows both themes, split by a diagonal.</p></div>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px;">
+      <figure style="margin: 0; display: flex; flex-direction: column; gap: 8px;"><div style="aspect-ratio: 16 / 10; display: flex; align-items: center; justify-content: center; border: 1px dashed var(--border); border-radius: 18px; background: var(--panel); color: var(--t2); font-size: 14px;">[Screenshot: Agent run]</div><figcaption style="font-size: 14px; color: var(--t2);">A run with the ask-card and the context ring</figcaption></figure>
+      <figure style="margin: 0; display: flex; flex-direction: column; gap: 8px;"><div style="aspect-ratio: 16 / 10; display: flex; align-items: center; justify-content: center; border: 1px dashed var(--border); border-radius: 18px; background: var(--panel); color: var(--t2); font-size: 14px;">[Screenshot: Dashboard]</div><figcaption style="font-size: 14px; color: var(--t2);">The dashboard with the number tiles</figcaption></figure>
+      <figure style="margin: 0; display: flex; flex-direction: column; gap: 8px;"><div style="aspect-ratio: 16 / 10; display: flex; align-items: center; justify-content: center; border: 1px dashed var(--border); border-radius: 18px; background: var(--panel); color: var(--t2); font-size: 14px;">[Screenshot: New run]</div><figcaption style="font-size: 14px; color: var(--t2);">Starting a run: prompt, repositories, freedom</figcaption></figure>
+      <figure style="margin: 0; display: flex; flex-direction: column; gap: 8px;"><div style="aspect-ratio: 16 / 10; display: flex; align-items: center; justify-content: center; border: 1px dashed var(--border); border-radius: 18px; background: var(--panel); color: var(--t2); font-size: 14px;">[Screenshot: Context meter]</div><figcaption style="font-size: 14px; color: var(--t2);">The context meter and plan usage</figcaption></figure>
+    </div>
+  </section>
+
+  <section id="download" style="max-width: 1160px; margin: 0 auto; padding: 56px 24px; display: flex; flex-direction: column; gap: 24px;">
+    <h2 style="margin: 0; font-size: clamp(28px, 3.4vw, 40px); line-height: 1.15; letter-spacing: -0.02em;">Install in 3 steps</h2>
+    <ol style="margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px;">
+      <li style="display: flex; flex-direction: column; gap: 8px; padding: 24px; border-radius: 20px; background: var(--card); border: 1px solid var(--border);"><span aria-hidden="true" style="width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 999px; background: var(--accent-subtle); color: var(--accent-text); font-weight: 700;">1</span><h3 style="margin: 0; font-size: 19px;">Download the app</h3><p style="margin: 0; color: var(--t2);">One universal image for Intel and Apple Silicon. Signed and notarized, so it opens without a warning.</p></li>
+      <li style="display: flex; flex-direction: column; gap: 8px; padding: 24px; border-radius: 20px; background: var(--card); border: 1px solid var(--border);"><span aria-hidden="true" style="width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 999px; background: var(--accent-subtle); color: var(--accent-text); font-weight: 700;">2</span><h3 style="margin: 0; font-size: 19px;">Open your folders</h3><p style="margin: 0; color: var(--t2);">Add the repositories of a project as one workspace. The Git features work right away.</p></li>
+      <li style="display: flex; flex-direction: column; gap: 8px; padding: 24px; border-radius: 20px; background: var(--card); border: 1px solid var(--border);"><span aria-hidden="true" style="width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 999px; background: var(--accent-subtle); color: var(--accent-text); font-weight: 700;">3</span><h3 style="margin: 0; font-size: 19px;">Start an agent</h3><p style="margin: 0; color: var(--t2);">Agent runs use Node.js 24 and your own Claude Code login. The Setup doctor checks both.</p></li>
+    </ol>
+    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 14px;">
+      <a href="#dmg" style="display: inline-flex; align-items: center; justify-content: center; min-height: 52px; padding: 0 26px; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-weight: 600; font-size: 17px;">Download IntelyIDE 1.15.0</a>
+      <span style="font-size: 14px; color: var(--t3);">[SIZE] &#183; SHA-256 on the download page</span>
+    </div>
+  </section>
+
+  <section id="faq" style="max-width: 860px; margin: 0 auto; padding: 56px 24px; display: flex; flex-direction: column; gap: 14px;">
+    <h2 style="margin: 0 0 8px; font-size: clamp(28px, 3.4vw, 40px); line-height: 1.15; letter-spacing: -0.02em;">Questions</h2>
+    <details open style="padding: 18px 22px; border-radius: 16px; background: var(--card); border: 1px solid var(--border);"><summary style="min-height: 28px; font-weight: 600; font-size: 18px; cursor: pointer;">Can an agent commit or push?</summary><p style="margin: 10px 0 0; color: var(--t2);">No. Agents edit files. Committing, pushing and staging are yours, in every mode.</p></details>
+    <details style="padding: 18px 22px; border-radius: 16px; background: var(--card); border: 1px solid var(--border);"><summary style="min-height: 28px; font-weight: 600; font-size: 18px; cursor: pointer;">What does it cost?</summary><p style="margin: 10px 0 0; color: var(--t2);">IntelyIDE is free and open source. Agent runs use your own Claude Code login.</p></details>
+    <details style="padding: 18px 22px; border-radius: 16px; background: var(--card); border: 1px solid var(--border);"><summary style="min-height: 28px; font-weight: 600; font-size: 18px; cursor: pointer;">Is there a Windows version?</summary><p style="margin: 10px 0 0; color: var(--t2);">Not yet. A Windows beta is being worked on; today the app is for macOS.</p></details>
+  </section>
+
+  <footer style="max-width: 1160px; margin: 0 auto; padding: 32px 24px 48px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 24px; border-top: 1px solid var(--border-soft); font-size: 14px; color: var(--t2);">
+    <span style="flex: 1 1 240px;">IntelyHome &#183; Software made by developers, for developers.</span>
+    <a href="#privacy" style="display: inline-flex; align-items: center; min-height: 44px;">Privacy</a>
+    <a href="#terms" style="display: inline-flex; align-items: center; min-height: 44px;">Terms</a>
+    <a href="#github" style="display: inline-flex; align-items: center; min-height: 44px;">GitHub</a>
+    <a href="#safety" style="display: inline-flex; align-items: center; min-height: 44px;">Safety model</a>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark","section":"Look"},"$preview":{"width":1440,"height":4300}}'>
+class Component extends DCLogic {
+renderVals() {
+return { theme: this.props.theme ?? 'dark' };
+}
+}
+</script>
+</body>
+</html>

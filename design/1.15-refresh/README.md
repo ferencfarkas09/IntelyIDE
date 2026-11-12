@@ -7,5 +7,6 @@ spec (sizes, radii, spacing, colours as tokens of `intely-theme.css`, which mirr
 - `Dashboard.dc.html`: the Dashboard tab.
 - `NewRun.dc.html`: the New run dialog.
 - `ContextMeter.dc.html`: the context meter popover and the plan-usage popover of the bottom bar, with the bar item states.
+- `Website.dc.html`: the IntelyIDE page of the website (1440 px wide; proposed on 2026-11-12, same tokens as the app).
 
 All names and numbers in them are demo data. This branch is a reference for the implementation and is not meant to be merged.
