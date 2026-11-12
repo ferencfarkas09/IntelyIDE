@@ -11,7 +11,7 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 
 ### Fixed
 
-- Agents: a property access such as `line.key`, `event.key` or `props.key` in inline code or in a script a command runs is no longer refused as a secret file. A bare name that is secret only by its extension (`*.key`, `*.pem`, `*.p8`, `*.p12`, `*.jks`, `*.keystore`, `*.pfx`) now counts only when a file of that name is in the folder the command runs in; `.env`, `id_rsa`, names with a folder and home paths are judged as before, in every mode.
+- Agents: a property access such as `line.key`, `event.key` or `props.key` in inline code or in a script a command runs is no longer refused as a secret file. A bare name that is secret only by its extension (`*.key`, `*.pem`, `*.p8`, `*.p12`, `*.jks`, `*.keystore`, `*.pfx`) now counts only when no key file of that extension is near the command (its folder, the run's folder, or one folder below either), and a bare extension such as `.key` (what is left of a name built at run time) always counts; `.env`, `id_rsa`, names with a folder and home paths are judged as before, in every mode.
 
 ## [1.14.1] - 2026-10-30
 

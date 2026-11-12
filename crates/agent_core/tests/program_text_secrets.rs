@@ -1,6 +1,6 @@
 //! `read.never-read` on program text (inline code, heredocs, the text of a script a command runs): a bare name that is secret only by
-//! its extension (`line.key`, `event.key`, `props.key`: a property access in code) counts only when a file of that name is in the
-//! directory the command runs in. Exact secret names (`.env`, `id_rsa`), names with a folder (`./certs/server.pem`) and home or
+//! its extension (`line.key`, `event.key`, `props.key`: a property access in code) counts only when no key file of that extension is
+//! near the command (its directory, the run folder, one folder below either), and a bare `.key` (what is left of `'a' + '.key'`) always counts. Exact secret names (`.env`, `id_rsa`), names with a folder (`./certs/server.pem`) and home or
 //! absolute paths stay judged by their spelling; operands a program opens stay resolved. The verdict is the same in every mode.
 
 mod common;
@@ -79,6 +79,8 @@ fn the_same_name_is_a_hard_stop_when_a_file_of_that_name_is_in_the_folder() {
     std::fs::write(fx.cwd.join("server.key"), "k").unwrap();
     stopped(&fx, &py_heredoc("data = open('server.key').read()"));
     stopped(&fx, &node_e("require('fs').readFileSync('server.key')"));
+    // an extension nobody has a file of is still a property access
+    not_stopped(&fx, &node_e("console.log(cfg.pem)"));
     // a different case of the same name (macOS and Windows fold it; the lookup asks the file system)
     std::fs::write(fx.cwd.join("Upper.PEM"), "k").unwrap();
     stopped(&fx, &node_e("console.log(Upper.PEM)"));
@@ -109,17 +111,39 @@ fn operands_exact_names_folders_and_home_paths_stay_judged_as_before() {
 }
 
 #[test]
-fn the_folder_is_the_one_the_command_runs_in_after_a_cd() {
+fn a_key_file_one_folder_below_the_command_or_the_run_folder_counts() {
     let fx = mfx();
     std::fs::write(fx.cwd.join("sub/line.key"), "k").unwrap();
-    // the file is in `sub`: from `sub` the name counts, from the run folder or another folder it does not
+    // from `sub`, from the run folder (one folder below) and from a sibling folder: the file is near
     stopped(&fx, &format!("cd sub && {}", node_e("console.log(line.key)")));
     stopped(&fx, &format!("cd sub && {}", py_heredoc("print(line.key)")));
-    not_stopped(&fx, &node_e("console.log(line.key)"));
-    not_stopped(&fx, &format!("cd src && {}", node_e("console.log(line.key)")));
-    // `( ... )` ends what a `cd` inside it did
-    not_stopped(&fx, &format!("(cd src) && {}", node_e("console.log(line.key)")));
-    stopped(&fx, &format!("(cd sub && {})", node_e("console.log(line.key)")));
+    stopped(&fx, &node_e("console.log(line.key)"));
+    stopped(&fx, &format!("cd src && {}", node_e("console.log(line.key)")));
+    // a program that picks its own folder (`chdir`, `path.join`, `cwd:`) finds the key file of that folder too
+    stopped(&fx, &node_e("process.chdir('sub'); console.log(require('fs').readFileSync('x.key'))"));
+    stopped(&fx, &node_e("require('fs').readFileSync(require('path').join('sub', 'server.key'))"));
+    // two folders below is out of reach of the look: the name stays a property access
+    std::fs::create_dir_all(fx.cwd.join("src/modules/deep")).unwrap();
+    std::fs::write(fx.cwd.join("src/modules/deep/a.p8"), "k").unwrap();
+    not_stopped(&fx, &node_e("console.log(e.p8)"));
+}
+
+#[test]
+fn what_is_left_of_a_name_built_at_run_time_or_cut_at_a_blank_is_not_a_property_access() {
+    let fx = mfx();
+    std::fs::write(fx.cwd.join("server.key"), "k").unwrap();
+    std::fs::write(fx.cwd.join("a b.p12"), "k").unwrap();
+    for ext in ["key", "pem", "p12", "pfx", "jks", "keystore", "p8"] {
+        stopped(&fx, &node_e(&format!("console.log(require('fs').readFileSync('server'+'.{ext}','utf8'))")));
+        stopped(&fx, &py_heredoc(&format!("n='server'\nprint(open(n+'.{ext}').read())")));
+    }
+    stopped(&fx, &node_e("for (const f of require('fs').readdirSync('.')) if (f.endsWith('.key')) console.log(f)"));
+    stopped(&fx, &py_heredoc("import glob\nfor f in glob.glob('*.key'): print(open(f).read())"));
+    // a name with a blank: the fragment after the blank is only the end of it
+    stopped(&fx, &node_e("require('fs').readFileSync('a b.p12')"));
+    // even without any file there: the fragment is no stem
+    let fx2 = mfx();
+    stopped(&fx2, &node_e("console.log(['x'].map((n) => n + '.key'))"));
 }
 
 #[test]
@@ -137,18 +161,15 @@ fn a_symbolic_link_with_a_key_name_counts_even_when_it_points_outside_or_nowhere
 }
 
 #[test]
-fn past_the_look_up_cap_every_further_name_counts_as_found() {
+fn many_names_of_one_extension_cost_one_look() {
     let fx = mfx();
-    // repeats of one name are looked up once
-    let repeated = vec!["line.key"; 500].join(", ");
-    not_stopped(&fx, &py_heredoc(&format!("print([{repeated}])")));
-    // 64 distinct names that do not exist: all looked up, none there
     let names = |n: usize| (0..n).map(|i| format!("row{i}.key")).collect::<Vec<_>>().join(", ");
-    not_stopped(&fx, &py_heredoc(&format!("print([{}])", names(64))));
-    // the 65th distinct name is not looked up: it counts as a secret file (fail closed)
-    stopped(&fx, &py_heredoc(&format!("print([{}])", names(65))));
-    std::fs::write(fx.cwd.join("many.py"), format!("print([{}])\n", names(65))).unwrap();
-    stopped(&fx, "python3 many.py");
+    not_stopped(&fx, &py_heredoc(&format!("print([{}])", names(300))));
+    std::fs::write(fx.cwd.join("many.py"), format!("print([{}])\n", names(300))).unwrap();
+    not_stopped(&fx, "python3 many.py");
+    // one key file anywhere near makes all of them count
+    std::fs::write(fx.cwd.join("zz.key"), "k").unwrap();
+    stopped(&fx, &py_heredoc(&format!("print([{}])", names(3))));
 }
 
 #[test]
