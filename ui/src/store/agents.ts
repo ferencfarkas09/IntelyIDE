@@ -230,7 +230,7 @@ export interface AnswerExtra {
   mode?: PermissionMode;
   feedback?: string;
   /** "Always allow" for a secret file: the person clicked the second confirmation (the host requires it). */
-  confirmAlways?: boolean;
+  confirmBroad?: boolean;
 }
 
 /**

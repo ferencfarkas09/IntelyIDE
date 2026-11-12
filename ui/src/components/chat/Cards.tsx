@@ -54,8 +54,12 @@ export const stopWhat = (c: ConfirmOffer): string => (c.kind === "cliPrompt" ? c
 const stopVerb = (c: ConfirmOffer) => (c.kind === "secretFile" ? "read" : c.kind === "secretEdit" ? "edit" : "cli");
 
 /** "You allowed reading .env once": the log line for a tier-2 card that was allowed, whether a card or a standing grant did it. */
-export function stopDoneWording(p: { confirm?: ConfirmOffer; outcome?: string; grant?: "once" | "run" | "always" }): string | undefined {
+export function stopDoneWording(p: { confirm?: ConfirmOffer; outcome?: string; grant?: string | null; by?: string }): string | undefined {
   if (!p.confirm || p.outcome !== "allow" || !p.grant) return undefined;
+  // A standing run-wide grant that let one more file or prompt through: name what was used, "under the run-wide permission".
+  if (p.grant === "run" && p.by === "saved") return t(`stops.done.${stopVerb(p.confirm)}.used` as MessageKey, { what: stopWhat(p.confirm) });
+  // The card the person answered: a run-wide answer names the kind, never a file that was not on a card.
+  if (p.grant === "run" && p.confirm.kind !== "cliPrompt") return t(`stops.done.${stopVerb(p.confirm)}.run` as MessageKey);
   return t(`stops.done.${stopVerb(p.confirm)}.${p.grant}` as MessageKey, { what: stopWhat(p.confirm) });
 }
 
@@ -110,7 +114,7 @@ export function scopeSentence(offer: SessionAllowOffer): { before: string; scope
 /** The tool of a run that asks to message another run of the same person; the target travels in `argv`. */
 export const PEER_SEND_TOOL = "mcp__intely-peer__peer_send";
 
-export function PermissionCard(props: { item: PermissionItem; onAnswer: (decision: PermissionDecision, extra?: { feedback?: string; confirmAlways?: boolean }) => void; /** The run's role table: marks a request from a role that comes from a repository. */ delegates?: DelegateInfo[]; /** The title of one of the person's runs (for the peer-message card). */ runTitle?: (id: string) => string | undefined }) {
+export function PermissionCard(props: { item: PermissionItem; onAnswer: (decision: PermissionDecision, extra?: { feedback?: string; confirmBroad?: boolean }) => void; /** The run's role table: marks a request from a role that comes from a repository. */ delegates?: DelegateInfo[]; /** The title of one of the person's runs (for the peer-message card). */ runTitle?: (id: string) => string | undefined }) {
   let card: HTMLElement | undefined;
   /** The delegate that asks, when one does (the lead has no actor). */
   const actor = () => intentActor(props.item.intent);
@@ -131,7 +135,7 @@ export function PermissionCard(props: { item: PermissionItem; onAnswer: (decisio
     return id ? (props.runTitle?.(id) ?? id) : "?";
   };
   const paths = () => (props.item.intent.paths ?? []).filter((p) => !props.item.intent.summary.includes(p));
-  const answer = (d: PermissionDecision, extra?: { feedback?: string; confirmAlways?: boolean }) => {
+  const answer = (d: PermissionDecision, extra?: { feedback?: string; confirmBroad?: boolean }) => {
     refocusAfterAnswer(card); // before the answer: the card can leave the DOM as soon as it is sent
     if (extra) props.onAnswer(d, extra);
     else props.onAnswer(d);
@@ -142,13 +146,13 @@ export function PermissionCard(props: { item: PermissionItem; onAnswer: (decisio
   const [confirming, setConfirming] = createSignal(false);
   const [note, setNote] = createSignal("");
   const stopOffers = (id: PermissionDecision) => props.item.options.includes(id);
-  /** A secret needs a second click for "always"; a CLI reason does not. */
-  const alwaysIsSecret = () => stop()?.kind === "secretFile" || stop()?.kind === "secretEdit";
-  const askAlways = () => {
-    if (alwaysIsSecret()) {
+  /** A secret needs a second click for the run-wide choice (it covers every secret file of the run); a CLI reason does not. */
+  const runIsBroad = () => stop()?.kind === "secretFile" || stop()?.kind === "secretEdit";
+  const askRun = () => {
+    if (runIsBroad()) {
       setConfirming(true);
       queueMicrotask(() => card?.querySelector<HTMLElement>("[data-stop-cancel]")?.focus());
-    } else answer("allowAlways");
+    } else answer("allowRun");
   };
   const denyStop = () => answer("deny", note().trim() ? { feedback: note().trim() } : undefined);
   return (
@@ -232,6 +236,9 @@ export function PermissionCard(props: { item: PermissionItem; onAnswer: (decisio
               <Show when={c().kind !== "cliPrompt"}>
                 <p class="perm__note ui-mono ui-truncate" title={c().scope} data-testid="stop-path">{c().scope}</p>
               </Show>
+              <Show when={c().kind !== "cliPrompt" && stopOffers("allowRun")}>
+                <p class="perm__note" data-testid="stop-reach">{t(`stops.reach.${c().kind}` as MessageKey)}</p>
+              </Show>
             </>
           )}
         </Show>
@@ -264,11 +271,11 @@ export function PermissionCard(props: { item: PermissionItem; onAnswer: (decisio
                 <p class="perm__note" role="note" data-testid="stop-phone">{t("stops.phone")}</p>
               </Show>
               <Show when={!confirming()} fallback={
-                <div class="perm__confirm" role="alertdialog" aria-label={t("stops.confirm.q", { what: stopWhat(c()), repo: lastSegment(c().repo) })}>
-                  <p class="perm__note" data-testid="stop-confirm">{t("stops.confirm.q", { what: stopWhat(c()), repo: lastSegment(c().repo) })}</p>
+                <div class="perm__confirm" role="alertdialog" aria-label={t(`stops.confirm.q.${c().kind}` as MessageKey)}>
+                  <p class="perm__note" data-testid="stop-confirm">{t(`stops.confirm.q.${c().kind}` as MessageKey)}</p>
                   <div class="perm__actions">
                     <Button size="sm" variant="secondary" data-stop-cancel="" onClick={() => { setConfirming(false); queueMicrotask(() => card?.querySelector<HTMLElement>("[data-primary]")?.focus()); }}>{t("stops.confirm.cancel")}</Button>
-                    <Button size="sm" variant="secondary" data-testid="stop-confirm-yes" onClick={() => answer("allowAlways", { confirmAlways: true })}>{t("stops.confirm.yes")}</Button>
+                    <Button size="sm" variant="secondary" data-testid="stop-confirm-yes" onClick={() => answer("allowRun", { confirmBroad: true })}>{t("stops.confirm.yes")}</Button>
                   </div>
                 </div>
               }>
@@ -277,8 +284,7 @@ export function PermissionCard(props: { item: PermissionItem; onAnswer: (decisio
                 </Show>
                 <div class="perm__actions" data-testid="stop-actions">
                   <Show when={stopOffers("allowOnce")}><Button size="sm" variant="secondary" onClick={() => answer("allowOnce")}>{t("stops.once")}</Button></Show>
-                  <Show when={stopOffers("allowRun")}><Button size="sm" variant="secondary" title={t(props.item.confirm?.kind === "cliPrompt" ? "stops.runTipCli" : "stops.runTip")} onClick={() => answer("allowRun")}>{t("stops.run")}</Button></Show>
-                  <Show when={stopOffers("allowAlways")}><Button size="sm" variant="secondary" title={t("stops.alwaysTip")} onClick={askAlways}>{c().kind === "cliPrompt" ? t("stops.alwaysCli") : t("stops.always")}</Button></Show>
+                  <Show when={stopOffers("allowRun")}><Button size="sm" variant="secondary" data-testid="stop-run" onClick={askRun}>{t(`stops.run.${c().kind}` as MessageKey)}</Button></Show>
                   <Show when={stopOffers("deny")}><Button size="sm" variant="primary" class="perm__deny" data-primary="" title={t("stops.denyTip")} onClick={denyStop}>{t("stops.deny")}</Button></Show>
                 </div>
               </Show>

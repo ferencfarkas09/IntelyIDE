@@ -45,18 +45,6 @@ export type Unsubscribe = () => void;
  * Rejections of every command carry an `EngineError` (see `toEngineError` in `rpc.ts`). The flat methods predate the modules;
  * new features add methods to their own namespace (`ipc.files`, `ipc.graph`, ... see `namespaces.ts`) instead.
  */
-/** One entry of the always-list of confirmable stops (Settings > Safety). */
-export interface StopAllowEntry {
-  id: string;
-  /** The folder of the run that holds the thing: the repository the entry belongs to. */
-  repo: string;
-  kind: ConfirmKind;
-  /** The exact normalized path (secret file) or the exact Claude CLI reason. */
-  scope: string;
-  rule: string;
-  addedMs: number;
-}
-
 export interface Ipc extends IpcNamespaces {
   workspaceGet(): Promise<Workspace>;
   workspaceSave(ws: Workspace): Promise<Workspace>;
@@ -109,11 +97,7 @@ export interface Ipc extends IpcNamespaces {
    * `extra.mode`: an ExitPlanMode approval continues the run in this mode (`ask`, `edit` or `automatic`).
    * `extra.feedback`: the user's text when an ExitPlanMode request is rejected.
    */
-  agentAnswerPermission(agentId: string, requestId: string, decision: PermissionDecision, extra?: { mode?: PermissionMode; feedback?: string; confirmAlways?: boolean }): Promise<void>;
-  /** The always-list of confirmable stops (Settings > Safety): what the person allowed "always" for a repository. Kept in the IDE's own data, never in a repository. */
-  stopAllowList(): Promise<StopAllowEntry[]>;
-  /** Removes one entry (from the file and from the runs that are open); false = there was none. */
-  stopAllowRevoke(id: string): Promise<boolean>;
+  agentAnswerPermission(agentId: string, requestId: string, decision: PermissionDecision, extra?: { mode?: PermissionMode; feedback?: string; confirmBroad?: boolean }): Promise<void>;
   /** Switches the permission mode of a run live; rejects with the codes of the modes spec (`modeNotSupported`, `bypassNotConfirmed`, `writeLease`, ...). */
   agentSetPermission(agentId: string, mode: PermissionMode, opts?: { confirmBypass?: boolean }): Promise<AgentSummary>;
   /** The modes a NEW run of this provider may start in (provider support minus what the kill switch disables). */

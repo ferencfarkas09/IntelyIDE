@@ -213,7 +213,7 @@ function planEntry(i: PlanItem): PlanEntry {
 /** The options a permission card offers, in the card's wording (the wire says `allow_once` / `allow_run` / `deny`). */
 function decisionsOf(options: readonly PermissionOption[] | undefined): PermissionDecision[] {
   if (!options?.length) return ["allowOnce", "deny"];
-  return options.map((o) => (o === "allow_once" ? "allowOnce" : o === "allow_run" ? "allowRun" : o === "allow_always" ? "allowAlways" : "deny"));
+  return options.map((o) => (o === "allow_once" ? "allowOnce" : o === "allow_run" ? "allowRun" : "deny"));
 }
 
 /** The request that leaves plan mode: the lead's ExitPlanMode, never a delegate's. */
@@ -441,14 +441,14 @@ function finishTurn(v: AgentView, stopReason: StopReason, ts: number, seq: numbe
 }
 
 /** Local reply bookkeeping: the permission/question card shows the user's pick immediately. */
-export function markPermissionAnswered(view: AgentView, reqId: string, decision: PermissionDecision, extra?: { mode?: PermissionMode; feedback?: string; confirmAlways?: boolean }): AgentView {
+export function markPermissionAnswered(view: AgentView, reqId: string, decision: PermissionDecision, extra?: { mode?: PermissionMode; feedback?: string; confirmBroad?: boolean }): AgentView {
   const at = view.index[PERM(reqId)];
   if (at === undefined) return view;
   const item = view.items[at] as PermissionItem;
   if (item.outcome) return view;
   const items = view.items.slice();
   const { error: _cleared, ...rest } = item;
-  items[at] = { ...rest, decision, outcome: decision === "deny" ? "deny" : "allow", by: "user", ...(item.confirm && decision !== "deny" ? { grant: decision === "allowRun" ? "run" : decision === "allowAlways" ? "always" : "once" } : {}), ...(extra?.mode ? { mode: extra.mode } : {}), ...(extra?.feedback ? { feedback: extra.feedback } : {}) };
+  items[at] = { ...rest, decision, outcome: decision === "deny" ? "deny" : "allow", by: "user", ...(item.confirm && decision !== "deny" ? { grant: decision === "allowRun" ? "run" : "once" } : {}), ...(extra?.mode ? { mode: extra.mode } : {}), ...(extra?.feedback ? { feedback: extra.feedback } : {}) };
   return { ...view, items };
 }
 
