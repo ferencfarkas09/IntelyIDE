@@ -9,6 +9,10 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 - Work in progress, not released: the Windows 10 and 11 unsigned beta. The code for it is in place (window chrome and menu for Windows, the Windows environment variables the agent and the runner need, NSIS and MSI installer settings, a Windows CI job) but no Windows installer is published with 1.14.0. The agent safety is weaker than on macOS and the app says so. See `docs/install-windows.md`.
 - Work in progress, not released: the code compiles for Linux (x86_64, webkit2gtk 4.1), Windows 10/11 (x86_64, WebView2) and Apple Silicon Macs, in addition to Intel Macs. Linux passes its tests; on Windows the permission checks and many tests are not yet verified. No Linux or Windows package is published; see `docs/install-linux.md` and `docs/install-windows.md` for what works and what is different. Secrets use Windows Credential Manager and the Linux Secret Service (one vault entry, split over several Credential Manager entries when it is large), banners use a Windows toast and `notify-send`, files and links open with `explorer.exe` and `xdg-open`, the terminal starts PowerShell on Windows, and connections to servers are not shared on Windows (OpenSSH for Windows has no `ControlMaster`). Process groups, the process table and the disk-space check are macOS and Linux features; the update swap of the app bundle stays macOS only.
 
+### Fixed
+
+- Agents: a property access such as `line.key`, `event.key` or `props.key` in inline code or in a script a command runs is no longer refused as a secret file. A bare name that is secret only by its extension (`*.key`, `*.pem`, `*.p8`, `*.p12`, `*.jks`, `*.keystore`, `*.pfx`) now counts only when no key file of that extension is near the command (its folder, the run's folder, or one folder below either), and a bare extension such as `.key` (what is left of a name built at run time) always counts; `.env`, `id_rsa`, names with a folder and home paths are judged as before, in every mode.
+
 ### Security
 
 - Updated `rustix` from 1.1.5 to 1.1.6 (a lock file update only) for RustSec advisory RUSTSEC-2026-0486: its extended-attribute functions marked bytes as initialised after a zero-length query. The app's own code does not call those functions (it uses `rustix` for directory-handle file access and through `tempfile`), so this closes the advisory check and the exposure alike.
@@ -29,8 +33,6 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 
 ### Fixed
 
-- The run summary no longer says "No files were changed." when it could not look: without a snapshot or Git it says "Could not check which files changed", a run on a server says its changes are on the server, and files the agent's tools wrote that Git ignores are counted. `docs/run-summary.md` lists what is and is not covered.
-- Checkpoints: the 256 MB limit is checked on file sizes before anything is hashed into the repository's Git data, a checkpoint step stops after 60 seconds or when the app quits, the checkpoint taken before a restore never prunes the step being restored, and the opt-in copy of ignored config files now holds the state before the run (step 0) and follows a change of those files alone.
 - Glass: the message input popups (slash menu, mentions), the results sheet, the copy button on a message, the follow button of the run log, the preview style panel and the attachment overlays are now frosted like the other popups, so text behind them no longer shows through.
 - Glass: macOS "Reduce transparency" is now detected (the system browser engine does not report it), so Glass draws opaque on such a Mac and a new install there starts with the Standard look. The setting is read at launch.
 - Masking: a secret is now masked when a space sits before the colon (`"password" : "x"`, `Password : x`), both in the app and in the fallback in the interface.

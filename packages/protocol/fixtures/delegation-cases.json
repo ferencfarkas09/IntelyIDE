@@ -4832,6 +4832,382 @@
         }
       },
       "expected": {
+        "by": "roleDeny",
+        "decision": "deny",
+        "rule": "role.read-only"
+      },
+      "input": {
+        "command": "node -e \"console.log(line.key)\""
+      },
+      "intent": {
+        "actor": {
+          "agentId": "agent-1",
+          "role": "ro"
+        },
+        "argv": null,
+        "class": "exec",
+        "parentToolId": null,
+        "paths": [],
+        "rawCommand": "node -e \"console.log(line.key)\"",
+        "readOnlyHint": null,
+        "server": null,
+        "subagentType": null,
+        "summary": "node -e \"console.log(line.key)\"",
+        "tool": "Bash",
+        "url": null
+      },
+      "name": "inline code reading line.key by ro",
+      "tool": "Bash"
+    },
+    {
+      "actor": {
+        "agentId": "agent-1",
+        "role": "dev"
+      },
+      "ctx": {
+        "delegationCap": 12,
+        "delegationUsed": 0,
+        "mode": "edit",
+        "saved": [],
+        "savedByRole": {},
+        "strictBackground": false,
+        "strictJail": true
+      },
+      "delegates": {
+        "dev": {
+          "mode": "edit"
+        },
+        "dev2": {
+          "mode": "edit"
+        },
+        "empty": {
+          "allowedTools": [],
+          "mode": "readOnly"
+        },
+        "nodeploy": {
+          "mode": "edit",
+          "roleDeny": [
+            "WebFetch",
+            "mcp__*"
+          ]
+        },
+        "repo-ask": {
+          "mode": "ask"
+        },
+        "researcher": {
+          "allowedTools": [
+            "Read",
+            "Grep",
+            "Glob",
+            "LS",
+            "TodoWrite"
+          ],
+          "mode": "readOnly"
+        },
+        "ro": {
+          "mode": "readOnly"
+        },
+        "scout": {
+          "allowedTools": [
+            "Read",
+            "WebFetch"
+          ],
+          "mode": "readOnly"
+        },
+        "writer": {
+          "allowedTools": [
+            "Read",
+            "Edit",
+            "Write",
+            "Grep",
+            "Glob"
+          ],
+          "mode": "edit"
+        }
+      },
+      "expected": {
+        "by": "default",
+        "decision": "ask",
+        "rule": "exec.ask"
+      },
+      "input": {
+        "command": "node -e \"console.log(line.key)\""
+      },
+      "intent": {
+        "actor": {
+          "agentId": "agent-1",
+          "role": "dev"
+        },
+        "argv": null,
+        "class": "exec",
+        "parentToolId": null,
+        "paths": [],
+        "rawCommand": "node -e \"console.log(line.key)\"",
+        "readOnlyHint": null,
+        "server": null,
+        "subagentType": null,
+        "summary": "node -e \"console.log(line.key)\"",
+        "tool": "Bash",
+        "url": null
+      },
+      "name": "inline code reading line.key by dev",
+      "tool": "Bash"
+    },
+    {
+      "actor": {
+        "agentId": "agent-1",
+        "role": "ro"
+      },
+      "ctx": {
+        "delegationCap": 12,
+        "delegationUsed": 0,
+        "mode": "edit",
+        "saved": [],
+        "savedByRole": {},
+        "strictBackground": false,
+        "strictJail": true
+      },
+      "delegates": {
+        "dev": {
+          "mode": "edit"
+        },
+        "dev2": {
+          "mode": "edit"
+        },
+        "empty": {
+          "allowedTools": [],
+          "mode": "readOnly"
+        },
+        "nodeploy": {
+          "mode": "edit",
+          "roleDeny": [
+            "WebFetch",
+            "mcp__*"
+          ]
+        },
+        "repo-ask": {
+          "mode": "ask"
+        },
+        "researcher": {
+          "allowedTools": [
+            "Read",
+            "Grep",
+            "Glob",
+            "LS",
+            "TodoWrite"
+          ],
+          "mode": "readOnly"
+        },
+        "ro": {
+          "mode": "readOnly"
+        },
+        "scout": {
+          "allowedTools": [
+            "Read",
+            "WebFetch"
+          ],
+          "mode": "readOnly"
+        },
+        "writer": {
+          "allowedTools": [
+            "Read",
+            "Edit",
+            "Write",
+            "Grep",
+            "Glob"
+          ],
+          "mode": "edit"
+        }
+      },
+      "expected": {
+        "by": "hardStop",
+        "decision": "deny",
+        "rule": "read.never-read"
+      },
+      "input": {
+        "command": "node -e \"require('fs').readFileSync('certs/server.pem')\""
+      },
+      "intent": {
+        "actor": {
+          "agentId": "agent-1",
+          "role": "ro"
+        },
+        "argv": null,
+        "class": "exec",
+        "parentToolId": null,
+        "paths": [],
+        "rawCommand": "node -e \"require('fs').readFileSync('certs/server.pem')\"",
+        "readOnlyHint": null,
+        "server": null,
+        "subagentType": null,
+        "summary": "node -e \"require('fs').readFileSync('certs/server.pem')\"",
+        "tool": "Bash",
+        "url": null
+      },
+      "name": "inline code naming certs/server.pem by ro",
+      "tool": "Bash"
+    },
+    {
+      "actor": {
+        "agentId": "agent-1",
+        "role": "dev"
+      },
+      "ctx": {
+        "delegationCap": 12,
+        "delegationUsed": 0,
+        "mode": "edit",
+        "saved": [],
+        "savedByRole": {},
+        "strictBackground": false,
+        "strictJail": true
+      },
+      "delegates": {
+        "dev": {
+          "mode": "edit"
+        },
+        "dev2": {
+          "mode": "edit"
+        },
+        "empty": {
+          "allowedTools": [],
+          "mode": "readOnly"
+        },
+        "nodeploy": {
+          "mode": "edit",
+          "roleDeny": [
+            "WebFetch",
+            "mcp__*"
+          ]
+        },
+        "repo-ask": {
+          "mode": "ask"
+        },
+        "researcher": {
+          "allowedTools": [
+            "Read",
+            "Grep",
+            "Glob",
+            "LS",
+            "TodoWrite"
+          ],
+          "mode": "readOnly"
+        },
+        "ro": {
+          "mode": "readOnly"
+        },
+        "scout": {
+          "allowedTools": [
+            "Read",
+            "WebFetch"
+          ],
+          "mode": "readOnly"
+        },
+        "writer": {
+          "allowedTools": [
+            "Read",
+            "Edit",
+            "Write",
+            "Grep",
+            "Glob"
+          ],
+          "mode": "edit"
+        }
+      },
+      "expected": {
+        "by": "hardStop",
+        "decision": "deny",
+        "rule": "read.never-read"
+      },
+      "input": {
+        "command": "node -e \"require('fs').readFileSync('certs/server.pem')\""
+      },
+      "intent": {
+        "actor": {
+          "agentId": "agent-1",
+          "role": "dev"
+        },
+        "argv": null,
+        "class": "exec",
+        "parentToolId": null,
+        "paths": [],
+        "rawCommand": "node -e \"require('fs').readFileSync('certs/server.pem')\"",
+        "readOnlyHint": null,
+        "server": null,
+        "subagentType": null,
+        "summary": "node -e \"require('fs').readFileSync('certs/server.pem')\"",
+        "tool": "Bash",
+        "url": null
+      },
+      "name": "inline code naming certs/server.pem by dev",
+      "tool": "Bash"
+    },
+    {
+      "actor": {
+        "agentId": "agent-1",
+        "role": "ro"
+      },
+      "ctx": {
+        "delegationCap": 12,
+        "delegationUsed": 0,
+        "mode": "edit",
+        "saved": [],
+        "savedByRole": {},
+        "strictBackground": false,
+        "strictJail": true
+      },
+      "delegates": {
+        "dev": {
+          "mode": "edit"
+        },
+        "dev2": {
+          "mode": "edit"
+        },
+        "empty": {
+          "allowedTools": [],
+          "mode": "readOnly"
+        },
+        "nodeploy": {
+          "mode": "edit",
+          "roleDeny": [
+            "WebFetch",
+            "mcp__*"
+          ]
+        },
+        "repo-ask": {
+          "mode": "ask"
+        },
+        "researcher": {
+          "allowedTools": [
+            "Read",
+            "Grep",
+            "Glob",
+            "LS",
+            "TodoWrite"
+          ],
+          "mode": "readOnly"
+        },
+        "ro": {
+          "mode": "readOnly"
+        },
+        "scout": {
+          "allowedTools": [
+            "Read",
+            "WebFetch"
+          ],
+          "mode": "readOnly"
+        },
+        "writer": {
+          "allowedTools": [
+            "Read",
+            "Edit",
+            "Write",
+            "Grep",
+            "Glob"
+          ],
+          "mode": "edit"
+        }
+      },
+      "expected": {
         "by": "default",
         "decision": "allow",
         "rule": "read.inside"
