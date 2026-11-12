@@ -1,4 +1,5 @@
 import { createSignal, For, Match, Show, Switch } from "solid-js";
+import type { ConfirmOffer } from "../../store/agent-types";
 import type { ErrorItem, PermissionItem, PlanCardItem, QuestionItem, ThinkingItem, TurnItem } from "../../store/agent-reducer";
 import type { DelegateInfo, PermissionDecision, QuestionAnswer, SessionAllowKind, SessionAllowOffer, StopReason } from "../../store/agent-types";
 import { Badge, Ban, Brain, Button, Check, ChevronRight, CircleAlert, CircleQuestionMark, Icon, Input, ListChecks, ShieldAlert, ShieldCheck, Spinner, TriangleAlert } from "../../ui-kit";
@@ -43,6 +44,19 @@ export function refocusAfterAnswer(card: HTMLElement | undefined): void {
     const next = [...(root?.querySelectorAll<HTMLElement>(".perm [data-primary]") ?? [])].find((el) => !card.contains(el));
     (next ?? root?.querySelector<HTMLElement>(".composer textarea"))?.focus({ preventScroll: true });
   }, 0);
+}
+
+/** The last folder name of a path (the file a secret card is about, the repository it belongs to). */
+const lastSegment = (p: string): string => p.replace(/[\\/]+$/, "").split(/[\\/]/).pop() || p;
+
+/** What a tier-2 card is about, in the words of the sentence: the file name for a file, the exact CLI reason for a prompt. */
+export const stopWhat = (c: ConfirmOffer): string => (c.kind === "cliPrompt" ? c.scope : lastSegment(c.scope));
+const stopVerb = (c: ConfirmOffer) => (c.kind === "secretFile" ? "read" : c.kind === "secretEdit" ? "edit" : "cli");
+
+/** "You allowed reading .env once": the log line for a tier-2 card that was allowed, whether a card or a standing grant did it. */
+export function stopDoneWording(p: { confirm?: ConfirmOffer; outcome?: string; grant?: "once" | "run" | "always" }): string | undefined {
+  if (!p.confirm || p.outcome !== "allow" || !p.grant) return undefined;
+  return t(`stops.done.${stopVerb(p.confirm)}.${p.grant}` as MessageKey, { what: stopWhat(p.confirm) });
 }
 
 const DECISION_BY_YOU = { allowOnce: "chat.resolved.allowOnce", allowRun: "modes.resolved.allowSession", allowAlways: "chat.resolved.allowAlways", deny: "chat.resolved.denyYou" } as const satisfies Record<PermissionDecision, MessageKey>;
@@ -96,7 +110,7 @@ export function scopeSentence(offer: SessionAllowOffer): { before: string; scope
 /** The tool of a run that asks to message another run of the same person; the target travels in `argv`. */
 export const PEER_SEND_TOOL = "mcp__intely-peer__peer_send";
 
-export function PermissionCard(props: { item: PermissionItem; onAnswer: (decision: PermissionDecision) => void; /** The run's role table: marks a request from a role that comes from a repository. */ delegates?: DelegateInfo[]; /** The title of one of the person's runs (for the peer-message card). */ runTitle?: (id: string) => string | undefined }) {
+export function PermissionCard(props: { item: PermissionItem; onAnswer: (decision: PermissionDecision, extra?: { feedback?: string; confirmAlways?: boolean }) => void; /** The run's role table: marks a request from a role that comes from a repository. */ delegates?: DelegateInfo[]; /** The title of one of the person's runs (for the peer-message card). */ runTitle?: (id: string) => string | undefined }) {
   let card: HTMLElement | undefined;
   /** The delegate that asks, when one does (the lead has no actor). */
   const actor = () => intentActor(props.item.intent);
@@ -104,7 +118,7 @@ export function PermissionCard(props: { item: PermissionItem; onAnswer: (decisio
   const risk = () => RISK[props.item.intent.class];
   const offered = () => DECISIONS.filter((d) => props.item.options.includes(d.id));
   /** A command or a write that cannot be allowed for the session (a script, a shell construct, a file that runs code) says so. */
-  const onceOnly = () => !props.item.options.includes("allowRun") && (props.item.intent.class === "exec" || props.item.intent.class === "write");
+  const onceOnly = () => !props.item.confirm && !props.item.options.includes("allowRun") && (props.item.intent.class === "exec" || props.item.intent.class === "write");
   const scope = () => (props.item.options.includes("allowRun") && props.item.sessionAllow ? scopeSentence(props.item.sessionAllow) : undefined);
   const scopeId = () => `perm-scope-${props.item.reqId}`;
   /** The command that will run: shown first and in full for a shell call. */
@@ -117,11 +131,25 @@ export function PermissionCard(props: { item: PermissionItem; onAnswer: (decisio
     return id ? (props.runTitle?.(id) ?? id) : "?";
   };
   const paths = () => (props.item.intent.paths ?? []).filter((p) => !props.item.intent.summary.includes(p));
-  const answer = (d: PermissionDecision) => {
+  const answer = (d: PermissionDecision, extra?: { feedback?: string; confirmAlways?: boolean }) => {
     refocusAfterAnswer(card); // before the answer: the card can leave the DOM as soon as it is sent
-    props.onAnswer(d);
+    props.onAnswer(d, extra);
   };
   const primary = () => offered()[0]?.id;
+  // ---- tier 2: a stop the person may lift (secret file of the project, Claude CLI prompt) ----
+  const stop = () => props.item.confirm;
+  const [confirming, setConfirming] = createSignal(false);
+  const [note, setNote] = createSignal("");
+  const stopOffers = (id: PermissionDecision) => props.item.options.includes(id);
+  /** A secret needs a second click for "always"; a CLI reason does not. */
+  const alwaysIsSecret = () => stop()?.kind === "secretFile" || stop()?.kind === "secretEdit";
+  const askAlways = () => {
+    if (alwaysIsSecret()) {
+      setConfirming(true);
+      queueMicrotask(() => card?.querySelector<HTMLElement>("[data-stop-cancel]")?.focus());
+    } else answer("allowAlways");
+  };
+  const denyStop = () => answer("deny", note().trim() ? { feedback: note().trim() } : undefined);
   return (
     <Show
       when={!props.item.outcome}
@@ -130,8 +158,17 @@ export function PermissionCard(props: { item: PermissionItem; onAnswer: (decisio
           <Icon icon={props.item.outcome === "allow" ? ShieldCheck : props.item.outcome === "deny" ? Ban : TriangleAlert} size={14} />
           <span class="perm__done-text">
             <Show when={actor()}>{(a) => <strong class="perm__actor">{a().role}: </strong>}</Show>
-            {resolvedWording(props.item)}{props.item.withdrawn ? " · " : ": "}
-            <span class="ui-mono">{props.item.intent.summary}</span>
+            <Show
+              when={stopDoneWording(props.item)}
+              fallback={
+                <>
+                  {resolvedWording(props.item)}{props.item.withdrawn ? " · " : ": "}
+                  <span class="ui-mono">{props.item.intent.summary}</span>
+                </>
+              }
+            >
+              {(line) => <span data-testid="stop-done">{line()}</span>}
+            </Show>
             <Show when={props.item.outcome === "deny" && props.item.refusal}>
               {(r) => (
                 <span class="perm__why" title={r().reason}>
@@ -150,19 +187,27 @@ export function PermissionCard(props: { item: PermissionItem; onAnswer: (decisio
         }}
         class="perm"
         role="group"
-        aria-label={t("chat.perm.aria")}
+        aria-label={stop() ? t("stops.title") : t("chat.perm.aria")}
         data-class={props.item.intent.class}
+        data-stop={stop()?.kind}
         onKeyDown={(e) => {
-          if (e.key === "Escape" && offered().some((d) => d.id === "deny")) {
+          if (e.key === "Escape" && confirming()) {
+            // Escape on the second confirmation backs out of it; it never allows anything
             e.preventDefault();
             e.stopPropagation();
-            answer("deny");
+            setConfirming(false);
+            queueMicrotask(() => card?.querySelector<HTMLElement>("[data-primary]")?.focus());
+          } else if (e.key === "Escape" && offered().some((d) => d.id === "deny")) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (stop()) denyStop();
+            else answer("deny");
           }
         }}
       >
         <header class="perm__head">
           <Icon icon={ShieldAlert} size={14} />
-          <span class="perm__title">{t("chat.perm.title")}</span>
+          <span class="perm__title">{stop() ? t("stops.title") : t("chat.perm.title")}</span>
           <Show when={actor()}>
             {(a) => (
               <Badge size="sm" tone={fromRepo() ? "warn" : "neutral"} title={fromRepo() ? t("roles.trust.fromRepo") : undefined}>
@@ -175,6 +220,20 @@ export function PermissionCard(props: { item: PermissionItem; onAnswer: (decisio
             {risk().label}
           </Badge>
         </header>
+        <Show when={stop()}>
+          {(c) => (
+            <>
+              <p class="perm__summary perm__stop-ask" data-testid="stop-ask">
+                <Show when={actor()}>{(a) => <strong class="perm__actor">{t("stops.who", { role: a().role })}: </strong>}</Show>
+                {t(`stops.ask.${c().kind}` as MessageKey, { what: stopWhat(c()) })}
+              </p>
+              <p class="perm__note" data-testid="stop-why">{t(`stops.why.${c().kind}` as MessageKey)}</p>
+              <Show when={c().kind !== "cliPrompt"}>
+                <p class="perm__note ui-mono ui-truncate" title={c().scope} data-testid="stop-path">{c().scope}</p>
+              </Show>
+            </>
+          )}
+        </Show>
         <Show when={peerTarget()}>{(run) => <p class="perm__summary" data-testid="peer-ask">{t("peer.card.ask", { run: run() })}</p>}</Show>
         <Show when={props.item.peer}>
           {(pc) => (
@@ -187,7 +246,7 @@ export function PermissionCard(props: { item: PermissionItem; onAnswer: (decisio
             </div>
           )}
         </Show>
-        <Show when={command()} fallback={<Show when={!peerTarget()}><p class="perm__summary">{actor() ? t("runs.actorAsks", { role: actor()!.role, summary: plain(props.item.intent.summary) }) : plain(props.item.intent.summary)}</p></Show>}>
+        <Show when={command()} fallback={<Show when={!peerTarget() && !stop()}><p class="perm__summary">{actor() ? t("runs.actorAsks", { role: actor()!.role, summary: plain(props.item.intent.summary) }) : plain(props.item.intent.summary)}</p></Show>}>
           {(c) => <pre class="perm__code perm__code--cmd ui-mono ui-selectable" aria-label={t("chat.perm.command")}>{c()}</pre>}
         </Show>
         <Show when={!peerTarget() && said()}>{(text) => <p class="perm__said">{t("chat.perm.said", { text: text() })}</p>}</Show>
@@ -197,8 +256,36 @@ export function PermissionCard(props: { item: PermissionItem; onAnswer: (decisio
           </ul>
         </Show>
         <Show when={props.item.intent.url}>{(url) => <pre class="perm__code ui-mono ui-selectable">{url()}</pre>}</Show>
-        <div class="perm__actions">
-          <For each={offered()}>
+        <Show when={stop()}>
+          {(c) => (
+            <>
+              <Show when={!stopOffers("allowOnce") && stopOffers("deny")}>
+                <p class="perm__note" role="note" data-testid="stop-phone">{t("stops.phone")}</p>
+              </Show>
+              <Show when={!confirming()} fallback={
+                <div class="perm__confirm" role="alertdialog" aria-label={t("stops.confirm.q", { what: stopWhat(c()), repo: lastSegment(c().repo) })}>
+                  <p class="perm__note" data-testid="stop-confirm">{t("stops.confirm.q", { what: stopWhat(c()), repo: lastSegment(c().repo) })}</p>
+                  <div class="perm__actions">
+                    <Button size="sm" variant="secondary" data-stop-cancel="" onClick={() => { setConfirming(false); queueMicrotask(() => card?.querySelector<HTMLElement>("[data-primary]")?.focus()); }}>{t("stops.confirm.cancel")}</Button>
+                    <Button size="sm" variant="secondary" data-testid="stop-confirm-yes" onClick={() => answer("allowAlways", { confirmAlways: true })}>{t("stops.confirm.yes")}</Button>
+                  </div>
+                </div>
+              }>
+                <Show when={stopOffers("deny")}>
+                  <Input size="sm" aria-label={t("stops.note")} placeholder={t("stops.note")} value={note()} onInput={(e) => setNote(e.currentTarget.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); denyStop(); } }} />
+                </Show>
+                <div class="perm__actions" data-testid="stop-actions">
+                  <Show when={stopOffers("allowOnce")}><Button size="sm" variant="secondary" onClick={() => answer("allowOnce")}>{t("stops.once")}</Button></Show>
+                  <Show when={stopOffers("allowRun")}><Button size="sm" variant="secondary" title={t("stops.runTip")} onClick={() => answer("allowRun")}>{t("stops.run")}</Button></Show>
+                  <Show when={stopOffers("allowAlways")}><Button size="sm" variant="secondary" title={t("stops.alwaysTip")} onClick={askAlways}>{c().kind === "cliPrompt" ? t("stops.alwaysCli") : t("stops.always")}</Button></Show>
+                  <Show when={stopOffers("deny")}><Button size="sm" variant="primary" class="perm__deny" data-primary="" title={t("stops.denyTip")} onClick={denyStop}>{t("stops.deny")}</Button></Show>
+                </div>
+              </Show>
+            </>
+          )}
+        </Show>
+        <div class="perm__actions" hidden={!!stop()}>
+          <For each={stop() ? [] : offered()}>
             {(d) => (
               <Button
                 size="sm"

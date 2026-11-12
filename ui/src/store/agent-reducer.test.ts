@@ -375,3 +375,37 @@ describe("notes", () => {
     expect(items<NoteItem>(v, "note")[0]).toMatchObject({ state: "dropped", reason: "turnEnded" });
   });
 });
+
+describe("tier-2 stops in the reducer", () => {
+  const confirm = { kind: "secretFile", rule: "read.never-read", scope: "/r/.env", repo: "/r" };
+  const intent = { class: "read", tool: "Read", paths: ["/r/.env"], summary: "Read /r/.env" };
+
+  it("keeps the offer, maps allow_always, and carries the grant to the resolved card", () => {
+    let v = run([{ kind: "permission.request", reqId: "p1", toolId: "t1", intent, options: ["allow_once", "allow_run", "allow_always", "deny"], confirm }]);
+    const [p] = pendingPermissions(v);
+    expect(p.options).toEqual(["allowOnce", "allowRun", "allowAlways", "deny"]);
+    expect(p.confirm).toEqual(confirm);
+    v = run([{ kind: "permission.resolved", reqId: "p1", outcome: "allow", by: "user", grant: "run" }], v);
+    expect(items<PermissionItem>(v, "permission")[0]).toMatchObject({ outcome: "allow", grant: "run" });
+  });
+
+  it("a standing-grant audit pair resolves at once with who and how far", () => {
+    const v = run([
+      { kind: "permission.request", reqId: "ovr-t1-1", toolId: "t1", intent, options: ["deny"], confirm },
+      { kind: "permission.resolved", reqId: "ovr-t1-1", outcome: "allow", by: "saved", grant: "always" },
+    ]);
+    expect(pendingPermissions(v)).toEqual([]);
+    expect(items<PermissionItem>(v, "permission")[0]).toMatchObject({ by: "saved", grant: "always", confirm });
+  });
+
+  it("an optimistic answer records the reach, and a refusal takes it back", () => {
+    let v = run([{ kind: "permission.request", reqId: "p1", toolId: "t1", intent, options: ["allow_once", "allow_run", "allow_always", "deny"], confirm }]);
+    v = markPermissionAnswered(v, "p1", "allowAlways", { confirmAlways: true });
+    expect(items<PermissionItem>(v, "permission")[0]).toMatchObject({ outcome: "allow", grant: "always" });
+    v = markPermissionRefused(v, "p1", "allowListFull");
+    const p = items<PermissionItem>(v, "permission")[0];
+    expect(p.outcome).toBeUndefined();
+    expect(p.grant).toBeUndefined();
+    expect(p.error?.code).toBe("allowListFull");
+  });
+});

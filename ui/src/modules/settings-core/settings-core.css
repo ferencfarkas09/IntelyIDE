@@ -58,3 +58,7 @@
 .sc-doctor__item { display: flex; align-items: baseline; gap: var(--space-2); }
 .sc-doctor__text { color: var(--text-2); font-size: var(--text-sm); }
 .sc-doctor__text strong { color: var(--text-1); font-weight: var(--weight-medium); }
+.sc-stops { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.sc-stops__row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.sc-stops__what { min-width: 0; overflow-wrap: anywhere; }
+.sc-stops__meta { color: var(--text-3); font-size: var(--text-xs); }

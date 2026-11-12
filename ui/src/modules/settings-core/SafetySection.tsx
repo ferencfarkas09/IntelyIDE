@@ -1,11 +1,11 @@
 import { createResource, createSignal, For, lazy, Show, Suspense } from "solid-js";
-import { t } from "../../i18n";
+import { t, type MessageKey } from "../../i18n";
 import { ipc } from "../../ipc";
 import { errorText } from "../../store/snapshots";
 import { repos, saveWorkspace, workspace } from "../../store/workspace";
 import { Badge, Button, FormGroup, FormRow, Info, ShieldCheck, Switch, toast, type Tone } from "../../ui-kit";
 import type { SafetyStatus } from "../../ipc/settings";
-import type { Workspace } from "../../ipc";
+import type { StopAllowEntry, Workspace } from "../../ipc";
 import { PatternChips, PatternEditor } from "./PatternEditor";
 import { setLive, setProtected, effectiveLive } from "./patterns";
 import "./settings-core.css";
@@ -28,6 +28,34 @@ async function save(change: (ws: Workspace) => Workspace) {
   } catch (e) {
     toast.error(t("safety.branchRulesFailed"), errorText(e));
   }
+}
+
+/** The always-list of confirmable stops: what the person allowed "always" for a repository, with Revoke. Held by the IDE, never inside a repository. */
+export function AllowedStops() {
+  const [entries, { refetch }] = createResource(() => ipc.stopAllowList().catch(() => []));
+  const revoke = (id: string) => ipc.stopAllowRevoke(id).then(() => { toast.success(t("stops.settings.revoked")); return refetch(); }, (e) => toast.error(t("stops.settings.failed"), errorText(e)));
+  const what = (e: StopAllowEntry) => (e.kind === "cliPrompt" ? e.scope : e.scope.split(/[\\/]/).pop() || e.scope);
+  return (
+    <FormGroup title={t("stops.settings.title")} description={t("stops.settings.desc")}>
+      <Show when={(entries() ?? []).length > 0} fallback={<FormRow label={t("stops.settings.empty")} />}>
+        <FormRow label={t("stops.settings.count", { count: (entries() ?? []).length })} stacked>
+          <ul class="sc-stops" aria-label={t("stops.settings.title")}>
+            <For each={entries()}>
+              {(e) => (
+                <li class="sc-stops__row" data-testid="stop-entry">
+                  <div class="sc-stops__what">
+                    <Badge tone="neutral">{t(`stops.kind.${e.kind}` as MessageKey)}</Badge> <code class="sc-code" title={e.scope}>{e.scope}</code>
+                    <div class="sc-stops__meta">{t("stops.settings.repo")}: <code class="sc-code">{e.repo}</code> · {t("stops.settings.added", { date: new Date(e.addedMs).toLocaleDateString() })}</div>
+                  </div>
+                  <Button size="sm" variant="secondary" aria-label={t("stops.settings.revokeAria", { what: what(e) })} onClick={() => void revoke(e.id)}>{t("stops.settings.revoke")}</Button>
+                </li>
+              )}
+            </For>
+          </ul>
+        </FormRow>
+      </Show>
+    </FormGroup>
+  );
 }
 
 export default function SafetySection() {
@@ -105,6 +133,8 @@ export default function SafetySection() {
           </FormGroup>
         )}
       </Show>
+
+      <AllowedStops />
 
       <FormGroup title={t("safety.neverTitle")} description={t("safety.neverDesc")}>
         <Show when={safety()} fallback={<FormRow label={t("safety.na")} description={t("safety.naDesc")} />}>

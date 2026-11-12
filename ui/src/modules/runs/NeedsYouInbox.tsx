@@ -37,7 +37,7 @@ export function InboxEntryView(props: { entry: InboxEntry; onOpen?: (agentId: st
       >
         <Show
           when={isExitPlan((e() as Extract<InboxEntry, { kind: "permission" }>).item.intent)}
-          fallback={<PermissionCard item={(e() as Extract<InboxEntry, { kind: "permission" }>).item} onAnswer={(decision) => void answerPermission(e().agentId, e().item.reqId, decision).catch(fail)} />}
+          fallback={<PermissionCard item={(e() as Extract<InboxEntry, { kind: "permission" }>).item} onAnswer={(decision, extra) => void answerPermission(e().agentId, e().item.reqId, decision, extra).catch(fail)} />}
         >
           <PlanApprovalCard item={(e() as Extract<InboxEntry, { kind: "permission" }>).item} mcp={agentRow(e().agentId)?.mcp} onAnswer={(decision, extra) => void answerPermission(e().agentId, e().item.reqId, decision, extra).catch(fail)} />
         </Show>
