@@ -1,5 +1,6 @@
 .shell { display: flex; flex-direction: column; height: 100%; background: var(--surface-0); color: var(--text-1); }
-.shell__body { display: flex; flex: 1 1 auto; min-height: 0; }
+/* The rail and the panels sit straight on the window background, 8 px apart: each panel is a rounded sheet of its own. */
+.shell__body { display: flex; flex: 1 1 auto; gap: var(--space-2); min-height: 0; padding: 0 var(--space-2) var(--space-1); }
 /* Editor workspace and Agent workspace share the area next to the rail. */
 .shell__mode { display: flex; flex: 1 1 auto; min-width: 0; min-height: 0; }
 .shell__mode[hidden] { display: none; }
@@ -13,53 +14,95 @@
   align-items: center;
   gap: 4px;
   flex: none;
-  width: 52px;
-  padding: 10px 0;
-  background: var(--surface-0);
-  box-shadow: inset -1px 0 0 var(--border-subtle);
+  width: 44px;
+  padding: 4px 0;
+  overflow: hidden auto;
+  scrollbar-width: none;
 }
+.rail::-webkit-scrollbar { display: none; }
 .rail__grow { flex: 1; }
-.rail__item { position: relative; display: inline-flex; }
-.rail__badge { position: absolute; top: 0; inset-inline-end: 0; min-width: 16px; height: 16px; padding: 0 4px; box-sizing: border-box; border-radius: var(--radius-full); background: var(--warn); color: var(--surface-0); font-size: 10px; font-weight: var(--weight-semibold); line-height: 16px; text-align: center; pointer-events: none; box-shadow: 0 0 0 2px var(--surface-0); }
+.rail__item { position: relative; display: inline-flex; flex: none; }
+.rail__badge { position: absolute; top: 4px; inset-inline-end: 4px; min-width: 15px; height: 15px; padding: 0 4px; box-sizing: border-box; border-radius: var(--radius-full); background: var(--warn); color: var(--surface-0); font-size: 10px; font-weight: var(--weight-semibold); line-height: 15px; text-align: center; pointer-events: none; }
 .rail__badge[data-tone="urgent"] { background: var(--danger); }
-/* Bigger hit targets than the toolbar buttons, and "soon" items readable instead of ghostly. */
-.rail .ui-icon-btn { --ib: 36px; border-radius: var(--radius-3); color: var(--text-2); }
+/* 40 x 40 targets with a 12 px radius; the open tool window carries the accent tint and the accent ink. "Soon" items stay readable. */
+.rail .ui-icon-btn { --ib: 40px; border-radius: 12px; color: var(--text-3); }
 .rail .ui-icon-btn:hover { color: var(--text-1); }
-.rail .ui-icon-btn[aria-pressed="true"] { color: var(--accent-text); }
+.rail .ui-icon-btn[aria-pressed="true"] { background: var(--accent-subtle); color: var(--accent-text); }
+.rail .ui-icon-btn[aria-pressed="true"]:hover { background: var(--accent-subtle-hover); }
 .rail .ui-icon-btn[aria-disabled="true"] { opacity: 1; color: var(--text-3); }
-/* Active tool window: a short bar in the logo gradient on the rail edge. */
-.rail .ui-icon-btn { position: relative; }
-.rail .ui-icon-btn::before {
-  content: "";
-  position: absolute;
-  inset-inline-start: -8px;
-  top: 10px;
-  bottom: 10px;
-  width: 3px;
-  border-start-end-radius: 3px;
-  border-end-end-radius: 3px;
-  background: linear-gradient(180deg, #2ee6c5, #7c4dff 55%, #d946ef);
-  transform: scaleY(0);
-  transition: transform var(--dur) var(--ease);
-}
-.rail .ui-icon-btn[aria-pressed="true"]::before { transform: scaleY(1); }
-@media (prefers-reduced-motion: reduce) {
-  .rail .ui-icon-btn::before { transition: none; }
+@media (forced-colors: active) {
+  .rail .ui-icon-btn[aria-pressed="true"] { outline: 2px solid Highlight; outline-offset: -2px; }
 }
 
-/* Panes: the tool window and the centre share the panel surface, the chrome around them is one step darker. */
+/* Panes: the tool window, the centre and the columns of the Agent workspace are panels with a hairline and the panel radius. */
 .tool { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--surface-1); }
 .centre { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--surface-1); }
 .centre > * { flex: 1 1 0; min-height: 0; }
+:is(.tool, .centre, .sessions, .agent-centre, .agent-panel, .ui-splitter__pane.dock) {
+  box-sizing: border-box;
+  border: 1px solid var(--glass-border, var(--border));
+  border-radius: var(--radius-panel);
+  overflow: hidden;
+}
+/* The gap between two panels is the divider: 8 px wide, empty until it is pointed at, dragged or focused. */
+:is(.shell__split, .dock-host, .agent .ui-splitter)[data-direction="row"] > .ui-splitter__handle { width: var(--space-2); background: transparent; }
+:is(.shell__split, .dock-host, .agent .ui-splitter)[data-direction="row"] > .ui-splitter__handle::before { inset: 0; }
+:is(.shell__split, .dock-host, .agent .ui-splitter)[data-direction="row"] > .ui-splitter__handle::after { inset: var(--radius-panel) 3px; border-radius: var(--radius-full); }
 
 /* Title bar content */
-.ttl { display: flex; align-items: center; gap: 6px; min-width: 0; }
-.ttl__workspace { display: inline-flex; align-items: center; flex: none; gap: 6px; margin-inline-end: 6px; padding-inline-end: 12px; border-inline-end: 1px solid var(--border); color: var(--text-2); font-size: var(--text-sm); font-weight: var(--weight-medium); line-height: 16px; white-space: nowrap; }
-/* Pills share what is left: the branch loses its middle first, the repo badge and the counters stay. */
-.ttl .ui-pill { flex: 0 1 auto; min-width: 0; }
-.ttl .ui-pill__text { flex: 0 1 auto; min-width: 0; }
-@media (max-width: 1180px) {
-  .ttl__workspace { display: none; }
+.ttl { display: flex; flex: 1 1 auto; align-items: center; gap: var(--space-3); min-width: 0; }
+.ttl__mode { flex: none; }
+/* One line of chips; what does not fit wraps below the clip and is listed under "N more". */
+.ttl__repos { position: relative; display: flex; flex: 1 1 0; flex-wrap: wrap; align-content: flex-start; gap: 0 6px; min-width: 0; height: 26px; overflow: hidden; }
+.ttl__chip-slot { display: inline-flex; flex: none; max-width: 100%; }
+.ttl__chip-slot[data-clipped] { visibility: hidden; }
+.ttl__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 280px;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  background: var(--surface-1);
+  color: var(--text-2);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.ttl__chip:hover, .ttl__chip[aria-expanded="true"] { border-color: var(--border-strong); color: var(--text-1); }
+.ttl__chip-dot { flex: none; width: 7px; height: 7px; border-radius: var(--radius-full); }
+.ttl__chip-name { flex: none; }
+.ttl__chip-branch { flex: 0 1 auto; min-width: 0; overflow: hidden; color: var(--text-3); font-family: var(--font-mono); }
+.ttl__more { flex: none; }
+.ttl__search {
+  display: flex;
+  align-items: center;
+  flex: 0 1 240px;
+  gap: var(--space-2);
+  min-width: 0;
+  height: var(--control-lg);
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-ctl);
+  background: var(--surface-1);
+  color: var(--text-3);
+  text-align: start;
+  transition: border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.ttl__search:hover { border-color: var(--border-strong); color: var(--text-2); }
+.ttl__search > .ui-icon { flex: none; }
+.ttl__search-text { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ttl__search .ui-kbd-group { flex: none; }
+.ttl__search .ui-kbd { border: 0; background: var(--surface-4); color: var(--text-2); }
+/* Narrow windows: the field keeps its icon and shortcut, then only the icon. */
+@media (max-width: 1100px) {
+  .ttl__search { flex: none; }
+  .ttl__search-text { display: none; }
+}
+@media (max-width: 860px) {
+  .ttl__search .ui-kbd-group { display: none; }
 }
 
 /* Branch popup: the body is styled by modules/branches. */

@@ -1,6 +1,6 @@
 import { createEffect, createMemo, createSignal, createUniqueId, For, lazy, on, onCleanup, Show, untrack } from "solid-js";
 import { Dynamic } from "solid-js/web";
-import { t } from "../../i18n";
+import { t, type MessageKey } from "../../i18n";
 import { ipc } from "../../ipc";
 import type { ProviderEnforcement, ProviderInfo } from "../../ipc/providers";
 import { BypassConfirmDialog } from "../../components/chat/BypassConfirmDialog";
@@ -13,11 +13,13 @@ import type { RoleGroup, RoleProviderCaps } from "../../ipc/roles";
 import type { AgentSummary, AutoInfo, PermissionMode } from "../../store/agent-types";
 import { appMode } from "../../platform/mode";
 import { newRunPrefill, takeNewRunPrefill } from "../../platform/newRun";
+import { newRunSlots } from "../../platform/newRunSlots";
 import { agentRoles, selectAgent, selectStartingRun, startRun } from "../../store/agents";
 import { beginStarting, failStarting, showStarting, startingRun } from "../../store/starting";
+import { snapshots } from "../../store/snapshots";
 import { repos } from "../../store/workspace";
 import { activeId } from "../../store/workspaces";
-import { Badge, Button, Checkbox, Dialog, Kbd, RepoBadge, TextArea, toast } from "../../ui-kit";
+import { Badge, Button, Checkbox, ChoiceCard, Dialog, RepoBadge, TextArea, toast } from "../../ui-kit";
 import { CapsMatrix } from "../providers/CapsMatrix";
 import { ProviderMark } from "../providers/ProviderMark";
 import { providerName } from "../providers/catalog";
@@ -26,7 +28,8 @@ import { AutoCard, type UntrustedRole } from "./AutoCard";
 import { PERMISSION_TITLES } from "../roles/rolesLogic";
 import { loadServers, servers } from "../servers/store";
 import { McpRunPicker, mcpStartIds } from "./mcpSeam";
-import { startMode } from "../presets/logic";
+import { PRESETS, startMode } from "../presets/logic";
+import { SecretGuardOffer } from "../presets/SecretGuardOffer";
 import { autoReasonText, chosenProvider, claudeUnavailableReason, clampCounts, clampMode, defaultRepos, failureLines, MAC_MAX, initialMode, neutralRole, numberedPrompt, placementRows, placementSummary, planRuns, providerBlocker, providerChoices, startBlocker, startErrorText, startRequest, teamOf, teamPrompt, THIS_MAC, toggleRepo, totalRuns, type RunJob, type RunMode } from "./newRunLogic";
 import { roleColor } from "./roleColors";
 import { newRunOpen, setCentreView, setNewRunOpen } from "./state";
@@ -39,11 +42,14 @@ import { promptWithAttachments, takePendingForNewRun } from "../attachments/newR
 import { effortChoice, isClaudeModelId, modelChoices, pickBlocker, pickRequest, restoredPick, ultracodeOffered, type RunPick } from "../runpicker/logic";
 import { runPickerEnabled } from "../runpicker/toggle";
 import "./runs.css";
+import "./newrun.css";
 
 /** Starts a run: role, repository scope, first prompt. Opened by the `runs.new` command in either mode. */
 const repoLabel = (id: string) => repos().find((r) => r.id === id)?.name ?? id;
 /** The model, effort and ultracode picker (an extra that starts on); loaded with the dialog's first open. */
 const RunPicker = lazy(() => import("../runpicker/RunPicker"));
+/** The slot of the safety presets: when it is registered the dialog names its mode cards after them instead of mounting the bar. */
+const PRESET_SLOT = "presets.bar";
 
 export function NewRunDialog() {
   const [role, setRole] = createSignal<string | undefined>(undefined);
@@ -103,7 +109,7 @@ export function NewRunDialog() {
   const whereShown = () => servers().some((s) => s.cfg.enabled);
   const placed = createMemo(() => clampCounts(counts(), rows()));
   const total = () => totalRuns(placed(), rows());
-  const modesLegend = createUniqueId();
+  const promptId = createUniqueId();
   let modesSeq = 0;
 
   const current = () => agentRoles().find((r) => r.name === role());
@@ -251,6 +257,18 @@ export function NewRunDialog() {
     if (m === "bypass") return setConfirmingBypass(true);
     setBypassOk(false);
     setPermission(m);
+  };
+
+  /** Careful / Balanced / Autonomous: the plain names of Ask, Edit automatically and Automatic, while the safety presets are on. */
+  const presetsOn = () => newRunSlots("modes").some((s) => s.id === PRESET_SLOT);
+  const plainModes = createMemo(() => (presetsOn() ? Object.fromEntries(PRESETS.map((p) => [p.mode, { label: t(`presets.${p.id}` as MessageKey), hint: t(`presets.${p.id}.desc` as MessageKey) }])) : undefined));
+  /** The footer line: what the run starts with (the model and effort that apply now, and how many repositories it may work in). */
+  const summary = () => {
+    const model = runPick().model?.trim() || defaultModel();
+    const levels = effortChoice(model, caps(), modeProvider()).levels;
+    const picked = runPick().effort;
+    const effort = picked && levels.includes(picked) ? picked : (defaultEffort() ?? undefined);
+    return [model ? modelLabel(model) : undefined, effort, t("runs.new.summary.repos", { count: repoIds().length })].filter(Boolean).join(" · ");
   };
 
   // What the prompt picker and the safety presets may touch (ui/src/platform/newRunSlots.ts).
@@ -483,22 +501,77 @@ export function NewRunDialog() {
       class="newrun"
       footer={
         <>
-          <span class="newrun__hint">
-            <Show when={blocker()} fallback={<><Kbd keys={["⌘", "⏎"]} /> {t("runs.new.startHint")}</>}>
-              {blocker()}
+          <span class="newrun__foot">
+            <span class="newrun__summary" data-testid="newrun-summary">{summary()}</span>
+            <Show when={blocker()}>
+              <span class="newrun__hint">{blocker()}</span>
             </Show>
           </span>
-          <Button variant="ghost" onClick={closeDialog}>
+          <Button size="xl" onClick={closeDialog}>
             {t("runs.cancel")}
           </Button>
-          <Button variant="primary" loading={busy()} disabled={!!blocker()} onClick={() => void start()}>
+          <Button size="xl" variant="primary" aria-label={t("runs.new.start")} aria-keyshortcuts="Meta+Enter Control+Enter" loading={busy()} disabled={!!blocker()} onClick={() => void start()}>
             {t("runs.new.start")}
+            <span class="ui-btn__kbd" aria-hidden="true">⌘⏎</span>
           </Button>
         </>
       }
     >
       <div class="newrun__grid">
         <div class="newrun__main">
+          <div class="newrun__field newrun__prompt-field">
+            <label class="newrun__label" for={promptId}>{t("runs.new.promptPlaceholder")}</label>
+            <TextArea
+              id={promptId}
+              wrapperClass="newrun__prompt"
+              data-autofocus
+              aria-label={t("runs.new.prompt")}
+              placeholder={t("runs.new.promptExample")}
+              minRows={7}
+              maxRows={12}
+              value={prompt()}
+              onInput={(e) => setPrompt(e.currentTarget.value)}
+              onPaste={att.onPaste}
+              onKeyDown={(e) => (e.metaKey || e.ctrlKey) && e.key === "Enter" && (e.preventDefault(), void start())}
+            />
+            <AttachmentChips items={att.store.items()} provider={att.provider()} onRemove={(id) => void att.store.remove(id)} onConfirm={(id) => void att.store.confirm(id)} />
+            <div class="newrun__attach"><AttachButton onFiles={att.pick} /></div>
+          </div>
+          <Show when={error()}>{(msg) => <p class="newrun__error" role="alert">{msg()}</p>}</Show>
+          <Show when={noNet()}>
+            <Checkbox checked={skipNet()} onChange={setSkipNet} label={t("runs.new.noNet")} />
+          </Show>
+          <NewRunSlots place="prompt" ctx={slotCtx} />
+          <fieldset class="newrun__field">
+            <legend class="newrun__label">
+              {t("runs.new.reposLabel")}
+              <span class="newrun__links">
+                <Button size="sm" variant="ghost" onClick={() => setRepoIds(repos().map((r) => r.id))}>
+                  {t("runs.all")}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setRepoIds([])}>
+                  {t("runs.none")}
+                </Button>
+              </span>
+            </legend>
+            <div class="newrun__repos" role="group" aria-label={t("runs.repos")}>
+              <For each={repos()}>
+                {(r) => (
+                  <ChoiceCard
+                    type="checkbox"
+                    class="newrun__repo"
+                    checked={repoIds().includes(r.id)}
+                    onChange={() => setRepoIds(toggleRepo(repoIds(), r.id))}
+                    value={r.id}
+                    title={r.name}
+                    description={snapshots()[r.id]?.head.branch ?? snapshots()[r.id]?.head.oid?.slice(0, 7) ?? undefined}
+                    mono
+                    end={<RepoBadge color={r.color} badge={r.badge} size={16} />}
+                  />
+                )}
+              </For>
+            </div>
+          </fieldset>
           <Show
             when={mode() === "auto"}
             fallback={
@@ -512,7 +585,7 @@ export function NewRunDialog() {
               </div>
               <Show when={fellBack()}>{(why) => <p class="newrun__provider-note" role="status">{t("runs.new.autoUnavailable", { reason: why() })}</p>}</Show>
           <fieldset class="newrun__field">
-            <legend class="newrun__label">{t("runs.role")}</legend>
+            <legend class="newrun__label" data-minor="">{t("runs.role")}</legend>
             <div class="newrun__roles" role="radiogroup" aria-label={t("runs.role")}>
               <For each={agentRoles()}>
                 {(r) => (
@@ -536,7 +609,7 @@ export function NewRunDialog() {
           </fieldset>
           <Show when={choices().length > 0}>
             <fieldset class="newrun__field">
-              <legend class="newrun__label">{t("runs.provider")}</legend>
+              <legend class="newrun__label" data-minor="">{t("runs.provider")}</legend>
               <div class="newrun__providers" role="radiogroup" aria-label={t("runs.provider")}>
                 <For each={choices()}>
                   {(c) => (
@@ -595,14 +668,33 @@ export function NewRunDialog() {
               {t("runs.new.runAs")}
             </Button>
           </Show>
+          <Show when={whereShown()}>
+            <WhereToRun
+              rows={rows()}
+              counts={placed()}
+              summary={placementSummary(placed(), rows())}
+              numbering={numbering() ?? total() > 1}
+              team={team() ?? true}
+              showTeam={total() > 1}
+              disabled={busy()}
+              onCount={(key, n) => setCounts({ ...placed(), [key]: n })}
+              onNumbering={setNumbering}
+              onTeam={setTeam}
+              onSettings={() => (setNewRunOpen(false), openSettings("servers"))}
+            />
+          </Show>
+          <NewRunShare checked={shareRun()} onChange={setShareRun} />
+        </div>
+        <div class="newrun__side">
           <fieldset class="newrun__field newrun__modes-field">
-            <legend class="newrun__label" id={modesLegend}>
-              {t("modes.picker.label")}
-            </legend>
-            <NewRunSlots place="modes" ctx={slotCtx} />
+            <legend class="newrun__label">{t("runs.new.freedom")}</legend>
+            <NewRunSlots place="modes" ctx={slotCtx} skip={[PRESET_SLOT]} />
             <div class="newrun__modes">
-              <ModeCards modes={supported()} value={permission()} onChange={pickMode} labelledBy={modesLegend} unavailable={unavailable()} confirm={["bypass"]} disabled={busy()} />
+              <ModeCards layout="radio" modes={supported()} value={permission()} onChange={pickMode} label={t("modes.picker.label")} plain={plainModes()} unavailable={unavailable()} confirm={["bypass"]} disabled={busy()} />
             </div>
+            <Show when={presetsOn()}>
+              <SecretGuardOffer />
+            </Show>
             <Show when={mode() === "role" && !touched() && permission() === "readOnly" && current()?.permission === "readOnly"}>
               <small class="newrun__provider-note" role="status">
                 {t("modes.picker.roleReadOnly")}
@@ -623,70 +715,10 @@ export function NewRunDialog() {
               disabled={busy()}
             />
           </Show>
-          <fieldset class="newrun__field">
-            <legend class="newrun__label">
-              {t("runs.repos")}
-              <span class="newrun__links">
-                <Button size="sm" variant="ghost" onClick={() => setRepoIds(repos().map((r) => r.id))}>
-                  {t("runs.all")}
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => setRepoIds([])}>
-                  {t("runs.none")}
-                </Button>
-              </span>
-            </legend>
-            <div class="newrun__repos" role="group" aria-label={t("runs.repos")}>
-              <For each={repos()}>
-                {(r) => (
-                  <Button class="newrun__repo" variant="secondary" size="sm" aria-pressed={repoIds().includes(r.id)} data-picked={repoIds().includes(r.id) ? "" : undefined} onClick={() => setRepoIds(toggleRepo(repoIds(), r.id))}>
-                    <RepoBadge color={r.color} badge={r.badge} size={16} />
-                    {r.name}
-                  </Button>
-                )}
-              </For>
-            </div>
-          </fieldset>
-          <Show when={whereShown()}>
-            <WhereToRun
-              rows={rows()}
-              counts={placed()}
-              summary={placementSummary(placed(), rows())}
-              numbering={numbering() ?? total() > 1}
-              team={team() ?? true}
-              showTeam={total() > 1}
-              disabled={busy()}
-              onCount={(key, n) => setCounts({ ...placed(), [key]: n })}
-              onNumbering={setNumbering}
-              onTeam={setTeam}
-              onSettings={() => (setNewRunOpen(false), openSettings("servers"))}
-            />
-          </Show>
           <Show when={McpRunPicker}>
             <div class="newrun__field newrun__mcp">
               <Dynamic component={McpRunPicker} value={mcpValue()} onChange={setMcpValue} provider={modeProvider()} mode={permission()} workspaceId={activeId()} disabled={busy()} />
             </div>
-          </Show>
-          <label class="newrun__field">
-            <span class="newrun__label">{t("runs.new.prompt")}</span>
-            <TextArea
-              data-autofocus
-              aria-label={t("runs.new.prompt")}
-              placeholder={t("runs.new.promptPlaceholder")}
-              minRows={4}
-              maxRows={10}
-              value={prompt()}
-              onInput={(e) => setPrompt(e.currentTarget.value)}
-              onPaste={att.onPaste}
-              onKeyDown={(e) => (e.metaKey || e.ctrlKey) && e.key === "Enter" && (e.preventDefault(), void start())}
-            />
-          </label>
-          <NewRunSlots place="prompt" ctx={slotCtx} />
-          <AttachmentChips items={att.store.items()} provider={att.provider()} onRemove={(id) => void att.store.remove(id)} onConfirm={(id) => void att.store.confirm(id)} />
-          <div class="newrun__attach"><AttachButton onFiles={att.pick} /></div>
-          <NewRunShare checked={shareRun()} onChange={setShareRun} />
-          <Show when={error()}>{(msg) => <p class="newrun__error" role="alert">{msg()}</p>}</Show>
-          <Show when={noNet()}>
-            <Checkbox checked={skipNet()} onChange={setSkipNet} label={t("runs.new.noNet")} />
           </Show>
         </div>
       </div>

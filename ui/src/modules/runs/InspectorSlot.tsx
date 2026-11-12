@@ -1,35 +1,36 @@
-import { createSignal, ErrorBoundary, For, Show, Suspense } from "solid-js";
+import { ErrorBoundary, For, Show, Suspense } from "solid-js";
 import { Dynamic } from "solid-js/web";
 import { t } from "../../i18n";
 import { inspectorPanels } from "../../platform/inspector";
-import { EmptyState, Spinner, TriangleAlert } from "../../ui-kit";
+import { EmptyState, ScrollArea, Spinner, TriangleAlert } from "../../ui-kit";
 
-/** Right side of the Agent workspace: the tabs modules contributed with `registerInspectorPanel`. */
+/**
+ * Right side of the Agent workspace: the run details as stacked cards, one per panel that a module contributed with
+ * `registerInspectorPanel` (This run, Checkpoints, ...). A new panel is a new card; nothing is hidden behind a tab.
+ */
 export function InspectorSlot() {
-  const [picked, setPicked] = createSignal<string | undefined>(undefined);
-  const active = () => inspectorPanels().find((p) => p.id === picked()) ?? inspectorPanels()[0];
   return (
     <aside class="inspector" aria-label={t("runs.inspector.title")}>
-      <div class="inspector__tabs" role="tablist" aria-label={t("runs.inspector.title")}>
-        <For each={inspectorPanels()}>
-          {(p) => (
-            <button type="button" role="tab" class="inspector__tab" aria-selected={active()?.id === p.id} onClick={() => setPicked(p.id)}>
-              {p.title}
-            </button>
-          )}
-        </For>
-      </div>
-      <div class="inspector__body" role="tabpanel">
-        <Show when={active()} fallback={<EmptyState size="sm" title={t("runs.inspector.title")} description={t("runs.inspector.empty")} />} keyed>
-          {(panel) => (
-            <ErrorBoundary fallback={(err) => <EmptyState tone="danger" icon={TriangleAlert} size="sm" title={t("runs.agent.loadFail", { title: panel.title })} description={err instanceof Error ? err.message : String(err)} />}>
-              <Suspense fallback={<div class="inspector__loading"><Spinner /></div>}>
-                <Dynamic component={panel.component} />
-              </Suspense>
-            </ErrorBoundary>
-          )}
-        </Show>
-      </div>
+      <Show when={inspectorPanels().length > 0} fallback={<EmptyState size="sm" title={t("runs.inspector.title")} description={t("runs.inspector.empty")} />}>
+        <ScrollArea class="inspector__scroll">
+          <div class="inspector__stack">
+            <For each={inspectorPanels()}>
+              {(panel) => (
+                <section class="inspector__card glass-panel" aria-label={panel.title} data-panel={panel.id}>
+                  <h2 class="inspector__card-title">{panel.title}</h2>
+                  <div class="inspector__card-body">
+                    <ErrorBoundary fallback={(err) => <EmptyState tone="danger" icon={TriangleAlert} size="sm" title={t("runs.agent.loadFail", { title: panel.title })} description={err instanceof Error ? err.message : String(err)} />}>
+                      <Suspense fallback={<div class="inspector__loading"><Spinner /></div>}>
+                        <Dynamic component={panel.component} />
+                      </Suspense>
+                    </ErrorBoundary>
+                  </div>
+                </section>
+              )}
+            </For>
+          </div>
+        </ScrollArea>
+      </Show>
     </aside>
   );
 }

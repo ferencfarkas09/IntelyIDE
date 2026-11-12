@@ -100,7 +100,7 @@ export function AttachButton(props: { onFiles(files: File[]): void; disabled?: b
   return (
     <>
       <input ref={(el) => (input = el)} type="file" multiple hidden data-testid="att-input" onChange={(e) => (props.onFiles([...(e.currentTarget.files ?? [])]), (e.currentTarget.value = ""))} />
-      <IconButton icon={Plus} label={t("attach.add")} tooltip={props.reason ?? t("attach.addTip")} size="sm" disabled={props.disabled} onClick={() => input.click()} data-testid="att-add" />
+      <IconButton icon={Plus} variant="secondary" label={t("attach.add")} tooltip={props.reason ?? t("attach.addTip")} size="lg" disabled={props.disabled} onClick={() => input.click()} data-testid="att-add" />
     </>
   );
 }

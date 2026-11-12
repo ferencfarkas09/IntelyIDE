@@ -15,8 +15,28 @@
 .mode-card__label { color: var(--text-1); font-size: var(--text-base); font-weight: var(--weight-semibold); }
 .mode-card__hint { color: var(--text-3); font-size: var(--text-xs); line-height: 1.45; overflow-wrap: anywhere; }
 .mode-card__why { color: var(--warn); }
+.mode-card__text { display: contents; }
+.mode-card__mode { color: var(--text-2); font-size: var(--text-xs); font-weight: var(--weight-medium); }
 .mode-cards[data-layout="list"] { grid-template-columns: minmax(0, 1fr); gap: 6px; }
 .mode-cards[data-layout="list"] > .mode-card { grid-column: auto; padding: 8px 10px; }
+/* Radio cards (New run): a dot, the name and one quiet line in a bordered row; the chosen one carries the accent tint. */
+.mode-cards[data-layout="radio"] { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.mode-cards[data-layout="radio"] > .mode-card { flex-direction: row; grid-column: auto; gap: 10px; padding: 10px 12px; border-radius: var(--radius-ctl); background: transparent; box-shadow: inset 0 0 0 1px var(--border); }
+.mode-cards[data-layout="radio"] > .mode-card:hover { background: var(--surface-hover); }
+.mode-cards[data-layout="radio"] > .mode-card[aria-checked="true"] { background: var(--accent-subtle); box-shadow: inset 0 0 0 1px var(--accent-border); }
+.mode-cards[data-layout="radio"] > .mode-card[data-tone="danger"]:hover { box-shadow: inset 0 0 0 1px var(--danger-border); }
+.mode-cards[data-layout="radio"] > .mode-card[data-tone="danger"][aria-checked="true"] { background: var(--danger-subtle); box-shadow: inset 0 0 0 1px var(--danger-border); }
+.mode-cards[data-layout="radio"] > .mode-card[aria-disabled="true"] { background: transparent; cursor: not-allowed; }
+.mode-cards[data-layout="radio"] .mode-card__dot { --dot: var(--accent); flex: none; width: 16px; height: 16px; margin-block-start: 1px; border-radius: var(--radius-full); box-shadow: inset 0 0 0 1.5px var(--text-3); transition: box-shadow var(--dur-fast) var(--ease); }
+.mode-cards[data-layout="radio"] .mode-card[data-tone="danger"] .mode-card__dot { --dot: var(--danger); }
+.mode-cards[data-layout="radio"] .mode-card[aria-checked="true"] .mode-card__dot { background: radial-gradient(circle, var(--dot) 0 3.5px, transparent 4px); box-shadow: inset 0 0 0 1.5px var(--dot); }
+.mode-cards[data-layout="radio"] .mode-card__text { display: flex; flex: 1 1 0; flex-direction: column; gap: 1px; min-width: 0; }
+.mode-cards[data-layout="radio"] .mode-card__head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 6px; color: var(--text-3); }
+.mode-cards[data-layout="radio"] .mode-card__head > svg { order: 3; align-self: center; margin-inline-start: auto; }
+.mode-cards[data-layout="radio"] .mode-card__hint { color: var(--text-2); font-size: var(--text-sm); }
+@media (forced-colors: active) {
+  .mode-cards[data-layout="radio"] .mode-card[aria-checked="true"] { outline: 1px solid Highlight; outline-offset: -1px; }
+}
 @container newrun-modes (max-width: 520px) {
   .mode-cards[data-layout="grid"] { grid-template-columns: minmax(0, 1fr); }
   .mode-cards[data-layout="grid"] > .mode-card, .mode-cards[data-layout="grid"] > .mode-card:nth-last-child(-n + 2):nth-child(n + 4) { grid-column: auto; }
@@ -26,7 +46,7 @@
 .mode-chip { display: inline-flex; align-items: center; gap: 6px; }
 .mode-chip__pill[aria-busy="true"] { cursor: progress; }
 .mode-chip__chev { opacity: 0.7; }
-.run-header[data-bypass] { box-shadow: inset 0 2px 0 var(--danger), inset 0 -1px 0 var(--border-subtle); }
+.run-header[data-bypass] { box-shadow: inset 0 2px 0 var(--danger); }
 .mode-menu .ui-menu__desc { max-inline-size: 280px; }
 .mode-menu__note { display: block; margin-block-start: 2px; color: var(--warn); font-size: var(--text-xs); }
 

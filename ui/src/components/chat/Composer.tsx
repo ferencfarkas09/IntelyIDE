@@ -1,4 +1,5 @@
 import { createEffect, createSignal, createUniqueId, For, on, onCleanup, Show } from "solid-js";
+import { execute, getCommand } from "../../platform/commands";
 import { openSettings } from "../../platform/settings";
 import { agentDraft, agentRow, searchRepoFiles, setAgentDraft } from "../../store/agents";
 import { requestChip } from "../../store/chatCommands";
@@ -282,17 +283,23 @@ export function Composer(props: ComposerProps) {
         />
         <div class="composer__bar">
           <AttachButton onFiles={att.pick} disabled={props.attachmentsCap === "none"} reason={props.attachmentsCap === "none" ? t("chat.noAttachments", { provider: att.provider() }) : undefined} />
+          {/* The prompt library registers `prompts.open` while it is switched on: the button is the way to it from a run. */}
+          <Show when={getCommand("prompts.open")}>
+            <Button size="lg" variant="secondary" class="composer__prompts" onClick={() => void execute("prompts.open")} data-testid="composer-prompts">
+              {t("prompts.picker")}
+            </Button>
+          </Show>
+          <span class="composer__grow" />
           <span class="composer__hint" role={notice() ? "status" : undefined}>
             <Show when={notice()} fallback={<><Kbd keys={["⌘", "⏎"]} /> {noteMode() ? t("notes.hint") : t("chat.sendHint")}</>}>
               {(n) => n()}
             </Show>
           </span>
-          <span class="composer__grow" />
           <Show
             when={props.running}
             fallback={
               <Tooltip label={props.blockedReason ?? t("chat.sendMessage")} shortcut={["⌘", "⏎"]}>
-                <Button size="sm" variant="primary" icon={SendHorizontal} aria-disabled={!canSend()} onClick={send}>
+                <Button size="lg" variant="primary" icon={SendHorizontal} aria-disabled={!canSend()} onClick={send}>
                   {t("chat.send")}
                 </Button>
               </Tooltip>
@@ -300,13 +307,13 @@ export function Composer(props: ComposerProps) {
           >
             <Show when={noteMode()}>
               <Tooltip label={t("notes.addTip")} shortcut={["⌘", "⏎"]}>
-                <Button size="sm" variant="secondary" icon={MessageSquareReply} aria-disabled={!canNote()} onClick={() => void addNote()}>
+                <Button size="lg" variant="secondary" icon={MessageSquareReply} aria-disabled={!canNote()} onClick={() => void addNote()}>
                   {t("notes.add")}
                 </Button>
               </Tooltip>
             </Show>
             <Tooltip label={t("chat.stopTheRun")} shortcut={["⌘", "."]}>
-              <Button size="sm" variant="danger" icon={Square} loading={props.stopping} onClick={props.onStop}>
+              <Button size="lg" variant="danger" icon={Square} loading={props.stopping} onClick={props.onStop}>
                 {t("chat.stop")}
               </Button>
             </Tooltip>

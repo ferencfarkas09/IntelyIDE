@@ -48,6 +48,12 @@ export const STANDARD_SURFACES: Record<ResolvedThemeName, readonly string[]> = {
   light: ["#e6e8ec", "#f8f9fa", "#ffffff", "#ffffff", "#f0f1f4"],
 };
 
+/** Inset wells (--surface-inset: diff blocks, text areas) of Standard and of Glass. Text and accent ink must read on them too. */
+export const INSET_SURFACES: Record<ResolvedThemeName, readonly string[]> = {
+  dark: ["#0e0f11", "#0f1124"],
+  light: ["#f3f4f7", "#f3f4fa"],
+};
+
 export const INK = { light: "#ffffff", dark: "#0d0e10" } as const;
 
 /** AA thresholds used by the generator and asserted by the tests. */
@@ -133,8 +139,8 @@ export function glassComposites(theme: ResolvedThemeName): string[] {
  * composites. Worst case = the lightest dark surface / the darkest light one, whichever skin it comes from.
  */
 export const SURFACES: Record<ResolvedThemeName, readonly string[]> = {
-  dark: [...STANDARD_SURFACES.dark, ...glassComposites("dark")],
-  light: [...STANDARD_SURFACES.light, ...glassComposites("light")],
+  dark: [...STANDARD_SURFACES.dark, ...glassComposites("dark"), ...INSET_SURFACES.dark],
+  light: [...STANDARD_SURFACES.light, ...glassComposites("light"), ...INSET_SURFACES.light],
 };
 
 const rgba = (hex: string, a: number) => `rgba(${hexToRgb(hex).join(", ")}, ${a})`;

@@ -1,5 +1,5 @@
 /* ---- Card ---------------------------------------------------------------------------------------------------------- */
-/* --radius-card, --card-shadow and the --glass-* tokens come from theme/glass.css (Standard: radius-4, shadow-sm, hairline). */
+/* --radius-card, --card-shadow and the --glass-* tokens come from theme/glass.css (Standard: 10 px, shadow-sm, hairline; Glass: 14 px, soft shadow). */
 .ui-card {
   display: flex;
   flex-direction: column;
@@ -8,30 +8,35 @@
   border-radius: var(--radius-card);
   background: var(--surface-2);
   color: var(--text-1);
-  box-shadow: 0 0 0 1px var(--glass-border, var(--border-subtle)), var(--glass-highlight, 0 0 #0000), var(--card-shadow);
+  box-shadow: 0 0 0 1px var(--glass-border, var(--border)), var(--glass-highlight, 0 0 #0000), var(--card-shadow);
 }
-.ui-card[data-padding="md"] { padding: var(--space-4) var(--space-5); }
-.ui-card[data-padding="sm"] { padding: var(--space-3) var(--space-4); }
-.ui-card__head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); min-width: 0; }
+.ui-card[data-padding="md"] { padding: var(--space-4); }
+.ui-card[data-padding="sm"] { padding: var(--space-3); }
+.ui-card__head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); min-width: 0; }
 .ui-card__titles { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.ui-card__title { margin: 0; color: var(--text-1); font-size: var(--text-md); font-weight: var(--weight-semibold); letter-spacing: -0.01em; }
+.ui-card__title { margin: 0; color: var(--text-1); font-size: var(--text-md); font-weight: var(--weight-semibold); }
 .ui-card__subtitle { margin: 0; color: var(--text-3); font-size: var(--text-sm); }
 .ui-card__actions { display: inline-flex; align-items: center; flex: none; gap: var(--space-1); }
 
-/* ---- KPI tile ------------------------------------------------------------------------------------------------------ */
+/* ---- Number tile (KPI) --------------------------------------------------------------------------------------------- */
 .ui-kpi {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  --kpi-bd: var(--glass-border, var(--border));
+  display: flex;
+  flex-direction: column;
   gap: var(--space-1);
   min-width: 0;
-  padding: var(--space-4) var(--space-5);
+  padding: var(--space-4);
   border-radius: var(--radius-card);
   background: var(--surface-2);
-  box-shadow: 0 0 0 1px var(--glass-border, var(--border-subtle)), var(--glass-highlight, 0 0 #0000), var(--card-shadow);
+  box-shadow: 0 0 0 1px var(--kpi-bd), var(--glass-highlight, 0 0 #0000), var(--card-shadow);
 }
-.ui-kpi__label { color: var(--text-2); font-size: var(--text-sm); font-weight: var(--weight-medium); }
+/* A tile that asks for attention carries the tone on its border; the hint line says why. */
+.ui-kpi[data-tone="warn"] { --kpi-bd: var(--warn-border); }
+.ui-kpi[data-tone="danger"] { --kpi-bd: var(--danger-border); }
+.ui-kpi[data-tone="ok"] { --kpi-bd: var(--ok-border); }
+.ui-kpi__label { color: var(--text-2); font-size: var(--text-sm); }
 .ui-kpi__row { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2) var(--space-3); min-width: 0; }
-.ui-kpi__value { color: var(--text-1); font-size: 28px; font-weight: var(--weight-semibold); line-height: 1.15; letter-spacing: -0.02em; }
+.ui-kpi__value { color: var(--text-1); font-size: 30px; font-weight: var(--weight-semibold); line-height: 1.1; letter-spacing: -0.01em; }
 .ui-kpi__unit { margin-inline-start: 4px; color: var(--text-3); font-size: var(--text-sm); font-weight: var(--weight-medium); letter-spacing: 0; }
 .ui-kpi__delta {
   --d: var(--text-2);
@@ -49,7 +54,11 @@
 }
 .ui-kpi__delta[data-tone="ok"] { --d: var(--ok); --d-bg: var(--ok-subtle); }
 .ui-kpi__delta[data-tone="danger"] { --d: var(--danger); --d-bg: var(--danger-subtle); }
-.ui-kpi__hint { color: var(--text-3); font-size: var(--text-xs); }
+.ui-kpi__hint { min-width: 0; color: var(--text-3); font-size: var(--text-sm); }
+.ui-kpi__hint[data-tone="warn"] { color: var(--warn); }
+.ui-kpi__hint[data-tone="danger"] { color: var(--danger); }
+.ui-kpi__hint[data-tone="ok"] { color: var(--ok); }
+.ui-kpi__meter { margin-top: var(--space-1); }
 .ui-kpi__spark { margin-top: var(--space-1); min-width: 0; }
 .ui-kpi__spark .ui-spark { width: 100%; height: 36px; }
 

@@ -38,7 +38,10 @@ describe("<RunHeader> provider", () => {
   it("shows the provider mark and name, and the tier of this run", () => {
     show(row({ provider: "gemini", model: "gemini-pro", enforcement: "weak", caps: capsOfProvider("gemini") }));
     expect(screen.getByTitle("Provider gemini").textContent).toBe("Gemini");
-    expect(document.querySelector('.run-header__role .pmark[data-provider="gemini"]')?.textContent).toBe("Ge");
+    expect(document.querySelector('.run-header__provider .pmark[data-provider="gemini"]')?.textContent).toBe("Ge");
+    // The role tile carries the first two letters of the role; the run's title is the heading.
+    expect(document.querySelector(".run-header__tile")?.textContent).toMatch(/^[A-Z]{2}$/);
+    expect(screen.getByRole("heading", { level: 1 })).toBeTruthy();
     expect(screen.getByRole("note").getAttribute("aria-label")).toMatch(/Enforcement: Weak/);
   });
 

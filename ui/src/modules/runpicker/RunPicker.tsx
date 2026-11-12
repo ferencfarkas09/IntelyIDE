@@ -3,7 +3,7 @@ import { createUniqueId, Show } from "solid-js";
 import { modelLabel } from "../../components/chat/format";
 import { t, type MessageKey } from "../../i18n";
 import type { RoleProviderCaps } from "../../ipc/roles";
-import { Button, Input, Select, Switch } from "../../ui-kit";
+import { Button, ChoiceCard, Input, SegmentedControl, Select } from "../../ui-kit";
 import { effortAfterModelChange, effortChoice, isClaudeModelId, modelChoices, OTHER_MODEL, type RunPick } from "./logic";
 import "./runpicker.css";
 
@@ -35,7 +35,7 @@ export const effortText = (e: Effort): string => t(EFFORT_KEY[e]);
 
 /** New run: the exact model and effort of the run, and ultracode. Untouched, it picks nothing and the role's own values apply. */
 export default function RunPicker(props: RunPickerProps) {
-  const ids = { legend: createUniqueId(), note: createUniqueId() };
+  const ids = { note: createUniqueId() };
   const models = () => modelChoices(props.caps, props.provider);
   const listed = (id: string | undefined) => id !== undefined && models().some((m) => m.id === id);
   /** "Other model id..." is open: a picked model that is not in the list (an empty one right after choosing it). */
@@ -50,10 +50,11 @@ export default function RunPicker(props: RunPickerProps) {
     ...models().map((m) => ({ value: m.id, label: m.label })),
     ...(otherAllowed() ? [{ value: OTHER_MODEL, label: t("runpicker.otherModel") }] : []),
   ];
-  const effortOptions = () => [
-    { value: "", label: t("runpicker.default", { value: props.defaultEffort ? effortText(props.defaultEffort) : t("runs.na") }) },
-    ...effort().levels.map((l) => ({ value: l, label: effortText(l) })),
-  ];
+  /** The effort the run gets now: the picked level, else the role's own (none when that is unknown or the model has none). */
+  const effortNow = () => (props.value.effort && effort().levels.includes(props.value.effort) ? props.value.effort : props.defaultEffort && effort().levels.includes(props.defaultEffort) ? props.defaultEffort : undefined);
+  // The segments show the level's id as the CLI spells it (low ... max); the full name is the accessible name and the tooltip.
+  const effortOptions = () => effort().levels.map((l) => ({ value: l, label: l, ariaLabel: effortText(l), tooltip: effortText(l), disabled: props.disabled }));
+  const picked = () => props.value.model !== undefined || props.value.effort !== undefined;
 
   const setModel = (model: string | undefined) => {
     const levels = effortChoice(model?.trim() || props.defaultModel, props.caps, props.provider).levels;
@@ -63,42 +64,15 @@ export default function RunPicker(props: RunPickerProps) {
   const badTyped = () => otherOpen() && !isClaudeModelId(props.value.model!.trim());
 
   return (
-    <fieldset class="newrun__field runpicker" aria-labelledby={ids.legend}>
-      <legend class="newrun__label" id={ids.legend}>
-        {t("runpicker.legend")}
-      </legend>
-      <div class="runpicker__row">
-        <label class="runpicker__cell">
-          <span class="runpicker__label">{t("runpicker.model")}</span>
-          <Select size="sm" aria-label={t("runpicker.model")} value={otherOpen() ? OTHER_MODEL : (props.value.model ?? "")} options={modelOptions()} onChange={chooseModel} disabled={props.disabled} />
-        </label>
-        <label class="runpicker__cell">
-          <span class="runpicker__label">{t("runpicker.effort")}</span>
-          <Select
-            size="sm"
-            aria-label={t("runpicker.effort")}
-            aria-describedby={ids.note}
-            value={props.value.effort && effort().levels.includes(props.value.effort) ? props.value.effort : ""}
-            options={effortOptions()}
-            onChange={(v) => props.onChange({ ...props.value, effort: (v || undefined) as Effort | undefined })}
-            disabled={props.disabled || effort().levels.length === 0}
-            title={effort().levels.length === 0 ? t("runpicker.noEffort") : t("runpicker.effortHint")}
-          />
-        </label>
-      </div>
-      <Show when={props.remembered}>
-        <div class="runpicker__remembered" role="status">
-          <small class="newrun__provider-note">{t("runpicker.remembered")}</small>
-          <Button size="sm" variant="ghost" onClick={() => props.onReset?.()} disabled={props.disabled}>
-            {t("runpicker.reset")}
-          </Button>
-        </div>
-      </Show>
+    <div class="runpicker" role="group" aria-label={t("runpicker.legend")}>
+      <label class="newrun__field runpicker__model">
+        <span class="newrun__label">{t("runpicker.model")}</span>
+        <Select aria-label={t("runpicker.model")} value={otherOpen() ? OTHER_MODEL : (props.value.model ?? "")} options={modelOptions()} onChange={chooseModel} disabled={props.disabled} />
+      </label>
       <Show when={otherOpen()}>
-        <label class="runpicker__other">
-          <span class="runpicker__label">{t("runpicker.otherModelLabel")}</span>
+        <label class="newrun__field runpicker__other">
+          <span class="newrun__label" data-minor="">{t("runpicker.otherModelLabel")}</span>
           <Input
-            size="sm"
             aria-label={t("runpicker.otherModelLabel")}
             placeholder={t("runpicker.otherModelPlaceholder")}
             value={props.value.model ?? ""}
@@ -115,15 +89,37 @@ export default function RunPicker(props: RunPickerProps) {
           </small>
         </Show>
       </Show>
-      <small class="newrun__provider-note" id={ids.note}>
-        {effort().unknownModel ? t("runpicker.unknownModel") : effort().levels.length === 0 && runModel() ? t("runpicker.noEffort") : t("runpicker.effortHint")}
-      </small>
-      <Show when={props.ultracodeOffered}>
-        <div class="runpicker__ultra">
-          <Switch size="sm" checked={props.value.ultracode === true} onChange={(on) => props.onChange({ ...props.value, ultracode: on || undefined })} aria-label={t("runpicker.ultracodeAria")} disabled={props.disabled} label={t("runpicker.ultracode")} />
-          <small class="newrun__provider-note">{t("runpicker.ultracodeNotice")}</small>
+      <div class="newrun__field runpicker__effort">
+        <span class="newrun__label">{t("runpicker.effort")}</span>
+        <Show when={effort().levels.length > 0}>
+          <SegmentedControl<Effort | ""> size="lg" fullWidth aria-label={t("runpicker.effort")} options={effortOptions()} value={effortNow() ?? ""} onChange={(v) => v && props.onChange({ ...props.value, effort: v })} />
+        </Show>
+        <small class="newrun__provider-note" id={ids.note}>
+          {effort().unknownModel ? t("runpicker.unknownModel") : effort().levels.length === 0 && runModel() ? t("runpicker.noEffort") : t("runpicker.effortHint")}
+        </small>
+      </div>
+      <Show when={props.remembered || picked()}>
+        <div class="runpicker__remembered" role={props.remembered ? "status" : undefined}>
+          <Show when={props.remembered}>
+            <small class="newrun__provider-note">{t("runpicker.remembered")}</small>
+          </Show>
+          <Button size="sm" variant="ghost" onClick={() => props.onReset?.()} disabled={props.disabled}>
+            {t("runpicker.reset")}
+          </Button>
         </div>
       </Show>
-    </fieldset>
+      <Show when={props.ultracodeOffered}>
+        <ChoiceCard
+          type="switch"
+          class="runpicker__ultra"
+          checked={props.value.ultracode === true}
+          onChange={(on) => props.onChange({ ...props.value, ultracode: on || undefined })}
+          title={t("runpicker.ultracode")}
+          description={t("runpicker.ultracodeNotice")}
+          tooltip={t("runpicker.ultracodeAria")}
+          disabled={props.disabled}
+        />
+      </Show>
+    </div>
   );
 }

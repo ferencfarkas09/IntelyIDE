@@ -54,7 +54,9 @@ describe("<Shell> and workspaces", () => {
     expect(screen.getByRole("button", { name: "Settings" })).toBeTruthy();
     // the Agent/Editor control and the branch pills have nothing to act on
     expect(container.querySelector('[role="radiogroup"], .ui-segmented')).toBeNull();
-    expect(container.querySelector(".ui-pill")).toBeNull();
+    expect(container.querySelector(".ui-pill, .ttl__chip")).toBeNull();
+    // nor has the palette field anything to search in
+    expect(container.querySelector('[data-testid="title-search"]')).toBeNull();
   });
 
   it("the Settings button of the title bar opens the Settings dialog command", async () => {
@@ -71,7 +73,12 @@ describe("<Shell> and workspaces", () => {
     expect(container.querySelector('[data-testid="welcome"]')).toBeNull();
     expect(container.querySelector(".rail")).not.toBeNull();
     expect(container.querySelector(".switcher")?.getAttribute("aria-label")).toBe("Workspace: Happy workspace");
-    await waitFor(() => expect(container.querySelectorAll(".ttl .ui-pill").length).toBe(4));
+    await waitFor(() => expect(container.querySelectorAll(".ttl .ttl__chip").length).toBe(4));
+    // every chip is a button named after its repository and branch, and the mode switch is the accent pill
+    expect([...container.querySelectorAll(".ttl .ttl__chip")].every((c) => /, branch /.test(c.getAttribute("aria-label") ?? ""))).toBe(true);
+    expect(container.querySelector('[role="radiogroup"][aria-label="Mode"]')?.getAttribute("data-variant")).toBe("accent");
+    // the visible way into the command palette
+    expect(screen.getByRole("button", { name: /^Search or run a command/ })).toBeTruthy();
   });
 
   it("a workspace without repositories keeps the rail and says what to do next", async () => {
