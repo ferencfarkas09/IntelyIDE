@@ -191,7 +191,7 @@
 .run-row__activity:empty { display: none; }
 .run-row__foreign { display: block; color: var(--warn); font-size: var(--text-sm); line-height: var(--leading-base); }
 .run-row__meta { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--text-3); font-size: var(--text-sm); }
-.run-row__role { flex: 0 1 auto; min-width: 0; max-width: 50%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.run-row__role { flex: none; max-width: 50%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .run-row__slots { display: flex; flex: 0 1 auto; gap: 4px; min-width: 0; overflow: hidden; }
 .run-row__slots:empty { display: none; }
 .run-row__grow { flex: 1 1 0; }

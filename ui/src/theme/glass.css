@@ -118,7 +118,7 @@
     background: transparent;
   }
   /* Panes float as rounded sheets over the gradient (shell.css gives every skin the gaps, the hairline and the radius); here they get the soft shadow. The rail, title bar and status bar stay on the gradient. */
-  :root[data-skin="glass"]:not([data-transparency="reduced"]) :is(.tool, .centre, .sessions, .agent-centre, .agent-panel, .ui-splitter__pane.dock) {
+  :root[data-skin="glass"]:not([data-transparency="reduced"]) :is(.tool, .centre, .sessions, .agent-centre, .agent-panel, .inspector__card, .ui-splitter__pane.dock) {
     box-shadow: var(--glass-highlight), var(--card-shadow);
   }
   :root[data-skin="glass"]:not([data-transparency="reduced"]) :is(.rail, .ui-titlebar, .sb) { box-shadow: none; }

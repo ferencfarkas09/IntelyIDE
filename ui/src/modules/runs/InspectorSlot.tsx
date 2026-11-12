@@ -16,7 +16,7 @@ export function InspectorSlot() {
           <div class="inspector__stack">
             <For each={inspectorPanels()}>
               {(panel) => (
-                <section class="inspector__card" aria-label={panel.title} data-panel={panel.id}>
+                <section class="inspector__card glass-panel" aria-label={panel.title} data-panel={panel.id}>
                   <h2 class="inspector__card-title">{panel.title}</h2>
                   <div class="inspector__card-body">
                     <ErrorBoundary fallback={(err) => <EmptyState tone="danger" icon={TriangleAlert} size="sm" title={t("runs.agent.loadFail", { title: panel.title })} description={err instanceof Error ? err.message : String(err)} />}>
