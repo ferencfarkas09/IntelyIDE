@@ -190,7 +190,17 @@ mod tests {
         let port = listener.local_addr().unwrap().port();
         assert!(probe_port("127.0.0.1", port, Duration::from_millis(500)));
         assert!(probe_port("localhost", port, Duration::from_millis(500)));
-        drop(listener);
-        assert!(!probe_port("127.0.0.1", port, Duration::from_millis(300)));
+        assert!(!probe_port("127.0.0.1", closed_port(), Duration::from_millis(300)));
+    }
+
+    /// A loopback port that refuses connections for the rest of the test run: the local port of a connected socket that
+    /// is kept open, so no other test can be given the number. (The port of a listener that was just dropped is free
+    /// again, and a test running next to this one can be handed it at once.)
+    fn closed_port() -> u16 {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let stream = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+        let port = stream.local_addr().unwrap().port();
+        std::mem::forget((listener, stream));
+        port
     }
 }
