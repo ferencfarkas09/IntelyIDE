@@ -32,7 +32,7 @@ export function ChoiceCard(props: ChoiceCardProps) {
       type={props.type === "radio" ? "radio" : "checkbox"}
       role={props.type === "switch" ? "switch" : undefined}
       name={props.name}
-      value={props.value}
+      value={props.value ?? "on"}
       checked={props.checked}
       disabled={props.disabled}
       onChange={(e) => props.onChange(e.currentTarget.checked)}

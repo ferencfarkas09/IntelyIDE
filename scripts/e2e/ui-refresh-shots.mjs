@@ -63,12 +63,15 @@ function audit() {
   const bgOf = (el) => { const layers = []; for (let n = el; n && n.nodeType === 1; n = n.parentElement) { const c = parse(getComputedStyle(n).backgroundColor); if (c && c.a > 0) { layers.push(c); if (c.a >= 1) break; } } let bg = layers.length && layers[layers.length - 1].a >= 1 ? layers.pop() : base(); for (const l of layers.reverse()) bg = over(l, bg); return bg; };
   const visible = (el) => { const r = el.getBoundingClientRect(); const cs = getComputedStyle(el); return r.width > 1 && r.height > 1 && cs.visibility !== "hidden" && cs.display !== "none" && +cs.opacity > 0.05 && r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth; };
   const hiddenUp = (el) => { for (let n = el; n && n.nodeType === 1; n = n.parentElement) { const cs = getComputedStyle(n); if (cs.visibility === "hidden" || +cs.opacity < 0.05 || n.hasAttribute("inert") || n.getAttribute("aria-hidden") === "true") return true; } return false; };
+  // A modal dialog covers the window on purpose: with one open, only what is inside it is checked.
+  const modal = [...document.querySelectorAll('[role="dialog"], [role="alertdialog"]')].filter(visible).pop();
+  const inScope = (el) => !modal || modal.contains(el);
   const low = [];
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
   const seen = new Set();
   for (let t = walker.nextNode(); t; t = walker.nextNode()) {
     const el = t.parentElement; if (!el || seen.has(el) || !t.nodeValue.trim()) continue; seen.add(el);
-    if (!visible(el) || hiddenUp(el)) continue;
+    if (!visible(el) || hiddenUp(el) || !inScope(el)) continue;
     if (el.closest("[disabled], [aria-disabled='true'], .ui-sr-only, .cm-editor, .xterm, .dpv__sign, .ui-kbd, .ui-seg__item[aria-checked='true']")) continue;
     const cs = getComputedStyle(el); const fg0 = parse(cs.color); if (!fg0) continue;
     const bg = bgOf(el); const fg = over(fg0, bg); const r = ratio(fg, bg);
@@ -77,7 +80,7 @@ function audit() {
   }
   const covered = [];
   for (const el of document.querySelectorAll("button, a[href], input, textarea, select, [role='radio'], [role='tab']")) {
-    if (!visible(el) || hiddenUp(el)) continue;
+    if (!visible(el) || hiddenUp(el) || !inScope(el)) continue;
     const r = el.getBoundingClientRect();
     if (r.right > innerWidth + 1 || r.bottom > innerHeight + 1 || r.left < -1 || r.top < -1) {
       // off-screen is fine inside a scroller; report only when no ancestor scrolls

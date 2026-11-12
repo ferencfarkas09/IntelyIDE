@@ -166,7 +166,7 @@
 .mcp-chip[aria-disabled="true"]:hover { background: var(--surface-2); color: var(--text-2); }
 .mcp-chip:focus-visible { outline: var(--focus-width) solid var(--focus-color); outline-offset: var(--focus-offset); }
 .mcp-chip__name { color: inherit; font-size: var(--text-xs); }
-.mcp-chip__count { color: var(--text-3); font-size: var(--text-xs); }
+.mcp-chip__count { color: var(--text-2); font-size: var(--text-xs); }
 .mcp-chip__denied { display: inline-flex; color: var(--warn); }
 
 .mcp-cat { display: flex; flex-direction: column; gap: var(--space-4); color: var(--text-2); font-size: var(--text-sm); line-height: var(--leading-base); }
