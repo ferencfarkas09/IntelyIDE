@@ -21,7 +21,6 @@ import { attachmentRefs } from "../modules/attachments/refs";
 import type { AttachmentRef } from "@intely/protocol";
 import type { Ipc, Unsubscribe } from "./index";
 
-/** The cap of the always-list (the host holds the same number). */
 import { capsOfProvider } from "./providerCaps";
 import { mockTier } from "./mock/providers";
 import { ACP_SCENARIOS, ACP_SCRIPTS, type AcpScenario } from "./mock-acp";

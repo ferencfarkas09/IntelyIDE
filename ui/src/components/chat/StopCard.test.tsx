@@ -96,12 +96,12 @@ describe("tier-2 card", () => {
     expect(screen.getByTestId("stop-reach").textContent).toMatch(/^“Allow once” covers only this file/);
     cleanup();
     show(perm({ confirm: { ...secret, kind: "secretEdit" } }));
-    expect(btn("Allow editing all secret files in this run")).toBeTruthy();
-    expect(screen.getByTestId("stop-reach").textContent).toMatch(/editing every secret-looking env file/);
+    expect(btn("Allow editing all .env files in this run")).toBeTruthy();
+    expect(screen.getByTestId("stop-reach").textContent).toMatch(/editing every \.env and \.env\.\* file/);
     cleanup();
     await setLocale("hu", { persist: false });
     show(perm({ confirm: { ...secret, kind: "secretEdit" } }));
-    expect(btn("Minden titkos fájl szerkesztésének engedélyezése ennél a futásnál")).toBeTruthy();
+    expect(btn("Minden .env fájl szerkesztésének engedélyezése ennél a futásnál")).toBeTruthy();
     expect(screen.getByTestId("stop-reach").textContent).toMatch(/\.git, \.claude, \.ssh/);
   });
 
@@ -132,7 +132,7 @@ describe("tier-2 card", () => {
 
   it("the run-wide choice for an edit asks twice as well and words the question for editing", () => {
     const on = show(perm({ confirm: { ...secret, kind: "secretEdit" } }));
-    fireEvent.click(btn("Allow editing all secret files in this run"));
+    fireEvent.click(btn("Allow editing all .env files in this run"));
     expect(on).not.toHaveBeenCalled();
     expect(screen.getByTestId("stop-confirm").textContent).toMatch(/^Allow changing every secret-looking env file/);
   });
@@ -143,11 +143,19 @@ describe("tier-2 card", () => {
     expect(on).toHaveBeenCalledWith("allowRun");
   });
 
+  it("a card without allow_run (the run's folder is the home folder) shows once and deny only, and no reach text", () => {
+    show(perm({ options: ["allowOnce", "deny"] as PermissionItem["options"] }));
+    expect(btn("Allow once")).toBeTruthy();
+    expect(screen.queryByTestId("stop-run")).toBeNull();
+    expect(screen.queryByTestId("stop-reach")).toBeNull();
+    expect(btn("Deny, tell the agent no")).toBeTruthy();
+  });
+
   it("shows the host's refusal in words", () => {
     show(perm({ error: { code: "confirmationRequired" } }));
     expect(screen.getByRole("alert").textContent).toMatch(/second confirmation/);
-    expect(modeErrorText("answerOnComputer")).toMatch(/only be lifted on your computer/);
-    for (const c of ["confirmationRequired", "rulesMoved", "notOnServer"]) expect(modeErrorText(c)).not.toBe("");
+    expect(modeErrorText("answerOnComputer")).toMatch(/main window of the IDE on this computer/);
+    for (const c of ["confirmationRequired", "rulesMoved", "notOnServer", "runWideNotAllowed"]) expect(modeErrorText(c)).not.toBe("");
   });
 
   it("with only Deny offered (a phone) says to answer on the computer", () => {
@@ -178,7 +186,7 @@ describe("override lines", () => {
     expect(stopDoneWording({ confirm: cli, outcome: "allow", grant: "once" })).toBe(`You allowed a command the Claude CLI flagged once: “${cli.scope}”`);
     // run-wide on a card: the kind, never a file that was not on a card
     expect(stopDoneWording({ confirm: secret, outcome: "allow", grant: "run", by: "user" })).toBe("You allowed reading secret files in this run");
-    expect(stopDoneWording({ confirm: { ...secret, kind: "secretEdit" }, outcome: "allow", grant: "run", by: "user" })).toBe("You allowed changing secret files in this run");
+    expect(stopDoneWording({ confirm: { ...secret, kind: "secretEdit" }, outcome: "allow", grant: "run", by: "user" })).toBe("You allowed changing .env files in this run");
     expect(stopDoneWording({ confirm: cli, outcome: "allow", grant: "run", by: "user" })).toBe(`You allowed the Claude CLI prompt “${cli.scope}” in this run`);
     // the audit pair of a standing run-wide grant: the file or prompt actually used
     const used = { ...secret, scope: "/work/admin/prod.pem" };

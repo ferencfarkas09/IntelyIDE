@@ -29,6 +29,7 @@ const ERROR_KEY: Record<string, MessageKey> = {
   answerOnComputer: "stops.err.answerOnComputer",
   confirmationRequired: "stops.err.confirmationRequired",
   rulesMoved: "stops.err.rulesMoved",
+  runWideNotAllowed: "stops.err.runWideNotAllowed",
   notOnServer: "stops.err.notOnServer",
 };
 
