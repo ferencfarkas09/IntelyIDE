@@ -274,7 +274,7 @@ impl AgentHub for HostHub {
 
     fn answer_permission(&self, req_id: &str, agent_id: &str, decision: PermissionDecision, intent_hash: Option<&str>, origin: &Origin) -> Result<Resolution, HubError> {
         let req = self.table.resolve(req_id, agent_id, PendingKind::Permission, intent_hash, origin, now_ms())?;
-        match self.host.answer_permission_remote(agent_id, req_id, decision) {
+        match self.host.answer_permission(agent_id, req_id, decision) {
             Ok(()) => Ok(Resolution { req_id: req_id.into(), agent_id: agent_id.into(), origin: origin.clone() }),
             Err(e) if e.code == "alreadyAnswered" => {
                 // the desktop got there between our claim and the host's check

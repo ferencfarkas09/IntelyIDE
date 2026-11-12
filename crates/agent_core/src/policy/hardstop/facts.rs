@@ -334,7 +334,7 @@ impl<'a> Walker<'a> {
                             return;
                         }
                         // a secret-looking file of the run's own project: the shell cannot be asked about it (no grant lifts a command), but the Read tool can
-                        let hint = if why == "secret file" && self.jail.confirm_offer("read.never-read", &p, false).is_some() { USE_READ_TOOL } else { "" };
+                        let hint = if why == "secret file" && self.jail.file_tool_hint_ok("read.never-read", &p, false) { USE_READ_TOOL } else { "" };
                         if program_text {
                             self.stop("read.never-read", &format!("the script or inline code mentions {lit}, which names a secret file ({}); a secret or IDE-state path is never read by an agent ({why}){hint}", p.display()));
                         } else {

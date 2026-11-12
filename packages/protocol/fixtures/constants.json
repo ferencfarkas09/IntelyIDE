@@ -38,7 +38,6 @@
   "confirm": {
     "allOfKind": "*",
     "cliPromptTool": "intely:cli-prompt",
-    "maxAllowEntries": 100,
     "maxCliReason": 300,
     "tierOne": [
       "read.never-read",

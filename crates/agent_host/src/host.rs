@@ -342,11 +342,12 @@ pub struct AnswerExtra {
     pub mode: Option<PermissionMode>,
     /// ExitPlanMode rejection only: the user's text for the model.
     pub feedback: Option<String>,
-    /// The answer comes from a phone or another remote client. A card of a confirmable stop is answered on the computer only.
-    pub remote: bool,
-    /// "Always allow" for a secret file: the person clicked the second confirmation that shows the warning. Required by the host, not
-    /// only asked by the card.
-    pub confirm_always: bool,
+    /// The answer is a click in the IDE's main window on this computer. Off by default: a card of a confirmable stop is lifted only by an
+    /// answer that says so (a phone, a plugin or any other caller can refuse it, never allow it).
+    pub on_computer: bool,
+    /// "Allow for this run" for secret files: the person clicked the second confirmation that shows the warning. Required by the host,
+    /// not only asked by the card.
+    pub confirm_broad: bool,
 }
 
 /// What `answer_permission_with` decided under the lock: refuse the click (the rules changed), or send the answer.
@@ -364,9 +365,8 @@ struct Undo {
     lease: Option<bool>,
     /// The mode the run was in before a plan approval changed it.
     mode: Option<PermissionMode>,
-    /// The grant of a confirmable stop that was pushed into the run's context, and the always-list entry that was added.
+    /// The grant of a confirmable stop that was pushed into the run's context.
     stop_grant: Option<StopGrant>,
-    stop_entry: Option<String>,
 }
 
 #[derive(Clone)]
@@ -1127,14 +1127,13 @@ impl AgentHost {
             let run = st.agents.get_mut(agent_id).ok_or_else(|| unknown_agent(agent_id))?;
             let pending = run.state.perms.get(req_id).ok_or_else(|| err("unknownRequest", format!("no pending permission request {req_id}")))?;
             let confirm_card = pending.confirm.clone();
-            if confirm_card.is_some() && extra.remote && allowing {
+            if confirm_card.is_some() && !extra.on_computer && allowing {
                 return Err(err("answerOnComputer", "this stop is lifted on your computer only: open the IDE there to answer it (the phone can refuse it)"));
             }
             let wanted = match decision {
                 PermissionDecision::AllowOnce => PermissionOption::AllowOnce,
                 PermissionDecision::AllowRun => PermissionOption::AllowRun,
                 PermissionDecision::Deny => PermissionOption::Deny,
-                PermissionDecision::AllowAlways if confirm_card.is_some() => PermissionOption::AllowAlways,
                 PermissionDecision::AllowAlways => return Err(err("optionNotOffered", "saved rules per role and repository are not available yet")),
             };
             if !pending.options.contains(&wanted) {
@@ -1182,9 +1181,8 @@ impl AgentHost {
                     if run.meta.location.is_some() {
                         return Err(err("notOnServer", "a stop is not lifted for a run on a server yet"));
                     }
-                    let (g, entry, scope) = Inner::apply_confirm(run, inner.cfg.stop_allow.as_deref(), agent_id, &pending_tool_id, &intent, card, decision, extra.confirm_always)?;
+                    let (g, scope) = Inner::apply_confirm(run, agent_id, &pending_tool_id, &intent, card, decision, extra.confirm_broad)?;
                     undo.stop_grant = g;
-                    undo.stop_entry = entry;
                     grant_scope = Some(scope);
                 } else if decision == PermissionDecision::AllowRun {
                     // the host derives the saved allow itself and never trusts the event's offer
@@ -1300,9 +1298,6 @@ impl AgentHost {
                             if let Some(g) = &undo.stop_grant {
                                 run.ctx.stop_grants.retain(|x| x != g);
                             }
-                            if let (Some(id), Some(store)) = (&undo.stop_entry, inner.cfg.stop_allow.as_deref()) {
-                                let _ = store.revoke(id);
-                            }
                             if let Some(old) = undo.mode {
                                 run.ctx.mode = old;
                                 run.ctx.strict_jail = old != PermissionMode::Bypass;
@@ -1329,27 +1324,10 @@ impl AgentHost {
         }
     }
 
-    /// [`AgentHost::answer_permission`] for an answer that came from a phone or another remote client: a card of a confirmable stop is
-    /// refused (`answerOnComputer`), every other card is answered as before.
-    pub fn answer_permission_remote(&self, agent_id: &str, req_id: &str, decision: PermissionDecision) -> Result<(), EngineError> {
-        self.answer_permission_with(agent_id, req_id, decision, AnswerExtra { remote: true, ..AnswerExtra::default() })
-    }
-
-    /// The always-list of confirmable stops (Settings > Safety).
-    pub fn stop_allow_list(&self) -> Vec<crate::stop_allow::AllowEntry> {
-        self.inner.cfg.stop_allow.as_deref().map(|s| s.list()).unwrap_or_default()
-    }
-
-    /// Removes one always-list entry, from the file and from every live run, at once. `Ok(false)` = there was no such entry.
-    pub fn stop_allow_revoke(&self, id: &str) -> Result<bool, EngineError> {
-        let Some(store) = self.inner.cfg.stop_allow.as_deref() else { return Ok(false) };
-        let gone = store.revoke(id).map_err(|m| err("storeFailed", format!("the always-list could not be saved: {m}")))?;
-        let Some(entry) = gone else { return Ok(false) };
-        let mut st = lock(&self.inner.state);
-        for run in st.agents.values_mut() {
-            run.ctx.stop_grants.retain(|g| !(g.tool_id.is_none() && g.kind == entry.kind && g.scope == entry.scope));
-        }
-        Ok(true)
+    /// The answer to a card, given in the IDE's main window on this computer: the only way a card of a confirmable stop is lifted. Plain
+    /// [`AgentHost::answer_permission`] can refuse such a card but never allow it (`answerOnComputer`).
+    pub fn answer_permission_on_computer(&self, agent_id: &str, req_id: &str, decision: PermissionDecision, confirm_broad: bool) -> Result<(), EngineError> {
+        self.answer_permission_with(agent_id, req_id, decision, AnswerExtra { on_computer: true, confirm_broad, ..AnswerExtra::default() })
     }
 
     /// Exactly-once: the request must be pending and the answer one of its offered options.
@@ -2052,11 +2030,8 @@ impl Inner {
             }
             _ => {
                 let mut ctx = context_for(meta, std::env::var_os("HOME").map(PathBuf::from), role_deny, &self.cfg.data_dir);
-                // the always-list entries of this run's own folders (an entry of another repository never applies)
-                if let Some(store) = self.cfg.stop_allow.as_deref() {
-                    let jail = intely_agent_core::policy::paths::Jail::new(&ctx.cwd, &ctx.add_dirs, ctx.home.as_deref());
-                    ctx.stop_grants = store.grants_for(jail.roots());
-                }
+                // a card can be shown only while a window is open to answer it
+                ctx.stops_askable = self.cfg.ui_attached.as_ref().is_some_and(|f| f());
                 (ctx, None)
             }
         }
@@ -2179,49 +2154,37 @@ impl Inner {
 
     /// Answering a card of a confirmable stop (tier 2). The host trusts nothing of the card but its kind: the exact thing (path, CLI reason)
     /// is derived again from the run's current rules, and the stop is lifted only when those rules still refuse it AND offer to lift it.
-    /// Returns the grant that was pushed into the run's context (to undo it), the always-list entry that was added, and how far the yes reaches.
-    #[allow(clippy::too_many_arguments)]
+    /// Returns the grant that was pushed into the run's context (to undo it) and how far the yes reaches.
     fn apply_confirm(
         run: &mut Run,
-        store: Option<&crate::stop_allow::StopAllow>,
         agent_id: &str,
         tool_id: &str,
         intent: &ToolIntent,
         card: &ConfirmOffer,
         decision: PermissionDecision,
-        confirm_always: bool,
-    ) -> Result<(Option<StopGrant>, Option<String>, StopGrantScope), EngineError> {
+        confirm_broad: bool,
+    ) -> Result<(Option<StopGrant>, StopGrantScope), EngineError> {
+        // a run-wide yes for secret files reaches every secret-looking file of the run's folders: the second confirmation is required by the host
+        if decision == PermissionDecision::AllowRun && matches!(card.kind, ConfirmKind::SecretFile | ConfirmKind::SecretEdit) && !confirm_broad {
+            return Err(err("confirmationRequired", "allowing secret files for the whole run needs a second confirmation: their content goes to the model provider and may land in logs and transcripts"));
+        }
         let base = if card.kind == ConfirmKind::CliPrompt { cli_prompt_intent(intent, &card.scope) } else { intent.clone() };
         // (judged as the real tool call: the grants of the earlier cards of the same call apply, so the next stop of a command is the one that is offered)
         let fresh = rejudge(&run.ctx, agent_id, tool_id, &run.meta.provider, &base);
-        // another answer got there first (a grant for the run, or an always entry, now lifts this very stop): the click is a yes and there is
-        // nothing left to grant; "always" still needs the host's own derivation below
+        // another answer got there first (a grant for the run now lifts this very stop): the click is a yes and there is nothing left to grant
         if fresh.decision == Decision::Allow && matches!(decision, PermissionDecision::AllowOnce | PermissionDecision::AllowRun) {
-            return Ok((None, None, if decision == PermissionDecision::AllowOnce { StopGrantScope::Once } else { StopGrantScope::Run }));
+            return Ok((None, if decision == PermissionDecision::AllowOnce { StopGrantScope::Once } else { StopGrantScope::Run }));
         }
         let offer = fresh.confirm.filter(|_| fresh.decision == Decision::Deny && fresh.by == DecidedBy::HardStop);
         // the thing the person saw must be the thing that is granted: a file swapped for a link, or a name that now leads elsewhere, is a new question
         let Some(offer) = offer.filter(|o| o.kind == card.kind && o.scope == card.scope) else {
             return Err(err("rulesMoved", "the rules no longer offer to allow this; the request was refused. Ask again if it still applies"));
         };
-        let (grant, entry, scope) = match decision {
-            PermissionDecision::AllowOnce => (StopGrant { kind: offer.kind, scope: offer.scope.clone(), tool_id: Some(tool_id.to_string()), from_list: false }, None, StopGrantScope::Once),
-            // "for this run": every secret of the kind (the owner's wish), but a CLI prompt only for this exact reason
-            PermissionDecision::AllowRun => (StopGrant { kind: offer.kind, scope: if offer.kind == ConfirmKind::CliPrompt { offer.scope.clone() } else { ALL_OF_KIND.to_string() }, tool_id: None, from_list: false }, None, StopGrantScope::Run),
-            PermissionDecision::AllowAlways => {
-                let store = store.ok_or_else(|| err("optionNotOffered", "the always-list is not available"))?;
-                if matches!(offer.kind, ConfirmKind::SecretFile | ConfirmKind::SecretEdit) && !confirm_always {
-                    return Err(err("confirmationRequired", "allowing a secret file for good needs a second confirmation: its content goes to the model provider and may land in logs and transcripts"));
-                }
-                let known = store.list().iter().any(|e| e.repo == offer.repo && e.kind == offer.kind && e.scope == offer.scope);
-                let added = store.add(&offer.repo, offer.kind, &offer.scope, &offer.rule, now_ms()).map_err(|e| match e {
-                    crate::stop_allow::AddError::Full => err("allowListFull", format!("the always-list holds {} entries; revoke one in Settings > Safety first", crate::stop_allow::MAX_ENTRIES)),
-                    crate::stop_allow::AddError::Invalid => err("invalidAnswer", "this cannot be remembered"),
-                    crate::stop_allow::AddError::Io(m) => err("storeFailed", format!("the always-list could not be saved: {m}")),
-                })?;
-                (StopGrant { kind: offer.kind, scope: offer.scope.clone(), tool_id: None, from_list: true }, (!known).then_some(added.id), StopGrantScope::Always)
-            }
-            PermissionDecision::Deny => return Err(err("invalidAnswer", "nothing to grant for a refusal")),
+        let (grant, scope) = match decision {
+            PermissionDecision::AllowOnce => (StopGrant { kind: offer.kind, scope: offer.scope.clone(), tool_id: Some(tool_id.to_string()) }, StopGrantScope::Once),
+            // "for this run": every secret of the kind inside the run's folders (the card says so), but a CLI prompt only for this exact reason
+            PermissionDecision::AllowRun => (StopGrant { kind: offer.kind, scope: if offer.kind == ConfirmKind::CliPrompt { offer.scope.clone() } else { ALL_OF_KIND.to_string() }, tool_id: None }, StopGrantScope::Run),
+            _ => return Err(err("invalidAnswer", "nothing to grant for that answer")),
         };
         // "once" grants name a tool call and are useless after it; the list keeps the newest few
         let once: Vec<usize> = run.ctx.stop_grants.iter().enumerate().filter(|(_, g)| g.tool_id.is_some()).map(|(i, _)| i).collect();
@@ -2232,7 +2195,7 @@ impl Inner {
         if let Some(g) = &pushed {
             run.ctx.stop_grants.push(g.clone());
         }
-        Ok((pushed, entry, scope))
+        Ok((pushed, scope))
     }
 
     /// A card of a confirmable stop that nobody can answer on this computer (no window is open, or the run is on a server): refused at once

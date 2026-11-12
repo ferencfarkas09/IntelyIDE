@@ -420,7 +420,7 @@ impl<'a> Walker<'a> {
         }
         let p = paths::resolve(&self.cwd, &word.text, self.jail.home.as_deref());
         if let Some(why) = self.jail.protected_reason(&p) {
-            let hint = if why == ".env*" && self.jail.confirm_offer("fs.protected", &p, true).is_some() { USE_EDIT_TOOL } else { "" };
+            let hint = if why == ".env*" && self.jail.file_tool_hint_ok("fs.protected", &p, true) { USE_EDIT_TOOL } else { "" };
             self.stop("fs.protected", &format!("writes {why}{hint}"));
         } else {
             self.note_exec_surface(&p, &word.text);

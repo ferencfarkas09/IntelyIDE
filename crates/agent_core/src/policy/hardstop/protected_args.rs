@@ -134,7 +134,7 @@ impl<'a> Walker<'a> {
         match if mention { self.jail.mention_protected_reason(&p) } else { self.jail.protected_reason(&p) } {
             Some(why) => {
                 let name = if base.is_empty() { base_name(cand) } else { base.to_string() };
-                let hint = if why == ".env*" && self.jail.confirm_offer("fs.protected-arg", &p, true).is_some() { USE_EDIT_TOOL } else { "" };
+                let hint = if why == ".env*" && self.jail.file_tool_hint_ok("fs.protected-arg", &p, true) { USE_EDIT_TOOL } else { "" };
                 self.stop("fs.protected-arg", &format!("{name} names {why} ({cand}); only the human edits it{hint}"));
                 true
             }

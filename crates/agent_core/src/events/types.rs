@@ -63,8 +63,6 @@ wire_enums! {
         Once,
         /// Every stop of the same kind until the run ends.
         Run,
-        /// This exact thing in this repository, from now on (the IDE's always-list).
-        Always,
     }
 
     pub enum PermissionOutcome {
@@ -80,9 +78,6 @@ wire_enums! {
         /// "Allow always in this session" (a saved allow the host keeps for the run). Offered only when `session_allow` is present.
         #[serde(rename = "allow_run")]
         AllowRun,
-        /// "Always allow this for this repository" (a tier-2 card only; stored in the IDE's own state, never in the repository).
-        #[serde(rename = "allow_always")]
-        AllowAlways,
         #[serde(rename = "deny")]
         Deny,
     }

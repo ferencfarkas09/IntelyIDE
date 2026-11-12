@@ -556,6 +556,8 @@ pub struct Jail {
     grants: Vec<StopGrant>,
     /// The tool call being judged; a "once" grant names it.
     tool_id: String,
+    /// A card can really be raised for this run (see `PolicyContext::stops_askable`).
+    askable: bool,
     /// Standing grants (run, always) that lifted a stop while this jail judged: reported with the decision.
     used: Arc<Mutex<Vec<UsedGrant>>>,
 }
@@ -566,7 +568,7 @@ impl Jail {
         let mut roots = vec![cwd.clone()];
         roots.extend(add_dirs.iter().map(|d| canonical_lossy(&abs_or_lexical(d))));
         let home_real = home.map(|h| canonical_lossy(&abs_or_lexical(h)));
-        Self { roots, cwd, home: home.map(Path::to_path_buf), home_real, state_dir: None, mcp_code_paths: Vec::new(), scratch: Vec::new(), grants: Vec::new(), tool_id: String::new(), used: Arc::default() }
+        Self { roots, cwd, home: home.map(Path::to_path_buf), home_real, state_dir: None, mcp_code_paths: Vec::new(), scratch: Vec::new(), grants: Vec::new(), tool_id: String::new(), askable: false, used: Arc::default() }
     }
 
     pub fn with_state_dir(mut self, dir: Option<&Path>) -> Self {
@@ -587,7 +589,8 @@ impl Jail {
     }
 
     /// The confirmable stops a person has lifted for this run (`PolicyContext::stop_grants`) and the tool call being judged.
-    pub fn with_grants(mut self, grants: &[StopGrant], tool_id: &str) -> Self {
+    pub fn with_grants(mut self, grants: &[StopGrant], tool_id: &str, askable: bool) -> Self {
+        self.askable = askable;
         self.grants = grants.to_vec();
         self.tool_id = tool_id.to_string();
         self
@@ -598,23 +601,45 @@ impl Jail {
     /// real path say "secret file". A path that leaves the run's folders (`../x`, a link that points out) has no scope: it is never offered.
     fn secret_scope(&self, resolved: &Path) -> Option<PathBuf> {
         let real = canonical_lossy(resolved);
+        // a directory is never offered (`certs.key/`, a virtualenv called `.env/`): the verdict is the one without grants
+        if real.is_dir() {
+            return None;
+        }
         let inside = self.roots.iter().any(|r| real.starts_with(r));
         // a run folder can contain the home directory (or `/`): the home-anchored credential and browser stores and the IDE state directory
         // are tier 1 whatever the file is called
-        let tier_one_place = [real.as_path(), resolved].iter().any(|p| self.home_never_read_reason(p).is_some() || (self.in_state_dir(p) && !self.in_attachments(p)));
-        let ok = inside && !tier_one_place && confirmable_secret_path(&real) && never_read_reason(&real) == Some("secret file") && never_read_reason(resolved) == Some("secret file");
+        let tier_one_place = [real.as_path(), resolved].iter().any(|p| self.home_never_read_reason(p).is_some() || self.in_state_dir(p));
+        let ok = inside && !tier_one_place && !self.in_tier_one_folder(&real) && confirmable_secret_path(&real) && never_read_reason(&real) == Some("secret file") && never_read_reason(resolved) == Some("secret file");
         ok.then_some(real)
+    }
+
+    /// Whether `real` lies below a folder that is tier 1 whatever the file is called: `.git`, `.claude`, any `.ssh` folder. A grant (a run
+    /// wide one most of all) never reaches these, and no card offers them.
+    fn in_tier_one_folder(&self, real: &Path) -> bool {
+        let rel = self.roots.iter().find_map(|r| real.strip_prefix(r).ok()).unwrap_or(real);
+        rel.components().any(|c| {
+            let n = c.as_os_str().to_string_lossy();
+            n.eq_ignore_ascii_case(".git") || n.eq_ignore_ascii_case(".claude") || n.eq_ignore_ascii_case(".ssh")
+        })
     }
 
     /// Like [`Jail::secret_scope`] for an edit of a `.env` file: the part of the path below its folder says `.env*` and nothing worse.
     fn env_edit_scope(&self, resolved: &Path) -> Option<PathBuf> {
         let real = canonical_lossy(resolved);
+        if real.is_dir() || self.in_tier_one_folder(&real) || self.in_state_dir(&real) {
+            return None;
+        }
         let rel = self.roots.iter().find_map(|r| real.strip_prefix(r).ok())?;
         let lexical_inside = self.roots.iter().any(|r| resolved.starts_with(r));
         (lexical_inside && confirmable_env_write_name(&real.file_name()?.to_string_lossy()) && protected_reason(rel) == Some(".env*")).then_some(real)
     }
 
     /// What a person could allow for a refused read of `resolved` (`edit` false) or edit (`edit` true); `None` = tier 1.
+    /// Whether a shell refusal may point the agent at the file tools: there is something to offer AND a person can be asked now.
+    pub fn file_tool_hint_ok(&self, rule: &str, resolved: &Path, edit: bool) -> bool {
+        self.askable && self.confirm_offer(rule, resolved, edit).is_some()
+    }
+
     pub fn confirm_offer(&self, rule: &str, resolved: &Path, edit: bool) -> Option<ConfirmOffer> {
         let real = if edit { self.env_edit_scope(resolved)? } else { self.secret_scope(resolved)? };
         let repo = self.roots.iter().find(|r| real.starts_with(r))?;
@@ -628,7 +653,7 @@ impl Jail {
         if g.tool_id.is_none() {
             let rule = if kind == ConfirmKind::SecretEdit { "fs.protected" } else { "read.never-read" };
             let repo = self.roots.iter().find(|r| real.starts_with(r)).map(|r| r.to_string_lossy().into_owned()).unwrap_or_default();
-            let used = UsedGrant { offer: ConfirmOffer { kind, rule: rule.to_string(), scope: scope.into_owned(), repo }, via: if g.from_list { StopGrantScope::Always } else { StopGrantScope::Run } };
+            let used = UsedGrant { offer: ConfirmOffer { kind, rule: rule.to_string(), scope: scope.into_owned(), repo }, via: StopGrantScope::Run };
             let mut list = self.used.lock().unwrap_or_else(|e| e.into_inner());
             if !list.contains(&used) {
                 list.push(used);

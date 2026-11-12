@@ -15,6 +15,8 @@ const WORKING_MODES: [M; 4] = [M::Ask, M::Edit, M::Automatic, M::Bypass];
 
 fn with(fx: &Fx, mode: M, f: impl FnOnce(&mut PolicyContext)) -> PolicyContext {
     let mut c = ctx(fx, mode);
+    // a window is open: a card can be raised (only then does a shell refusal point at the file tools)
+    c.stops_askable = true;
     f(&mut c);
     c
 }
@@ -24,7 +26,7 @@ fn read_env(c: &PolicyContext, fx: &Fx) -> intely_agent_core::policy::decide::Po
 }
 
 fn grant(kind: ConfirmKind, scope: &str, tool: Option<&str>) -> StopGrant {
-    StopGrant { kind, scope: scope.to_string(), tool_id: tool.map(str::to_string), from_list: tool.is_none() && scope != ALL_OF_KIND }
+    StopGrant { kind, scope: scope.to_string(), tool_id: tool.map(str::to_string) }
 }
 
 #[test]
@@ -105,7 +107,7 @@ fn a_shell_command_naming_a_secret_file_is_refused_and_tells_the_agent_to_use_th
     let fx = fx();
     std::fs::write(fx.cwd.join(".env"), "A=1\n").unwrap();
     for m in ALL_MODES {
-        let d = bash(&ctx(&fx, m), "cat .env");
+        let d = bash(&with(&fx, m, |_| {}), "cat .env");
         assert_eq!((d.decision, d.by, d.rule.as_deref()), (Decision::Deny, DecidedBy::HardStop, Some("read.never-read")), "{m:?}");
         assert!(d.confirm.is_none(), "{m:?}: {d:?}");
         assert!(d.reason.contains("Use the Read tool"), "the refusal must name the file tool that works ({m:?})");
@@ -191,12 +193,9 @@ fn tier_one_never_carries_an_offer_and_no_grant_lifts_it() {
                     }
                 });
                 let d = decide_tool(&c, tool, json!({ "file_path": fx.cwd.join(path).to_string_lossy(), "content": "x", "old_string": "a", "new_string": "b" }));
-                // (.envrc is not a secret name: it is an ordinary write that Ask and Edit would ask about, Automatic and Bypass allow;
-                //  what matters is that it never carries an offer)
+                // `.envrc` runs code when the shell enters the folder: protected (`fs.protected`), never offered, grants or not, every mode
                 assert!(d.confirm.is_none(), "{tool} {path} in {m:?}: {d:?}");
-                if path != ".envrc" {
-                    assert_eq!(d.decision, Decision::Deny, "{tool} {path} in {m:?} (grants: {granted}): {d:?}");
-                }
+                assert_eq!((d.decision, d.rule.as_deref()), (Decision::Deny, Some("fs.protected")), "{tool} {path} in {m:?} (grants: {granted}): {d:?}");
             }
         }
     }
@@ -246,7 +245,7 @@ fn a_secret_outside_the_run_or_behind_a_link_or_dotdot_is_tier_one() {
 }
 
 #[test]
-fn an_always_entry_is_an_exact_path_of_one_repository() {
+fn a_grant_for_one_path_is_that_exact_path_and_no_other() {
     let fx = fx();
     std::fs::write(fx.cwd.join(".env"), "A=1\n").unwrap();
     std::fs::create_dir_all(fx.cwd.join("sub")).unwrap();
@@ -292,8 +291,6 @@ fn a_standing_grant_is_reported_with_the_allow_and_a_once_grant_is_not() {
     assert_eq!(d.used_grants.len(), 1);
     assert_eq!(d.used_grants[0].via, intely_agent_core::events::types::StopGrantScope::Run);
     assert_eq!(d.used_grants[0].offer.scope, env);
-    let always = with(&fx, M::Bypass, |c| c.stop_grants.push(grant(ConfirmKind::SecretFile, &env, None)));
-    assert_eq!(read_env(&always, &fx).used_grants[0].via, intely_agent_core::events::types::StopGrantScope::Always);
     // nothing is reported for a call that never met a stop
     assert!(decide_tool(&run, "Read", json!({ "file_path": fx.cwd.join("src").to_string_lossy() })).used_grants.is_empty());
 }
@@ -385,9 +382,8 @@ fn no_grant_lifts_a_tier_one_guard_that_only_reads_the_secret_predicates() {
     for cmd in ["$(echo cat) a.pem", "sh -c \"cat $X a.pem\"", "$(echo cat) .env", "X=a.pem; eval \"cat $X\"; cat a.pem"] {
         let without = bash(&ctx(&fx, M::Bypass), cmd);
         let with_grants = bash(&c, cmd);
-        if without.decision == Decision::Deny {
-            assert_eq!(with_grants.decision, Decision::Deny, "{cmd}: a grant lifted a raw-text stop: {with_grants:?}");
-        }
+        assert_eq!(with_grants.decision, without.decision, "{cmd}: a grant changed the verdict: {with_grants:?} / {without:?}");
+        assert_eq!(with_grants.rule, without.rule, "{cmd}: a grant changed the rule");
     }
     // the low-risk read check of Edit and Plan never calls a granted secret file low-risk
     for m in [M::Edit, M::ReadOnly] {
@@ -466,7 +462,7 @@ fn a_redirect_into_a_dot_env_file_is_refused_and_points_at_the_edit_tools() {
             }
         }
     }
-    let d = bash(&ctx(&fx, M::Automatic), "echo X=1 > .env");
+    let d = bash(&with(&fx, M::Automatic, |_| {}), "echo X=1 > .env");
     assert!(d.reason.contains("Edit or Write tool") || d.reason.contains("Read tool"), "the refusal must name the file tools");
 }
 
@@ -593,6 +589,7 @@ fn the_file_tools_are_the_only_place_a_grant_works_and_only_for_the_exact_file()
         }
         let g = decide_tool(&c, "Glob", json!({ "pattern": ".env", "path": env }));
         assert!(g.confirm.is_none(), "Glob is never offered: {g:?}");
+        assert_eq!(g.decision, Decision::Deny, "Glob on a secret's name stays refused with a grant for it: {m:?}: {g:?}");
     }
 }
 
@@ -610,3 +607,120 @@ fn the_ide_state_directory_inside_a_run_folder_is_not_a_dot_env_question() {
     }
 }
 
+
+#[test]
+fn a_run_wide_grant_never_reaches_a_tier_one_place() {
+    let fx = fx();
+    for d in [".git", ".claude", ".ssh", "app/.ssh", "pkg/.git/modules/x"] {
+        std::fs::create_dir_all(fx.cwd.join(d)).unwrap();
+        std::fs::write(fx.cwd.join(d).join(".env"), "A=1\n").unwrap();
+        std::fs::write(fx.cwd.join(d).join("k.pem"), "x").unwrap();
+    }
+    let att = fx.cwd.join("data/attachments/x");
+    std::fs::create_dir_all(&att).unwrap();
+    std::fs::write(att.join(".env"), "A=1\n").unwrap();
+    let all = [grant(ConfirmKind::SecretFile, ALL_OF_KIND, None), grant(ConfirmKind::SecretEdit, ALL_OF_KIND, None)];
+    for m in WORKING_MODES {
+        for granted in [false, true] {
+            let c = with(&fx, m, |c| {
+                c.state_dir = Some(fx.cwd.join("data"));
+                if granted {
+                    c.stop_grants.extend(all.clone());
+                }
+            });
+            for d in [".git", ".claude", ".ssh", "app/.ssh", "pkg/.git/modules/x"] {
+                for f in [".env", "k.pem"] {
+                    let p = fx.cwd.join(d).join(f).to_string_lossy().into_owned();
+                    let r = decide_tool(&c, "Read", json!({ "file_path": p }));
+                    assert_eq!(r.decision, Decision::Deny, "Read {d}/{f} in {m:?} (granted {granted}): {r:?}");
+                    assert!(r.confirm.is_none(), "no offer for {d}/{f}: {r:?}");
+                }
+                let e = decide_tool(&c, "Edit", json!({ "file_path": fx.cwd.join(d).join(".env").to_string_lossy(), "old_string": "a", "new_string": "b" }));
+                assert_eq!(e.decision, Decision::Deny, "Edit {d}/.env in {m:?} (granted {granted}): {e:?}");
+                assert!(e.confirm.is_none(), "{e:?}");
+            }
+            let p = att.join(".env").to_string_lossy().into_owned();
+            let r = decide_tool(&c, "Read", json!({ "file_path": p }));
+            assert_eq!(r.decision, Decision::Deny, "the attachments folder in {m:?}: {r:?}");
+            assert!(r.confirm.is_none(), "{r:?}");
+        }
+    }
+}
+
+#[test]
+fn a_run_wide_read_grant_covers_another_secret_of_the_run_logs_it_and_never_an_edit() {
+    let fx = fx();
+    std::fs::write(fx.cwd.join(".env"), "A=1\n").unwrap();
+    std::fs::create_dir_all(fx.cwd.join("deploy")).unwrap();
+    std::fs::write(fx.cwd.join("deploy/prod.pem"), "x").unwrap();
+    let pem = fx.cwd.join("deploy/prod.pem").to_string_lossy().into_owned();
+    for m in WORKING_MODES {
+        let c = with(&fx, m, |c| c.stop_grants.push(grant(ConfirmKind::SecretFile, ALL_OF_KIND, None)));
+        let d = decide_tool(&c, "Read", json!({ "file_path": pem }));
+        assert_eq!(d.decision, Decision::Allow, "{m:?}: {d:?}");
+        assert_eq!(d.used_grants.len(), 1, "{d:?}");
+        assert_eq!(d.used_grants[0].offer.scope, pem, "the log names the file that was read, under the run-wide permission");
+        let e = decide_tool(&c, "Edit", json!({ "file_path": fx.cwd.join(".env").to_string_lossy(), "old_string": "A", "new_string": "B" }));
+        assert_eq!(e.decision, Decision::Deny, "a read grant never lifts an edit: {m:?}");
+        assert!(e.confirm.is_some(), "the edit is still its own question");
+    }
+    // a context with no grant (a new run) is refused again
+    let fresh = ctx(&fx, M::Automatic);
+    assert_eq!(decide_tool(&fresh, "Read", json!({ "file_path": pem })).decision, Decision::Deny);
+}
+
+#[cfg(unix)]
+#[test]
+fn a_directory_is_never_offered_whatever_its_name() {
+    let fx = fx();
+    std::fs::create_dir_all(fx.cwd.join("certs.key")).unwrap();
+    std::fs::create_dir_all(fx.cwd.join(".env")).unwrap();
+    for m in WORKING_MODES {
+        let c = ctx(&fx, m);
+        for p in ["certs.key", ".env"] {
+            let path = fx.cwd.join(p).to_string_lossy().into_owned();
+            let r = decide_tool(&c, "Grep", json!({ "pattern": "x", "path": path }));
+            assert!(r.confirm.is_none(), "Grep on directory {p} in {m:?}: {r:?}");
+        }
+    }
+}
+
+#[test]
+fn only_the_four_file_tools_that_edit_ask_for_an_env_edit_and_never_in_plan_mode() {
+    let fx = fx();
+    std::fs::write(fx.cwd.join(".env"), "A=1\n").unwrap();
+    let env = fx.cwd.join(".env").to_string_lossy().into_owned();
+    let granted = |m| with(&fx, m, |c| c.stop_grants.push(grant(ConfirmKind::SecretEdit, &env, None)));
+    for m in WORKING_MODES {
+        // Codex apply_patch and ACP fs/write_text_file name a path too; they are refused as on main, with no offer, grant or not
+        for tool in ["apply_patch", "fs/write_text_file", "write_text_file", "Delete"] {
+            for c in [ctx(&fx, m), granted(m)] {
+                let d = decide_tool(&c, tool, json!({ "file_path": env, "path": env, "content": "x" }));
+                assert!(d.confirm.is_none(), "{tool} in {m:?}: {d:?}");
+                assert_ne!(d.rule.as_deref(), Some("fs.protected-granted"));
+                if d.decision == Decision::Allow {
+                    // allowed only if main allows it too: the same call without a grant gives the same verdict
+                    assert_eq!(decide_tool(&ctx(&fx, m), tool, json!({ "file_path": env, "path": env, "content": "x" })).decision, Decision::Allow, "{tool} {m:?}");
+                }
+            }
+        }
+    }
+    // Plan mode: no offer for an edit
+    let d = decide_tool(&ctx(&fx, M::ReadOnly), "Edit", json!({ "file_path": env, "old_string": "A", "new_string": "B" }));
+    assert!(d.confirm.is_none(), "{d:?}");
+}
+
+#[test]
+fn a_shell_refusal_points_at_the_file_tools_only_when_a_card_can_be_raised() {
+    let fx = fx();
+    std::fs::write(fx.cwd.join(".env"), "A=1\n").unwrap();
+    for m in ALL_MODES {
+        let mut c = ctx(&fx, m);
+        c.stops_askable = false;
+        let d = bash(&c, "cat .env");
+        assert_eq!(d.decision, Decision::Deny, "{m:?}");
+        assert!(!d.reason.contains("Use the Read tool"), "no hint without a window: {m:?}");
+        c.stops_askable = true;
+        assert!(bash(&c, "cat .env").reason.contains("Use the Read tool"), "{m:?}");
+    }
+}

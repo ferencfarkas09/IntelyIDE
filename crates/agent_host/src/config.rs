@@ -198,8 +198,6 @@ pub struct HostConfig {
     /// The servers a run may execute on (Settings > Servers); `None` = none exist (tests, a build without them): a start that names a
     /// server then fails with `serversUnavailable`.
     pub servers: Option<Arc<crate::remote::ServerRegistry>>,
-    /// The always-list of confirmable stops (Settings > Safety). `None` = none exists (tests): "always" is not offered.
-    pub stop_allow: Option<Arc<crate::stop_allow::StopAllow>>,
     /// Whether a window is open to show a card of a confirmable stop. `None` = no window can be asked (tests, a headless host): such a
     /// stop is refused at once, with the reason.
     pub ui_attached: Option<UiSupplier>,
@@ -236,7 +234,6 @@ impl HostConfig {
             mcp_scrub: None,
             no_unattended: false,
             servers: None,
-            stop_allow: None,
             ui_attached: None,
         }
     }

@@ -20,7 +20,7 @@ use serde::{Deserialize, Serialize};
 wire_enums! {
     /// What kind of thing a confirmable stop is about.
     pub enum ConfirmKind {
-        /// A secret-looking file inside a folder of the run (`.env`, `*.pem`, ...) that is READ, or only named in script text.
+        /// A secret-looking file inside a folder of the run (`.env`, `*.pem`, ...) that a file tool (Read, Grep) reads.
         SecretFile,
         /// A `.env` file inside a folder of the run that is EDITED or written. Kept apart from reading: allowing a read never allows an edit.
         SecretEdit,
@@ -39,19 +39,18 @@ pub struct ConfirmOffer {
     pub rule: String,
     /// The exact thing: a canonical path (`SecretFile`) or the CLI's own reason text (`CliPrompt`).
     pub scope: String,
-    /// The folder of the run that holds the path (the repository the always-list entry belongs to); for a CLI prompt the run's
-    /// working directory.
-        pub repo: String,
+    /// The folder of the run that holds the path; for a CLI prompt the run's working directory.
+    pub repo: String,
 }
 
-/// A standing grant (this run, or the repository's always-list) that lifted a stop while a call was judged. The gate writes it to the run
+/// A standing grant (for this run) that lifted a stop while a call was judged. The gate writes it to the run
 /// log as an override ("You allowed reading .env for this run"), so a stop that is lifted without a card is still visible.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 #[serde(rename_all = "camelCase")]
 pub struct UsedGrant {
     pub offer: ConfirmOffer,
-    /// `Run` or `Always` (a "once" grant was logged when its card was answered).
+    /// Always `Run` (a "once" grant was logged when its card was answered).
     pub via: crate::events::types::StopGrantScope,
 }
 
@@ -65,13 +64,7 @@ pub struct StopGrant {
     /// Set = valid for this one tool call only ("allow once").
     #[serde(default)]
     pub tool_id: Option<String>,
-    /// Comes from the repository's always-list (and not from a card of this run): the audit says "always" instead of "for this run".
-    #[serde(default)]
-    pub from_list: bool,
 }
-
-/// The most entries the repository always-list holds (Settings > Safety).
-pub const MAX_ALLOW_ENTRIES: usize = 100;
 
 /// The scope that means "every stop of this kind, until the run ends".
 pub const ALL_OF_KIND: &str = "*";
@@ -114,7 +107,7 @@ const fn confirm(rule: &'static str, variant: &'static str, reason: &'static str
 pub const CLASSIFICATION: &[RuleClass] = &[
     // ---- tier 2: the person may allow one exact thing ----
     confirm("read.never-read", "a secret-looking file inside a folder of the run, read with the Read or Grep tool", "the file is the person's own project file and the card says that the content goes to the model provider; no shell command is ever lifted: the shell cannot be asked about a file"),
-    confirm("fs.protected", "a `.env` file inside a folder of the run, edited with the Edit, Write, MultiEdit or NotebookEdit tool", "an edit to a project-local env file is visible in the diff before any commit; the card names the exact path"),
+    confirm("fs.protected", "a `.env` file inside a folder of the run, edited with the Edit, Write, MultiEdit or NotebookEdit tool", "an env file of the project is the person's own (it is usually git-ignored, so it is not seen in a diff); the card names the exact path"),
     confirm("cli.prompt-denied", "a prompt of the Claude CLI that Automatic and Bypass cannot answer", "the command is still judged by every other rule here; the CLI's text heuristics (braces with quotes, `cd` with a redirect, parser limits) are about its own matching"),
     // ---- tier 1: never overridable ----
     never("read.never-read", "everything else (every shell command that names a secret file, scripts and inline code included, and Glob and LS): credential folders and stores of other tools (~/.ssh, ~/.aws, ~/.gnupg, ~/.kube, ~/.azure, ~/.op, ~/.config/gh, Library/Keychains), history files, .npmrc/.netrc/.git-credentials, private keys by name (id_rsa*, id_ed25519*), ~/.claude secrets and transcripts, the IDE state directory, wrangler credentials, tunnel and MCP temp folders, and any secret outside the run's folders"),
@@ -318,12 +311,12 @@ mod tests {
 
     #[test]
     fn a_grant_names_one_thing() {
-        let once = StopGrant { kind: ConfirmKind::SecretFile, scope: "/r/.env".into(), tool_id: Some("t1".into()), from_list: false };
+        let once = StopGrant { kind: ConfirmKind::SecretFile, scope: "/r/.env".into(), tool_id: Some("t1".into()) };
         assert!(once.covers(ConfirmKind::SecretFile, "/r/.env", "t1"));
         assert!(!once.covers(ConfirmKind::SecretFile, "/r/.env", "t2"));
         assert!(!once.covers(ConfirmKind::SecretFile, "/r/other.env", "t1"));
         assert!(!once.covers(ConfirmKind::CliPrompt, "/r/.env", "t1"));
-        let run = StopGrant { kind: ConfirmKind::SecretFile, scope: ALL_OF_KIND.into(), tool_id: None, from_list: false };
+        let run = StopGrant { kind: ConfirmKind::SecretFile, scope: ALL_OF_KIND.into(), tool_id: None };
         assert!(run.covers(ConfirmKind::SecretFile, "/anything", "t9"));
         assert!(!run.covers(ConfirmKind::CliPrompt, "x", "t9"));
     }

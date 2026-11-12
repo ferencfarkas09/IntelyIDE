@@ -187,9 +187,7 @@ export type PeerCard = {
 /**  What the user can answer a permission request with; `once` variants only for shell and write. */
 export type PermissionOption = "allow_once" | 
 /**  "Allow always in this session" (a saved allow the host keeps for the run). Offered only when `session_allow` is present. */
-"allow_run" | 
-/**  "Always allow this for this repository" (a tier-2 card only; stored in the IDE's own state, never in the repository). */
-"allow_always" | "deny";
+"allow_run" | "deny";
 
 export type PermissionOutcome = "allow" | "deny" | "cancelled";
 
@@ -211,9 +209,7 @@ export type StopGrantScope =
 /**  This one tool call. */
 "once" | 
 /**  Every stop of the same kind until the run ends. */
-"run" | 
-/**  This exact thing in this repository, from now on (the IDE's always-list). */
-"always";
+"run";
 
 export type StopReason = "endTurn" | "maxTokens" | "maxTurns" | "refusal" | "cancelled" | "error";
 

@@ -208,3 +208,34 @@ fn no_text_makes_a_scrubber_panic() {
         assert!(r.is_ok(), "a scrubber panicked on {s:?}");
     }
 }
+
+#[test]
+fn a_confirm_card_reaches_the_phone_with_deny_only_and_no_scope_or_folder() {
+    use intely_agent_core::policy::confirm::{ConfirmKind, ConfirmOffer};
+    let mut r = Redactor::new();
+    let mut intent = ToolIntent::exec("Read .env");
+    intent.paths = vec!["/work/app/.env".into()];
+    let e = ev(EventKind::PermissionRequest {
+        req_id: "r".into(),
+        tool_id: "t".into(),
+        intent,
+        options: vec![PermissionOption::AllowOnce, PermissionOption::AllowRun, PermissionOption::Deny],
+        session_allow: None,
+        plan: None,
+        plan_truncated: None,
+        modes: Vec::new(),
+        peer: None,
+        confirm: Some(ConfirmOffer { kind: ConfirmKind::SecretFile, rule: "read.never-read".into(), scope: "/work/app/.env".into(), repo: "/work/app".into() }),
+    });
+    let w = r.wire_event(&e).expect("the card is sent");
+    match w.kind {
+        EventKind::PermissionRequest { options, confirm, intent, .. } => {
+            assert_eq!(options, vec![PermissionOption::Deny], "the phone can only refuse a stop");
+            let c = confirm.expect("the phone is told it is a stop it may not lift");
+            assert_eq!((c.kind, c.rule.as_str(), c.scope.as_str(), c.repo.as_str()), (ConfirmKind::SecretFile, "read.never-read", "", ""));
+            // what IS sent: the intent like any card (which file was asked for), capped
+            assert_eq!(intent.paths, vec!["/work/app/.env".to_string()]);
+        }
+        other => panic!("{other:?}"),
+    }
+}

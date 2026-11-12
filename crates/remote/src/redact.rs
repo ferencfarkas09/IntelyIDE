@@ -459,7 +459,8 @@ impl Redactor {
                 plan_truncated: None,
                 modes: Vec::new(),
                 peer: None,
-                // the kind and rule only (so the phone can say "answer on your computer"); the path and folder stay on the computer
+                // the kind and rule only (so the phone can say "answer on your computer"); the offer's scope and folder are blanked. The phone still
+                // gets the intent above like any card (`paths` and `summary`, capped), so it sees WHICH file the agent asked for, and can refuse it
                 confirm: confirm.as_ref().map(|c| intely_agent_core::policy::confirm::ConfirmOffer { kind: c.kind, rule: c.rule.clone(), scope: String::new(), repo: String::new() }),
             },
             EventKind::PermissionResolved { .. } => e.kind.clone(),

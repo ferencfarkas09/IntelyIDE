@@ -14,10 +14,12 @@ import { PLAN_FILE_HINT } from './notes.js';
 
 export const DENY_MARK = 'INTELY-HARDSTOP';
 
-/** How many tier-2 cards one tool call may raise (a command that names several secret files asks for each). */
+/** How many tier-2 cards one tool call may raise in a row (a file tool names one file, so one or two in practice; the cap is a backstop). */
 export const MAX_CONFIRM_ROUNDS = 4;
 
 /** The texts of a result that the CLI itself made when it refused or interrupted a call (it never ran). */
+/** The tools a tier-2 card is raised for: they act on one file, so an error result means that nothing was read or written. */
+const FILE_TOOLS = new Set(['Read', 'Grep', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
 const CLI_OWN_REFUSAL = /^(The user doesn't want to proceed|\[Request interrupted|Permission to use .{1,80} has been denied|User rejected|INTELY-HARDSTOP)/i;
 
 /**
@@ -102,7 +104,7 @@ export class ToolGate {
   /** Standing-grant overrides already written to the run log (tool call, kind, scope). */
   private overrideTold = new Set<string>();
   /** Tool calls the hook sent to `canUseTool` for a tier-2 card, and those whose card was answered yes: a call in the first set and not the second that ran anyway is a breach. */
-  private askedByHook = new Set<string>();
+  private askedByHook = new Map<string, string>();
   private confirmedTools = new Set<string>();
   /** agent_id -> agent_type of the sub-agents in flight (SubagentStart adds, SubagentStop removes). */
   private agentTypes = new Map<string, string>();
@@ -280,11 +282,16 @@ export class ToolGate {
    * that ended in an error was refused or never started, so it is not one.
    */
   noteResult(toolUseId: string, isError: boolean, text = ''): void {
-    if (!this.askedByHook.delete(toolUseId)) return;
+    const tool = this.askedByHook.get(toolUseId);
+    if (tool === undefined) return;
+    this.askedByHook.delete(toolUseId);
     const answered = this.confirmedTools.delete(toolUseId);
     if (answered || this.o.denied.has(toolUseId)) return;
     // only the CLI's own refusal or interruption is no breach: an error result with output is a call that RAN and failed (`exit 1`)
     if (isError && CLI_OWN_REFUSAL.test(text.trim())) return;
+    // a FILE tool that ended in an error read nothing and wrote nothing (a failed Read or Edit changes no file): the CLI's own permission text
+    // ("Claude requested permissions to write to .env, but you haven't granted it yet.") is such an error, not a call that ran
+    if (isError && FILE_TOOLS.has(tool)) return;
     this.breach(toolUseId);
   }
 
@@ -383,7 +390,7 @@ export class ToolGate {
     // A tier-2 stop (a secret file of the project, ...) is not refused here: the CLI is made to ask, and `canUseTool` puts the card to the
     // person. The refusal stays the verdict unless the person allows it, and every path that does not reach `canUseTool` stays a refusal.
     if (d.decision === 'deny' && d.confirm && d.by === 'hardStop') {
-      this.askedByHook.add(toolId);
+      this.askedByHook.set(toolId, input.tool_name);
       return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'ask' } };
     }
     if (d.decision === 'deny') {
@@ -458,7 +465,7 @@ export class ToolGate {
     const verdict = judgeCliPrompt({ mode, reason: o.decisionReason, blockedPath: o.blockedPath, intentPaths: this.decisions.get(toolId)?.intent.paths ?? undefined, cwd: this.o.cwd, runDirs: this.o.runDirs, command: toolName === 'Bash' && typeof input.command === 'string' ? input.command : undefined });
     if (!verdict) return null;
     // The CLI's own prompt is a tier-2 stop unless its reason is on the never list (Rust decides: `cli.prompt-denied`). A grant the person gave
-    // before (this run, or the repository's always-list) answers it without a card; otherwise the person is asked.
+    // before (for this run) answers it without a card; otherwise the person is asked.
     const base = this.decisions.get(toolId)?.intent ?? intentFor(toolName, input, undefined, actor);
     const ask = await this.askRust(toolId, cliPromptIntent(base, verdict.reason));
     // (only Rust's own "a person allowed this" answer counts: any other allow, from a stub or an older host, leaves the refusal)
@@ -494,7 +501,7 @@ export class ToolGate {
   }
 
   /**
-   * The card of a tier-2 stop: what the person is asked and the four answers (once, for the run, always for this repository, no). The HOST
+   * The card of a tier-2 stop: what the person is asked and the three answers (once, for the run, no). The HOST
    * makes the grant when the person answers on the computer; this only waits. Rounds after the first get their own request id.
    */
   private async askConfirm(toolId: string, base: ToolIntent, signal: AbortSignal, d: PolicyDecision, round: number): Promise<PermissionAnswer> {
@@ -526,7 +533,7 @@ export class ToolGate {
   }
 
   /**
-   * A standing grant (this run, or the repository's always-list) lifted a stop without a card: the run log gets the same request/resolved
+   * A standing grant (for this run) lifted a stop without a card: the run log gets the same request/resolved
    * pair a card would have left, so "You allowed reading .env for this run" is there whatever way the stop was lifted.
    */
   private auditOverrides(toolId: string, intent: ToolIntent, d: PolicyDecision): void {

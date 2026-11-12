@@ -160,10 +160,14 @@ pub struct PolicyContext {
     /// same rules as the lead's, hard stops first.
     #[serde(default)]
     pub ultracode: bool,
-    /// Confirmable (tier 2) stops a person has lifted for this run: "once" (one tool call), "this run" and the repository's always-list.
+    /// Confirmable (tier 2) stops a person has lifted for this run: "once" (one tool call) and "this run".
     /// Put here by the host when a person answers a card on this computer; never read from a tool input, never persisted with the run.
     #[serde(default)]
     pub stop_grants: Vec<StopGrant>,
+    /// A card can really be raised for this run right now (a local run with a window to show it): only then does a shell refusal say
+    /// "use the Read tool" (otherwise the refusal text is the one without a card).
+    #[serde(default)]
+    pub stops_askable: bool,
     /// The file system the run's files live on: `None` = this machine. For a run on a remote server it answers from the server (see
     /// `policy::fsview`); `decide` judges every path, glob and script against it. Not part of the wire form.
     #[serde(skip)]
@@ -172,7 +176,7 @@ pub struct PolicyContext {
 
 impl std::fmt::Debug for PolicyContext {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let Self { mode, cwd, add_dirs, home, role_deny, subagents, mcp_servers, saved, state_dir, strict_jail, scratch_dirs, delegates, delegation_cap, delegation_used, saved_by_role, plan_dir, mcp_tools, mcp_code_paths, peer_mode, ultracode, stop_grants, fs } = self;
+        let Self { mode, cwd, add_dirs, home, role_deny, subagents, mcp_servers, saved, state_dir, strict_jail, scratch_dirs, delegates, delegation_cap, delegation_used, saved_by_role, plan_dir, mcp_tools, mcp_code_paths, peer_mode, ultracode, stop_grants, stops_askable, fs } = self;
         f.debug_struct("PolicyContext")
             .field("mode", mode)
             .field("cwd", cwd)
@@ -195,6 +199,7 @@ impl std::fmt::Debug for PolicyContext {
             .field("peer_mode", peer_mode)
             .field("ultracode", ultracode)
             .field("stop_grants", stop_grants)
+            .field("stops_askable", stops_askable)
             .field("fs", &fs.as_ref().map(|_| "FsView"))
             .finish()
     }
@@ -202,14 +207,14 @@ impl std::fmt::Debug for PolicyContext {
 
 impl PartialEq for PolicyContext {
     fn eq(&self, other: &Self) -> bool {
-        let Self { mode, cwd, add_dirs, home, role_deny, subagents, mcp_servers, saved, state_dir, strict_jail, scratch_dirs, delegates, delegation_cap, delegation_used, saved_by_role, plan_dir, mcp_tools, mcp_code_paths, peer_mode, ultracode, stop_grants, fs } = self;
-        let Self { mode: o_mode, cwd: o_cwd, add_dirs: o_add_dirs, home: o_home, role_deny: o_role_deny, subagents: o_subagents, mcp_servers: o_mcp_servers, saved: o_saved, state_dir: o_state_dir, strict_jail: o_strict_jail, scratch_dirs: o_scratch_dirs, delegates: o_delegates, delegation_cap: o_delegation_cap, delegation_used: o_delegation_used, saved_by_role: o_saved_by_role, plan_dir: o_plan_dir, mcp_tools: o_mcp_tools, mcp_code_paths: o_mcp_code_paths, peer_mode: o_peer_mode, ultracode: o_ultracode, stop_grants: o_stop_grants, fs: o_fs } = other;
+        let Self { mode, cwd, add_dirs, home, role_deny, subagents, mcp_servers, saved, state_dir, strict_jail, scratch_dirs, delegates, delegation_cap, delegation_used, saved_by_role, plan_dir, mcp_tools, mcp_code_paths, peer_mode, ultracode, stop_grants, stops_askable, fs } = self;
+        let Self { mode: o_mode, cwd: o_cwd, add_dirs: o_add_dirs, home: o_home, role_deny: o_role_deny, subagents: o_subagents, mcp_servers: o_mcp_servers, saved: o_saved, state_dir: o_state_dir, strict_jail: o_strict_jail, scratch_dirs: o_scratch_dirs, delegates: o_delegates, delegation_cap: o_delegation_cap, delegation_used: o_delegation_used, saved_by_role: o_saved_by_role, plan_dir: o_plan_dir, mcp_tools: o_mcp_tools, mcp_code_paths: o_mcp_code_paths, peer_mode: o_peer_mode, ultracode: o_ultracode, stop_grants: o_stop_grants, stops_askable: o_stops_askable, fs: o_fs } = other;
         let same_fs = match (fs, o_fs) {
             (None, None) => true,
             (Some(a), Some(b)) => Arc::ptr_eq(a, b),
             _ => false,
         };
-        same_fs && mode == o_mode && cwd == o_cwd && add_dirs == o_add_dirs && home == o_home && role_deny == o_role_deny && subagents == o_subagents && mcp_servers == o_mcp_servers && saved == o_saved && state_dir == o_state_dir && strict_jail == o_strict_jail && scratch_dirs == o_scratch_dirs && delegates == o_delegates && delegation_cap == o_delegation_cap && delegation_used == o_delegation_used && saved_by_role == o_saved_by_role && plan_dir == o_plan_dir && mcp_tools == o_mcp_tools && mcp_code_paths == o_mcp_code_paths && peer_mode == o_peer_mode && ultracode == o_ultracode && stop_grants == o_stop_grants
+        same_fs && mode == o_mode && cwd == o_cwd && add_dirs == o_add_dirs && home == o_home && role_deny == o_role_deny && subagents == o_subagents && mcp_servers == o_mcp_servers && saved == o_saved && state_dir == o_state_dir && strict_jail == o_strict_jail && scratch_dirs == o_scratch_dirs && delegates == o_delegates && delegation_cap == o_delegation_cap && delegation_used == o_delegation_used && saved_by_role == o_saved_by_role && plan_dir == o_plan_dir && mcp_tools == o_mcp_tools && mcp_code_paths == o_mcp_code_paths && peer_mode == o_peer_mode && ultracode == o_ultracode && stop_grants == o_stop_grants && stops_askable == o_stops_askable
     }
 }
 
@@ -282,7 +287,7 @@ impl<'de> Deserialize<'de> for DelegationCounter {
 
 impl PolicyContext {
     pub fn new(mode: PermissionMode, cwd: impl Into<PathBuf>) -> Self {
-        Self { mode, cwd: cwd.into(), add_dirs: Vec::new(), home: None, role_deny: Vec::new(), subagents: Vec::new(), mcp_servers: Vec::new(), saved: Vec::new(), state_dir: None, strict_jail: false, scratch_dirs: Vec::new(), delegates: None, delegation_cap: DEFAULT_DELEGATION_CAP, delegation_used: DelegationCounter::default(), saved_by_role: BTreeMap::new(), plan_dir: None, mcp_tools: BTreeMap::new(), mcp_code_paths: Vec::new(), peer_mode: PeerMode::Ask, ultracode: false, stop_grants: Vec::new(), fs: None }
+        Self { mode, cwd: cwd.into(), add_dirs: Vec::new(), home: None, role_deny: Vec::new(), subagents: Vec::new(), mcp_servers: Vec::new(), saved: Vec::new(), state_dir: None, strict_jail: false, scratch_dirs: Vec::new(), delegates: None, delegation_cap: DEFAULT_DELEGATION_CAP, delegation_used: DelegationCounter::default(), saved_by_role: BTreeMap::new(), plan_dir: None, mcp_tools: BTreeMap::new(), mcp_code_paths: Vec::new(), peer_mode: PeerMode::Ask, ultracode: false, stop_grants: Vec::new(), stops_askable: false, fs: None }
     }
 
     /// Judges the run's paths against `fs` (a remote server's files) instead of this machine's.
@@ -483,7 +488,7 @@ pub fn decide_with(ctx: &PolicyContext, req: &PolicyRequest, strict_background: 
 
 /// The verdict of the class rules and the mode the call was judged in.
 fn judge(ctx: &PolicyContext, intent: &ToolIntent, tool_id: &str, strict_background: bool) -> (PolicyDecision, PermissionMode) {
-    let jail = Jail::new(&ctx.cwd, &ctx.add_dirs, ctx.home.as_deref()).with_state_dir(ctx.state_dir.as_deref()).with_mcp_code_paths(&ctx.mcp_code_paths).with_scratch(&ctx.scratch_dirs).with_grants(&ctx.stop_grants, tool_id);
+    let jail = Jail::new(&ctx.cwd, &ctx.add_dirs, ctx.home.as_deref()).with_state_dir(ctx.state_dir.as_deref()).with_mcp_code_paths(&ctx.mcp_code_paths).with_scratch(&ctx.scratch_dirs).with_grants(&ctx.stop_grants, tool_id, ctx.stops_askable);
     let eff = effective(ctx, intent, strict_background);
     let d = match intent.class {
         ToolClass::Other if intent.tool.as_deref() == Some(CLI_PROMPT_TOOL) => decide_cli_prompt(&eff, intent, tool_id),
@@ -654,9 +659,13 @@ fn decide_write(eff: &Eff, intent: &ToolIntent, jail: &Jail) -> PolicyDecision {
     }
     for p in &resolved {
         // (the file tools that write: Edit, Write, MultiEdit, NotebookEdit)
-        if let Some(why) = jail.protected_reason_ask(p) {
+        // (a grant is consulted only for the four file tools that edit, and never in Plan mode; Codex apply_patch, ACP fs/write_text_file
+        // and the rest keep the refusal that main gives)
+        let asks = eff.mode != PermissionMode::ReadOnly && matches!(intent.tool.as_deref(), Some("Edit" | "Write" | "MultiEdit" | "NotebookEdit"));
+        let refused = if asks { jail.protected_reason_ask(p) } else { jail.protected_reason(p) };
+        if let Some(why) = refused {
             // (only a `.env` file is a question; the IDE state directory inside a run folder is not)
-            let offer = if why == ".env*" { jail.confirm_offer("fs.protected", p, true) } else { None };
+            let offer = if why == ".env*" && asks { jail.confirm_offer("fs.protected", p, true) } else { None };
             return hard_stop_offer(eff, "fs.protected", format!("{why} is never written by an agent ({})", p.display()), offer, false);
         }
     }
@@ -1017,7 +1026,7 @@ fn decide_cli_prompt(eff: &Eff, intent: &ToolIntent, tool_id: &str) -> PolicyDec
     // (a CLI prompt is granted by its exact reason only; a wildcard grant never covers one)
     let covering = eff.ctx.stop_grants.iter().find(|g| g.scope != super::confirm::ALL_OF_KIND && g.covers(super::confirm::ConfirmKind::CliPrompt, &reason, tool_id));
     if let Some(g) = covering {
-        let via = if g.from_list { crate::events::types::StopGrantScope::Always } else { crate::events::types::StopGrantScope::Run };
+        let via = crate::events::types::StopGrantScope::Run;
         let mut d = verdict(Decision::Allow, DecidedBy::Saved, "cli.prompt-granted", "a person allowed this kind of Claude CLI prompt");
         // (a "once" grant was logged with its card)
         if g.tool_id.is_none() {
@@ -1026,7 +1035,7 @@ fn decide_cli_prompt(eff: &Eff, intent: &ToolIntent, tool_id: &str) -> PolicyDec
         }
         return d;
     }
-    // (the canonical folder: the always-list compares canonical folders, and a symlinked project folder must not make the entry unreachable)
+    // (the canonical folder of the run)
     let offer = ConfirmOffer { kind: super::confirm::ConfirmKind::CliPrompt, rule: "cli.prompt-denied".into(), scope: reason.clone(), repo: canonical_lossy(&eff.ctx.cwd).to_string_lossy().into_owned() };
     hard_stop_offer(eff, "cli.prompt-denied", format!("the Claude CLI raised its own prompt ({reason}), which this run cannot answer on its own"), Some(offer), false)
 }

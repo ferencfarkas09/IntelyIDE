@@ -113,7 +113,7 @@ export type ClientMsg =
 
 /**  What kind of thing a confirmable stop is about. */
 export type ConfirmKind = 
-/**  A secret-looking file inside a folder of the run (`.env`, `*.pem`, ...) that is READ, or only named in script text. */
+/**  A secret-looking file inside a folder of the run (`.env`, `*.pem`, ...) that a file tool (Read, Grep) reads. */
 "secretFile" | 
 /**  A `.env` file inside a folder of the run that is EDITED or written. Kept apart from reading: allowing a read never allows an edit. */
 "secretEdit" | 
@@ -127,10 +127,7 @@ export type ConfirmOffer = {
 	rule: string,
 	/**  The exact thing: a canonical path (`SecretFile`) or the CLI's own reason text (`CliPrompt`). */
 	scope: string,
-	/**
-	 *  The folder of the run that holds the path (the repository the always-list entry belongs to); for a CLI prompt the run's
-	 *  working directory.
-	 */
+	/**  The folder of the run that holds the path; for a CLI prompt the run's working directory. */
 	repo: string,
 };
 
@@ -363,9 +360,7 @@ export type PermissionMode = "readOnly" | "edit" | "ask" |
 /**  What the user can answer a permission request with; `once` variants only for shell and write. */
 export type PermissionOption = "allow_once" | 
 /**  "Allow always in this session" (a saved allow the host keeps for the run). Offered only when `session_allow` is present. */
-"allow_run" | 
-/**  "Always allow this for this repository" (a tier-2 card only; stored in the IDE's own state, never in the repository). */
-"allow_always" | "deny";
+"allow_run" | "deny";
 
 export type PermissionOutcome = "allow" | "deny" | "cancelled";
 
@@ -559,9 +554,7 @@ export type StopGrantScope =
 /**  This one tool call. */
 "once" | 
 /**  Every stop of the same kind until the run ends. */
-"run" | 
-/**  This exact thing in this repository, from now on (the IDE's always-list). */
-"always";
+"run";
 
 export type StopReason = "endTurn" | "maxTokens" | "maxTurns" | "refusal" | "cancelled" | "error";
 

@@ -702,7 +702,7 @@ describe('confirmable stops: the card, the grant and the audit', () => {
     expect(denied.has('c1')).toBe(false);
     const p = gate.canUseTool('Read', { file_path: '/work/.env' }, { toolUseID: 'c1', signal: new AbortController().signal } as never);
     await settle();
-    expect(kinds(out, 'permission.request')[0]).toMatchObject({ reqId: 'perm-c1', toolId: 'c1', options: ['allow_once', 'allow_run', 'allow_always', 'deny'], confirm: offer });
+    expect(kinds(out, 'permission.request')[0]).toMatchObject({ reqId: 'perm-c1', toolId: 'c1', options: ['allow_once', 'allow_run', 'deny'], confirm: offer });
     gate.cancelPending('cancelled');
     expect(await p).toMatchObject({ behavior: 'deny' });
   });
@@ -733,24 +733,13 @@ describe('confirmable stops: the card, the grant and the audit', () => {
     expect(denied.has('c3')).toBe(true);
   });
 
-  it('a command that meets several stops asks once per stop, each with its own request id, up to the cap', async () => {
-    let n = 0;
-    const policy: PolicyClient = { decide: async () => (n < 2 ? { ...stop, confirm: { ...offer, scope: `/work/k${n}.key` } } : allowed) };
-    const { gate, out } = rig(policy, { mode: 'automatic' });
-    const p = gate.canUseTool('Bash', { command: 'cat k0.key k1.key' }, { toolUseID: 'c4', signal: new AbortController().signal } as never);
-    await settle();
-    n = 1; gate.answer('perm-c4', { outcome: 'allow', grant: 'once' });
-    await settle();
-    n = 2; gate.answer('perm-c4-c1', { outcome: 'allow', grant: 'once' });
-    expect(await p).toMatchObject({ behavior: 'allow' });
-    expect(kinds(out, 'permission.request').map((e) => e.reqId)).toEqual(['perm-c4', 'perm-c4-c1']);
-    // the cap
+  it('the cap: a call that keeps meeting stops asks at most four times, each with its own request id', async () => {
     const forever: PolicyClient = { decide: async () => stop };
     const g2 = rig(forever, { mode: 'automatic' });
     const q = g2.gate.canUseTool('Read', { file_path: '/work/.env' }, { toolUseID: 'c5', signal: new AbortController().signal } as never);
     for (let i = 0; i < 4; i++) { await settle(); g2.gate.answer(i === 0 ? 'perm-c5' : `perm-c5-c${i}`, { outcome: 'allow', grant: 'once' }); }
     expect(await q).toMatchObject({ behavior: 'deny' });
-    expect(kinds(g2.out, 'permission.request').filter((e) => e.options.length === 4)).toHaveLength(4);
+    expect(kinds(g2.out, 'permission.request').filter((e) => e.options.length === 3)).toHaveLength(4);
   });
 
   it('a stop without an offer, or one that did not come from a hard stop, is refused as before (no card)', async () => {
@@ -761,9 +750,9 @@ describe('confirmable stops: the card, the grant and the audit', () => {
     }
   });
 
-  it('a standing grant (run or always) that lifts a stop is written to the run log', async () => {
-    const via = (v: 'run' | 'always'): PolicyDecision => ({ ...allowed, usedGrants: [{ offer, via: v }] });
-    for (const v of ['run', 'always'] as const) {
+  it('a standing grant (for the run) that lifts a stop is written to the run log', async () => {
+    const via = (v: 'run'): PolicyDecision => ({ ...allowed, usedGrants: [{ offer, via: v }] });
+    for (const v of ['run'] as const) {
       const { gate, out } = rig(fixed(via(v)), { mode: 'automatic' });
       await hook(gate, 'Read', { file_path: '/work/.env' }, `s-${v}`);
       await gate.canUseTool('Read', { file_path: '/work/.env' }, { toolUseID: `s-${v}`, signal: new AbortController().signal } as never);
@@ -791,7 +780,7 @@ describe('the Claude CLI prompt as a tier-2 question', () => {
     await settle();
     const q = seen.find((r) => r.intent.tool === 'intely:cli-prompt');
     expect(q).toMatchObject({ toolId: 'p1', intent: { class: 'other', tool: 'intely:cli-prompt', args: [REASON] } });
-    expect(kinds(out, 'permission.request')[0]).toMatchObject({ reqId: 'perm-p1', options: ['allow_once', 'allow_run', 'allow_always', 'deny'], confirm: { kind: 'cliPrompt', scope: REASON } });
+    expect(kinds(out, 'permission.request')[0]).toMatchObject({ reqId: 'perm-p1', options: ['allow_once', 'allow_run', 'deny'], confirm: { kind: 'cliPrompt', scope: REASON } });
     gate.answer('perm-p1', { outcome: 'allow', grant: 'run' });
     expect(await p).toMatchObject({ behavior: 'allow' });
     expect(kinds(out, 'permission.resolved')[0]).toMatchObject({ outcome: 'allow', grant: 'run' });
@@ -812,11 +801,11 @@ describe('the Claude CLI prompt as a tier-2 question', () => {
     gate.answer('perm-p2', { outcome: 'deny' });
     expect(await p).toMatchObject({ behavior: 'deny', message: expect.stringContaining('declined') });
     expect(denied.has('p2')).toBe(true);
-    const granted: PolicyDecision = { decision: 'allow', by: 'saved', rule: 'cli.prompt-granted', usedGrants: [{ offer: cliStop.confirm!, via: 'always' }] };
+    const granted: PolicyDecision = { decision: 'allow', by: 'saved', rule: 'cli.prompt-granted', usedGrants: [{ offer: cliStop.confirm!, via: 'run' }] };
     const g2 = rig(route(granted), { mode: 'automatic', cwd: '/work', runDirs: ['/work'] });
     expect(await g2.gate.canUseTool('Bash', { command: CMD }, cu('p3'))).toMatchObject({ behavior: 'allow' });
     expect(kinds(g2.out, 'permission.request')).toHaveLength(1);
-    expect(kinds(g2.out, 'permission.resolved')[0]).toMatchObject({ by: 'saved', grant: 'always' });
+    expect(kinds(g2.out, 'permission.resolved')[0]).toMatchObject({ by: 'saved', grant: 'run' });
   });
 
   it('a reason Rust will not offer (its never list) or a plain "allow" from anything but Rust\'s grant stays the refusal', async () => {
@@ -865,8 +854,22 @@ describe('a tier-2 call that runs without its card being answered', () => {
     let breached = 0;
     const { gate } = rig(fixed(stop), { mode: 'automatic' });
     (gate as any).o.onBreach = () => { breached++; };
-    await hook(gate, 'Read', { file_path: '/work/.env' }, 'x1');
+    await hook(gate, 'Bash', { command: 'echo {"a":1}' }, 'x1');
     gate.noteResult('x1', true, 'Exit code 1\nsome output');
+    expect(breached).toBe(1);
+  });
+  it('is no breach when a FILE tool ended in an error: nothing was read or written (the CLI\'s own "has not been granted" text)', async () => {
+    let breached = 0;
+    const { gate } = rig(fixed(stop), { mode: 'automatic' });
+    (gate as any).o.onBreach = () => { breached++; };
+    for (const [i, tool] of ['Read', 'Edit', 'Write', 'MultiEdit', 'Grep'].entries()) {
+      await hook(gate, tool, { file_path: '/work/.env' }, `e${i}`);
+      gate.noteResult(`e${i}`, true, "Claude requested permissions to write to /work/.env, but you haven't granted it yet.");
+    }
+    expect(breached).toBe(0);
+    // ...but a file tool that SUCCEEDED without its card being answered is still one
+    await hook(gate, 'Read', { file_path: '/work/.env' }, 'e9');
+    gate.noteResult('e9', false);
     expect(breached).toBe(1);
   });
   it('covers a helper agent\'s call too (the session reports every result)', async () => {

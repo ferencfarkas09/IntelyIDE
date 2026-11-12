@@ -207,7 +207,6 @@ pub fn fixture_files() -> BTreeMap<String, String> {
             "confirm": {
                 "cliPromptTool": crate::policy::decide::CLI_PROMPT_TOOL,
                 "maxCliReason": crate::policy::decide::MAX_CLI_REASON,
-                "maxAllowEntries": crate::policy::confirm::MAX_ALLOW_ENTRIES,
                 "allOfKind": crate::policy::confirm::ALL_OF_KIND,
                 "tierTwo": crate::policy::confirm::CLASSIFICATION.iter().filter(|r| r.tier == crate::policy::confirm::Tier::Confirm).map(|r| json!({"rule": r.rule, "variant": r.variant})).collect::<Vec<_>>(),
                 "tierOne": crate::policy::confirm::CLASSIFICATION.iter().filter(|r| r.tier == crate::policy::confirm::Tier::Never && r.variant.is_none()).map(|r| r.rule).collect::<Vec<_>>(),

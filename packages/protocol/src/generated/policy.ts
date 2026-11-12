@@ -13,7 +13,7 @@ export type Actor = {
 
 /**  What kind of thing a confirmable stop is about. */
 export type ConfirmKind = 
-/**  A secret-looking file inside a folder of the run (`.env`, `*.pem`, ...) that is READ, or only named in script text. */
+/**  A secret-looking file inside a folder of the run (`.env`, `*.pem`, ...) that a file tool (Read, Grep) reads. */
 "secretFile" | 
 /**  A `.env` file inside a folder of the run that is EDITED or written. Kept apart from reading: allowing a read never allows an edit. */
 "secretEdit" | 
@@ -27,10 +27,7 @@ export type ConfirmOffer = {
 	rule: string,
 	/**  The exact thing: a canonical path (`SecretFile`) or the CLI's own reason text (`CliPrompt`). */
 	scope: string,
-	/**
-	 *  The folder of the run that holds the path (the repository the always-list entry belongs to); for a CLI prompt the run's
-	 *  working directory.
-	 */
+	/**  The folder of the run that holds the path; for a CLI prompt the run's working directory. */
 	repo: string,
 };
 
@@ -133,12 +130,12 @@ export type ToolIntent = {
 };
 
 /**
- *  A standing grant (this run, or the repository's always-list) that lifted a stop while a call was judged. The gate writes it to the run
+ *  A standing grant (for this run) that lifted a stop while a call was judged. The gate writes it to the run
  *  log as an override ("You allowed reading .env for this run"), so a stop that is lifted without a card is still visible.
  */
 export type UsedGrant = {
 	offer: ConfirmOffer,
-	/**  `Run` or `Always` (a "once" grant was logged when its card was answered). */
+	/**  Always `Run` (a "once" grant was logged when its card was answered). */
 	via: StopGrantScope,
 };
 

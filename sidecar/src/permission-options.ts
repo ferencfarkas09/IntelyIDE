@@ -9,7 +9,7 @@ import type { PermissionMode, PermissionOption, PolicyDecision } from './types.j
  */
 export function offeredOptions(d: Pick<PolicyDecision, 'sessionAllow' | 'confirm'>): PermissionOption[] {
   // a confirmable (tier 2) stop: this one time, for the run, for good in this repository, or no
-  if (d.confirm) return ['allow_once', 'allow_run', 'allow_always', 'deny'];
+  if (d.confirm) return ['allow_once', 'allow_run', 'deny'];
   return ['allow_once', ...(d.sessionAllow ? (['allow_run'] as const) : []), 'deny'];
 }
 
