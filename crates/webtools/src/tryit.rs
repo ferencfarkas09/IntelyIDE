@@ -453,9 +453,11 @@ mod tests {
 
     #[test]
     fn nothing_listening_is_a_friendly_error() {
+        // The local port of a connected socket that stays open: nothing listens on it and no other test can be given it
+        // (the port of a listener that was just dropped can be handed to a test running next to this one at once).
         let l = TcpListener::bind("127.0.0.1:0").unwrap();
-        let port = l.local_addr().unwrap().port();
-        drop(l);
+        let held = TcpStream::connect(l.local_addr().unwrap()).unwrap();
+        let port = held.local_addr().unwrap().port();
         assert_eq!(send(&req(port, "/"), &ok(port)).unwrap_err().code, "connect");
     }
 
