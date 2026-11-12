@@ -42,15 +42,17 @@ Cards read the stores the rest of the app already keeps current, so most of them
 | CI & PRs, Sentry triage | Every ten minutes, and on Refresh |
 | Morning brief | Every fifteen minutes, and on Refresh |
 
+"On screen" means the tab you are looking at: another tab in front, or Agent mode over the editor area, pauses these cards. A refresh that fell due meanwhile happens once when the Dashboard is back on screen. In Agent mode the palette's Open dashboard shows it in the middle of the Agent workspace.
+
 The Refresh button in the header asks every card to reload at once.
 
 ## Plan usage in the menu bar
 
-With Settings > Dashboard > Plan usage in the menu bar switched on (it is off by default), the menu-bar item shows the share of the 5-hour plan window used next to the counts: `! 2 / 3 · 41%`, or `41%` alone when nothing runs, and the menu gets a line with the same number. The value is read every five minutes (not in Eco mode), or taken from the Dashboard or the Usage tab when they read it anyway. The menu-bar item itself is switched on in Settings > Resources and menu bar (Show the IDE in the menu bar), as before; its entries stay native menu items.
+With Settings > Dashboard > Plan usage in the menu bar switched on (it is off by default), the menu-bar item shows the share of the 5-hour plan window used next to the counts: `! 2 / 3 · 41%`, or `41%` alone when nothing runs, and the menu gets a line with the same number. The value is read every five minutes (not in Eco mode), or taken from the Dashboard or the Usage tab when they read it anyway. Turning the Dashboard off removes the percentage from the menu bar. The menu-bar item itself is switched on in Settings > Resources and menu bar (Show the IDE in the menu bar), as before; its entries stay native menu items.
 
 ## Needs-You radar
 
-The radar is a small window that stays on top of other windows and lists the runs waiting on you: permission requests, questions and plans. It opens from the menu-bar entry Needs you (n) and with the palette command Open Needs-You radar. Each request has the same card as the in-app Needs-You inbox (Approve once, the answers of a question, the plan approval) and uses the same commands; Open run brings the main window forward with that run selected in Agent mode.
+The radar is a small window that stays on top of other windows and lists the runs waiting on you: permission requests, questions and plans. It opens from the menu-bar entry Needs you (n) and with the palette command Open Needs-You radar. Each request has the same card as the in-app Needs-You inbox (Approve once, the answers of a question, the plan approval) and uses the same commands; Open run brings the main window forward with that run selected in Agent mode. The menu-bar entry opens the radar even while the Dashboard is turned off, and Open run works then too.
 
 The radar never counts as the app's window focus, so Eco mode and the focus-gated background work neither start nor stop because of it, and it closes together with the main window. It runs the same interface bundle with only the radar and the agent list loaded (no workspace view). It is built for macOS first and works the same on the other platforms. Its window permissions are a subset of the main window's: the defaults and window dragging, nothing else.
 

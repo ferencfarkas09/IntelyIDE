@@ -25,9 +25,23 @@ function items(evidence: string[], count: number): string[] {
 
 const risk = (d: RunDigest, code: RiskCode): Risk | undefined => d.risks.find((r) => r.code === code);
 
+/** What the summary is told about the run besides its digest. */
+export interface SummaryContext {
+  /** The run worked on a server: the local repositories say nothing about what it changed. */
+  remote?: boolean;
+}
+
+/**
+ * Whether the digest may be read as complete: every repository was compared with its snapshot by git (`git`). With no
+ * snapshot, no git (`log`, `none`), no repository at all, or a run on a server, a count of 0 means "could not check",
+ * never "nothing changed".
+ */
+export const fullyChecked = (d: RunDigest, ctx: SummaryContext = {}): boolean => !ctx.remote && d.repos.length > 0 && d.repos.every((r) => r.source === "git");
+
 /** The "changed" sentence: the largest groups by purpose ("4 screen files and 2 style files"). */
-function changedLine(d: RunDigest): string {
-  if (d.fileCount === 0) return t("runsummary.b.noFiles");
+function changedLine(d: RunDigest, ctx: SummaryContext): string {
+  if (ctx.remote) return t("runsummary.b.remote");
+  if (d.fileCount === 0) return fullyChecked(d, ctx) ? t("runsummary.b.noFilesFound") : t("runsummary.b.notChecked");
   const ranked = [...d.groups].filter((g) => total(g) > 0).sort((a, b) => total(b) - total(a));
   const top = ranked.slice(0, MAX_GROUPS);
   const named = top.reduce((n, g) => n + total(g), 0);
@@ -42,10 +56,11 @@ function changedLine(d: RunDigest): string {
  * 3 to 6 plain sentences about what the run did (fewer when there is little to say). The most useful ones are kept when
  * there are more; they are shown in a fixed reading order.
  */
-export function bullets(d: RunDigest): string[] {
+export function bullets(d: RunDigest, ctx: SummaryContext = {}): string[] {
   const out: { at: number; rank: number; text: string }[] = [];
   const add = (at: number, rank: number, text: string | false) => text && out.push({ at, rank, text });
-  add(0, 0, changedLine(d));
+  add(0, 0, changedLine(d, ctx));
+  add(0.5, 0.5, !ctx.remote && d.fileCount > 0 && !fullyChecked(d, ctx) && t("runsummary.b.partlyChecked"));
   add(1, 6, (d.created > 0 || d.deleted > 0) && t("runsummary.b.createdDeleted", { created: d.created, deleted: d.deleted }));
   add(2, 7, d.fileCount > 0 && d.additions + d.deletions > 0 && t("runsummary.b.lines", { added: d.additions, removed: d.deletions }));
   const pkgs = risk(d, "newDependencies");
@@ -121,7 +136,10 @@ export function riskLines(d: RunDigest): RiskLine[] {
 }
 
 /** The compact chip of the run card: "5 files · 2 risks". */
-export const chipText = (d: RunDigest): string => (d.risks.length ? t("runsummary.chip.risks", { files: d.fileCount, risks: d.risks.length }) : t("runsummary.chip.files", { files: d.fileCount }));
+export function chipText(d: RunDigest, ctx: SummaryContext = {}): string {
+  if (d.fileCount === 0 && !fullyChecked(d, ctx)) return t("runsummary.chip.unchecked");
+  return d.risks.length ? t("runsummary.chip.risks", { files: d.fileCount, risks: d.risks.length }) : t("runsummary.chip.files", { files: d.fileCount });
+}
 
 const PURPOSE_EN: Record<Purpose, string> = { ui: "screens and components", styles: "styles", tests: "tests", config: "configuration", dependencies: "packages", docs: "documentation", ios: "native iOS", android: "native Android", server: "server code", code: "other code", assets: "images and fonts", other: "other" };
 
@@ -138,6 +156,8 @@ export function explainPrompt(d: RunDigest, language: string = languageName(loca
   lines.push(`Task title: ${d.title}`);
   lines.push(`Status: ${d.status}`);
   lines.push(`Files: ${d.fileCount} (${d.created} new, ${d.modified} changed, ${d.deleted} deleted), +${d.additions} -${d.deletions} lines`);
+  const unchecked = d.repos.filter((r) => r.source !== "git").map((r) => r.repoId || "(no repository)");
+  if (unchecked.length || !d.repos.length) lines.push(`Not checked with git (only the files the agent's own tools wrote are counted, shell edits are missing): ${unchecked.join(", ") || "every repository"}`);
   for (const g of d.groups) lines.push(`- ${PURPOSE_EN[g.purpose] ?? g.purpose}: ${total(g)}${g.examples.length ? ` (${g.examples.join(", ")})` : ""}`);
   if (d.commands.length) {
     lines.push(`Commands the agent ran (${d.commandCount}):`);

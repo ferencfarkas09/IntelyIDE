@@ -21,9 +21,9 @@ The same as a Rewind snapshot: the tracked files and the untracked files that ar
 - files the secret guard keeps out (a `.env` that is not ignored, keys, database dumps) and files larger than the guard's limit,
 - other repositories inside the repository (nested repositories and submodules).
 
-A checkpoint is refused when the new and untracked files would add up to more than 256 MB.
+A checkpoint is refused when the new and untracked files would add up to more than 256 MB. The sizes are added up from the file list before any file is read, so a refused checkpoint writes nothing into the repository's Git data. All Git work of one checkpoint step (every repository of the run) has 60 seconds; past that, or when the app quits, the step is stopped and skipped, and the run goes on without it.
 
-Checkpoints are stored in the repository's own Git data, as refs under `refs/intely/checkpoints/<run>/`. They are never commits on your branches, never touch your staging area (index), your stash or `HEAD`, and they are never pushed (IntelyIDE pushes nothing on its own, and a normal `git push` sends branches and tags only). Each run keeps its last 50 checkpoints (save points are removed last), and each repository keeps the checkpoints of its last 20 runs; older ones are removed when a newer run takes its first checkpoint, and Git cleans up their data in its next garbage collection.
+Checkpoints are stored in the repository's own Git data, as refs under `refs/intely/checkpoints/<run>/`. An agent cannot touch them: a git command line that names `refs/intely` is refused in every mode, and so is a `git fetch` from a local folder (see [Safety model](safety.md), layer 7). They are never commits on your branches, never touch your staging area (index), your stash or `HEAD`, and they are never pushed (IntelyIDE pushes nothing on its own, and a normal `git push` sends branches and tags only). Each run keeps its last 50 checkpoints (save points are removed last), and each repository keeps the checkpoints of its last 20 runs; older ones are removed when a newer run takes its first checkpoint, and Git cleans up their data in its next garbage collection.
 
 ## The timeline
 
@@ -45,7 +45,7 @@ A run that is still working cannot be restored; stop it first. A restore is also
 
 When you (or anything else) changed a file after the run's newest checkpoint, the dialog lists those files apart and **keeps them as they are**. Only when you tick "Also put these files back" are they overwritten, and the dialog says that your later changes are lost. Restoring never moves `HEAD`: when a commit was made since the checkpoint, the dialog says so and the commit stays.
 
-After a restore, the state right before it is a checkpoint of its own ("before restoring step 3"), so you can go back to it from the timeline.
+After a restore, the state right before it is a checkpoint of its own ("before restoring step 3"), so you can go back to it from the timeline. That checkpoint never removes the step you are restoring, even when the run already has 50 checkpoints: the next oldest one goes instead.
 
 ## Protecting ignored config files
 
@@ -53,7 +53,7 @@ Git ignores files such as `.env.local`, so neither Rewind nor checkpoints hold t
 
 `.env`, `.env.local`, `.env.development`, `.env.development.local`, `.env.test`, `.env.test.local`, `.env.production`, `.env.production.local`, `.env.staging`, `.env.staging.local`
 
-Only these exact names are copied, only when they are not tracked by Git (a tracked file is already in every checkpoint), at most 32 files of at most 256 KB each per repository, never through a symbolic link, and not inside ignored folders such as `node_modules`. The copies are stored outside the repository, in the app's data folder (`checkpoint-files`), in folders only you can open (permissions 0700) and files only you can read (0600). Their content is never shown, logged or sent anywhere; the app shows only names and sizes.
+The first copy is taken when the run starts, right after its Rewind snapshot, so step 0 (the start) has the files as they were before the run. After that a copy is kept with every checkpoint, and a change of these files alone (Git sees nothing) is enough for a new checkpoint at the next step. Only these exact names are copied, only when they are not tracked by Git (a tracked file is already in every checkpoint), at most 32 files of at most 256 KB each per repository, never through a symbolic link, and not inside ignored folders such as `node_modules`. The copies are stored outside the repository, in the app's data folder (`checkpoint-files`), in folders only you can open (permissions 0700) and files only you can read (0600). Their content is never shown, logged or sent anywhere; the app shows only names and sizes.
 
 The restore dialog lists the copies whose file has changed or is gone since that checkpoint. Each one is written back only when you tick it, and only into the same place inside the same repository. Switching the setting off deletes every copy made so far.
 

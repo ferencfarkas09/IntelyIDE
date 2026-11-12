@@ -4,6 +4,8 @@
 .chat__bar .ui-btn__label { gap: 6px; }
 .chat__title { color: var(--text-2); font-size: var(--text-sm); font-weight: var(--weight-medium); }
 .chat__grow { flex: 1; }
+.chat__top { flex: none; max-height: 40%; overflow-y: auto; overscroll-behavior: contain; }
+.chat__top:empty { display: none; }
 .chat__loading { display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-2); }
 .chat > .ui-empty { flex: 1 1 0; }
 

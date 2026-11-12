@@ -199,7 +199,7 @@ pub(crate) fn words(text: &str) -> Vec<String> {
 
 /// The words of a command line: shell separators (`& | ; ( ) < > ` and `$(`) become spaces, so `npm run ios&&echo` is
 /// `npm run ios echo`; quotes are trimmed and each word is lower-cased.
-fn command_words(text: &str) -> Vec<String> {
+pub(crate) fn command_words(text: &str) -> Vec<String> {
     let spaced: String = text.chars().map(|c| if matches!(c, '&' | '|' | ';' | '(' | ')' | '<' | '>' | '`' | '$' | '{' | '}') { ' ' } else { c }).collect();
     spaced.split_whitespace().map(|t| t.trim_matches(|c| matches!(c, '"' | '\'' | ',')).to_ascii_lowercase()).filter(|t| !t.is_empty()).collect()
 }

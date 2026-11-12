@@ -2,7 +2,7 @@ import { createSignal, type Component } from "solid-js";
 import type { LucideIcon } from "lucide-solid";
 import { readStored, writeStored } from "../ui-kit/storage";
 import { createRegistry } from "./registry";
-import { activeTab, tabs, type TabInstance } from "./tabs";
+import { activeTab, openTab, tabs, type TabInstance } from "./tabs";
 
 export type AppMode = "editor" | "agent";
 
@@ -41,6 +41,12 @@ export const resetModes = () => (registry.clear(), panelRegistry.clear(), setMod
 const [agentTab, setAgentTab] = createSignal<string | null>(null);
 export const agentTabId = agentTab;
 export const showTabInAgent = setAgentTab;
+/** Opens (or focuses) a tab where the person is looking: in the middle of the Agent workspace in Agent mode, else in the editor area. */
+export function openVisibleTab(input: Parameters<typeof openTab>[0]): string {
+  const id = openTab(input);
+  if (appMode() === "agent") showTabInAgent(id);
+  return id;
+}
 /** The tab on screen in the Agent workspace, or undefined (the run view shows). */
 export const agentTabInstance = (): TabInstance | undefined => {
   const id = agentTab();

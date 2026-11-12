@@ -22,7 +22,10 @@ import { dashboardAtStart, dashboardEnabled } from "./toggle";
 
 let live: Disposer[] = [];
 
-/** "Open" in the radar window: the main window comes forward (Rust) and shows that run in Agent mode. */
+/**
+ * "Open" in the radar window: the main window comes forward (Rust) and shows that run in Agent mode. Listened to even while the
+ * Dashboard extra is off, because the tray opens the radar either way.
+ */
 function openRunFromRadar(agentId: string): void {
   setAppMode("agent");
   setCentreView("run");
@@ -36,7 +39,6 @@ function activate(): void {
     registerCommand({ id: "dashboard.open", get title() { return t("dash.cmd.open"); }, group: "View", keywords: ["dashboard", "home", "overview", "widgets", "cards", "start", "welcome"], run: () => void openDashboard() }),
     registerCommand({ id: "dashboard.radar", get title() { return t("dash.cmd.radar"); }, get group() { return t("group.agents"); }, keywords: ["needs you", "radar", "approve", "permission", "question", "window", "always on top"], run: () => void radarApi().open().catch(() => {}) }),
     ...registerBuiltinWidgets(),
-    radarApi().onOpenRun(openRunFromRadar),
     startPlanPoll(),
   ];
 }
@@ -73,6 +75,7 @@ function openAtStart(): void {
 export function register(): void {
   registerSettingsSection({ id: "dashboard", get title() { return t("dash.section.name"); }, order: 120, icon: LayoutGrid, searchTerms: ["dashboard", "widgets", "cards", "start", "menu bar", "tray", "plan", "radar"], component: lazy(() => import("./DashboardSection")) });
   createRoot(() => createEffect(() => (dashboardEnabled() ? activate() : deactivate())));
+  radarApi().onOpenRun(openRunFromRadar);
   openAtStart();
 }
 

@@ -8,6 +8,7 @@
   "pnotes.generate": "Generate a starter with an agent",
   "pnotes.improve": "Improve it with an agent",
   "pnotes.noDialog": "The New Run dialog could not be opened.",
+  "pnotes.pickRepo": "Pick the repository here, then choose Generate a starter.",
   "pnotes.lead": "CLAUDE.md holds the rules of a repository for coding agents: how to run it, what to avoid, which conventions to follow. Every Claude run started in IntelyIDE is told these files.",
   "pnotes.fileTitle": "CLAUDE.md of this repository",
   "pnotes.missing": "This repository has no CLAUDE.md yet. Create one here, or let an agent write a first version from what it finds in the repository.",

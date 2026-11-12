@@ -10,6 +10,15 @@ import type { ScriptHint } from "./types";
 import "./runsummary.css";
 
 const COLLAPSED_KEY = "intely.runSummary.collapsed";
+/** Below this window height the card starts folded unless the person unfolded it before: the transcript needs the room. */
+export const SHORT_WINDOW_PX = 700;
+
+/** Folded or open at first: the person's last choice, else folded on a short window. */
+export function startsOpen(stored: string | null | undefined, windowHeight: number): boolean {
+  if (stored === "1") return false;
+  if (stored === "0") return true;
+  return windowHeight >= SHORT_WINDOW_PX;
+}
 
 /** "What this run did", at the top of a finished run's page: plain sentences, what to check, risks. No model. */
 export default function RunSummaryCard(props: { agent: AgentRow }) {
@@ -19,7 +28,7 @@ export default function RunSummaryCard(props: { agent: AgentRow }) {
   });
   const digest = () => (finished() ? (entryOf(props.agent.agentId)?.digest ?? undefined) : undefined);
 
-  const [open, setOpen] = createSignal(readStored(COLLAPSED_KEY) !== "1");
+  const [open, setOpen] = createSignal(startsOpen(readStored(COLLAPSED_KEY), globalThis.innerHeight ?? SHORT_WINDOW_PX));
   const toggle = () => {
     const next = !open();
     setOpen(next);
@@ -78,7 +87,7 @@ export default function RunSummaryCard(props: { agent: AgentRow }) {
               <span id={titleId}>{t("runsummary.card.title")}</span>
             </Button>
             <Badge size="sm" numeric tone={d().risks.length ? "warn" : "neutral"}>
-              {chipText(d())}
+              {chipText(d(), { remote: !!props.agent.location })}
             </Badge>
             <span class="runsummary__grow" />
             <Button variant="secondary" size="sm" icon={Sparkles} title={t("runsummary.card.explainTip")} onClick={() => void explain()}>
@@ -88,7 +97,7 @@ export default function RunSummaryCard(props: { agent: AgentRow }) {
           <Show when={open()}>
             <div class="runsummary__body" id={bodyId}>
               <ul class="runsummary__list">
-                <For each={bullets(d())}>{(b) => <li>{b}</li>}</For>
+                <For each={bullets(d(), { remote: !!props.agent.location })}>{(b) => <li>{b}</li>}</For>
               </ul>
               <Show when={checkLines(d(), scripts() ?? {}).length}>
                 <h4 class="runsummary__sub">

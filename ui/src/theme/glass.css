@@ -134,12 +134,14 @@
   }
 
   /* -- Frosted overlays and the reusable utility. */
-  :root[data-skin="glass"]:not([data-transparency="reduced"]) :is(.ui-popover, .ui-dialog, .ui-toast, .ui-tooltip, .cm-tooltip, .glass-frost, .composer__pop, .hc-mention-list, .results-sheet, .msg__copy, .run-log__follow, .pi__style, .att-overlay__pill, .att-lightbox__bar) {
+  :root[data-skin="glass"]:not([data-transparency="reduced"]) :is(.ui-popover, .ui-dialog, .ui-toast, .ui-tooltip, .cm-tooltip, .glass-frost, .composer__pop, .hc-mention-list, .results-sheet, .pi__style, .att-overlay__pill, .att-lightbox__bar) {
     -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
     backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   }
   /* Ad hoc floating UI (module popups, sheets and hover buttons) paints the same frosted tint as the kit overlays: a 0.9-alpha surface alone lets text behind show through. */
-  :root[data-skin="glass"]:not([data-transparency="reduced"]) :is(.ui-popover, .ui-dialog, .ui-toast, .composer__pop, .hc-mention-list, .results-sheet, .msg__copy, .run-log__follow, .pi__style, .att-overlay__pill, .att-lightbox__bar) { background: var(--glass-bg); }
+  :root[data-skin="glass"]:not([data-transparency="reduced"]) :is(.ui-popover, .ui-dialog, .ui-toast, .composer__pop, .hc-mention-list, .results-sheet, .pi__style, .att-overlay__pill, .att-lightbox__bar) { background: var(--glass-bg); }
+  /* Inside the scrolling transcript and run log: tinted but never frosted. A backdrop-filter layer per message bubble, in rows that move with transform, is what blanked the text in WebKit (transcript-guard.test.ts keeps it out). */
+  :root[data-skin="glass"]:not([data-transparency="reduced"]) :is(.msg__copy, .run-log__follow) { background: var(--pane-3); }
   :root[data-skin="glass"]:not([data-transparency="reduced"]) .ui-dialog { box-shadow: 0 0 0 1px var(--glass-border), var(--glass-highlight), var(--glass-shadow); }
   :root[data-skin="glass"]:not([data-transparency="reduced"]) :is(.ui-popover, .ui-toast) { box-shadow: 0 0 0 1px var(--glass-border), var(--glass-highlight), var(--glass-shadow); }
   :root[data-skin="glass"]:not([data-transparency="reduced"]) .ui-dialog__footer { background: transparent; }

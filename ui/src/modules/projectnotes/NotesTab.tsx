@@ -12,6 +12,7 @@ import { Badge, Button, EmptyState, ExternalLink, FilePlus, FileText, ProgressBa
 import { TOKEN_HABITS_TEXT } from "../tokensaver/habits";
 import { syncPrefs, tokenHabits } from "../tokensaver/prefs";
 import { byteLength, editableReason, FILE_MAX, fromDisk, planWarnings, SECRET_CHECK_MAX, sizeLevel, SKELETON, starterPrompt, toDiskText, type Warning } from "./logic";
+import { setNotesRepo } from "./open";
 import "./projectnotes.css";
 
 const FILE = "CLAUDE.md";
@@ -51,6 +52,9 @@ export default function NotesTab(props: { tab?: TabInstance }) {
   createEffect(() => !repoId() && repos()[0] && setRepoId(repos()[0].id));
   // the token-saving habits ride after the CLAUDE.md files when Settings > Token saver switched them on
   onMount(() => void syncPrefs());
+  // the palette's "Generate a CLAUDE.md" is for the repository shown here
+  createEffect(() => setNotesRepo(repoId()));
+  onCleanup(() => setNotesRepo(undefined));
   // every load is numbered: an answer for a repository that is no longer shown is dropped
   let seq = 0;
 

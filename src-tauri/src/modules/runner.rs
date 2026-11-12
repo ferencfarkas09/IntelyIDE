@@ -207,7 +207,7 @@ pub async fn run_start(app: AppHandle, slot: State<'_, EngineSlot>, state: State
     switchhook::gate_check(&app)?;
     let path = repo_path(&slot, &req.repo_id).await?;
     let env: HashMap<String, String> = slot.get().map(Engine::login_env).unwrap_or_default();
-    let info = state.0.start(&req.repo_id, &path, &req.script, StartOpts { confirmed: req.confirmed, allow_second_heavy: req.allow_second_heavy, env })?;
+    let info = state.0.start(&req.repo_id, &path, &req.script, StartOpts { confirmed: req.confirmed, allow_second_heavy: req.allow_second_heavy, env, clean_env: false })?;
     state.1.cwds.lock().expect("cwds").insert(info.id.clone(), path);
     Ok(info)
 }
@@ -316,7 +316,7 @@ setInterval(() => {}, 1000);
     }
 
     fn start(repo: &std::path::Path, state: &RunState, script: &str) -> ServerInfo {
-        let info = state.0.start("fx", repo, script, StartOpts { confirmed: true, allow_second_heavy: true, env: HashMap::new() }).unwrap();
+        let info = state.0.start("fx", repo, script, StartOpts { confirmed: true, allow_second_heavy: true, env: HashMap::new(), clean_env: false }).unwrap();
         state.1.cwds.lock().unwrap().insert(info.id.clone(), repo.to_path_buf());
         info
     }

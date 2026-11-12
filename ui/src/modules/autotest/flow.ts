@@ -1,13 +1,15 @@
-// The flow of "Auto-test after a run": when a run finishes, test the repositories it touched (by the mode in Settings),
+// The flow of "Auto-test after a run": when a run finishes, test the repositories it changed (by the mode in Settings),
 // one test process per repository at a time, never while that run or another run on the same repository may still be
-// writing. A test is started on the backend (`autotest_start`), followed through the Run panel's state events until it
+// writing. A repository's own test command runs by itself only after the person trusted it on the trust card, which
+// names the command; a changed command asks again. Never for a run on a server, a read-only run, or a repository the
+// run did not change (or whose changes could not be checked). A test is started on the backend (`autotest_start`), followed through the Run panel's state events until it
 // exits or the time cap stops it, then its log is parsed.
 import { t } from "../../i18n";
 import type { ServerInfo } from "../../ipc/run";
 import type { AutotestApi } from "./api";
 import { blockedBy, finishedBetween, linesOfLastStart, maskSecrets, outcomeOf, parseTestOutput, type RunLike } from "./logic";
-import { prefs, rememberAnswer, repoResult, runAsk, runResults, setRepoResult, setRunAsk } from "./store";
-import type { RepoAnswer, RepoTest, TestPick } from "./types";
+import { dropRepoResult, prefs, rememberAnswer, repoResult, runAsk, runResults, setRepoResult, setRunAsk } from "./store";
+import type { AskItem, RepoAnswer, RepoTest, TestPick } from "./types";
 
 export const DEFAULT_TIMEOUT_MS = 5 * 60_000;
 const POLL_MS = 2000;
@@ -15,6 +17,11 @@ const POLL_MS = 2000;
 export interface FlowDeps {
   api: () => AutotestApi;
   runs: () => RunLike[];
+  /**
+   * How many files a finished run changed in each repository (the run summary's count); `null` for a repository whose
+   * changes could not be checked. Auto-test starts only where the count is above zero.
+   */
+  changes: (runId: string) => Promise<Record<string, number | null> | null>;
   timeoutMs?: number;
   pollMs?: number;
 }
@@ -22,12 +29,19 @@ export interface FlowDeps {
 export interface AutotestFlow {
   /** Feed the current runs; a run that went from working to done or error is tested (by the mode). */
   observe(runs: RunLike[]): void;
-  /** Tests the given repositories of a run now (Re-run, the header button, the palette). */
-  runTests(runId: string, repoIds: string[]): Promise<void>;
+  /**
+   * Tests the given repositories of a run now (Re-run, the header button, the palette). `expect` holds, per repository,
+   * the fingerprint the person trusted: a pick that no longer matches it is not started.
+   */
+  runTests(runId: string, repoIds: string[], expect?: Record<string, string>): Promise<void>;
   /** The answer of the "run tests?" card; remembered for each repository it lists. */
   answer(runId: string, answer: RepoAnswer): Promise<void>;
   /** Waits for what was started so far (tests). */
   idle(): Promise<void>;
+  /** Takes the runs as they are now without acting on them, so only a run that finishes after this is tested. */
+  prime(runs: RunLike[]): void;
+  /** Switched off: forgets the runs seen and drops the tests held back (a run that finishes while off is never tested). */
+  reset(): void;
 }
 
 const errorText = (e: unknown): string => (e && typeof e === "object" && "message" in e ? String((e as { message: unknown }).message) : String(e));
@@ -38,7 +52,7 @@ export function createAutotestFlow(deps: FlowDeps): AutotestFlow {
   /** The tail of each repository's queue: one test process per repository at a time. */
   const locks = new Map<string, Promise<void>>();
   /** Tests held back because a run on the repository is still live: `runId\0repoId`. */
-  const pending = new Map<string, { runId: string; repoId: string }>();
+  const pending = new Map<string, { runId: string; repoId: string; expect?: string }>();
   const work = new Set<Promise<unknown>>();
   let seen = new Map<string, string>();
 
@@ -48,18 +62,18 @@ export function createAutotestFlow(deps: FlowDeps): AutotestFlow {
     return p;
   };
 
-  function hold(runId: string, repoId: string): void {
-    pending.set(`${runId}\0${repoId}`, { runId, repoId });
+  function hold(runId: string, repoId: string, expect?: string): void {
+    pending.set(`${runId}\0${repoId}`, { runId, repoId, expect });
     const prev = repoResult(runId, repoId);
     setRepoResult(runId, { repoId, status: "waiting", runner: prev?.runner, kind: prev?.kind });
   }
 
-  function enqueue(runId: string, repoId: string): Promise<void> {
+  function enqueue(runId: string, repoId: string, expect?: string): Promise<void> {
     const prev = repoResult(runId, repoId);
     // already testing this repository for this run: nothing to add
     if (prev?.status === "running") return locks.get(repoId) ?? Promise.resolve();
     if (locks.has(repoId)) setRepoResult(runId, { repoId, status: "waiting", runner: prev?.runner, kind: prev?.kind });
-    const tail = (locks.get(repoId) ?? Promise.resolve()).then(() => testRepo(runId, repoId));
+    const tail = (locks.get(repoId) ?? Promise.resolve()).then(() => testRepo(runId, repoId, expect));
     const mine = tail.finally(() => {
       if (locks.get(repoId) === mine) locks.delete(repoId);
     });
@@ -67,8 +81,11 @@ export function createAutotestFlow(deps: FlowDeps): AutotestFlow {
     return track(mine);
   }
 
-  async function testRepo(runId: string, repoId: string): Promise<void> {
-    if (blockedBy(deps.runs(), runId, repoId)) return hold(runId, repoId);
+  async function testRepo(runId: string, repoId: string, expect?: string): Promise<void> {
+    const runs = deps.runs();
+    // The local copy says nothing about a change made on a server: no result rather than a green one for untested code.
+    if (runs.find((r) => r.agentId === runId)?.location) return setRepoResult(runId, { repoId, status: "notTested", skip: "server", finishedAt: Date.now() });
+    if (blockedBy(runs, runId, repoId)) return hold(runId, repoId, expect);
     const api = deps.api();
     let pick: TestPick | null;
     try {
@@ -77,6 +94,7 @@ export function createAutotestFlow(deps: FlowDeps): AutotestFlow {
       return setRepoResult(runId, { repoId, status: "error", error: errorText(e), finishedAt: Date.now() });
     }
     if (!pick) return setRepoResult(runId, { repoId, status: "noTests", finishedAt: Date.now() });
+    if (expect !== undefined && pick.fingerprint !== expect) return setRepoResult(runId, { repoId, status: "error", runner: pick.runner, error: t("autotest.error.changed"), finishedAt: Date.now() });
     const base: RepoTest = { repoId, status: "running", runner: pick.runner, kind: pick.kind };
     setRepoResult(runId, base);
 
@@ -91,7 +109,7 @@ export function createAutotestFlow(deps: FlowDeps): AutotestFlow {
     });
     let info: ServerInfo;
     try {
-      info = await api.start(repoId);
+      info = await api.start(repoId, pick.fingerprint);
     } catch (e) {
       off();
       return setRepoResult(runId, { ...base, status: "error", error: errorText(e), finishedAt: Date.now() });
@@ -124,15 +142,15 @@ export function createAutotestFlow(deps: FlowDeps): AutotestFlow {
     setRepoResult(runId, { ...base, serverId, status: outcomeOf(summary, end.exitCode), summary, finishedAt });
   }
 
-  function runTests(runId: string, repoIds: string[]): Promise<void> {
+  function runTests(runId: string, repoIds: string[], expect: Record<string, string> = {}): Promise<void> {
     const runs = deps.runs();
     const jobs = [...new Set(repoIds)].map((repoId) => {
       if (blockedBy(runs, runId, repoId)) {
-        hold(runId, repoId);
+        hold(runId, repoId, expect[repoId]);
         return Promise.resolve();
       }
       pending.delete(`${runId}\0${repoId}`);
-      return enqueue(runId, repoId);
+      return enqueue(runId, repoId, expect[repoId]);
     });
     return Promise.all(jobs).then(() => {});
   }
@@ -142,11 +160,25 @@ export function createAutotestFlow(deps: FlowDeps): AutotestFlow {
     if (p.mode === "off") return;
     const run = deps.runs().find((r) => r.agentId === runId);
     if (!run) return;
+    if (run.location) {
+      for (const repoId of run.repoIds) setRepoResult(runId, { repoId, status: "notTested", skip: "server", finishedAt: Date.now() });
+      return;
+    }
+    // A read-only run wrote nothing the tests could check.
+    if (run.readOnly) return;
+    let changes: Record<string, number | null> | null = null;
+    try {
+      changes = await deps.changes(runId);
+    } catch {
+      /* unknown: nothing starts by itself */
+    }
     const go: string[] = [];
-    const ask: string[] = [];
+    const expect: Record<string, string> = {};
+    const ask: AskItem[] = [];
     for (const repoId of run.repoIds) {
-      const answer = p.repos[repoId];
-      if (p.mode === "ask" && answer === "no") continue;
+      const n = changes?.[repoId];
+      if (typeof n !== "number" || n <= 0) continue;
+      if (p.repos[repoId] === "no") continue;
       let pick: TestPick | null = null;
       try {
         pick = await deps.api().pick(repoId);
@@ -154,18 +186,24 @@ export function createAutotestFlow(deps: FlowDeps): AutotestFlow {
         continue;
       }
       if (!pick) continue;
-      if (p.mode === "always" || answer === "yes") go.push(repoId);
-      else ask.push(repoId);
+      // Every mode, Always included, needs the person's trust in this exact command first.
+      if (p.trusted[repoId] === pick.fingerprint) {
+        go.push(repoId);
+        expect[repoId] = pick.fingerprint;
+      } else ask.push({ repoId, runner: pick.runner, command: pick.command, fingerprint: pick.fingerprint });
     }
-    if (ask.length) setRunAsk(runId, [...new Set([...runAsk(runId), ...ask])]);
-    if (go.length) await runTests(runId, go);
+    if (ask.length) {
+      const asked = new Set(ask.map((a) => a.repoId));
+      setRunAsk(runId, [...runAsk(runId).filter((a) => !asked.has(a.repoId)), ...ask]);
+    }
+    if (go.length) await runTests(runId, go, expect);
   }
 
   function drain(runs: RunLike[]): void {
-    for (const [key, { runId, repoId }] of [...pending]) {
+    for (const [key, { runId, repoId, expect }] of [...pending]) {
       if (blockedBy(runs, runId, repoId)) continue;
       pending.delete(key);
-      void enqueue(runId, repoId);
+      void enqueue(runId, repoId, expect);
     }
   }
 
@@ -178,14 +216,22 @@ export function createAutotestFlow(deps: FlowDeps): AutotestFlow {
     },
     runTests,
     async answer(runId, answer) {
-      const repoIds = runAsk(runId);
+      const items = runAsk(runId);
       setRunAsk(runId, []);
-      if (!repoIds.length) return;
-      rememberAnswer(repoIds, answer);
-      if (answer === "yes") await runTests(runId, repoIds);
+      if (!items.length) return;
+      rememberAnswer(items, answer);
+      if (answer === "yes") await runTests(runId, items.map((i) => i.repoId), Object.fromEntries(items.map((i) => [i.repoId, i.fingerprint])));
     },
     async idle() {
       while (work.size) await Promise.allSettled([...work]);
+    },
+    prime(runs) {
+      seen = new Map(runs.map((r) => [r.agentId, r.status]));
+    },
+    reset() {
+      seen = new Map();
+      for (const { runId, repoId } of pending.values()) if (repoResult(runId, repoId)?.status === "waiting") dropRepoResult(runId, repoId);
+      pending.clear();
     },
   };
 }
@@ -193,6 +239,7 @@ export function createAutotestFlow(deps: FlowDeps): AutotestFlow {
 /** Whether a Re-run of this run's tests would start now (not while it or another run on its repositories is live, nor twice). */
 export function canRunTests(runs: RunLike[], runId: string, repoIds: string[]): boolean {
   if (!repoIds.length) return false;
+  if (runs.find((r) => r.agentId === runId)?.location) return false;
   if (repoIds.some((r) => blockedBy(runs, runId, r))) return false;
   return !runResults(runId).some((r) => r.status === "running" || r.status === "waiting");
 }

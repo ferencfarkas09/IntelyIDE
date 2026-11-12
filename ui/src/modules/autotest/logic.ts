@@ -239,6 +239,10 @@ export interface RunLike {
   agentId: string;
   status: string;
   repoIds: string[];
+  /** The server the run worked on; absent or null = this computer. */
+  location?: string | null;
+  /** The run could not write (read-only permission). */
+  readOnly?: boolean;
 }
 
 export const isLive = (status: string): boolean => status === "running" || status === "needsYou";
