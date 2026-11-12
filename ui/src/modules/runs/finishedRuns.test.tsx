@@ -11,7 +11,7 @@ import { installDomStubs } from "../../store/testing-u2";
 import { toast } from "../../ui-kit";
 import { closedRuns, closeRuns, resetClosed } from "./closed";
 import { SessionsSidebar } from "./SessionsSidebar";
-import { sessionStatus, setSessionFilter, setSessionStatus } from "./state";
+import { sessionStatus, setCentreView, setSessionFilter, setSessionStatus } from "./state";
 import { NO_FILTER } from "./sessionsLogic";
 
 installDomStubs();
@@ -64,6 +64,7 @@ afterEach(() => {
   resetClosed();
   setSessionFilter(NO_FILTER);
   setSessionStatus("all");
+  setCentreView("run");
   vi.restoreAllMocks();
 });
 
@@ -320,6 +321,24 @@ describe("the filter pills of the runs list", () => {
 
     fireEvent.click(pill(/^All/));
     expect(groupTitles()).toHaveLength(4);
+  });
+
+  it("the Inbox button says how many requests wait and shows the count on the icon", async () => {
+    startAgentStore(mixedIpc());
+    await until(() => agentRows().length === 4, "runs");
+    render(() => <SessionsSidebar />);
+    const inbox = screen.getByRole("button", { name: /^Inbox/ });
+    const count = document.querySelector(".sessions__inbox-count");
+    // the number on the icon is for the eye only; the button's name carries it for a screen reader
+    if (count) {
+      expect(count.getAttribute("aria-hidden")).toBe("true");
+      expect(inbox.getAttribute("aria-label")).toMatch(new RegExp(`^Inbox, ${count.textContent} request`));
+    } else {
+      expect(inbox.getAttribute("aria-label")).toBe("Inbox");
+    }
+    expect(inbox.getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(inbox);
+    expect(screen.getByRole("button", { name: /^Inbox/ }).getAttribute("aria-pressed")).toBe("true");
   });
 
   it("keeps the role and repository filters, and the counts of the pills follow them", async () => {

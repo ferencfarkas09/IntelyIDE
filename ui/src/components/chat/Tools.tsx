@@ -170,7 +170,7 @@ export function ToolCard(props: {
         </span>
         <Show when={delta()}>
           {(d) => (
-            <span class="tool-card__delta ui-tnum" aria-label={t("chat.tool.delta", { added: d().added, removed: d().removed })}>
+            <span class="tool-card__delta ui-tnum" role="img" aria-label={t("chat.tool.delta", { added: d().added, removed: d().removed })}>
               <span class="tool-card__delta-add" aria-hidden="true">+{d().added}</span>
               <span class="tool-card__delta-del" aria-hidden="true">-{d().removed}</span>
             </span>

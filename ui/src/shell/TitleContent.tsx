@@ -1,4 +1,4 @@
-import { createMemo, createResource, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createMemo, createResource, createSignal, For, on, onCleanup, onMount, Show } from "solid-js";
 import { ipc } from "../ipc";
 import { appMode, modeView, setAppMode } from "../platform/mode";
 import { needsYouCount } from "../store/agents";
@@ -8,7 +8,7 @@ import { t, type MessageKey } from "../i18n";
 import { AheadBehind, Badge, BrandButton, Chip, Icon, IconButton, Kbd, Lock, Menu, MiddleEllipsis, Monitor, Moon, Search, SegmentedControl, Settings, Sun, Tooltip, setThemePreference, themePreference, type ThemePreference } from "../ui-kit";
 import { execute } from "../platform/commands";
 import { formatChord } from "../platform/keymap";
-import { setPopupRepo } from "../modules/branches/uiState";
+import { popupRepo, setPopupRepo } from "../modules/branches/uiState";
 import { AboutDialog, openAbout } from "./AboutDialog";
 import { openSettings } from "../platform/settings";
 import { BranchPopup } from "./BranchPopup";
@@ -57,7 +57,7 @@ export function TitleLeft() {
 }
 
 /** Chips that do not fit on the one line of the title bar wrap to a second, clipped line: they are counted here and offered under "N more". */
-function hiddenChips(row: HTMLElement): string[] {
+export function hiddenChips(row: HTMLElement): string[] {
   const out: string[] = [];
   for (const el of Array.from(row.children) as HTMLElement[]) {
     const hidden = el.offsetTop > 4;
@@ -87,6 +87,14 @@ export function TitleCenter() {
     return snap?.head.branch ?? (snap?.head.detached ? t("title.detached") : snap ? t("title.noCommits") : "…");
   };
   const more = createMemo(() => repos().filter((r) => clipped().includes(r.id)));
+  // A branch popup opened from "N more" belongs to a chip that is clipped and inert: when it closes, the focus goes back to
+  // "N more" instead of falling to the page.
+  let moreChip: HTMLElement | undefined;
+  createEffect(
+    on(popupRepo, (now, before) => {
+      if (now === null && before && clipped().includes(before)) queueMicrotask(() => moreChip?.isConnected && moreChip.focus());
+    }),
+  );
   return (
     <div class="ttl" data-tauri-drag-region="deep">
       <Switcher />
@@ -125,7 +133,7 @@ export function TitleCenter() {
           placement="bottom-end"
           items={more().map((r) => ({ label: r.name, description: branchOf(r.id), onSelect: () => setPopupRepo(r.id) }))}
           trigger={(tp) => (
-            <Chip {...tp} size="sm" dashed class="ttl__more" aria-label={t("title.moreReposAria", { count: more().length })} data-testid="title-more-repos">
+            <Chip {...tp} ref={(el: HTMLButtonElement) => ((moreChip = el), tp.ref(el))} size="sm" dashed class="ttl__more" aria-label={t("title.moreReposAria", { count: more().length })} data-testid="title-more-repos">
               {t("title.moreRepos", { count: more().length })}
             </Chip>
           )}
