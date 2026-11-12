@@ -35,7 +35,7 @@ wire_enums! {
 #[serde(rename_all = "camelCase")]
 pub struct ConfirmOffer {
     pub kind: ConfirmKind,
-    /// The rule that stopped it (`read.never-read`, `fs.protected`, `fs.protected-arg`, `script.protected-path`, `cli.prompt-denied`).
+    /// The rule that stopped it (`read.never-read`, `fs.protected`, `cli.prompt-denied`).
     pub rule: String,
     /// The exact thing: a canonical path (`SecretFile`) or the CLI's own reason text (`CliPrompt`).
     pub scope: String,
@@ -113,18 +113,16 @@ const fn confirm(rule: &'static str, variant: &'static str, reason: &'static str
 /// when a rule id is missing here, so a new stop must be classified when it is added.
 pub const CLASSIFICATION: &[RuleClass] = &[
     // ---- tier 2: the person may allow one exact thing ----
-    confirm("read.never-read", "a secret-looking file inside a folder of the run", "the file is the person's own project file; content that is read goes to the model provider, which the card says"),
-    confirm("fs.protected", "a `.env` file inside a folder of the run", "an edit to a project-local env file is visible in the diff before any commit; the card names the exact path"),
-    confirm("fs.protected-arg", "a `.env` file inside a folder of the run", "the same file as `fs.protected`, named by a shell command"),
+    confirm("read.never-read", "a secret-looking file inside a folder of the run, read with the Read or Grep tool", "the file is the person's own project file and the card says that the content goes to the model provider; no shell command is ever lifted: the shell cannot be asked about a file"),
+    confirm("fs.protected", "a `.env` file inside a folder of the run, edited with the Edit, Write, MultiEdit or NotebookEdit tool", "an edit to a project-local env file is visible in the diff before any commit; the card names the exact path"),
     confirm("cli.prompt-denied", "a prompt of the Claude CLI that Automatic and Bypass cannot answer", "the command is still judged by every other rule here; the CLI's text heuristics (braces with quotes, `cd` with a redirect, parser limits) are about its own matching"),
     // ---- tier 1: never overridable ----
-    never("read.never-read", "everything else: credential folders and stores of other tools (~/.ssh, ~/.aws, ~/.gnupg, ~/.kube, ~/.azure, ~/.op, ~/.config/gh, Library/Keychains), history files, .npmrc/.netrc/.git-credentials, private keys by name (id_rsa*, id_ed25519*), ~/.claude secrets and transcripts, the IDE state directory, wrangler credentials, tunnel and MCP temp folders, and any secret outside the run's folders"),
+    never("read.never-read", "everything else (every shell command that names a secret file, scripts and inline code included, and Glob and LS): credential folders and stores of other tools (~/.ssh, ~/.aws, ~/.gnupg, ~/.kube, ~/.azure, ~/.op, ~/.config/gh, Library/Keychains), history files, .npmrc/.netrc/.git-credentials, private keys by name (id_rsa*, id_ed25519*), ~/.claude secrets and transcripts, the IDE state directory, wrangler credentials, tunnel and MCP temp folders, and any secret outside the run's folders"),
     never("fs.protected", "everything else: `.git`, `.husky`, `.claude`, refs/intely, lockfiles (a hand edit can swap a dependency source: package managers write them), the IDE state and settings, code of enabled MCP servers, persistence places"),
-    never("fs.protected-arg", "everything else, as for `fs.protected`"),
+    never("fs.protected-arg", "a shell command that names a protected path, `.env` files included (the file tools are the only question; the reason tells the agent to use them)"),
     never("fs.outside-jail", "writes outside the run's folders: the folders are the boundary the person chose"),
     never("exec.raw-text", "the Bypass text search for what the analyser cannot judge: it guards git writes and credentials"),
     never("exec.too-long", "an oversized command that mentions a git write or Cloudflare credentials cannot be judged"),
-    never("exec.secret-sink", "a command that names a granted secret file and is more than plain readers of it (a git command, an interpreter, a network tool, a redirect, an unknown program): the grant lifts only readers (allow-list), whatever the spelling"),
     never("exec.catastrophic", "disk wipes, device writes, recursive removal of the home or run folders"),
     never("exec.proc-env", "other processes' environments hold secrets"),
     never("exec.system-secrets", "security, osascript, dscl reach the Keychain, accounts and system scripting"),

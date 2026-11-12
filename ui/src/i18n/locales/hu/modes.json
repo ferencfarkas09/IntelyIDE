@@ -91,7 +91,7 @@
   "stops.ask.secretFile": "Elolvashatja a(z) {what} titkos fájlt?",
   "stops.ask.secretEdit": "Módosíthatja a(z) {what} env fájlt?",
   "stops.ask.cliPrompt": "Lefuttat egy parancsot, amit a Claude CLI megjelölt: „{what}”",
-  "stops.why.secretFile": "Az ügynök normál esetben soha nem olvas titkos fájlt. Ha engedélyezed, a tartalma a modellszolgáltatóhoz kerül, és naplókba, átiratokba is bekerülhet. Ha a parancs hálózaton keresztül tud adatot küldeni, a tartalom el is hagyhatja ezt a számítógépet.",
+  "stops.why.secretFile": "Az ügynök normál esetben soha nem olvas titkos fájlt. Ha engedélyezed, a tartalma a modellszolgáltatóhoz kerül, és naplókba, átiratokba is bekerülhet.",
   "stops.why.secretEdit": "Az ügynök normál esetben soha nem módosít env fájlt, mert titkokat tartalmaz. Ha engedélyezed, az új tartalom a modellszolgáltatóhoz kerül, és naplókba, átiratokba is bekerülhet.",
   "stops.why.cliPrompt": "A Claude CLI saját biztonsági ellenőrzése megjelölte ezt a parancsot, és a kérdés nélküli futás nem tud rá válaszolni. Az IDE összes többi szabálya már engedte a parancsot.",
   "stops.who": "{role} kéri",

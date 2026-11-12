@@ -10,7 +10,6 @@ pub mod glob;
 pub mod hardstop;
 pub mod intent;
 pub mod paths;
-pub mod secret_cmd;
 pub mod session_allow;
 pub mod shellparse;
 

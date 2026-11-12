@@ -17,6 +17,9 @@ export const DENY_MARK = 'INTELY-HARDSTOP';
 /** How many tier-2 cards one tool call may raise (a command that names several secret files asks for each). */
 export const MAX_CONFIRM_ROUNDS = 4;
 
+/** The texts of a result that the CLI itself made when it refused or interrupted a call (it never ran). */
+const CLI_OWN_REFUSAL = /^(The user doesn't want to proceed|\[Request interrupted|Permission to use .{1,80} has been denied|User rejected|INTELY-HARDSTOP)/i;
+
 /**
  * What the model is told when the person declined a tier-2 stop (or nobody could answer it): which stop, that it stays, and what to do instead.
  * The person's own words (a deny with a note) ride along.
@@ -276,10 +279,13 @@ export class ToolGate {
    * ever answering it (the CLI skipped the question) is a breach: a stop AFTER THE FACT, not a prevention (the call cannot be undone). A call
    * that ended in an error was refused or never started, so it is not one.
    */
-  noteResult(toolUseId: string, isError: boolean): void {
+  noteResult(toolUseId: string, isError: boolean, text = ''): void {
     if (!this.askedByHook.delete(toolUseId)) return;
     const answered = this.confirmedTools.delete(toolUseId);
-    if (!answered && !isError && !this.o.denied.has(toolUseId)) this.breach(toolUseId);
+    if (answered || this.o.denied.has(toolUseId)) return;
+    // only the CLI's own refusal or interruption is no breach: an error result with output is a call that RAN and failed (`exit 1`)
+    if (isError && CLI_OWN_REFUSAL.test(text.trim())) return;
+    this.breach(toolUseId);
   }
 
   /** Stop after the fact: the call ran although its card was never answered. It cannot be undone, so the run stops and says so. */

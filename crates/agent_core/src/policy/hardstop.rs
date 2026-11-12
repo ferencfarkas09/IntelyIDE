@@ -20,12 +20,15 @@ mod vars;
 pub use facts::{raw_text_stop, PROC_ENV_PROGRAMS};
 pub(crate) use facts::HARMLESS_DEVICES;
 
+/// What the agent is told when a shell command names a secret file of the run's own project, or a `.env` file it would write: the shell is never
+/// asked about it, the file tools are.
+pub(crate) const USE_READ_TOOL: &str = ". Use the Read tool on it instead: the person is then asked and can allow it";
+pub(crate) const USE_EDIT_TOOL: &str = ". Use the Edit or Write tool on it instead: the person is then asked and can allow it";
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HardStop {
     pub rule: String,
     pub reason: String,
-    /// Set only by a tier-2 stop (`policy::confirm`): what a person could allow. `None` = tier 1.
-    pub confirm: Option<super::confirm::ConfirmOffer>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -296,14 +299,7 @@ impl<'a> Walker<'a> {
 
     fn stop(&mut self, rule: &str, reason: &str) {
         if self.a.hard_stop.is_none() {
-            self.a.hard_stop = Some(HardStop { rule: rule.to_string(), reason: reason.to_string(), confirm: None });
-        }
-    }
-
-    /// [`Walker::stop`] for a tier-2 rule: `confirm` is what a person could allow instead.
-    fn stop_confirmable(&mut self, rule: &str, reason: &str, confirm: Option<super::confirm::ConfirmOffer>) {
-        if self.a.hard_stop.is_none() {
-            self.a.hard_stop = Some(HardStop { rule: rule.to_string(), reason: reason.to_string(), confirm });
+            self.a.hard_stop = Some(HardStop { rule: rule.to_string(), reason: reason.to_string() });
         }
     }
 
@@ -423,10 +419,9 @@ impl<'a> Walker<'a> {
             return;
         }
         let p = paths::resolve(&self.cwd, &word.text, self.jail.home.as_deref());
-        if let Some(why) = self.jail.protected_reason_ask(&p) {
-            // a redirect into a `.env` file of the run's own project is the same question as an edit of it (tier 2)
-            let offer = if why == ".env*" { self.jail.confirm_offer("fs.protected", &p, true) } else { None };
-            self.stop_confirmable("fs.protected", &format!("writes {why}"), offer);
+        if let Some(why) = self.jail.protected_reason(&p) {
+            let hint = if why == ".env*" && self.jail.confirm_offer("fs.protected", &p, true).is_some() { USE_EDIT_TOOL } else { "" };
+            self.stop("fs.protected", &format!("writes {why}{hint}"));
         } else {
             self.note_exec_surface(&p, &word.text);
         }

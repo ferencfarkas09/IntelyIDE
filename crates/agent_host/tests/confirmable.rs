@@ -367,58 +367,18 @@ fn for_this_run_on_a_cli_prompt_is_the_exact_reason_only() {
     r.host.shutdown();
 }
 
-impl Rig {
-    /// A card of a confirmable stop of ONE tool call that meets several: same tool id, request ids `m`, `m-c1`, ...
-    fn call_card(&self, id: &str, req: &str, tool: &str, command: &str, file: &str) {
-        let intent = json!({"class": "exec", "tool": "Bash", "rawCommand": command, "summary": command});
-        let ev = json!({"kind": "permission.request", "reqId": req, "toolId": tool, "intent": intent,
-            "options": ["allow_once", "allow_run", "allow_always", "deny"],
-            "confirm": {"kind": "secretFile", "rule": "read.never-read", "scope": file, "repo": self.repo.path.to_string_lossy()}});
-        self.host.send(id, &json!({ "events": [ev] }).to_string()).expect("send");
-        self.sink.wait(id, "the card", 10, |e| matches!(&e.kind, EventKind::PermissionRequest { req_id, .. } if req_id == req));
-    }
-
-    fn decide_call(&self, id: &str, tool: &str, command: &str) -> Decision {
-        let ctx = self.host.context(id).unwrap();
-        let mut i = ToolIntent::exec(command);
-        i.summary = command.into();
-        decide(&ctx, &PolicyRequest { agent_id: id.into(), tool_id: tool.into(), provider: "claude".into(), intent: i }).decision
-    }
-}
-
 #[test]
-fn a_command_with_two_stops_asks_twice_and_the_second_once_works() {
-    for second in [PermissionDecision::AllowOnce, PermissionDecision::AllowRun] {
-        let r = Rig::new(true);
-        let id = r.start(Automatic).agent_id;
-        std::fs::write(r.repo.path.join("a.pem"), "x").unwrap();
-        let (env, pem) = (r.env(), r.repo.path.join("a.pem").to_string_lossy().into_owned());
-        let cmd = "cat .env a.pem";
-        assert_eq!(r.decide_call(&id, "T", cmd), Decision::Deny);
-        r.call_card(&id, "m1", "T", cmd, &env);
-        r.host.answer_permission(&id, "m1", PermissionDecision::AllowOnce).expect("first once");
-        // what the gate does next: judge again, and meet the next stop
-        assert_eq!(r.decide_call(&id, "T", cmd), Decision::Deny, "the second file still asks");
-        r.call_card(&id, "m1-c1", "T", cmd, &pem);
-        r.host.answer_permission(&id, "m1-c1", second).unwrap_or_else(|e| panic!("{second:?} on the second card of the same call: {e:?}"));
-        assert_eq!(r.answers("m1-c1")[0]["outcome"], "allow");
-        assert_eq!(r.decide_call(&id, "T", cmd), Decision::Allow, "both lifted for that call ({second:?})");
-        assert_eq!(r.decide_call(&id, "OTHER", cmd), if second == PermissionDecision::AllowRun { Decision::Allow } else { Decision::Deny });
-        r.host.shutdown();
-    }
-}
-
-#[test]
-fn a_no_on_the_second_card_leaves_the_call_refused() {
+fn a_shell_card_is_never_honoured_the_host_derives_no_offer_for_a_command() {
+    // a card (forged, or from an older gate) that asks to lift a stop of a shell command: the rules offer nothing for it, so nothing is granted
     let r = Rig::new(true);
     let id = r.start(Automatic).agent_id;
-    std::fs::write(r.repo.path.join("a.pem"), "x").unwrap();
-    let (env, pem) = (r.env(), r.repo.path.join("a.pem").to_string_lossy().into_owned());
-    r.call_card(&id, "m1", "T", "cat .env a.pem", &env);
-    r.host.answer_permission(&id, "m1", PermissionDecision::AllowOnce).unwrap();
-    r.call_card(&id, "m1-c1", "T", "cat .env a.pem", &pem);
-    r.host.answer_permission(&id, "m1-c1", PermissionDecision::Deny).unwrap();
-    assert_eq!(r.answers("m1-c1")[0]["outcome"], "deny");
-    assert_eq!(r.decide_call(&id, "T", "cat .env a.pem"), Decision::Deny);
+    let env = r.env();
+    let intent = json!({"class": "exec", "tool": "Bash", "rawCommand": "cat .env", "summary": "cat .env"});
+    r.card(&id, "s1", intent, json!({"kind": "secretFile", "rule": "read.never-read", "scope": env, "repo": r.repo.path.to_string_lossy()}));
+    for d in [PermissionDecision::AllowOnce, PermissionDecision::AllowRun] {
+        assert_eq!(code(r.host.answer_permission(&id, "s1", d)), "rulesMoved");
+    }
+    assert_eq!(code(r.host.answer_permission_with(&id, "s1", PermissionDecision::AllowAlways, AnswerExtra { confirm_always: true, ..Default::default() })), "rulesMoved");
+    assert!(r.host.context(&id).unwrap().stop_grants.is_empty() && r.store.list().is_empty());
     r.host.shutdown();
 }

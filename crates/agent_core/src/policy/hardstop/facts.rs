@@ -3,6 +3,7 @@
 //! `read.never-read` on operands and redirects, `exec.proc-env` and `exec.catastrophic`. Everything here is best-effort TEXT
 //! analysis like the rest of `hardstop.rs`: it closes the routes the analyser can see.
 
+use super::USE_READ_TOOL;
 use std::path::Path;
 
 use super::protected_args::{candidates, code_like, code_tokens};
@@ -326,18 +327,18 @@ impl<'a> Walker<'a> {
                     && self.memory_reader
                     && (self.jail.is_claude_memory_folder(&p) || (self.jail.is_claude_memory_note(&p) && !fsview::is_dir(&p)) || pattern_in_memory);
                 if !own_memory {
-                    if let Some(why) = self.jail.never_read_reason_ask(&p) {
+                    if let Some(why) = self.jail.never_read_reason(&p) {
                         // ...except a bare name that is secret only by its extension (`line.key`, `event.key`: a property access in
                         // code), which counts only when a file of that name is where the command runs (one look per name, capped)
                         if program_text && why == "secret file" && !cand.starts_with("file://") && bare_name(lit) && paths::secret_by_extension_only(lit) && !self.ext_name_exists(&p) {
                             return;
                         }
-                        // a secret-looking file of the run's own project may be allowed by a person (tier 2); every other place is not
-                        let offer = if why == "secret file" { self.jail.confirm_offer("read.never-read", &p, false) } else { None };
+                        // a secret-looking file of the run's own project: the shell cannot be asked about it (no grant lifts a command), but the Read tool can
+                        let hint = if why == "secret file" && self.jail.confirm_offer("read.never-read", &p, false).is_some() { USE_READ_TOOL } else { "" };
                         if program_text {
-                            self.stop_confirmable("read.never-read", &format!("the script or inline code mentions {lit}, which names a secret file ({}); a secret or IDE-state path is never read by an agent ({why})", p.display()), offer);
+                            self.stop("read.never-read", &format!("the script or inline code mentions {lit}, which names a secret file ({}); a secret or IDE-state path is never read by an agent ({why}){hint}", p.display()));
                         } else {
-                            self.stop_confirmable("read.never-read", &format!("{} is a secret or IDE-state path and is never read by an agent ({why})", p.display()), offer);
+                            self.stop("read.never-read", &format!("{} is a secret or IDE-state path and is never read by an agent ({why}){hint}", p.display()));
                         }
                         return;
                     }

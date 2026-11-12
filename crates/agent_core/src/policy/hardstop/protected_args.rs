@@ -6,6 +6,7 @@
 //! `.claude`, the IDE state directory, or a lockfile stops the command, except for a short list of readers (and
 //! the read-only git verbs), and only while none of their output options is present.
 
+use super::USE_EDIT_TOOL;
 use super::{base_name, paths, Walker, Word};
 
 /// Programs that only read the files they are given. An output option (`-o`, `--output`) takes them off the list.
@@ -130,11 +131,11 @@ impl<'a> Walker<'a> {
             return false;
         }
         let p = paths::resolve(&self.cwd, cand, self.jail.home.as_deref());
-        match if mention { self.jail.mention_protected_reason_ask(&p) } else { self.jail.protected_reason_ask(&p) } {
+        match if mention { self.jail.mention_protected_reason(&p) } else { self.jail.protected_reason(&p) } {
             Some(why) => {
                 let name = if base.is_empty() { base_name(cand) } else { base.to_string() };
-                let offer = if why == ".env*" && writes { self.jail.confirm_offer("fs.protected-arg", &p, true) } else { None };
-                self.stop_confirmable("fs.protected-arg", &format!("{name} names {why} ({cand}); only the human edits it"), offer);
+                let hint = if why == ".env*" && self.jail.confirm_offer("fs.protected-arg", &p, true).is_some() { USE_EDIT_TOOL } else { "" };
+                self.stop("fs.protected-arg", &format!("{name} names {why} ({cand}); only the human edits it{hint}"));
                 true
             }
             None => {

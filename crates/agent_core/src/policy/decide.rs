@@ -568,23 +568,10 @@ fn decide_exec(eff: &Eff, intent: &ToolIntent, jail: &Jail) -> PolicyDecision {
         (None, Some(argv)) if !argv.is_empty() => Some(analyze_argv(argv, jail)),
         _ => None,
     };
-    // A grant lifts a stop only for a command that is nothing but readers of the file (`policy::secret_cmd`). The card is offered only when the
-    // command would pass that test once the person said yes: judged again as if the stop were lifted, on the analyser's own (unquoted) words.
+    // A shell command is never lifted by a grant and never carries an offer: every form that names a secret file of the project stays refused
+    // (the reason tells the agent to use the Read tool, where the person is asked). Only the file tools are a question (tier 2).
     if let Some(stop) = analysis.as_ref().and_then(|a| a.hard_stop.as_ref()) {
-        let offer = stop.confirm.clone().filter(|o| {
-            let yes_jail = jail.as_if_allowed(o.kind);
-            let yes = match (&intent.raw_command, &intent.argv) {
-                (Some(raw), _) => Some(analyze(raw, &yes_jail)),
-                (None, Some(argv)) if !argv.is_empty() => Some(analyze_argv(argv, &yes_jail)),
-                _ => None,
-            };
-            // (writers and redirects count only when the probe really met an edit stop: `cat .env > copy.txt` is not an edit of the secret)
-            yes.is_some_and(|y| y.hard_stop.is_none() && super::secret_cmd::reader_only(&y, yes_jail.lifted_edit()))
-        });
-        return hard_stop_offer(eff, &stop.rule, format!("{} (commit, push and stage-all are done by the human in the IDE)", stop.reason), offer, false);
-    }
-    if jail.lifted() && !analysis.as_ref().is_some_and(|a| super::secret_cmd::reader_only(a, jail.lifted_edit())) {
-        return hard_stop("exec.secret-sink", "a grant for a secret file lifts only plain readers of it (cat, head, grep ...); this command does more (a write, a git command, a program that can send data away, an interpreter): run the read on its own");
+        return hard_stop(&stop.rule, format!("{} (commit, push and stage-all are done by the human in the IDE)", stop.reason));
     }
     // Bypass has no static check for what the analyser cannot judge; the raw text is searched instead (spec 2.3.1 `exec.raw-text`).
     if eff.mode == PermissionMode::Bypass && analysis.as_ref().is_some_and(|a| !a.issues.is_empty()) {
@@ -666,6 +653,7 @@ fn decide_write(eff: &Eff, intent: &ToolIntent, jail: &Jail) -> PolicyDecision {
         }
     }
     for p in &resolved {
+        // (the file tools that write: Edit, Write, MultiEdit, NotebookEdit)
         if let Some(why) = jail.protected_reason_ask(p) {
             // (only a `.env` file is a question; the IDE state directory inside a run folder is not)
             let offer = if why == ".env*" { jail.confirm_offer("fs.protected", p, true) } else { None };
@@ -740,8 +728,11 @@ fn decide_read(eff: &Eff, intent: &ToolIntent, jail: &Jail) -> PolicyDecision {
         }
         return allow("read.memory-note", "a Claude memory note of one of this run's folders");
     }
-    if let Some((p, why)) = resolved.iter().find_map(|p| jail.never_read_reason_ask(p).map(|w| (p, w))) {
-        return hard_stop_offer(eff, "read.never-read", format!("{why}: {} is on the agent never-read list", p.display()), jail.confirm_offer("read.never-read", p, false), true);
+    // (a grant is consulted only for the Read and Grep tools: Glob and LS name no content, and nothing else is a question)
+    let asks = matches!(intent.tool.as_deref(), Some("Read" | "Grep"));
+    let never = |p: &PathBuf| if asks { jail.never_read_reason_ask(p) } else { jail.never_read_reason(p) };
+    if let Some((p, why)) = resolved.iter().find_map(|p| never(p).map(|w| (p, w))) {
+        return hard_stop_offer(eff, "read.never-read", format!("{why}: {} is on the agent never-read list", p.display()), jail.confirm_offer("read.never-read", p, false).filter(|_| asks), true);
     }
     if let Some(d) = denied_by_role_list(eff, intent) {
         return d;

@@ -844,15 +844,15 @@ describe('a tier-2 call that runs without its card being answered', () => {
     expect(breached).toBe(1);
     expect((out.find((e) => e.kind === 'error') as any)?.message).toContain('ran without it');
   });
-  it('is not a breach when the CLI never asked and the call ended in an error, or when a grant arrived and the call was let through', async () => {
+  it('is not a breach when the CLI refused the call itself, or when a grant arrived and the call was let through', async () => {
     let breached = 0;
     const st = { granted: false };
     const policy: PolicyClient = { decide: async () => (st.granted ? { decision: 'allow', by: 'default' } : stop) };
     const { gate } = rig(policy, { mode: 'automatic' });
     (gate as any).o.onBreach = () => { breached++; };
-    // B: the hook asked, the CLI never called canUseTool (turn stopped, refused by itself): the result is an error
+    // B: the hook asked, the CLI never called canUseTool and refused the call itself: the result is the CLI's own refusal text
     await hook(gate, 'Read', { file_path: '/work/.env' }, 'f1');
-    gate.noteResult('f1', true);
+    gate.noteResult('f1', true, "The user doesn't want to proceed with this tool use. The tool use was rejected.");
     // A: the hook asked, a grant arrived and the epoch moved, canUseTool finds an allow and lets the call through
     await hook(gate, 'Read', { file_path: '/work/.env' }, 'f2');
     st.granted = true;
@@ -860,6 +860,14 @@ describe('a tier-2 call that runs without its card being answered', () => {
     expect(await gate.canUseTool('Read', { file_path: '/work/.env' }, { toolUseID: 'f2', signal: new AbortController().signal } as never)).toMatchObject({ behavior: 'allow' });
     gate.noteResult('f2', false);
     expect(breached).toBe(0);
+  });
+  it('is a breach when the call RAN and failed (an error result with output): a non-zero exit does not hide it', async () => {
+    let breached = 0;
+    const { gate } = rig(fixed(stop), { mode: 'automatic' });
+    (gate as any).o.onBreach = () => { breached++; };
+    await hook(gate, 'Read', { file_path: '/work/.env' }, 'x1');
+    gate.noteResult('x1', true, 'Exit code 1\nsome output');
+    expect(breached).toBe(1);
   });
   it('covers a helper agent\'s call too (the session reports every result)', async () => {
     let breached = 0;
