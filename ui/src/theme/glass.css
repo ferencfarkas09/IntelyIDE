@@ -20,7 +20,10 @@
   --pane-2: var(--surface-2);
   --pane-3: var(--surface-3);
   --pane-4: var(--surface-4);
-  --radius-card: var(--radius-4);
+  /* Shape of the 1.15 refresh: floating panels, cards inside them, controls. Standard is flatter; Glass rounder (below). */
+  --radius-panel: 10px;
+  --radius-card: 10px;
+  --radius-ctl: var(--radius-3);
   --card-shadow: var(--shadow-sm);
 }
 
@@ -28,7 +31,8 @@
 :root[data-skin="glass"] [data-theme] {
   --radius-3: 10px;
   --radius-4: 16px;
-  --radius-card: 18px;
+  --radius-panel: 16px;
+  --radius-card: 14px;
   --glass-blur: 28px;
   --glass-saturate: 170%;
 }
@@ -55,6 +59,8 @@
     --pane-2: #1b1e34;
     --pane-3: #20233a;
     --pane-4: #272a43;
+    --surface-pane: #13162a;
+    --surface-inset: #0f1124;
     --glass-border: rgba(255, 255, 255, 0.085);
     --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.07);
     --glass-shadow: 0 24px 60px rgba(2, 4, 16, 0.55), 0 4px 14px rgba(2, 4, 16, 0.35);
@@ -83,6 +89,8 @@
     --pane-2: #ffffff;
     --pane-3: #ffffff;
     --pane-4: #f3f4fa;
+    --surface-pane: #fbfbfe;
+    --surface-inset: #f3f4fa;
     --glass-border: rgba(255, 255, 255, 0.7);
     --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.85);
     --glass-shadow: 0 24px 60px rgba(60, 64, 120, 0.2), 0 4px 14px rgba(60, 64, 120, 0.1);

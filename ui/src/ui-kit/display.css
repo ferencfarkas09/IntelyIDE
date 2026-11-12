@@ -221,7 +221,7 @@ button.ui-pill:active { background: var(--surface-4); }
 
 /* ---- Progress ----------------------------------------------------------- */
 @keyframes ui-indeterminate { 0% { transform: translateX(-110%); } 100% { transform: translateX(260%); } }
-.ui-progress { --pc: var(--accent); position: relative; overflow: hidden; height: 4px; border-radius: var(--radius-full); background: var(--surface-active); }
+.ui-progress { --pc: var(--accent-text); position: relative; overflow: hidden; height: 5px; border-radius: var(--radius-full); background: var(--track); }
 .ui-progress[data-size="sm"] { height: 2px; }
 .ui-progress[data-tone="ok"] { --pc: var(--ok); }
 .ui-progress[data-tone="warn"] { --pc: var(--warn); }
