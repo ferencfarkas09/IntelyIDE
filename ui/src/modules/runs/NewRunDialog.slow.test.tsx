@@ -233,7 +233,7 @@ describe("a preview of Auto that never answers", () => {
     render(() => <NewRunDialog />);
     setNewRunOpen(true);
     const d = within((await screen.findByRole("dialog")) as HTMLElement);
-    fireEvent.click(d.getByRole("button", { name: /^admin$/ }));
+    fireEvent.click(d.getByRole("checkbox", { name: /^admin/ }));
     fireEvent.input(d.getByLabelText("Prompt"), { target: { value: "Fix the total" } });
     await wait(AUTO_PREVIEW_PATIENCE_MS + 600);
     expect((d.getByRole("button", { name: "Start run" }) as HTMLButtonElement).disabled).toBe(true);
@@ -246,11 +246,11 @@ describe("a preview of Auto that never answers", () => {
     render(() => <NewRunDialog />);
     setNewRunOpen(true);
     const d = within((await screen.findByRole("dialog")) as HTMLElement);
-    fireEvent.click(d.getByRole("button", { name: /^admin$/ }));
+    fireEvent.click(d.getByRole("checkbox", { name: /^admin/ }));
     fireEvent.input(d.getByLabelText("Prompt"), { target: { value: "Fix the total" } });
     const start = () => d.getByRole("button", { name: "Start run" }) as HTMLButtonElement;
     await waitFor(() => expect(start().disabled).toBe(false), { timeout: AUTO_PREVIEW_PATIENCE_MS + 3000 });
-    const other = [...document.querySelectorAll<HTMLElement>(".newrun__repo")].find((b) => !b.hasAttribute("data-picked"))!;
+    const other = [...document.querySelectorAll<HTMLInputElement>(".newrun__repo input")].find((b) => !b.checked)!;
     fireEvent.click(other);
     await wait(300);
     expect(start().disabled).toBe(false);
@@ -262,7 +262,7 @@ describe("a preview of Auto that never answers", () => {
     render(() => <NewRunDialog />);
     setNewRunOpen(true);
     const d = within((await screen.findByRole("dialog")) as HTMLElement);
-    fireEvent.click(d.getByRole("button", { name: /^admin$/ }));
+    fireEvent.click(d.getByRole("checkbox", { name: /^admin/ }));
     fireEvent.input(d.getByLabelText("Prompt"), { target: { value: "Fix the total" } });
     const start = () => d.getByRole("button", { name: "Start run" }) as HTMLButtonElement;
     expect(start().disabled).toBe(true);

@@ -70,10 +70,7 @@ await shot("picker-write-role-blocked");
 await pickRole(pop, "researcher");
 providerRadio(pop, "Gemini").click();
 await waitFor(() => providerRadio(pop, "Gemini").getAttribute("aria-checked") === "true", { what: "Gemini picked again" });
-for (const b of qa('[aria-label="Repositories"] button', pop)) {
-  const want = text(b).includes("shop-backend");
-  if ((b.getAttribute("aria-pressed") === "true") !== want) b.click();
-}
+pickRepos(pop, (name) => name.includes("shop-backend"));
 await typeInto(q('textarea[aria-label="Prompt"]', pop), "say hello");
 await clickButton("Start run", pop);
 await waitFor(() => q(".run-header"), { what: "the run header after Start", timeout: 60000 });

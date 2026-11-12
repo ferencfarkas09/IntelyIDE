@@ -18,10 +18,7 @@ const wanted = await waitFor(() => qa('[role="radio"]', dlg).find((b) => text(b)
 wanted.click();
 await waitFor(() => wanted.getAttribute("aria-checked") === "true", { what: "the role to be picked" });
 await sleep(150);
-for (const b of qa('[aria-label="Repositories"] button', dlg)) {
-  const want = text(b).includes("shop-backend");
-  if ((b.getAttribute("aria-pressed") === "true") !== want) b.click();
-}
+pickRepos(dlg, (name) => name.includes("shop-backend"));
 await sleep(100);
 // The dialog opens in Automatic, which asks nothing: this scenario answers a permission request, so it runs in the role's own mode (Edit automatically).
 check("the dialog opens in Automatic and offers the five modes", /Automatic/.test(text(q(".mode-card[aria-checked='true']", dlg))) && qa(".mode-card", dlg).length === 5, qa(".mode-card", dlg).map((c) => `${c.dataset.mode}:${c.getAttribute("aria-checked")}`).join(" "));
