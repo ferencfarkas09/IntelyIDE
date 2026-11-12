@@ -26,6 +26,16 @@ pub struct Tools {
     pub emulator: Option<PathBuf>,
 }
 
+/// The system `xcrun`: the only one [`Tools::find`] ever returns.
+const SYSTEM_XCRUN: &str = "/usr/bin/xcrun";
+
+/// The program that brings the Simulator app to the front after a boot, or `None` when the boot did not go through the
+/// system `xcrun` of a Mac. A stand-in `xcrun` (the fixture of the tests) boots no device, so there is no window to show,
+/// and opening the real app from a test run starts a simulator on the machine and slows everything that runs next to it.
+fn simulator_opener(tools: &Tools) -> Option<&'static str> {
+    (cfg!(target_os = "macos") && tools.xcrun.as_deref() == Some(Path::new(SYSTEM_XCRUN))).then_some("/usr/bin/open")
+}
+
 fn is_exec(p: &Path) -> bool {
     p.metadata().is_ok_and(|m| m.is_file() && intely_core::sys::is_executable(&m, p))
 }
@@ -36,7 +46,7 @@ impl Tools {
         let path = env.get("PATH").cloned().or_else(|| std::env::var("PATH").ok()).unwrap_or_default();
         let from = |sub: &str, bin: &str| sdk.map(|s| s.join(sub).join(intely_core::sys::executable_names(bin).remove(0))).filter(|p| is_exec(p));
         Self {
-            xcrun: if cfg!(target_os = "macos") { Some(PathBuf::from("/usr/bin/xcrun")).filter(|p| is_exec(p)) } else { None },
+            xcrun: if cfg!(target_os = "macos") { Some(PathBuf::from(SYSTEM_XCRUN)).filter(|p| is_exec(p)) } else { None },
             adb: intely_core::sys::find_in_path(&path, "adb").filter(|p| p.is_absolute()).or_else(|| from("platform-tools", "adb")),
             emulator: intely_core::sys::find_in_path(&path, "emulator").filter(|p| p.is_absolute()).or_else(|| from("emulator", "emulator")),
         }
@@ -225,8 +235,8 @@ impl Devices {
     /// Boots the simulator and brings the Simulator app to the front.
     pub fn boot_simulator(&self, cwd: &Path, tools: &Tools, env: &HashMap<String, String>, udid: &str) -> Result<(), EngineError> {
         self.simctl(cwd, tools, env, "boot", udid)?;
-        if cfg!(target_os = "macos") {
-            let mut cmd = Command::new("/usr/bin/open");
+        if let Some(open) = simulator_opener(tools) {
+            let mut cmd = Command::new(open);
             cmd.args(["-a", "Simulator"]).stdout(Stdio::null()).stderr(Stdio::null());
             prepare(&mut cmd, env);
             let _ = cmd.status();
@@ -266,5 +276,19 @@ impl Devices {
         } else {
             Err(EngineError::new("deviceFailed", crate::parse::clean(c.stderr.lines().next().unwrap_or("adb failed"), 200)))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_the_system_xcrun_brings_the_simulator_app_to_the_front() {
+        let stand_in = Tools { xcrun: Some(PathBuf::from("/tmp/fake-bin/xcrun")), ..Tools::default() };
+        assert_eq!(simulator_opener(&stand_in), None, "a stand-in xcrun never opens the real Simulator app");
+        assert_eq!(simulator_opener(&Tools::default()), None);
+        let system = Tools { xcrun: Some(PathBuf::from(SYSTEM_XCRUN)), ..Tools::default() };
+        assert_eq!(simulator_opener(&system), cfg!(target_os = "macos").then_some("/usr/bin/open"));
     }
 }
