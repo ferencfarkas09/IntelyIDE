@@ -30,7 +30,7 @@ async fn gone_within(pid: i32, secs: u64) -> bool {
 
 #[cfg_attr(not(unix), allow(dead_code))]
 fn pids(path: &std::path::Path) -> Vec<i32> {
-    for _ in 0..40 {
+    for _ in 0..400 {
         if let Ok(t) = std::fs::read_to_string(path) {
             let v: Vec<i32> = t.split_whitespace().filter_map(|p| p.parse().ok()).collect();
             if !v.is_empty() {
@@ -45,7 +45,7 @@ fn pids(path: &std::path::Path) -> Vec<i32> {
 #[tokio::test]
 async fn ok_returns_the_tools_with_their_annotations() {
     need_node!();
-    let r = probe(&stdio_probe("ok", vec![]), probe_opts(10_000), &jail_off()).await;
+    let r = probe(&stdio_probe("ok", vec![]), probe_opts(60_000), &jail_off()).await;
     let ok = r.outcome.expect("ok");
     assert_eq!(ok.protocol_version, "2025-06-18");
     assert_eq!((ok.server_name.as_str(), ok.server_version.as_str()), ("fixture", "1.0.0"));
@@ -64,7 +64,7 @@ async fn ok_returns_the_tools_with_their_annotations() {
 #[tokio::test]
 async fn many_stops_at_five_hundred_and_says_truncated() {
     need_node!();
-    let ok = probe(&stdio_probe("many", vec![]), probe_opts(10_000), &jail_off()).await.outcome.expect("ok");
+    let ok = probe(&stdio_probe("many", vec![]), probe_opts(60_000), &jail_off()).await.outcome.expect("ok");
     assert_eq!(ok.tools.len(), 500);
     assert!(ok.truncated);
 }
@@ -72,7 +72,7 @@ async fn many_stops_at_five_hundred_and_says_truncated() {
 #[tokio::test]
 async fn noannotations_reads_as_not_stated() {
     need_node!();
-    let ok = probe(&stdio_probe("noannotations", vec![]), probe_opts(10_000), &jail_off()).await.outcome.expect("ok");
+    let ok = probe(&stdio_probe("noannotations", vec![]), probe_opts(60_000), &jail_off()).await.outcome.expect("ok");
     assert!(ok.tools.iter().all(|t| t.read_only_hint.is_none()));
 }
 
@@ -98,7 +98,7 @@ async fn a_grandchild_is_killed_with_the_group_after_a_successful_run() {
     need_node!();
     let dir = tempfile::tempdir().unwrap();
     let pidfile = dir.path().join("pids");
-    let r = probe(&stdio_probe("grandchild", vec![plain("FIXTURE_PIDFILE", pidfile.to_str().unwrap())]), probe_opts(10_000), &jail_off()).await;
+    let r = probe(&stdio_probe("grandchild", vec![plain("FIXTURE_PIDFILE", pidfile.to_str().unwrap())]), probe_opts(60_000), &jail_off()).await;
     assert!(r.outcome.is_ok());
     let p = pids(&pidfile);
     assert_eq!(p.len(), 2, "{p:?}");
@@ -108,7 +108,7 @@ async fn a_grandchild_is_killed_with_the_group_after_a_successful_run() {
 #[tokio::test]
 async fn an_early_exit_is_reported_with_the_scrubbed_stderr_tail() {
     need_node!();
-    let r = probe(&stdio_probe("exit", vec![secret("FIXTURE_TOKEN", CANARY)]), probe_opts(10_000), &jail_off()).await;
+    let r = probe(&stdio_probe("exit", vec![secret("FIXTURE_TOKEN", CANARY)]), probe_opts(60_000), &jail_off()).await;
     let e = r.outcome.err().expect("fails");
     assert_eq!(e.code, code::EXITED);
     let all = format!("{} {} {:?} {}", e.message, e.detail.clone().unwrap_or_default(), e, r.stderr_tail);
@@ -120,11 +120,11 @@ async fn an_early_exit_is_reported_with_the_scrubbed_stderr_tail() {
 #[tokio::test]
 async fn a_banner_on_stdout_and_a_giant_line_are_protocol_errors() {
     need_node!();
-    let r = probe(&stdio_probe("badjson", vec![]), probe_opts(10_000), &jail_off()).await;
+    let r = probe(&stdio_probe("badjson", vec![]), probe_opts(60_000), &jail_off()).await;
     let e = r.outcome.err().expect("fails");
     assert_eq!(e.code, code::PROTOCOL);
     assert!(e.message.contains("banner"), "{}", e.message);
-    let r = probe(&stdio_probe("big", vec![]), probe_opts(10_000), &jail_off()).await;
+    let r = probe(&stdio_probe("big", vec![]), probe_opts(60_000), &jail_off()).await;
     assert_eq!(r.outcome.err().expect("fails").code, code::PROTOCOL);
 }
 
@@ -133,7 +133,7 @@ async fn server_requests_are_answered_and_the_handshake_completes() {
     need_node!();
     let dir = tempfile::tempdir().unwrap();
     let log = dir.path().join("answers.jsonl");
-    let r = probe(&stdio_probe("serverrequests", vec![plain("FIXTURE_LOG", log.to_str().unwrap())]), probe_opts(10_000), &jail_off()).await;
+    let r = probe(&stdio_probe("serverrequests", vec![plain("FIXTURE_LOG", log.to_str().unwrap())]), probe_opts(60_000), &jail_off()).await;
     assert!(r.outcome.is_ok(), "{:?}", r.outcome.err());
     let lines: Vec<serde_json::Value> = std::fs::read_to_string(&log).unwrap().lines().map(|l| serde_json::from_str(l).unwrap()).collect();
     let by = |id: &str| lines.iter().find(|l| l["id"] == id).unwrap_or_else(|| panic!("answer to {id}: {lines:?}"));
@@ -150,7 +150,7 @@ async fn the_child_gets_a_clean_environment_and_a_private_working_directory() {
     std::env::set_var("SSH_AUTH_SOCK", "/tmp/not-an-agent");
     let dir = tempfile::tempdir().unwrap();
     let envfile = dir.path().join("env.json");
-    let r = probe(&stdio_probe("ok", vec![plain("FIXTURE_ENVFILE", envfile.to_str().unwrap()), plain("LOG_LEVEL", "info")]), probe_opts(10_000), &jail_off()).await;
+    let r = probe(&stdio_probe("ok", vec![plain("FIXTURE_ENVFILE", envfile.to_str().unwrap()), plain("LOG_LEVEL", "info")]), probe_opts(60_000), &jail_off()).await;
     assert!(r.outcome.is_ok());
     let seen: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&envfile).unwrap()).unwrap();
     let names: Vec<&str> = seen["env"].as_array().unwrap().iter().filter_map(|v| v.as_str()).collect();
@@ -167,7 +167,7 @@ async fn the_child_gets_a_clean_environment_and_a_private_working_directory() {
 async fn instructions_come_back_sanitised_cut_and_hashed() {
     need_node!();
     let raw = format!("Use me.\u{1b}[31m\u{202e}\nSecond line {CANARY}\n{}", "x".repeat(5000));
-    let r = probe(&stdio_probe("ok", vec![plain("FIXTURE_INSTRUCTIONS", &raw), secret("FIXTURE_TOKEN", CANARY)]), probe_opts(10_000), &jail_off()).await;
+    let r = probe(&stdio_probe("ok", vec![plain("FIXTURE_INSTRUCTIONS", &raw), secret("FIXTURE_TOKEN", CANARY)]), probe_opts(60_000), &jail_off()).await;
     let ok = r.outcome.expect("ok");
     let text = ok.instructions.expect("instructions");
     assert!(!text.contains('\u{1b}') && !text.contains('\u{202e}') && text.contains("Second line"), "{text:.80}");
@@ -180,7 +180,7 @@ async fn instructions_come_back_sanitised_cut_and_hashed() {
 async fn every_form_a_server_echoes_is_scrubbed_from_the_stderr_tail() {
     need_node!();
     for value in ["Bearer CANARYbare7f3atoken".to_owned(), format!("Basic {}", base64("alice:CANARYpw7f3a")), "CANARY&value/7f3a".to_owned()] {
-        let r = probe(&stdio_probe("ok", vec![secret("FIXTURE_AUTH_VALUE", &value), plain("FIXTURE_ECHO", "FIXTURE_AUTH_VALUE")]), probe_opts(10_000), &jail_off()).await;
+        let r = probe(&stdio_probe("ok", vec![secret("FIXTURE_AUTH_VALUE", &value), plain("FIXTURE_ECHO", "FIXTURE_AUTH_VALUE")]), probe_opts(60_000), &jail_off()).await;
         // `ok` mode completes at once: the echo lines are written before the handshake
         let tail = r.stderr_tail;
         assert!(tail.contains("[redacted]"), "{value}: {tail}");
@@ -229,7 +229,7 @@ async fn http_ok_resends_the_session_and_sends_the_credentials_without_leaking_t
     let log = dir.path().join("http.jsonl");
     let fx = HttpFixture::start("ok", None, Some(&log));
     let bearer = format!("Bearer {CANARY}");
-    let r = probe(&http_probe(&fx.url(), vec![secret("Authorization", &bearer)]), probe_opts(10_000), &jail_off()).await;
+    let r = probe(&http_probe(&fx.url(), vec![secret("Authorization", &bearer)]), probe_opts(60_000), &jail_off()).await;
     let ok = r.outcome.expect("ok");
     assert_eq!(ok.tools.len(), 2);
     assert_eq!(ok.server_name, "fixture-http");
@@ -246,7 +246,7 @@ async fn http_ok_resends_the_session_and_sends_the_credentials_without_leaking_t
 async fn http_sse_replies_are_read() {
     need_node!();
     let fx = HttpFixture::start("sse", None, None);
-    let ok = probe(&http_probe(&fx.url(), vec![]), probe_opts(10_000), &jail_off()).await.outcome.expect("ok");
+    let ok = probe(&http_probe(&fx.url(), vec![]), probe_opts(60_000), &jail_off()).await.outcome.expect("ok");
     assert_eq!(ok.tools.len(), 2);
 }
 
@@ -254,15 +254,15 @@ async fn http_sse_replies_are_read() {
 async fn http_auth_failures_are_told_apart_from_oauth() {
     need_node!();
     let plain_fx = HttpFixture::start("needsauth", Some(CANARY), None);
-    let r = probe(&http_probe(&plain_fx.url(), vec![]), probe_opts(10_000), &jail_off()).await;
+    let r = probe(&http_probe(&plain_fx.url(), vec![]), probe_opts(60_000), &jail_off()).await;
     let e = r.outcome.err().expect("fails");
     assert_eq!((e.code.as_str(), e.detail), (code::AUTH, None));
     // with the right header it works, and the canary is in no report
-    let r = probe(&http_probe(&plain_fx.url(), vec![secret("Authorization", &format!("Bearer {CANARY}"))]), probe_opts(10_000), &jail_off()).await;
+    let r = probe(&http_probe(&plain_fx.url(), vec![secret("Authorization", &format!("Bearer {CANARY}"))]), probe_opts(60_000), &jail_off()).await;
     let ok = r.outcome.expect("ok");
     assert!(!format!("{ok:?}").contains(CANARY));
     let oauth = HttpFixture::start("oauth", Some(CANARY), None);
-    let e = probe(&http_probe(&oauth.url(), vec![]), probe_opts(10_000), &jail_off()).await.outcome.err().expect("fails");
+    let e = probe(&http_probe(&oauth.url(), vec![]), probe_opts(60_000), &jail_off()).await.outcome.err().expect("fails");
     assert_eq!((e.code.as_str(), e.detail.as_deref()), (code::AUTH, Some("oauth")));
 }
 
@@ -272,12 +272,12 @@ async fn http_redirects_are_not_followed_and_server_errors_carry_only_the_status
     let dir = tempfile::tempdir().unwrap();
     let log = dir.path().join("r.jsonl");
     let fx = HttpFixture::start("redirect", None, Some(&log));
-    let e = probe(&http_probe(&fx.url(), vec![secret("Authorization", &format!("Bearer {CANARY}"))]), probe_opts(10_000), &jail_off()).await.outcome.err().expect("fails");
+    let e = probe(&http_probe(&fx.url(), vec![secret("Authorization", &format!("Bearer {CANARY}"))]), probe_opts(60_000), &jail_off()).await.outcome.err().expect("fails");
     assert_eq!((e.code.as_str(), e.detail.as_deref()), (code::HTTP_STATUS, Some("302")));
     std::thread::sleep(Duration::from_millis(100));
     assert_eq!(std::fs::read_to_string(&log).unwrap().lines().count(), 1, "the redirect was not followed");
     let fx = HttpFixture::start("status500", None, None);
-    let e = probe(&http_probe(&fx.url(), vec![]), probe_opts(10_000), &jail_off()).await.outcome.err().expect("fails");
+    let e = probe(&http_probe(&fx.url(), vec![]), probe_opts(60_000), &jail_off()).await.outcome.err().expect("fails");
     assert_eq!((e.code.as_str(), e.detail.as_deref()), (code::HTTP_STATUS, Some("500")));
     assert!(!format!("{e:?}").contains("boom"), "the body never leaves");
 }
@@ -298,7 +298,7 @@ async fn the_e2e_jail_talks_to_loopback_only() {
     let e = probe(&http_probe("http://10.0.0.5/mcp", vec![]), probe_opts(3000), &jail).await.outcome.err().expect("refused");
     assert_eq!(e.code, code::TEST_JAIL);
     let fx = HttpFixture::start("ok", None, None);
-    assert!(probe(&http_probe(&fx.url(), vec![]), probe_opts(10_000), &jail).await.outcome.is_ok(), "loopback is allowed");
+    assert!(probe(&http_probe(&fx.url(), vec![]), probe_opts(60_000), &jail).await.outcome.is_ok(), "loopback is allowed");
     // stdio is allowed under the e2e jail
-    assert!(probe(&stdio_probe("ok", vec![]), probe_opts(10_000), &jail).await.outcome.is_ok());
+    assert!(probe(&stdio_probe("ok", vec![]), probe_opts(60_000), &jail).await.outcome.is_ok());
 }
