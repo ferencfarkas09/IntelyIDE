@@ -47,7 +47,8 @@ describe('what is new in 1.15', () => {
     it(`${lang}: shows the gallery and the context meter in both themes`, () => {
       const slots = [...t.gallery.items.map((i) => i.slot), ...t.whatsNew.items.filter((f) => f.shot.length).map((f) => f.shot[0])];
       assert.ok(slots.includes('dashboard') && slots.includes('new-run') && slots.includes('context-meter'));
-      for (const slot of slots) for (const theme of ['light', 'dark']) for (const w of [2880, 1440, 720]) for (const ext of ['png', 'webp']) assert.ok(existsSync(join(SHOTS, `${slot}-${theme}-${w}.${ext}`)), `${slot}-${theme}-${w}.${ext}`);
+      // every width as WebP; the PNG fallback may lack 2880 px where that file would be over the 1 MiB limit of the public tree
+      for (const slot of slots) for (const theme of ['light', 'dark']) for (const [w, ext] of [[2880, 'webp'], [1440, 'webp'], [720, 'webp'], [1440, 'png'], [720, 'png']]) assert.ok(existsSync(join(SHOTS, `${slot}-${theme}-${w}.${ext}`)), `${slot}-${theme}-${w}.${ext}`);
       for (const i of t.gallery.items) assert.ok(i.alt.length > 60 && i.cap.length > 20);
     });
 

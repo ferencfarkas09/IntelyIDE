@@ -17,6 +17,9 @@ from PIL import Image
 
 SHOTS = Path(__file__).resolve().parent.parent / "src/static/assets/img/shots"
 WIDTHS = (2880, 1440, 720)
+# verify-public-tree.mjs refuses a tracked file over 1 MiB. A PNG above it is left out: the WebP has that width, and the pages
+# accept any subset of widths per format.
+MAX_BYTES = 1024 * 1024
 
 
 def main() -> int:
@@ -42,6 +45,9 @@ def main() -> int:
             im = full if w == full.width else full.resize((w, round(full.height * w / full.width)), Image.LANCZOS)
             out = SHOTS / f"{base}-{w}"
             im.save(f"{out}.png", optimize=True)
+            if os.path.getsize(f"{out}.png") > MAX_BYTES:
+                os.unlink(f"{out}.png")
+                print(f"{base}-{w}.png: over 1 MiB, left out (the WebP has this width)")
             im.save(f"{out}.webp", quality=84, method=6)
         done += 1
         print(f"{base}: done")
