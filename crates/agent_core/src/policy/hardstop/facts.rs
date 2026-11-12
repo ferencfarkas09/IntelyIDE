@@ -196,7 +196,7 @@ fn spaced_path(t: &str) -> bool {
     t.contains(char::is_whitespace) && !t.trim().is_empty() && !t.contains(['\n', ';', '|', '&', '<', '>', '(', ')', '{', '}', '"', '\'', '`', '$'])
 }
 
-/// Distinct bare names of program text, secret only by their extension, looked up on the disk per command; the rest count as found.
+/// Distinct (directory, extension) looks per command for names of program text that are secret only by their extension; the rest count as found.
 pub(super) const MAX_EXT_CHECKS: usize = 64;
 
 /// A plain file name: no separator, not `~`, `.`/`..`-relative or absolute (`line.key`, `server.key`; not `./certs/server.pem`).
@@ -364,19 +364,62 @@ impl<'a> Walker<'a> {
         }
     }
 
-    /// Is there a file (a symbolic link too, even a dangling one) at `p`, the lexical path of a bare name of program text in the
-    /// directory the command runs in? Each path is looked up once per command; past [`MAX_EXT_CHECKS`] distinct names the answer is
-    /// yes without a look (fail closed). A look the file system view could not answer marks the decision failed (`fsview::mark_failed`).
+    /// Is a key file of the extension of `p` (`x.pem` of `item.pem`) near the command: in the directory it runs in, in the run's
+    /// folder, or one folder below either (a link too, even a dangling one)? A name that is only an extension (`.key`, what is left of
+    /// `'server' + '.key'`) is never a property access and counts as found. One look per extension and directory per command; a
+    /// folder that cannot be listed, a huge one or a failed look counts as found (fail closed, `fsview::mark_failed`).
     fn ext_name_exists(&mut self, p: &Path) -> bool {
-        if let Some((_, found)) = self.ext_checks.iter().find(|(q, _)| q == p) {
+        let Some(name) = p.file_name().and_then(|n| n.to_str()) else { return true };
+        let Some((_, ext)) = name.rsplit_once('.').filter(|(stem, _)| !stem.is_empty()) else { return true };
+        let ext = ext.to_ascii_lowercase();
+        let key = self.cwd.join(format!(".{ext}"));
+        if let Some((_, found)) = self.ext_checks.iter().find(|(q, _)| *q == key) {
             return *found;
         }
         if self.ext_checks.len() >= MAX_EXT_CHECKS {
             return true;
         }
-        let found = fsview::symlink_metadata(p).is_some() || fsview::exists(p);
-        self.ext_checks.push((p.to_path_buf(), found));
+        let found = self.ext_files_near(&ext);
+        self.ext_checks.push((key, found));
         found
+    }
+
+    fn ext_files_near(&self, ext: &str) -> bool {
+        const MAX_ENTRIES: usize = 4000;
+        const MAX_SUBFOLDERS: usize = 32;
+        let suffix = format!(".{ext}");
+        let mut roots = vec![self.cwd.clone()];
+        if self.jail.cwd != self.cwd {
+            roots.push(self.jail.cwd.clone());
+        }
+        for root in roots {
+            let Some(entries) = fsview::read_dir(&root) else {
+                fsview::mark_failed();
+                return true;
+            };
+            if entries.len() > MAX_ENTRIES {
+                return true;
+            }
+            let mut subs = Vec::new();
+            for e in &entries {
+                if e.name.to_ascii_lowercase().ends_with(&suffix) {
+                    return true;
+                }
+                if e.is_dir && !e.is_symlink && !matches!(e.name.as_str(), "node_modules" | ".git" | "target") {
+                    subs.push(&e.name);
+                }
+            }
+            if subs.len() > MAX_SUBFOLDERS {
+                return true;
+            }
+            for s in subs {
+                let Some(inner) = fsview::read_dir(&root.join(s)) else { return true };
+                if inner.len() > MAX_ENTRIES || inner.iter().any(|e| e.name.to_ascii_lowercase().ends_with(&suffix)) {
+                    return true;
+                }
+            }
+        }
+        false
     }
 
     /// `~` expanded, joined to the working directory and normalised, without touching the filesystem.
