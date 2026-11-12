@@ -108,7 +108,7 @@ fn a_shell_command_naming_a_secret_file_is_refused_and_tells_the_agent_to_use_th
         let d = bash(&ctx(&fx, m), "cat .env");
         assert_eq!((d.decision, d.by, d.rule.as_deref()), (Decision::Deny, DecidedBy::HardStop, Some("read.never-read")), "{m:?}");
         assert!(d.confirm.is_none(), "{m:?}: {d:?}");
-        assert!(d.reason.contains("Use the Read tool"), "the agent must be told what works: {}", d.reason);
+        assert!(d.reason.contains("Use the Read tool"), "the refusal must name the file tool that works ({m:?})");
     }
     // a script or inline code that names the file is refused too, without an offer
     std::fs::write(fx.cwd.join("a.js"), "require('fs').readFileSync('.env');\n").unwrap();
@@ -467,7 +467,7 @@ fn a_redirect_into_a_dot_env_file_is_refused_and_points_at_the_edit_tools() {
         }
     }
     let d = bash(&ctx(&fx, M::Automatic), "echo X=1 > .env");
-    assert!(d.reason.contains("Edit or Write tool") || d.reason.contains("Read tool"), "{}", d.reason);
+    assert!(d.reason.contains("Edit or Write tool") || d.reason.contains("Read tool"), "the refusal must name the file tools");
 }
 
 #[cfg(unix)]
