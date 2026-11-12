@@ -277,7 +277,7 @@ export function PermissionCard(props: { item: PermissionItem; onAnswer: (decisio
                 </Show>
                 <div class="perm__actions" data-testid="stop-actions">
                   <Show when={stopOffers("allowOnce")}><Button size="sm" variant="secondary" onClick={() => answer("allowOnce")}>{t("stops.once")}</Button></Show>
-                  <Show when={stopOffers("allowRun")}><Button size="sm" variant="secondary" title={t("stops.runTip")} onClick={() => answer("allowRun")}>{t("stops.run")}</Button></Show>
+                  <Show when={stopOffers("allowRun")}><Button size="sm" variant="secondary" title={t(props.item.confirm?.kind === "cliPrompt" ? "stops.runTipCli" : "stops.runTip")} onClick={() => answer("allowRun")}>{t("stops.run")}</Button></Show>
                   <Show when={stopOffers("allowAlways")}><Button size="sm" variant="secondary" title={t("stops.alwaysTip")} onClick={askAlways}>{c().kind === "cliPrompt" ? t("stops.alwaysCli") : t("stops.always")}</Button></Show>
                   <Show when={stopOffers("deny")}><Button size="sm" variant="primary" class="perm__deny" data-primary="" title={t("stops.denyTip")} onClick={denyStop}>{t("stops.deny")}</Button></Show>
                 </div>

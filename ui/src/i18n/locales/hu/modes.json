@@ -98,6 +98,7 @@
   "stops.once": "Egyszer engedélyezem",
   "stops.run": "Engedélyezem erre a futásra",
   "stops.runTip": "A futás végéig minden ilyen jellegű tiltást engedélyez.",
+  "stops.runTipCli": "A futás végéig pontosan ezt a Claude CLI-kérdést engedélyezi.",
   "stops.always": "Mindig engedélyezem ehhez a repóhoz",
   "stops.alwaysCli": "Mindig engedélyezem ezt az okot ebben a repóban",
   "stops.alwaysTip": "Megjegyzi pontosan ezt a dolgot ehhez a repóhoz. Az IDE-ben tárolódik, soha nem a repóban; a Beállítások > Biztonság oldalon visszavonhatod.",

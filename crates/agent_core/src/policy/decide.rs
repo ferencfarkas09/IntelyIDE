@@ -651,7 +651,7 @@ fn decide_write(eff: &Eff, intent: &ToolIntent, jail: &Jail) -> PolicyDecision {
         }
     }
     for p in &resolved {
-        if let Some(why) = jail.protected_reason(p) {
+        if let Some(why) = jail.protected_reason_ask(p) {
             return hard_stop_offer(eff, "fs.protected", format!("{why} is never written by an agent ({})", p.display()), jail.confirm_offer("fs.protected", p, true), false);
         }
     }
@@ -723,7 +723,7 @@ fn decide_read(eff: &Eff, intent: &ToolIntent, jail: &Jail) -> PolicyDecision {
         }
         return allow("read.memory-note", "a Claude memory note of one of this run's folders");
     }
-    if let Some((p, why)) = resolved.iter().find_map(|p| jail.never_read_reason(p).map(|w| (p, w))) {
+    if let Some((p, why)) = resolved.iter().find_map(|p| jail.never_read_reason_ask(p).map(|w| (p, w))) {
         return hard_stop_offer(eff, "read.never-read", format!("{why}: {} is on the agent never-read list", p.display()), jail.confirm_offer("read.never-read", p, false), true);
     }
     if let Some(d) = denied_by_role_list(eff, intent) {
@@ -1006,18 +1006,20 @@ fn decide_cli_prompt(eff: &Eff, intent: &ToolIntent, tool_id: &str) -> PolicyDec
     if !super::confirm::cli_reason_confirmable(&reason) {
         return hard_stop("cli.prompt-denied", format!("the Claude CLI raised a prompt that is never answered for the person ({reason})"));
     }
-    if eff.ctx.stop_grants.iter().any(|g| g.covers(super::confirm::ConfirmKind::CliPrompt, &reason, tool_id)) {
-        let g = eff.ctx.stop_grants.iter().find(|g| g.covers(super::confirm::ConfirmKind::CliPrompt, &reason, tool_id));
-        let via = if g.is_some_and(|g| g.scope == super::confirm::ALL_OF_KIND) { crate::events::types::StopGrantScope::Run } else { crate::events::types::StopGrantScope::Always };
+    // (a CLI prompt is granted by its exact reason only; a wildcard grant never covers one)
+    let covering = eff.ctx.stop_grants.iter().find(|g| g.scope != super::confirm::ALL_OF_KIND && g.covers(super::confirm::ConfirmKind::CliPrompt, &reason, tool_id));
+    if let Some(g) = covering {
+        let via = if g.from_list { crate::events::types::StopGrantScope::Always } else { crate::events::types::StopGrantScope::Run };
         let mut d = verdict(Decision::Allow, DecidedBy::Saved, "cli.prompt-granted", "a person allowed this kind of Claude CLI prompt");
         // (a "once" grant was logged with its card)
-        if g.is_some_and(|g| g.tool_id.is_none()) {
-            let offer = ConfirmOffer { kind: super::confirm::ConfirmKind::CliPrompt, rule: "cli.prompt-denied".into(), scope: reason.clone(), repo: eff.ctx.cwd.to_string_lossy().into_owned() };
+        if g.tool_id.is_none() {
+            let offer = ConfirmOffer { kind: super::confirm::ConfirmKind::CliPrompt, rule: "cli.prompt-denied".into(), scope: reason.clone(), repo: canonical_lossy(&eff.ctx.cwd).to_string_lossy().into_owned() };
             d.used_grants = vec![UsedGrant { offer, via }];
         }
         return d;
     }
-    let offer = ConfirmOffer { kind: super::confirm::ConfirmKind::CliPrompt, rule: "cli.prompt-denied".into(), scope: reason.clone(), repo: eff.ctx.cwd.to_string_lossy().into_owned() };
+    // (the canonical folder: the always-list compares canonical folders, and a symlinked project folder must not make the entry unreachable)
+    let offer = ConfirmOffer { kind: super::confirm::ConfirmKind::CliPrompt, rule: "cli.prompt-denied".into(), scope: reason.clone(), repo: canonical_lossy(&eff.ctx.cwd).to_string_lossy().into_owned() };
     hard_stop_offer(eff, "cli.prompt-denied", format!("the Claude CLI raised its own prompt ({reason}), which this run cannot answer on its own"), Some(offer), false)
 }
 

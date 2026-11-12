@@ -130,7 +130,7 @@ impl<'a> Walker<'a> {
             return false;
         }
         let p = paths::resolve(&self.cwd, cand, self.jail.home.as_deref());
-        match if mention { self.jail.mention_protected_reason(&p) } else { self.jail.protected_reason(&p) } {
+        match if mention { self.jail.mention_protected_reason_ask(&p) } else { self.jail.protected_reason_ask(&p) } {
             Some(why) => {
                 let name = if base.is_empty() { base_name(cand) } else { base.to_string() };
                 let offer = if why == ".env*" && writes { self.jail.confirm_offer("fs.protected-arg", &p, true) } else { None };

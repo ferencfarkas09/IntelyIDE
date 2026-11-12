@@ -326,7 +326,7 @@ impl<'a> Walker<'a> {
                     && self.memory_reader
                     && (self.jail.is_claude_memory_folder(&p) || (self.jail.is_claude_memory_note(&p) && !fsview::is_dir(&p)) || pattern_in_memory);
                 if !own_memory {
-                    if let Some(why) = self.jail.never_read_reason(&p) {
+                    if let Some(why) = self.jail.never_read_reason_ask(&p) {
                         // ...except a bare name that is secret only by its extension (`line.key`, `event.key`: a property access in
                         // code), which counts only when a file of that name is where the command runs (one look per name, capped)
                         if program_text && why == "secret file" && !cand.starts_with("file://") && bare_name(lit) && paths::secret_by_extension_only(lit) && !self.ext_name_exists(&p) {

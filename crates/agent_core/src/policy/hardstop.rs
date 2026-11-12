@@ -423,8 +423,10 @@ impl<'a> Walker<'a> {
             return;
         }
         let p = paths::resolve(&self.cwd, &word.text, self.jail.home.as_deref());
-        if let Some(why) = self.jail.protected_reason(&p) {
-            self.stop("fs.protected", &format!("writes {why}"));
+        if let Some(why) = self.jail.protected_reason_ask(&p) {
+            // a redirect into a `.env` file of the run's own project is the same question as an edit of it (tier 2)
+            let offer = if why == ".env*" { self.jail.confirm_offer("fs.protected", &p, true) } else { None };
+            self.stop_confirmable("fs.protected", &format!("writes {why}"), offer);
         } else {
             self.note_exec_surface(&p, &word.text);
         }

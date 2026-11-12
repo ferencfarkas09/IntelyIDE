@@ -274,14 +274,12 @@ fn a_forged_card_grants_nothing_the_host_derives_the_thing_itself() {
     r.card(&id, "p1b", json!({"class": "read", "tool": "Read", "paths": [r.repo.path.join("a.txt").to_string_lossy()], "summary": "Read a.txt"}), json!({"kind": "secretFile", "rule": "read.never-read", "scope": "/etc/passwd", "repo": "/etc"}));
     assert_eq!(code(r.host.answer_permission_with(&id, "p1b", PermissionDecision::AllowAlways, AnswerExtra { confirm_always: true, ..Default::default() })), "rulesMoved", "always is never taken from the card");
     assert!(r.store.list().is_empty());
-    // a card whose scope names another file: the grant is for what the rules say, not what the card says
+    // a card whose scope names another file than the rules offer: refused, nothing is granted (the thing the person saw must be the thing granted)
     let env = r.env();
     let intent = json!({"class": "read", "tool": "Read", "paths": [env], "summary": "Read .env"});
     r.card(&id, "p2", intent, json!({"kind": "secretFile", "rule": "read.never-read", "scope": "/home/x/.ssh/id_rsa", "repo": "/home/x"}));
-    r.host.answer_permission(&id, "p2", PermissionDecision::AllowOnce).expect("once");
-    let grants = r.host.context(&id).unwrap().stop_grants;
-    assert_eq!(grants.len(), 1);
-    assert_eq!(grants[0].scope, r.env());
+    assert_eq!(code(r.host.answer_permission(&id, "p2", PermissionDecision::AllowOnce)), "rulesMoved");
+    assert!(r.host.context(&id).unwrap().stop_grants.is_empty());
     r.host.shutdown();
 }
 
@@ -333,5 +331,38 @@ fn a_second_card_for_the_same_stop_is_a_plain_yes_once_the_first_was_allowed_for
     // ...but "always" is never derived from a card: it needs the host's own verdict
     r.env_card(&id, "p3");
     assert_eq!(code(r.host.answer_permission_with(&id, "p3", PermissionDecision::AllowAlways, AnswerExtra { confirm_always: true, ..Default::default() })), "rulesMoved");
+    r.host.shutdown();
+}
+
+#[test]
+fn a_card_for_one_file_never_grants_another_that_took_its_place() {
+    let r = Rig::new(true);
+    let id = r.start(Automatic).agent_id;
+    std::fs::write(r.repo.path.join("prod.pem"), "KEY").unwrap();
+    r.env_card(&id, "p1");
+    r.env_card(&id, "p2");
+    // the person looked at `.env`; before the click it became a link to another secret of the project
+    std::fs::remove_file(r.repo.path.join(".env")).unwrap();
+    std::os::unix::fs::symlink(r.repo.path.join("prod.pem"), r.repo.path.join(".env")).unwrap();
+    for (req, d) in [("p1", PermissionDecision::AllowOnce), ("p2", PermissionDecision::AllowRun)] {
+        assert_eq!(code(r.host.answer_permission(&id, req, d)), "rulesMoved", "{req}");
+    }
+    assert_eq!(code(r.host.answer_permission_with(&id, "p1", PermissionDecision::AllowAlways, AnswerExtra { confirm_always: true, ..Default::default() })), "rulesMoved");
+    assert!(r.store.list().is_empty());
+    assert!(r.host.context(&id).unwrap().stop_grants.is_empty());
+    r.host.shutdown();
+}
+
+#[test]
+fn for_this_run_on_a_cli_prompt_is_the_exact_reason_only() {
+    let r = Rig::new(true);
+    let id = r.start(Automatic).agent_id;
+    let reason = "Contains brace with quote character (expansion obfuscation)";
+    let intent = json!({"class": "exec", "tool": "Bash", "rawCommand": "echo {'a':1}", "summary": "echo"});
+    r.card(&id, "c1", intent, json!({"kind": "cliPrompt", "rule": "cli.prompt-denied", "scope": reason, "repo": r.repo.path.to_string_lossy()}));
+    r.host.answer_permission(&id, "c1", PermissionDecision::AllowRun).expect("run");
+    let g = r.host.context(&id).unwrap().stop_grants;
+    assert_eq!(g.len(), 1);
+    assert_eq!((g[0].kind, g[0].scope.as_str(), g[0].from_list), (ConfirmKind::CliPrompt, reason, false), "not a wildcard");
     r.host.shutdown();
 }

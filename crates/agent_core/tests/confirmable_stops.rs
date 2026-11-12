@@ -24,7 +24,7 @@ fn read_env(c: &PolicyContext, fx: &Fx) -> intely_agent_core::policy::decide::Po
 }
 
 fn grant(kind: ConfirmKind, scope: &str, tool: Option<&str>) -> StopGrant {
-    StopGrant { kind, scope: scope.to_string(), tool_id: tool.map(str::to_string) }
+    StopGrant { kind, scope: scope.to_string(), tool_id: tool.map(str::to_string), from_list: tool.is_none() && scope != ALL_OF_KIND }
 }
 
 #[test]
@@ -311,8 +311,16 @@ fn a_cli_prompt_is_a_tier_two_question_with_its_own_grants() {
         let c = with(&fx, m, |c| c.stop_grants.push(grant(ConfirmKind::CliPrompt, reason, None)));
         assert_eq!(ask_about(&c, reason).decision, Decision::Allow, "{m:?}");
         assert_eq!(ask_about(&c, "Contains command_substitution").decision, Decision::Deny, "{m:?}");
+        // a wildcard never covers a CLI prompt: "for this run" is the exact reason too
         let run = with(&fx, m, |c| c.stop_grants.push(grant(ConfirmKind::CliPrompt, ALL_OF_KIND, None)));
-        assert_eq!(ask_about(&run, "Contains command_substitution").decision, Decision::Allow, "{m:?}");
+        assert_eq!(ask_about(&run, reason).decision, Decision::Deny, "{m:?}");
+        let other = "Compound command contains cd with output redirection - manual approval required to prevent path resolution bypass";
+        assert_eq!(ask_about(&c, other).decision, Decision::Deny, "{m:?}");
+        // the reasons that are not on the allow-list are not even offered
+        for r in ["Contains command_substitution", "Path is outside allowed working directories", "Path contains '..' traversal after a directory segment, which may follow a symlink outside the working directory", "find with '-delete' executes commands or modifies files", "Contains brace with quote\u{a0}character"] {
+            let d = ask_about(&c, r);
+            assert_eq!((d.decision, d.confirm.is_none()), (Decision::Deny, true), "{m:?}: {r}");
+        }
     }
     // the reasons that are never answered for a person
     for r in ["Claude requested permissions to edit /home/u/.bashrc which is a sensitive file.", ""] {
@@ -333,4 +341,142 @@ fn the_classification_table_in_the_safety_doc_lists_every_rule_with_its_tier() {
         let row = format!("| `{}` | {tier} |", r.rule);
         assert!(doc.contains(&row), "docs/safety.md has no row `{row}`: regenerate the classification table from policy/confirm.rs");
     }
+}
+
+/// Every kind of grant there is, wide and exact, for the files named.
+fn every_grant(files: &[String]) -> Vec<StopGrant> {
+    let mut g = vec![grant(ConfirmKind::SecretFile, ALL_OF_KIND, None), grant(ConfirmKind::SecretEdit, ALL_OF_KIND, None), grant(ConfirmKind::CliPrompt, ALL_OF_KIND, None)];
+    for f in files {
+        for k in [ConfirmKind::SecretFile, ConfirmKind::SecretEdit] {
+            g.push(grant(k, f, None));
+            g.push(grant(k, f, Some("t1")));
+        }
+    }
+    g
+}
+
+#[test]
+fn no_grant_lifts_a_tier_one_guard_that_only_reads_the_secret_predicates() {
+    let fx = fx();
+    std::fs::write(fx.cwd.join("a.pem"), "x").unwrap();
+    std::fs::write(fx.cwd.join(".env"), "A=1\n").unwrap();
+    let files = vec![fx.cwd.join("a.pem").to_string_lossy().into_owned(), fx.cwd.join(".env").to_string_lossy().into_owned()];
+    let pem = files[0].clone();
+    for m in WORKING_MODES {
+        let c = with(&fx, m, |c| {
+            c.mcp_servers = vec!["srv".into()];
+            c.stop_grants = every_grant(&files);
+        });
+        // an MCP argument that names a secret file (`mcp.protected-arg`)
+        for arg in [pem.as_str(), files[1].as_str()] {
+            let d = decide_tool(&c, "mcp__srv__tool", json!({ "path": arg }));
+            assert_ne!(d.decision, Decision::Allow, "{m:?}: MCP argument {arg}: {d:?}");
+            assert!(d.confirm.is_none(), "{m:?}: {d:?}");
+            if d.decision == Decision::Deny {
+                assert_eq!(d.rule.as_deref(), Some("mcp.protected-arg"), "{m:?}: {d:?}");
+            }
+        }
+    }
+    // Bypass: what the analyser cannot judge is searched as raw text (`exec.raw-text`)
+    let c = with(&fx, M::Bypass, |c| c.stop_grants = every_grant(&files));
+    for cmd in ["$(echo cat) a.pem", "sh -c \"cat $X a.pem\"", "$(echo cat) .env", "X=a.pem; eval \"cat $X\"; cat a.pem"] {
+        let without = bash(&ctx(&fx, M::Bypass), cmd);
+        let with_grants = bash(&c, cmd);
+        if without.decision == Decision::Deny {
+            assert_eq!(with_grants.decision, Decision::Deny, "{cmd}: a grant lifted a raw-text stop: {with_grants:?}");
+        }
+    }
+    // the low-risk read check of Edit and Plan never calls a granted secret file low-risk
+    for m in [M::Edit, M::ReadOnly] {
+        let c = with(&fx, m, |c| c.stop_grants = every_grant(&files));
+        for cmd in ["cat a.pem", "head .env", "grep x a.pem"] {
+            assert_ne!(bash(&c, cmd).decision, Decision::Allow, "{m:?}: {cmd} must not be a low-risk read once granted");
+        }
+    }
+}
+
+#[test]
+fn a_private_key_by_name_is_tier_one_even_with_an_extension_that_is_not() {
+    let fx = fx();
+    let names = ["id_rsa.pem", "id_rsa.key", "id_ed25519.pem", "id_ed25519.key", "id_rsa_prod.p12"];
+    for n in names {
+        std::fs::write(fx.cwd.join(n), "x").unwrap();
+    }
+    let files: Vec<String> = names.iter().map(|n| fx.cwd.join(n).to_string_lossy().into_owned()).collect();
+    for m in ALL_MODES {
+        for f in &files {
+            let d = decide_tool(&ctx(&fx, m), "Read", json!({ "file_path": f }));
+            assert_eq!(d.decision, Decision::Deny, "{f} in {m:?}");
+            assert!(d.confirm.is_none(), "{f} in {m:?}: {d:?}");
+            let c = with(&fx, m, |c| c.stop_grants = every_grant(&files));
+            assert_eq!(decide_tool(&c, "Read", json!({ "file_path": f })).decision, Decision::Deny, "{f} in {m:?} with grants");
+        }
+    }
+}
+
+#[test]
+fn with_the_home_folder_inside_the_run_the_home_credential_places_stay_tier_one() {
+    let fx = fx();
+    let home = fx.cwd.join("home");
+    let places = [".claude/credentials.json", ".claude/server.pem", ".claude/projects/x/s.key", ".claude/.env", "Library/Application Support/Claude/credentials.json", ".ssh/deploy.pem", ".aws/credentials.json", ".config/gh/hosts.key"];
+    let mut files = vec![];
+    for p in places {
+        let full = home.join(p);
+        std::fs::create_dir_all(full.parent().unwrap()).unwrap();
+        std::fs::write(&full, "x").unwrap();
+        files.push(full.to_string_lossy().into_owned());
+    }
+    // a normal secret of the project next to them still asks
+    std::fs::write(fx.cwd.join(".env"), "A=1\n").unwrap();
+    for m in ALL_MODES {
+        let granted = with(&fx, m, |c| c.stop_grants = every_grant(&files));
+        for f in &files {
+            for c in [&ctx(&fx, m), &granted] {
+                let d = decide_tool(c, "Read", json!({ "file_path": f }));
+                assert_eq!(d.decision, Decision::Deny, "{f} in {m:?}");
+                assert!(d.confirm.is_none(), "{f} in {m:?}: {d:?}");
+                let d = bash(c, &format!("cat '{f}'"));
+                assert_eq!(d.decision, Decision::Deny, "cat {f} in {m:?}: {d:?}");
+                assert!(d.confirm.is_none(), "cat {f} in {m:?}: {d:?}");
+            }
+        }
+    }
+    assert!(decide_tool(&ctx(&fx, M::Automatic), "Read", json!({ "file_path": fx.cwd.join(".env").to_string_lossy() })).confirm.is_some());
+}
+
+#[test]
+fn a_redirect_into_a_dot_env_file_asks_like_an_edit() {
+    let fx = fx();
+    std::fs::write(fx.cwd.join(".env"), "A=1\n").unwrap();
+    let env = fx.cwd.join(".env").to_string_lossy().into_owned();
+    for cmd in ["echo X=1 > .env", "echo X=1 >> .env"] {
+        for m in WORKING_MODES {
+            let d = bash(&ctx(&fx, m), cmd);
+            assert_eq!((d.decision, d.rule.as_deref()), (Decision::Deny, Some("fs.protected")), "{cmd} {m:?}");
+            assert_eq!(d.confirm.as_ref().map(|o| o.kind), Some(ConfirmKind::SecretEdit), "{cmd} {m:?}: {d:?}");
+            // (a redirect into the file is also a name on the never-read list: the next question is the read one, then the mode's own rules)
+            let c = with(&fx, m, |c| c.stop_grants.push(grant(ConfirmKind::SecretEdit, &env, None)));
+            let next = bash(&c, cmd);
+            if next.decision == Decision::Deny {
+                assert_eq!(next.confirm.as_ref().map(|o| o.kind), Some(ConfirmKind::SecretFile), "{cmd} {m:?}: {next:?}");
+            }
+            let c = with(&fx, m, |c| c.stop_grants = vec![grant(ConfirmKind::SecretEdit, &env, None), grant(ConfirmKind::SecretFile, &env, None)]);
+            assert_ne!(bash(&c, cmd).decision, Decision::Deny, "{cmd} {m:?}");
+        }
+        assert!(bash(&ctx(&fx, M::ReadOnly), cmd).confirm.is_none(), "plan mode never offers a write");
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn a_cli_prompt_offer_names_the_canonical_folder() {
+    use intely_agent_core::policy::decide::cli_prompt_intent;
+    let fx = fx();
+    let link = fx.dir.path().join("link-to-project");
+    std::os::unix::fs::symlink(&fx.cwd, &link).unwrap();
+    let mut c = PolicyContext::new(M::Automatic, &link);
+    c.home = Some(fx.cwd.join("home"));
+    let reason = "Contains brace with quote character (expansion obfuscation)";
+    let d = decide(&c, &request(cli_prompt_intent(&ToolIntent::exec("x"), reason)));
+    assert_eq!(d.confirm.unwrap().repo, fx.cwd.to_string_lossy(), "the always-list compares canonical folders");
 }

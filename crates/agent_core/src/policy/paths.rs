@@ -599,7 +599,10 @@ impl Jail {
     fn secret_scope(&self, resolved: &Path) -> Option<PathBuf> {
         let real = canonical_lossy(resolved);
         let inside = self.roots.iter().any(|r| real.starts_with(r));
-        let ok = inside && confirmable_secret_path(&real) && never_read_reason(&real) == Some("secret file") && never_read_reason(resolved) == Some("secret file");
+        // a run folder can contain the home directory (or `/`): the home-anchored credential and browser stores and the IDE state directory
+        // are tier 1 whatever the file is called
+        let tier_one_place = [real.as_path(), resolved].iter().any(|p| self.home_never_read_reason(p).is_some() || (self.in_state_dir(p) && !self.in_attachments(p)));
+        let ok = inside && !tier_one_place && confirmable_secret_path(&real) && never_read_reason(&real) == Some("secret file") && never_read_reason(resolved) == Some("secret file");
         ok.then_some(real)
     }
 
@@ -625,7 +628,7 @@ impl Jail {
         if g.tool_id.is_none() {
             let rule = if kind == ConfirmKind::SecretEdit { "fs.protected" } else { "read.never-read" };
             let repo = self.roots.iter().find(|r| real.starts_with(r)).map(|r| r.to_string_lossy().into_owned()).unwrap_or_default();
-            let used = UsedGrant { offer: ConfirmOffer { kind, rule: rule.to_string(), scope: scope.into_owned(), repo }, via: if g.scope == super::confirm::ALL_OF_KIND { StopGrantScope::Run } else { StopGrantScope::Always } };
+            let used = UsedGrant { offer: ConfirmOffer { kind, rule: rule.to_string(), scope: scope.into_owned(), repo }, via: if g.from_list { StopGrantScope::Always } else { StopGrantScope::Run } };
             let mut list = self.used.lock().unwrap_or_else(|e| e.into_inner());
             if !list.contains(&used) {
                 list.push(used);
@@ -700,13 +703,20 @@ impl Jail {
         self.state_dir.as_ref().is_some_and(|d| resolved.starts_with(d))
     }
 
-    /// [`never_read_reason`] plus the state directory and the home-anchored credential and browser stores.
+    /// [`never_read_reason`] plus the state directory and the home-anchored credential and browser stores. **No grant is consulted**: this is
+    /// the predicate of every tier-1 guard (the MCP argument guard, the raw-text scan, the Automatic auto-allow operand check ...). Only the
+    /// tier-2 call sites use [`Jail::never_read_reason_ask`].
     pub fn never_read_reason(&self, resolved: &Path) -> Option<&'static str> {
         if self.in_state_dir(resolved) && !self.in_attachments(resolved) {
             return Some("IDE state directory");
         }
-        let why = never_read_reason(resolved).or_else(|| self.home_never_read_reason(resolved));
-        // a secret-looking file of the run's own project that a person allowed (once, for the run, or always) is not a stop
+        never_read_reason(resolved).or_else(|| self.home_never_read_reason(resolved))
+    }
+
+    /// [`Jail::never_read_reason`] at a tier-2 call site: a secret-looking file of the run's own project that a person allowed (once, for the
+    /// run, or always) is not a stop there.
+    pub fn never_read_reason_ask(&self, resolved: &Path) -> Option<&'static str> {
+        let why = self.never_read_reason(resolved);
         if why == Some("secret file") && self.secret_scope(resolved).is_some_and(|real| self.granted(ConfirmKind::SecretFile, &real)) {
             return None;
         }
@@ -768,6 +778,11 @@ impl Jail {
     /// [`protected_reason`] judged relative to the root the path is in, so a repo that itself lives under
     /// `.claude/worktrees` stays writable; outside every root the full path counts.
     pub fn protected_reason(&self, resolved: &Path) -> Option<&'static str> {
+        self.protected_reason_raw(resolved)
+    }
+
+    /// [`Jail::protected_reason`] at a tier-2 call site (an edit of a `.env` file a person allowed is not a stop there).
+    pub fn protected_reason_ask(&self, resolved: &Path) -> Option<&'static str> {
         let why = self.protected_reason_raw(resolved);
         self.env_edit_allowed(why, resolved)
     }
@@ -796,6 +811,11 @@ impl Jail {
     /// [`Jail::protected_reason`] for a path that a script or inline code only MENTIONS (not a write operand): the repository
     /// protections plus the original git and ssh places, without the system PATH directories and startup files.
     pub fn mention_protected_reason(&self, resolved: &Path) -> Option<&'static str> {
+        self.mention_protected_reason_raw(resolved)
+    }
+
+    /// [`Jail::mention_protected_reason`] at a tier-2 call site.
+    pub fn mention_protected_reason_ask(&self, resolved: &Path) -> Option<&'static str> {
         let why = self.mention_protected_reason_raw(resolved);
         self.env_edit_allowed(why, resolved)
     }

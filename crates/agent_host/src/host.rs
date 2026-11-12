@@ -2199,12 +2199,14 @@ impl Inner {
             return Ok((None, None, if decision == PermissionDecision::AllowOnce { StopGrantScope::Once } else { StopGrantScope::Run }));
         }
         let offer = fresh.confirm.filter(|_| fresh.decision == Decision::Deny && fresh.by == DecidedBy::HardStop);
-        let Some(offer) = offer.filter(|o| o.kind == card.kind && (card.kind != ConfirmKind::CliPrompt || o.scope == card.scope)) else {
+        // the thing the person saw must be the thing that is granted: a file swapped for a link, or a name that now leads elsewhere, is a new question
+        let Some(offer) = offer.filter(|o| o.kind == card.kind && o.scope == card.scope) else {
             return Err(err("rulesMoved", "the rules no longer offer to allow this; the request was refused. Ask again if it still applies"));
         };
         let (grant, entry, scope) = match decision {
-            PermissionDecision::AllowOnce => (StopGrant { kind: offer.kind, scope: offer.scope.clone(), tool_id: Some(tool_id.to_string()) }, None, StopGrantScope::Once),
-            PermissionDecision::AllowRun => (StopGrant { kind: offer.kind, scope: ALL_OF_KIND.to_string(), tool_id: None }, None, StopGrantScope::Run),
+            PermissionDecision::AllowOnce => (StopGrant { kind: offer.kind, scope: offer.scope.clone(), tool_id: Some(tool_id.to_string()), from_list: false }, None, StopGrantScope::Once),
+            // "for this run": every secret of the kind (the owner's wish), but a CLI prompt only for this exact reason
+            PermissionDecision::AllowRun => (StopGrant { kind: offer.kind, scope: if offer.kind == ConfirmKind::CliPrompt { offer.scope.clone() } else { ALL_OF_KIND.to_string() }, tool_id: None, from_list: false }, None, StopGrantScope::Run),
             PermissionDecision::AllowAlways => {
                 let store = store.ok_or_else(|| err("optionNotOffered", "the always-list is not available"))?;
                 if matches!(offer.kind, ConfirmKind::SecretFile | ConfirmKind::SecretEdit) && !confirm_always {
@@ -2216,7 +2218,7 @@ impl Inner {
                     crate::stop_allow::AddError::Invalid => err("invalidAnswer", "this cannot be remembered"),
                     crate::stop_allow::AddError::Io(m) => err("storeFailed", format!("the always-list could not be saved: {m}")),
                 })?;
-                (StopGrant { kind: offer.kind, scope: offer.scope.clone(), tool_id: None }, (!known).then_some(added.id), StopGrantScope::Always)
+                (StopGrant { kind: offer.kind, scope: offer.scope.clone(), tool_id: None, from_list: true }, (!known).then_some(added.id), StopGrantScope::Always)
             }
             PermissionDecision::Deny => return Err(err("invalidAnswer", "nothing to grant for a refusal")),
         };

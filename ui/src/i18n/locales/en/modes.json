@@ -98,6 +98,7 @@
   "stops.once": "Allow once",
   "stops.run": "Allow for this run",
   "stops.runTip": "Allows every stop of this kind until the run ends.",
+  "stops.runTipCli": "Allows this exact prompt of the Claude CLI until the run ends.",
   "stops.always": "Always allow for this repository",
   "stops.alwaysCli": "Always allow this reason in this repository",
   "stops.alwaysTip": "Remembers this exact thing for this repository. Stored in the IDE, never in the repository; revoke it in Settings > Safety.",

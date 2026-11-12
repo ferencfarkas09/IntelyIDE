@@ -17,6 +17,8 @@ pub const MAX_ENTRIES: usize = intely_agent_core::policy::confirm::MAX_ALLOW_ENT
 
 const FILE: &str = "stop-allow.json";
 
+static NEXT_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
 /// One remembered "always allow".
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -64,10 +66,7 @@ impl StopAllow {
     /// readable, and the file is replaced by the next change.
     pub fn open(data_dir: &Path) -> Self {
         let path = data_dir.join(FILE);
-        let mut entries: Vec<AllowEntry> = std::fs::read_to_string(&path).ok().and_then(|t| serde_json::from_str::<FileForm>(&t).ok()).map(|f| f.entries).unwrap_or_default();
-        // (a hand-edited file may hold a wildcard, an empty scope or too many entries: none of it counts)
-        entries.retain(|e| valid(&e.repo, &e.scope));
-        entries.truncate(MAX_ENTRIES);
+        let entries = read_file(&path).unwrap_or_default();
         Self { path, entries: Mutex::new(entries) }
     }
 
@@ -81,13 +80,24 @@ impl StopAllow {
             return Err(AddError::Invalid);
         }
         let mut list = lock(&self.entries);
+        // another IDE window or instance may have changed the file since: start from what is on disk
+        if let Some(on_disk) = read_file(&self.path) {
+            *list = on_disk;
+        }
         if let Some(e) = list.iter().find(|e| e.repo == repo && e.kind == kind && e.scope == scope) {
             return Ok(e.clone());
         }
         if list.len() >= MAX_ENTRIES {
             return Err(AddError::Full);
         }
-        let entry = AllowEntry { id: format!("sa-{now_ms:x}-{}", list.len()), repo: repo.to_string(), kind, scope: scope.to_string(), rule: rule.to_string(), added_ms: now_ms };
+        // (a unique id: the time and a counter, never reused after a revoke)
+        let mut n = NEXT_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let mut id = format!("sa-{now_ms:x}-{n:x}");
+        while list.iter().any(|e| e.id == id) {
+            n = NEXT_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            id = format!("sa-{now_ms:x}-{n:x}");
+        }
+        let entry = AllowEntry { id, repo: repo.to_string(), kind, scope: scope.to_string(), rule: rule.to_string(), added_ms: now_ms };
         let mut next = list.clone();
         next.push(entry.clone());
         self.save(&next).map_err(AddError::Io)?;
@@ -98,6 +108,9 @@ impl StopAllow {
     /// Removes one entry. `Ok(None)` = there was none with that id.
     pub fn revoke(&self, id: &str) -> Result<Option<AllowEntry>, String> {
         let mut list = lock(&self.entries);
+        if let Some(on_disk) = read_file(&self.path) {
+            *list = on_disk;
+        }
         let Some(i) = list.iter().position(|e| e.id == id) else { return Ok(None) };
         let mut next = list.clone();
         let gone = next.remove(i);
@@ -108,7 +121,7 @@ impl StopAllow {
 
     /// The grants for a run whose folders are `repos`: the entries of exactly those repositories.
     pub fn grants_for(&self, repos: &[PathBuf]) -> Vec<StopGrant> {
-        lock(&self.entries).iter().filter(|e| repos.iter().any(|r| r.to_string_lossy() == e.repo)).map(|e| StopGrant { kind: e.kind, scope: e.scope.clone(), tool_id: None }).collect()
+        lock(&self.entries).iter().filter(|e| repos.iter().any(|r| r.to_string_lossy() == e.repo)).map(|e| StopGrant { kind: e.kind, scope: e.scope.clone(), tool_id: None, from_list: true }).collect()
     }
 
     fn save(&self, entries: &[AllowEntry]) -> Result<(), String> {
@@ -126,6 +139,16 @@ impl StopAllow {
         }
         std::fs::rename(&tmp, &self.path).map_err(|e| e.to_string())
     }
+}
+
+/// The entries of the file that count: a hand-edited file may hold a wildcard, an empty scope, a repeated id or too many entries.
+fn read_file(path: &Path) -> Option<Vec<AllowEntry>> {
+    let mut entries: Vec<AllowEntry> = serde_json::from_str::<FileForm>(&std::fs::read_to_string(path).ok()?).ok()?.entries;
+    entries.retain(|e| valid(&e.repo, &e.scope));
+    let mut seen = std::collections::HashSet::new();
+    entries.retain(|e| seen.insert(e.id.clone()));
+    entries.truncate(MAX_ENTRIES);
+    Some(entries)
 }
 
 fn valid(repo: &str, scope: &str) -> bool {
@@ -178,6 +201,23 @@ mod tests {
         let big: Vec<AllowEntry> = (0..150).map(|i| AllowEntry { id: format!("e{i}"), repo: "/r".into(), kind: ConfirmKind::SecretFile, scope: format!("/r/{i}.key"), rule: "x".into(), added_ms: 0 }).collect();
         std::fs::write(d.path().join(FILE), serde_json::to_string(&FileForm { version: 1, entries: big }).unwrap()).unwrap();
         assert_eq!(StopAllow::open(d.path()).list().len(), MAX_ENTRIES);
+    }
+
+    #[test]
+    fn ids_are_not_reused_after_a_revoke_and_two_instances_do_not_lose_each_others_entries() {
+        let d = tempfile::tempdir().unwrap();
+        let a = StopAllow::open(d.path());
+        let e1 = a.add("/r", ConfirmKind::SecretFile, "/r/1.key", "x", 5).unwrap();
+        let e2 = a.add("/r", ConfirmKind::SecretFile, "/r/2.key", "x", 5).unwrap();
+        a.revoke(&e1.id).unwrap();
+        let e3 = a.add("/r", ConfirmKind::SecretFile, "/r/3.key", "x", 5).unwrap();
+        assert!(e3.id != e1.id && e3.id != e2.id, "{e1:?} {e2:?} {e3:?}");
+        // a second instance (another window of the IDE) writes; the first one starts from the file, not from its memory
+        let b = StopAllow::open(d.path());
+        b.add("/r", ConfirmKind::SecretFile, "/r/4.key", "x", 6).unwrap();
+        a.add("/r", ConfirmKind::SecretFile, "/r/5.key", "x", 7).unwrap();
+        let scopes: Vec<String> = StopAllow::open(d.path()).list().into_iter().map(|e| e.scope).collect();
+        assert_eq!(scopes, ["/r/2.key", "/r/3.key", "/r/4.key", "/r/5.key"]);
     }
 
     #[test]

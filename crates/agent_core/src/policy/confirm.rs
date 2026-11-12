@@ -65,6 +65,9 @@ pub struct StopGrant {
     /// Set = valid for this one tool call only ("allow once").
     #[serde(default)]
     pub tool_id: Option<String>,
+    /// Comes from the repository's always-list (and not from a card of this run): the audit says "always" instead of "for this run".
+    #[serde(default)]
+    pub from_list: bool,
 }
 
 /// The most entries the repository always-list holds (Settings > Safety).
@@ -182,13 +185,25 @@ pub fn tier_of(rule: &str) -> Tier {
     }
 }
 
-/// The CLI prompt reasons that stay refusals in every mode (tier 1 inside `cli.prompt-denied`): the CLI's sensitive-file prompt
-/// (`.bashrc`, `.mcp.json`, `.vscode/settings.json`: files that run code later) and a path outside the run's folders (Automatic's
-/// boundary; a person who wants it switches to Bypass or adds the folder).
+/// Whether a CLI prompt reason is one a person may allow (tier 2). Every other reason is tier 1 inside `cli.prompt-denied`, among them the
+/// CLI's sensitive-file prompt (`.bashrc`, `.mcp.json`, `.vscode/settings.json`: files that run code later) and a path outside the run's
+/// folders (Automatic's boundary; a person who wants it switches to Bypass or adds the folder).
 pub fn cli_reason_confirmable(reason: &str) -> bool {
     let r = reason.trim();
-    !r.is_empty() && !r.to_ascii_lowercase().contains("sensitive file") && !r.starts_with("path outside the run's folders") && !r.starts_with("blocked path ")
+    // ASCII only: another spelling (a no-break space, a look-alike letter) is a reason nobody verified
+    r.is_ascii() && CONFIRMABLE_CLI_REASONS.iter().any(|p| r.starts_with(p))
 }
+
+/// The CLI prompt reasons a person may allow: an ALLOW-LIST of the texts that were seen in the owner's runs and are about the CLI's own text
+/// matching, not about where a command reaches. Everything else (`Contains command_substitution`, `find ... -delete`, `Path contains '..'
+/// traversal ...`, `Path is outside allowed working directories`, a sensitive file, a reason a newer CLI adds) stays a refusal.
+pub const CONFIRMABLE_CLI_REASONS: &[&str] = &[
+    "Contains brace with quote character",
+    "Compound command contains cd with output redirection",
+    "Parser skipped input between top-level statements",
+    "Parser aborted",
+    "Contains zsh <N-M> numeric-range glob",
+];
 
 /// Basenames a person may allow, inside a folder of the run. A positive list: the credential files of OTHER tools (`.npmrc`, `.netrc`,
 /// `.git-credentials`, history files, `id_rsa*`, `id_ed25519*`, `.vault-token`, `.pypirc`, `.terraformrc`, `.credentials.json`) stay tier 1
@@ -198,11 +213,12 @@ pub fn confirmable_secret_name(base: &str) -> bool {
     if b.ends_with(".pub") || b == ".envrc" {
         return false;
     }
+    // (a name that an exact entry of the never-read list also matches, `id_rsa.pem` or `id_ed25519.key`, is a private key by name: tier 1)
     b == ".env"
         || b.starts_with(".env.")
         || b == "google-services.json"
         || b == "credentials.json"
-        || [".pem", ".key", ".p8", ".p12", ".pfx", ".jks", ".keystore"].iter().any(|e| b.ends_with(e) && b.len() > e.len())
+        || ([".pem", ".key", ".p8", ".p12", ".pfx", ".jks", ".keystore"].iter().any(|e| b.ends_with(e) && b.len() > e.len()) && super::paths::secret_by_extension_only(&b))
 }
 
 /// A `.env` file for a WRITE (`protected_reason` says `.env*`): `.env` and `.env.<anything>`, never `.envrc` (direnv runs it).
@@ -275,7 +291,7 @@ mod tests {
         for n in [".env", ".env.local", ".env.production", "server.pem", "AuthKey_X.p8", "a.key", "x.p12", "s.pfx", "t.jks", "r.keystore", "google-services.json", "credentials.json"] {
             assert!(confirmable_secret_name(n), "{n}");
         }
-        for n in [".npmrc", ".netrc", ".git-credentials", ".zsh_history", ".bash_history", "id_rsa", "id_rsa.old", "id_ed25519", ".vault-token", ".pypirc", ".terraformrc", ".credentials.json", ".envrc", "id.pub", "key", ".key", "notes.txt"] {
+        for n in ["id_rsa.pem", "id_rsa.key", "id_ed25519.pem", "id_ed25519.key", ".npmrc", ".netrc", ".git-credentials", ".zsh_history", ".bash_history", "id_rsa", "id_rsa.old", "id_ed25519", ".vault-token", ".pypirc", ".terraformrc", ".credentials.json", ".envrc", "id.pub", "key", ".key", "notes.txt"] {
             assert!(!confirmable_secret_name(n), "{n}");
         }
     }
@@ -283,6 +299,19 @@ mod tests {
     #[test]
     fn the_cli_reasons_that_stay_refusals() {
         assert!(cli_reason_confirmable("Contains brace with quote character (expansion obfuscation)"));
+        for r in [
+            "Contains command_substitution",
+            "Path contains '..' traversal after a directory segment, which may follow a symlink outside the working directory",
+            "find with '-delete' executes commands or modifies files",
+            "Path is outside allowed working directories",
+            "Claude requested permissions to edit /home/u/.bashrc which is a sensitive file.",
+            // a no-break space or a look-alike letter in an otherwise allowed text
+            "Contains brace with quote\u{a0}character (expansion obfuscation)",
+            "Contains brace with quote charаcter",
+            "Claude requested permissions to edit /x which is a sensitive\u{a0}file.",
+        ] {
+            assert!(!cli_reason_confirmable(r), "{r}");
+        }
         assert!(cli_reason_confirmable("Compound command contains cd with output redirection - manual approval required to prevent path resolution bypass"));
         assert!(!cli_reason_confirmable("Claude requested permissions to edit /home/u/.bashrc which is a sensitive file."));
         assert!(!cli_reason_confirmable(""));
@@ -291,12 +320,12 @@ mod tests {
 
     #[test]
     fn a_grant_names_one_thing() {
-        let once = StopGrant { kind: ConfirmKind::SecretFile, scope: "/r/.env".into(), tool_id: Some("t1".into()) };
+        let once = StopGrant { kind: ConfirmKind::SecretFile, scope: "/r/.env".into(), tool_id: Some("t1".into()), from_list: false };
         assert!(once.covers(ConfirmKind::SecretFile, "/r/.env", "t1"));
         assert!(!once.covers(ConfirmKind::SecretFile, "/r/.env", "t2"));
         assert!(!once.covers(ConfirmKind::SecretFile, "/r/other.env", "t1"));
         assert!(!once.covers(ConfirmKind::CliPrompt, "/r/.env", "t1"));
-        let run = StopGrant { kind: ConfirmKind::SecretFile, scope: ALL_OF_KIND.into(), tool_id: None };
+        let run = StopGrant { kind: ConfirmKind::SecretFile, scope: ALL_OF_KIND.into(), tool_id: None, from_list: false };
         assert!(run.covers(ConfirmKind::SecretFile, "/anything", "t9"));
         assert!(!run.covers(ConfirmKind::CliPrompt, "x", "t9"));
     }
