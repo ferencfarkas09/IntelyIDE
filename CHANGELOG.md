@@ -9,6 +9,10 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 - Work in progress, not released: the Windows 10 and 11 unsigned beta. The code for it is in place (window chrome and menu for Windows, the Windows environment variables the agent and the runner need, NSIS and MSI installer settings, a Windows CI job) but no Windows installer is published with 1.14.0. The agent safety is weaker than on macOS and the app says so. See `docs/install-windows.md`.
 - Work in progress, not released: the code compiles for Linux (x86_64, webkit2gtk 4.1), Windows 10/11 (x86_64, WebView2) and Apple Silicon Macs, in addition to Intel Macs. Linux passes its tests; on Windows the permission checks and many tests are not yet verified. No Linux or Windows package is published; see `docs/install-linux.md` and `docs/install-windows.md` for what works and what is different. Secrets use Windows Credential Manager and the Linux Secret Service (one vault entry, split over several Credential Manager entries when it is large), banners use a Windows toast and `notify-send`, files and links open with `explorer.exe` and `xdg-open`, the terminal starts PowerShell on Windows, and connections to servers are not shared on Windows (OpenSSH for Windows has no `ControlMaster`). Process groups, the process table and the disk-space check are macOS and Linux features; the update swap of the app bundle stays macOS only.
 
+### Fixed
+
+- Agent window: the text of the conversation no longer goes blank while the agent keeps working (it came back only after switching the layout and back). The hover copy button on each message and the follow button of the run log no longer use the frosted-glass blur, which the Mac's web view could stop painting inside the scrolling list; they are plain tinted buttons now. The conversation list also measures its rows again when its pane returns from a zero size or changes width. This part is checked in tests only: the blank screen itself could not be reproduced outside a Mac.
+
 ## [1.14.1] - 2026-10-30
 
 ### Added
