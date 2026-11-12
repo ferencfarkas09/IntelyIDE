@@ -7,7 +7,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import type { PermissionMode } from '../../types.js';
+import type { PermissionMode, ToolIntent } from '../../types.js';
 
 /**
  * What live probes L2, L5 and L10 measured on claude 2.1.284 under `acceptEdits`, the hook letting every call through (the CLI prompts for):
@@ -250,4 +250,16 @@ export function judgeCliPrompt(i: CliPromptInput): { reason: string } | null {
     if (!paths.length || !paths.every((p) => insideAny(p, dirs, i.cwd) || isClaudeMemoryNote(p, dirs, i.cwd))) return { reason: reason || `path outside the run's folders: ${i.blockedPath}` };
   }
   return null;
+}
+
+/** The pseudo tool Rust answers "may a person allow this CLI prompt?" for (`CLI_PROMPT_TOOL` in `policy/decide.rs`; the fixture pins both). */
+export const CLI_PROMPT_TOOL = 'intely:cli-prompt';
+export const MAX_CLI_REASON = 300;
+
+/**
+ * The intent the gate asks Rust about when a CLI prompt that was not measured as harmless is raised in Automatic or Bypass. The reason is the
+ * only argument; Rust (`cli.prompt-denied`) says whether a person may allow it and whether one already has.
+ */
+export function cliPromptIntent(base: ToolIntent, reason: string): ToolIntent & { args: string[] } {
+  return { ...base, class: 'other', tool: CLI_PROMPT_TOOL, args: [reason.trim().slice(0, MAX_CLI_REASON)] };
 }

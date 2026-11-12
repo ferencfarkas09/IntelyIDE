@@ -13,7 +13,7 @@ use intely_agent_core::policy::confirm::{ConfirmKind, StopGrant, ALL_OF_KIND};
 use serde::{Deserialize, Serialize};
 
 /// The most entries the list holds.
-pub const MAX_ENTRIES: usize = 100;
+pub const MAX_ENTRIES: usize = intely_agent_core::policy::confirm::MAX_ALLOW_ENTRIES;
 
 const FILE: &str = "stop-allow.json";
 

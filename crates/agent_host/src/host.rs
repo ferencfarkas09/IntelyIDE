@@ -1127,7 +1127,7 @@ impl AgentHost {
             let run = st.agents.get_mut(agent_id).ok_or_else(|| unknown_agent(agent_id))?;
             let pending = run.state.perms.get(req_id).ok_or_else(|| err("unknownRequest", format!("no pending permission request {req_id}")))?;
             let confirm_card = pending.confirm.clone();
-            if confirm_card.is_some() && extra.remote {
+            if confirm_card.is_some() && extra.remote && allowing {
                 return Err(err("answerOnComputer", "this stop is lifted on your computer only: open the IDE there to answer it (the phone can refuse it)"));
             }
             let wanted = match decision {
@@ -2873,7 +2873,7 @@ impl Inner {
             if matches!(sm, PermissionMode::Automatic | PermissionMode::Bypass) {
                 return fail_peer("peer.privilege-unattended", "this run works without asking, so it cannot be asked about a message to a run that may do more");
             }
-            d = PolicyDecision { decision: Decision::Ask, reason: "a run that may do more than this one would read the message: you decide for every message".into(), rule: Some("peer.privilege".into()), session_allow: None, confirm: None, ..d };
+            d = PolicyDecision { decision: Decision::Ask, reason: "a run that may do more than this one would read the message: you decide for every message".into(), rule: Some("peer.privilege".into()), session_allow: None, confirm: None, used_grants: Vec::new(), ..d };
         } else if unattended_target {
             d.session_allow = None;
         }
@@ -3264,7 +3264,7 @@ impl Handler for Inner {
 }
 
 fn fail_peer(rule: &str, reason: &str) -> PolicyDecision {
-    PolicyDecision { decision: Decision::Deny, by: DecidedBy::RoleDeny, reason: reason.into(), rule: Some(rule.into()), session_allow: None, confirm: None }
+    PolicyDecision { decision: Decision::Deny, by: DecidedBy::RoleDeny, reason: reason.into(), rule: Some(rule.into()), session_allow: None, confirm: None, used_grants: Vec::new() }
 }
 
 fn tail_suffix(sc: &Sidecar) -> String {

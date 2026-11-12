@@ -275,3 +275,51 @@ fn the_wire_form_of_the_decision_and_the_context_round_trips() {
     let c2: PolicyContext = serde_json::from_value(j).unwrap();
     assert_eq!(c2.stop_grants, c.stop_grants);
 }
+
+#[test]
+fn a_standing_grant_is_reported_with_the_allow_and_a_once_grant_is_not() {
+    let fx = fx();
+    std::fs::write(fx.cwd.join(".env"), "A=1\n").unwrap();
+    let env = fx.cwd.join(".env").to_string_lossy().into_owned();
+    let once = with(&fx, M::Automatic, |c| c.stop_grants.push(grant(ConfirmKind::SecretFile, &env, Some("t1"))));
+    assert!(read_env(&once, &fx).used_grants.is_empty());
+    let run = with(&fx, M::Automatic, |c| c.stop_grants.push(grant(ConfirmKind::SecretFile, ALL_OF_KIND, None)));
+    let d = read_env(&run, &fx);
+    assert_eq!(d.decision, Decision::Allow);
+    assert_eq!(d.used_grants.len(), 1);
+    assert_eq!(d.used_grants[0].via, intely_agent_core::events::types::StopGrantScope::Run);
+    assert_eq!(d.used_grants[0].offer.scope, env);
+    let always = with(&fx, M::Bypass, |c| c.stop_grants.push(grant(ConfirmKind::SecretFile, &env, None)));
+    assert_eq!(read_env(&always, &fx).used_grants[0].via, intely_agent_core::events::types::StopGrantScope::Always);
+    // nothing is reported for a call that never met a stop
+    assert!(decide_tool(&run, "Read", json!({ "file_path": fx.cwd.join("src").to_string_lossy() })).used_grants.is_empty());
+}
+
+#[test]
+fn a_cli_prompt_is_a_tier_two_question_with_its_own_grants() {
+    use intely_agent_core::policy::decide::{cli_prompt_intent, CLI_PROMPT_TOOL};
+    let fx = fx();
+    let base = ToolIntent::exec("cat > f <<'EOF'\n{\"a\":1}\nEOF");
+    let reason = "Contains brace with quote character (expansion obfuscation)";
+    let ask_about = |c: &PolicyContext, r: &str| decide(c, &request(cli_prompt_intent(&base, r)));
+    for m in WORKING_MODES {
+        let d = ask_about(&ctx(&fx, m), reason);
+        assert_eq!((d.decision, d.by), (Decision::Deny, DecidedBy::HardStop), "{m:?}");
+        let o = d.confirm.clone().unwrap_or_else(|| panic!("{m:?}: {d:?}"));
+        assert_eq!((o.kind, o.scope.as_str()), (ConfirmKind::CliPrompt, reason));
+        // exact reason, any other reason is another question
+        let c = with(&fx, m, |c| c.stop_grants.push(grant(ConfirmKind::CliPrompt, reason, None)));
+        assert_eq!(ask_about(&c, reason).decision, Decision::Allow, "{m:?}");
+        assert_eq!(ask_about(&c, "Contains command_substitution").decision, Decision::Deny, "{m:?}");
+        let run = with(&fx, m, |c| c.stop_grants.push(grant(ConfirmKind::CliPrompt, ALL_OF_KIND, None)));
+        assert_eq!(ask_about(&run, "Contains command_substitution").decision, Decision::Allow, "{m:?}");
+    }
+    // the reasons that are never answered for a person
+    for r in ["Claude requested permissions to edit /home/u/.bashrc which is a sensitive file.", ""] {
+        let run = with(&fx, M::Bypass, |c| c.stop_grants.push(grant(ConfirmKind::CliPrompt, ALL_OF_KIND, None)));
+        let d = ask_about(&run, r);
+        assert_eq!(d.decision, Decision::Deny, "{r}");
+        assert!(d.confirm.is_none(), "{r}");
+    }
+    assert_eq!(cli_prompt_intent(&base, " x ").tool.as_deref(), Some(CLI_PROMPT_TOOL));
+}

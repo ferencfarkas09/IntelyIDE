@@ -6,13 +6,27 @@ import { isUnattended, NoteError } from '../../abstract.js';
 import { type DropReason, LEAD, NoteQueue } from '../../note-queue.js';
 import { offeredOptions, PLAN_MODES, planPayload } from '../../permission-options.js';
 import type { Actor, EventSink, PermissionAnswer, PermissionMode, PolicyClient, PolicyDecision, ProviderId, SessionNote, ToolIntent } from '../../types.js';
-import { cliPromptMessage, judgeCliPrompt } from './cli-prompts.js';
+import { cliPromptIntent, cliPromptMessage, judgeCliPrompt } from './cli-prompts.js';
 import { permissionModeFor } from './facts.js';
 import { intentFor } from './intent.js';
 import type { Raw } from './map.js';
 import { PLAN_FILE_HINT } from './notes.js';
 
 export const DENY_MARK = 'INTELY-HARDSTOP';
+
+/** How many tier-2 cards one tool call may raise (a command that names several secret files asks for each). */
+export const MAX_CONFIRM_ROUNDS = 4;
+
+/**
+ * What the model is told when the person declined a tier-2 stop (or nobody could answer it): which stop, that it stays, and what to do instead.
+ * The person's own words (a deny with a note) ride along.
+ */
+export function confirmDeclined(d: Pick<PolicyDecision, 'confirm' | 'reason'>, a: PermissionAnswer): string {
+  const what = d.confirm ? (d.confirm.kind === 'cliPrompt' ? `the Claude CLI prompt "${d.confirm.scope}"` : d.confirm.scope) : (d.reason ?? 'this action');
+  const why = a.outcome === 'cancelled' ? 'The request was cancelled before the user answered.' : 'The user was asked and declined.';
+  const note = a.message ? ` The user's note: ${a.message}` : '';
+  return `${DENY_MARK}: ${why} This stays stopped: ${what}.${note} Do not retry it and do not look for another way to the same thing (another command, a copy, a script). Carry on without it, or tell the user what you need and why.`;
+}
 
 /** Prefix of the `error {class:'policy'}` message the canary emits; the host reads it as the `delegationDisabled` kill switch. */
 export const CANARY_MARK = 'INTELY-DELEGATION-CANARY';
@@ -80,6 +94,8 @@ export class ToolGate {
   private askGuardTold = false;
   private driftTold = false;
   private cliPromptTold = new Set<string>();
+  /** Standing-grant overrides already written to the run log (tool call, kind, scope). */
+  private overrideTold = new Set<string>();
   /** agent_id -> agent_type of the sub-agents in flight (SubagentStart adds, SubagentStop removes). */
   private agentTypes = new Map<string, string>();
   private active = new Set<string>();
@@ -268,6 +284,7 @@ export class ToolGate {
       }
     }
     d = this.unattendedGuard(d);
+    if (d.decision === 'allow' && d.usedGrants?.length) this.auditOverrides(toolId, intent, d);
     this.decisions.set(toolId, { d, epoch, intent });
     if (this.decisions.size > 512) this.decisions.delete(this.decisions.keys().next().value as string);
     if (this.o.delegating && !actor) {
@@ -330,6 +347,9 @@ export class ToolGate {
       return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: this.denyText(drift) } };
     }
     const d = await this.decide(toolId, input.tool_name, input.tool_input, actor);
+    // A tier-2 stop (a secret file of the project, ...) is not refused here: the CLI is made to ask, and `canUseTool` puts the card to the
+    // person. The refusal stays the verdict unless the person allows it, and every path that does not reach `canUseTool` stays a refusal.
+    if (d.decision === 'deny' && d.confirm && d.by === 'hardStop') return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'ask' } };
     if (d.decision === 'deny') {
       this.audit(toolId, input.tool_name, input.tool_input, d, actor);
       return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: this.denyText(d, input.tool_name, input.tool_input) } };
@@ -361,14 +381,19 @@ export class ToolGate {
       return this.askQuestion(toolId, input, o.signal);
     }
     const actor = this.actorFor(o.agentID, o.agentID ? this.agentTypes.get(o.agentID) : undefined, toolId);
-    const d = await this.decide(toolId, toolName, input, actor);
+    let d = await this.decide(toolId, toolName, input, actor);
+    if (d.decision === 'deny' && d.confirm && d.by === 'hardStop') {
+      const asked = await this.confirmStops(toolId, toolName, input, o.signal, actor, d);
+      if ('refused' in asked) return asked.refused;
+      d = asked.d;
+    }
     if (d.decision === 'deny') {
       this.audit(toolId, toolName, input, d, actor);
       return { behavior: 'deny', message: this.denyText(d, toolName, input) };
     }
     const forward = SPAWN_TOOLS.has(toolName) ? (this.o.delegating ? rewriteAgentInput(input) : foregroundAgentInput(input)) : input;
     if (d.decision === 'allow') {
-      const refusal = this.refuseCliPrompt(toolId, toolName, input, o, actor);
+      const refusal = await this.refuseCliPrompt(toolId, toolName, input, o, actor);
       if (refusal) return refusal;
       return { behavior: 'allow', updatedInput: forward };
     }
@@ -387,11 +412,26 @@ export class ToolGate {
    * Answer it from the cached Rust allow only when its reason was measured as benign (6.3 item 9); deny the rest with a message that
    * names the reason, and say so once per session and reason. Ask, Edit and Plan are untouched: a person answers there.
    */
-  private refuseCliPrompt(toolId: string, toolName: string, input: Record<string, unknown>, o: Parameters<CanUseTool>[2], actor?: Actor): { behavior: 'deny'; message: string } | null {
+  private async refuseCliPrompt(toolId: string, toolName: string, input: Record<string, unknown>, o: Parameters<CanUseTool>[2], actor?: Actor): Promise<{ behavior: 'deny'; message: string } | null> {
     const mode = this.o.mode();
     if (!isUnattended(mode)) return null;
     const verdict = judgeCliPrompt({ mode, reason: o.decisionReason, blockedPath: o.blockedPath, intentPaths: this.decisions.get(toolId)?.intent.paths ?? undefined, cwd: this.o.cwd, runDirs: this.o.runDirs, command: toolName === 'Bash' && typeof input.command === 'string' ? input.command : undefined });
     if (!verdict) return null;
+    // The CLI's own prompt is a tier-2 stop unless its reason is on the never list (Rust decides: `cli.prompt-denied`). A grant the person gave
+    // before (this run, or the repository's always-list) answers it without a card; otherwise the person is asked.
+    const base = this.decisions.get(toolId)?.intent ?? intentFor(toolName, input, undefined, actor);
+    const ask = await this.askRust(toolId, cliPromptIntent(base, verdict.reason));
+    // (only Rust's own "a person allowed this" answer counts: any other allow, from a stub or an older host, leaves the refusal)
+    if (ask.decision === 'allow' && ask.rule === 'cli.prompt-granted') {
+      if (ask.usedGrants?.length) this.auditOverrides(toolId, base, ask);
+      return null;
+    }
+    if (ask.decision === 'deny' && ask.confirm && ask.by === 'hardStop') {
+      const answered = await this.askConfirm(toolId, base, o.signal, ask, 0);
+      if (answered.outcome === 'allow') return null;
+      this.o.denied.add(toolId);
+      return { behavior: 'deny', message: confirmDeclined(ask, answered) };
+    }
     const message = cliPromptMessage(verdict.reason, mode);
     if (!this.cliPromptTold.has(verdict.reason)) {
       this.cliPromptTold.add(verdict.reason);
@@ -400,6 +440,65 @@ export class ToolGate {
     const refused: PolicyDecision = { decision: 'deny', by: 'hardStop', reason: message, rule: 'cli.prompt-denied' };
     this.audit(toolId, toolName, input, refused, actor);
     return { behavior: 'deny', message: this.denyText(refused) };
+  }
+
+  /** A question to Rust that is not the tool call itself (the CLI-prompt pseudo tool): fails closed like `decide`. */
+  private async askRust(toolId: string, intent: ToolIntent): Promise<PolicyDecision> {
+    try {
+      const d = await this.o.policy.decide({ agentId: this.o.agentId, toolId, provider: this.o.provider, intent });
+      if (!d || !['allow', 'deny'].includes(d.decision)) return { decision: 'deny', by: 'failClosed', reason: 'malformed policy decision' };
+      return d;
+    } catch (e) {
+      return { decision: 'deny', by: 'failClosed', reason: `policy unavailable: ${(e as Error).message}` };
+    }
+  }
+
+  /**
+   * The card of a tier-2 stop: what the person is asked and the four answers (once, for the run, always for this repository, no). The HOST
+   * makes the grant when the person answers on the computer; this only waits. Rounds after the first get their own request id.
+   */
+  private async askConfirm(toolId: string, base: ToolIntent, signal: AbortSignal, d: PolicyDecision, round: number): Promise<PermissionAnswer> {
+    const reqId = round === 0 ? `perm-${toolId}` : `perm-${toolId}-c${round}`;
+    const a = await this.requestAnswer(reqId, toolId, signal, () =>
+      this.o.sink.emit({ kind: 'permission.request', reqId, toolId, intent: base, options: offeredOptions(d), ...(d.confirm ? { confirm: d.confirm } : {}) }));
+    this.o.sink.emit({ kind: 'permission.resolved', reqId, outcome: a.outcome, by: 'user', ...(a.outcome === 'allow' && a.grant ? { grant: a.grant } : {}) });
+    return a;
+  }
+
+  /**
+   * A tool call stopped by tier-2 rules. Each stop is put to the person in turn (a command can meet several: a card per secret file); after
+   * every yes the call is judged again by Rust with the host's new grant. The loop is capped; a refusal carries a message that tells the model
+   * what was declined and not to look for a way around it.
+   */
+  private async confirmStops(toolId: string, toolName: string, input: Record<string, unknown>, signal: AbortSignal, actor: Actor | undefined, first: PolicyDecision): Promise<{ d: PolicyDecision } | { refused: { behavior: 'deny'; message: string } }> {
+    let d = first;
+    const base = intentFor(toolName, input, undefined, actor);
+    for (let round = 0; round < MAX_CONFIRM_ROUNDS && d.decision === 'deny' && d.confirm && d.by === 'hardStop'; round++) {
+      const a = await this.askConfirm(toolId, base, signal, d, round);
+      if (a.outcome !== 'allow') {
+        this.o.denied.add(toolId);
+        return { refused: { behavior: 'deny', message: confirmDeclined(d, a) } };
+      }
+      this.decisions.delete(toolId);
+      d = await this.decide(toolId, toolName, input, actor);
+    }
+    return { d };
+  }
+
+  /**
+   * A standing grant (this run, or the repository's always-list) lifted a stop without a card: the run log gets the same request/resolved
+   * pair a card would have left, so "You allowed reading .env for this run" is there whatever way the stop was lifted.
+   */
+  private auditOverrides(toolId: string, intent: ToolIntent, d: PolicyDecision): void {
+    for (const u of d.usedGrants ?? []) {
+      const key = `${toolId}\u0000${u.offer.kind}\u0000${u.offer.scope}`;
+      if (this.overrideTold.has(key)) continue;
+      this.overrideTold.add(key);
+      if (this.overrideTold.size > 1024) this.overrideTold.delete(this.overrideTold.keys().next().value as string);
+      const reqId = `ovr-${toolId}-${this.overrideTold.size}`;
+      this.o.sink.emit({ kind: 'permission.request', reqId, toolId, intent, options: ['deny'], confirm: u.offer });
+      this.o.sink.emit({ kind: 'permission.resolved', reqId, outcome: 'allow', by: 'saved', grant: u.via });
+    }
   }
 
   /**

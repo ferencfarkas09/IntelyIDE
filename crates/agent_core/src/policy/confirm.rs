@@ -44,6 +44,17 @@ pub struct ConfirmOffer {
         pub repo: String,
 }
 
+/// A standing grant (this run, or the repository's always-list) that lifted a stop while a call was judged. The gate writes it to the run
+/// log as an override ("You allowed reading .env for this run"), so a stop that is lifted without a card is still visible.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "camelCase")]
+pub struct UsedGrant {
+    pub offer: ConfirmOffer,
+    /// `Run` or `Always` (a "once" grant was logged when its card was answered).
+    pub via: crate::events::types::StopGrantScope,
+}
+
 /// A stop a person has lifted. Plain data held by the host in the run's policy context.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -55,6 +66,9 @@ pub struct StopGrant {
     #[serde(default)]
     pub tool_id: Option<String>,
 }
+
+/// The most entries the repository always-list holds (Settings > Safety).
+pub const MAX_ALLOW_ENTRIES: usize = 100;
 
 /// The scope that means "every stop of this kind, until the run ends".
 pub const ALL_OF_KIND: &str = "*";

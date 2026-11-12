@@ -184,3 +184,17 @@ describe('cliPromptMessage', () => {
     expect(cliPromptMessage('Path is outside allowed working directories', 'automatic')).not.toContain('Write or Edit tool');
   });
 });
+
+describe('the CLI prompt question (tier 2)', () => {
+  it('the pseudo tool name and the reason cap are the ones Rust uses (fixtures/constants.json)', async () => {
+    const { readFileSync } = await import('node:fs');
+    const c = JSON.parse(readFileSync(new URL('../../packages/protocol/fixtures/constants.json', import.meta.url), 'utf8')).confirm;
+    const { CLI_PROMPT_TOOL, MAX_CLI_REASON, cliPromptIntent } = await import('../src/adapters/claude-sdk/cli-prompts.js');
+    expect(CLI_PROMPT_TOOL).toBe(c.cliPromptTool);
+    expect(MAX_CLI_REASON).toBe(c.maxCliReason);
+    const i = cliPromptIntent({ class: 'exec', summary: 'x', rawCommand: 'ls' } as never, `  ${'r'.repeat(500)}  `);
+    expect(i).toMatchObject({ class: 'other', tool: c.cliPromptTool, rawCommand: 'ls' });
+    expect(i.args).toHaveLength(1);
+    expect(i.args[0]).toHaveLength(c.maxCliReason);
+  });
+});

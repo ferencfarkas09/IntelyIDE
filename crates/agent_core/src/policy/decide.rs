@@ -11,7 +11,7 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use super::confirm::{ConfirmOffer, StopGrant};
+use super::confirm::{ConfirmOffer, StopGrant, UsedGrant};
 use super::autoallow::{automatic_refusal, is_low_risk_read, is_private_host, net_auto_check, url_host};
 use super::fsview::{self, FsView};
 use super::hardstop::{analyze, analyze_argv, raw_text_stop, Analysis};
@@ -62,6 +62,11 @@ wire_types! {
         #[cfg_attr(not(feature = "specta"), serde(skip_serializing_if = "Option::is_none"))]
         #[cfg_attr(feature = "specta", specta(optional))]
         pub confirm: Option<ConfirmOffer>,
+        /// Set only on an `Allow` that a standing grant made possible (this run, or the repository's always-list): the gate writes each to
+        /// the run log. Empty for everything else.
+        #[serde(default)]
+        #[cfg_attr(not(feature = "specta"), serde(skip_serializing_if = "Vec::is_empty"))]
+        pub used_grants: Vec<UsedGrant>,
     }
 
     /// What an "Allow always in this session" answer would allow; the card states exactly this. Plain data: the UI
@@ -288,7 +293,7 @@ impl PolicyContext {
 }
 
 fn verdict(decision: Decision, by: DecidedBy, rule: &str, reason: impl Into<String>) -> PolicyDecision {
-    PolicyDecision { decision, by, reason: reason.into(), rule: Some(rule.to_string()), session_allow: None, confirm: None }
+    PolicyDecision { decision, by, reason: reason.into(), rule: Some(rule.to_string()), session_allow: None, confirm: None, used_grants: Vec::new() }
 }
 
 fn hard_stop(rule: &str, reason: impl Into<String>) -> PolicyDecision {
@@ -489,6 +494,8 @@ fn judge(ctx: &PolicyContext, intent: &ToolIntent, tool_id: &str, strict_backgro
         ToolClass::Mcp => decide_mcp(&eff, intent, &jail),
         ToolClass::Other => decide_other(&eff, intent),
     };
+    let used = jail.take_used();
+    let d = if d.decision == Decision::Allow && !used.is_empty() { PolicyDecision { used_grants: used, ..d } } else { d };
     (d, eff.mode)
 }
 
@@ -1000,7 +1007,15 @@ fn decide_cli_prompt(eff: &Eff, intent: &ToolIntent, tool_id: &str) -> PolicyDec
         return hard_stop("cli.prompt-denied", format!("the Claude CLI raised a prompt that is never answered for the person ({reason})"));
     }
     if eff.ctx.stop_grants.iter().any(|g| g.covers(super::confirm::ConfirmKind::CliPrompt, &reason, tool_id)) {
-        return verdict(Decision::Allow, DecidedBy::Saved, "cli.prompt-granted", "a person allowed this kind of Claude CLI prompt");
+        let g = eff.ctx.stop_grants.iter().find(|g| g.covers(super::confirm::ConfirmKind::CliPrompt, &reason, tool_id));
+        let via = if g.is_some_and(|g| g.scope == super::confirm::ALL_OF_KIND) { crate::events::types::StopGrantScope::Run } else { crate::events::types::StopGrantScope::Always };
+        let mut d = verdict(Decision::Allow, DecidedBy::Saved, "cli.prompt-granted", "a person allowed this kind of Claude CLI prompt");
+        // (a "once" grant was logged with its card)
+        if g.is_some_and(|g| g.tool_id.is_none()) {
+            let offer = ConfirmOffer { kind: super::confirm::ConfirmKind::CliPrompt, rule: "cli.prompt-denied".into(), scope: reason.clone(), repo: eff.ctx.cwd.to_string_lossy().into_owned() };
+            d.used_grants = vec![UsedGrant { offer, via }];
+        }
+        return d;
     }
     let offer = ConfirmOffer { kind: super::confirm::ConfirmKind::CliPrompt, rule: "cli.prompt-denied".into(), scope: reason.clone(), repo: eff.ctx.cwd.to_string_lossy().into_owned() };
     hard_stop_offer(eff, "cli.prompt-denied", format!("the Claude CLI raised its own prompt ({reason}), which this run cannot answer on its own"), Some(offer), false)
@@ -1090,7 +1105,7 @@ mod tests {
 
     #[test]
     fn a_forced_ask_in_an_unattended_run_is_a_denial() {
-        let ask = PolicyDecision { decision: Decision::Ask, by: DecidedBy::Default, reason: "x".into(), rule: Some("some.rule".into()), session_allow: None, confirm: None };
+        let ask = PolicyDecision { decision: Decision::Ask, by: DecidedBy::Default, reason: "x".into(), rule: Some("some.rule".into()), session_allow: None, confirm: None, used_grants: Vec::new() };
         let d = convert_unattended_ask(PermissionMode::Automatic, ask.clone());
         assert_eq!((d.decision, d.by, d.rule.as_deref()), (Decision::Deny, DecidedBy::RoleDeny, Some("policy.ask-in-unattended")));
         let d = convert_unattended_ask(PermissionMode::ReadOnly, ask);

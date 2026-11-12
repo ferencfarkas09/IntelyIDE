@@ -7,7 +7,10 @@
 use std::ffi::OsString;
 use std::path::{Component, Path, PathBuf};
 
-use super::confirm::{confirmable_env_write_name, confirmable_secret_path, ConfirmKind, ConfirmOffer, StopGrant};
+use std::sync::{Arc, Mutex};
+
+use super::confirm::{confirmable_env_write_name, confirmable_secret_path, ConfirmKind, ConfirmOffer, StopGrant, UsedGrant};
+use crate::events::types::StopGrantScope;
 use super::fsview;
 
 const PROTECTED_DIRS: &[&str] = &[".git", ".husky", ".claude"];
@@ -553,6 +556,8 @@ pub struct Jail {
     grants: Vec<StopGrant>,
     /// The tool call being judged; a "once" grant names it.
     tool_id: String,
+    /// Standing grants (run, always) that lifted a stop while this jail judged: reported with the decision.
+    used: Arc<Mutex<Vec<UsedGrant>>>,
 }
 
 impl Jail {
@@ -561,7 +566,7 @@ impl Jail {
         let mut roots = vec![cwd.clone()];
         roots.extend(add_dirs.iter().map(|d| canonical_lossy(&abs_or_lexical(d))));
         let home_real = home.map(|h| canonical_lossy(&abs_or_lexical(h)));
-        Self { roots, cwd, home: home.map(Path::to_path_buf), home_real, state_dir: None, mcp_code_paths: Vec::new(), scratch: Vec::new(), grants: Vec::new(), tool_id: String::new() }
+        Self { roots, cwd, home: home.map(Path::to_path_buf), home_real, state_dir: None, mcp_code_paths: Vec::new(), scratch: Vec::new(), grants: Vec::new(), tool_id: String::new(), used: Arc::default() }
     }
 
     pub fn with_state_dir(mut self, dir: Option<&Path>) -> Self {
@@ -615,7 +620,23 @@ impl Jail {
 
     fn granted(&self, kind: ConfirmKind, real: &Path) -> bool {
         let scope = real.to_string_lossy();
-        self.grants.iter().any(|g| g.covers(kind, &scope, &self.tool_id))
+        let Some(g) = self.grants.iter().find(|g| g.covers(kind, &scope, &self.tool_id)) else { return false };
+        // a "once" grant was logged with its card; a standing one is recorded so the gate can write it to the run log
+        if g.tool_id.is_none() {
+            let rule = if kind == ConfirmKind::SecretEdit { "fs.protected" } else { "read.never-read" };
+            let repo = self.roots.iter().find(|r| real.starts_with(r)).map(|r| r.to_string_lossy().into_owned()).unwrap_or_default();
+            let used = UsedGrant { offer: ConfirmOffer { kind, rule: rule.to_string(), scope: scope.into_owned(), repo }, via: if g.scope == super::confirm::ALL_OF_KIND { StopGrantScope::Run } else { StopGrantScope::Always } };
+            let mut list = self.used.lock().unwrap_or_else(|e| e.into_inner());
+            if !list.contains(&used) {
+                list.push(used);
+            }
+        }
+        true
+    }
+
+    /// The standing grants that lifted a stop so far.
+    pub fn take_used(&self) -> Vec<UsedGrant> {
+        std::mem::take(&mut *self.used.lock().unwrap_or_else(|e| e.into_inner()))
     }
 
     /// The memory folder of one of the run's OWN folders: `~/.claude/projects/<slug of a run folder>/memory`, for tools that only list names

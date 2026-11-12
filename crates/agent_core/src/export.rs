@@ -32,7 +32,7 @@ const FILES: &[(&str, &[&str])] = &[
         ],
     ),
     ("api", &["RunStatus", "PermissionDecision", "Requested", "AgentEffective", "AgentSummary", "AutoQueue", "AutoInfo", "RoleInfo", "AgentStartRequest", "AgentAttachment", "QuestionAnswer"]),
-    ("policy", &["ToolClass", "ToolIntent", "Actor", "SubagentFlags", "WorkflowCheck", "PolicyRequest", "Decision", "PolicyDecision", "SessionAllowKind", "SessionAllowOffer", "ConfirmKind", "ConfirmOffer"]),
+    ("policy", &["ToolClass", "ToolIntent", "Actor", "SubagentFlags", "WorkflowCheck", "PolicyRequest", "Decision", "PolicyDecision", "SessionAllowKind", "SessionAllowOffer", "ConfirmKind", "ConfirmOffer", "UsedGrant"]),
     ("mcp", &["McpPolicy", "McpExposure"]),
     ("delegates", &["DelegateScope", "ExcludeReason", "DelegateSpec", "DelegateInfo", "ExcludedDelegate"]),
     (
@@ -85,6 +85,7 @@ pub fn type_collection() -> Types {
         .register::<SessionAllowOffer>()
         .register::<crate::policy::confirm::ConfirmKind>()
         .register::<crate::policy::confirm::ConfirmOffer>()
+        .register::<crate::policy::confirm::UsedGrant>()
         .register::<crate::events::types::StopGrantScope>()
         .register::<McpPolicy>()
         .register::<McpExposure>()
@@ -203,6 +204,14 @@ pub fn fixture_files() -> BTreeMap<String, String> {
             "cancelTermMs": CANCEL_TERM_MS,
             "allKinds": ALL_KINDS,
             "bypassKeeps": crate::policy::BYPASS_KEEPS,
+            "confirm": {
+                "cliPromptTool": crate::policy::decide::CLI_PROMPT_TOOL,
+                "maxCliReason": crate::policy::decide::MAX_CLI_REASON,
+                "maxAllowEntries": crate::policy::confirm::MAX_ALLOW_ENTRIES,
+                "allOfKind": crate::policy::confirm::ALL_OF_KIND,
+                "tierTwo": crate::policy::confirm::CLASSIFICATION.iter().filter(|r| r.tier == crate::policy::confirm::Tier::Confirm).map(|r| json!({"rule": r.rule, "variant": r.variant})).collect::<Vec<_>>(),
+                "tierOne": crate::policy::confirm::CLASSIFICATION.iter().filter(|r| r.tier == crate::policy::confirm::Tier::Never && r.variant.is_none()).map(|r| r.rule).collect::<Vec<_>>(),
+            },
             "sdkToolCoverage": crate::policy::SDK_TOOL_COVERAGE.iter().map(|(input, tool, kind)| json!({"input": input, "tool": tool, "kind": kind})).collect::<Vec<_>>(),
         })),
     );
