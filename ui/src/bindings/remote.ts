@@ -123,7 +123,7 @@ export type ConfirmKind =
 /**  What a person could allow instead of the refusal. Rides on the refusal (`PolicyDecision::confirm`) and on the card. */
 export type ConfirmOffer = {
 	kind: ConfirmKind,
-	/**  The rule that stopped it (`read.never-read`, `fs.protected`, `fs.protected-arg`, `script.protected-path`, `cli.prompt-denied`). */
+	/**  The rule that stopped it (`read.never-read`, `fs.protected`, `cli.prompt-denied`). */
 	rule: string,
 	/**  The exact thing: a canonical path (`SecretFile`) or the CLI's own reason text (`CliPrompt`). */
 	scope: string,

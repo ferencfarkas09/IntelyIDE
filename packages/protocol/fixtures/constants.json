@@ -47,7 +47,6 @@
       "fs.outside-jail",
       "exec.raw-text",
       "exec.too-long",
-      "exec.secret-sink",
       "exec.catastrophic",
       "exec.proc-env",
       "exec.system-secrets",
@@ -101,15 +100,11 @@
     "tierTwo": [
       {
         "rule": "read.never-read",
-        "variant": "a secret-looking file inside a folder of the run"
+        "variant": "a secret-looking file inside a folder of the run, read with the Read or Grep tool"
       },
       {
         "rule": "fs.protected",
-        "variant": "a `.env` file inside a folder of the run"
-      },
-      {
-        "rule": "fs.protected-arg",
-        "variant": "a `.env` file inside a folder of the run"
+        "variant": "a `.env` file inside a folder of the run, edited with the Edit, Write, MultiEdit or NotebookEdit tool"
       },
       {
         "rule": "cli.prompt-denied",
