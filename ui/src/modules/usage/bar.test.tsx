@@ -11,7 +11,7 @@ globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {
 
 import { resetStatusItems, statusItems } from "../../platform/statusbar";
 import { createMockUsage, normalizeLimits, setUsageApi } from "./api";
-import { barItems, FIRST_READ_MS, itemName, MAX_BAR_SCOPED, planBar, planBarVisible, planRows, READ_EVERY_MS, resetText, rowHint, startPlanBarReader } from "./bar";
+import { barItems, FIRST_READ_MS, itemName, MAX_BAR_SCOPED, planBar, planBarVisible, planRows, READ_EVERY_MS, resetText, RETRY_UNAVAILABLE_MS, rowHint, startPlanBarReader } from "./bar";
 import { extraScoped, scopedWindows } from "./logic";
 import PlanBar from "./PlanBar";
 import { limits, refreshLimits, resetUsage } from "./store";
@@ -207,6 +207,20 @@ describe("the extra", () => {
     stop();
     await vi.advanceTimersByTimeAsync(READ_EVERY_MS * 3);
     expect(asked).toBe(2);
+  });
+
+  it("asks rarely while there is no plan to read", async () => {
+    vi.useFakeTimers();
+    let asked = 0;
+    setUsageApi({ report: async () => { throw new Error("not asked"); }, limits: async () => (asked++, { available: false, reason: "notSignedIn" }) });
+    const stop = startPlanBarReader();
+    await vi.advanceTimersByTimeAsync(FIRST_READ_MS);
+    expect(asked).toBe(1);
+    await vi.advanceTimersByTimeAsync(READ_EVERY_MS * 5);
+    expect(asked).toBe(1);
+    await vi.advanceTimersByTimeAsync(RETRY_UNAVAILABLE_MS);
+    expect(asked).toBe(2);
+    stop();
   });
 
   it("a plan that cannot be read never throws and shows nothing", async () => {

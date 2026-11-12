@@ -92,12 +92,22 @@ export const planBarVisible = (): boolean => planBar.on() && barItems(limits()).
 /** Reading the limits starts the Claude CLI for a moment: once a little after the start, then every five minutes. */
 export const FIRST_READ_MS = 3_000;
 export const READ_EVERY_MS = 5 * 60_000;
+/** A plan that could not be read (no CLI, not signed in, no limits) is asked again only this often. */
+export const RETRY_UNAVAILABLE_MS = 30 * 60_000;
 
-/** Keeps the plan limits current while the bar is on; not while the window is hidden or Eco has paused background work. Returns the stop function. */
+/**
+ * Keeps the plan limits current while the bar is on; not while the window is hidden or Eco has paused background work, and
+ * rarely while there is no plan to read. Returns the stop function.
+ */
 export function startPlanBarReader(): () => void {
+  let missedAt: number | undefined;
   const read = () => {
     if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
-    void refreshLimits();
+    if (missedAt !== undefined && Date.now() - missedAt < RETRY_UNAVAILABLE_MS) return;
+    void refreshLimits().then(() => {
+      const l = limits();
+      missedAt = l && !l.available ? Date.now() : undefined;
+    });
   };
   const first = setTimeout(read, FIRST_READ_MS);
   const stop = ecoInterval(read, READ_EVERY_MS);
