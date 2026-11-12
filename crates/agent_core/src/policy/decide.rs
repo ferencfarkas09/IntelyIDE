@@ -568,19 +568,23 @@ fn decide_exec(eff: &Eff, intent: &ToolIntent, jail: &Jail) -> PolicyDecision {
         (None, Some(argv)) if !argv.is_empty() => Some(analyze_argv(argv, jail)),
         _ => None,
     };
-    // A command that names a git index or ref write, or a program that sends data off this computer, is never offered for a secret file, and a
-    // grant never lifts it (an agent never stages; a granted file must not leave the computer through a command line)
-    let command_text = match (&intent.raw_command, &intent.argv) {
-        (Some(raw), _) => raw.clone(),
-        (None, Some(argv)) => argv.join(" "),
-        _ => String::new(),
-    };
-    let secret_sink = super::confirm::names_secret_sink(&command_text);
+    // A grant lifts a stop only for a command that is nothing but readers of the file (`policy::secret_cmd`). The card is offered only when the
+    // command would pass that test once the person said yes: judged again as if the stop were lifted, on the analyser's own (unquoted) words.
     if let Some(stop) = analysis.as_ref().and_then(|a| a.hard_stop.as_ref()) {
-        return hard_stop_offer(eff, &stop.rule, format!("{} (commit, push and stage-all are done by the human in the IDE)", stop.reason), stop.confirm.clone().filter(|_| !secret_sink), false);
+        let offer = stop.confirm.clone().filter(|o| {
+            let yes_jail = jail.as_if_allowed(o.kind);
+            let yes = match (&intent.raw_command, &intent.argv) {
+                (Some(raw), _) => Some(analyze(raw, &yes_jail)),
+                (None, Some(argv)) if !argv.is_empty() => Some(analyze_argv(argv, &yes_jail)),
+                _ => None,
+            };
+            // (writers and redirects count only when the probe really met an edit stop: `cat .env > copy.txt` is not an edit of the secret)
+            yes.is_some_and(|y| y.hard_stop.is_none() && super::secret_cmd::reader_only(&y, yes_jail.lifted_edit()))
+        });
+        return hard_stop_offer(eff, &stop.rule, format!("{} (commit, push and stage-all are done by the human in the IDE)", stop.reason), offer, false);
     }
-    if secret_sink && jail.lifted() {
-        return hard_stop("exec.secret-sink", "a grant for a secret file does not cover a command that also stages with git or sends data off this computer; run them as separate commands");
+    if jail.lifted() && !analysis.as_ref().is_some_and(|a| super::secret_cmd::reader_only(a, jail.lifted_edit())) {
+        return hard_stop("exec.secret-sink", "a grant for a secret file lifts only plain readers of it (cat, head, grep ...); this command does more (a write, a git command, a program that can send data away, an interpreter): run the read on its own");
     }
     // Bypass has no static check for what the analyser cannot judge; the raw text is searched instead (spec 2.3.1 `exec.raw-text`).
     if eff.mode == PermissionMode::Bypass && analysis.as_ref().is_some_and(|a| !a.issues.is_empty()) {

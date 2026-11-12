@@ -191,7 +191,6 @@ export class ToolGate {
       for (const [agent, parent] of this.agentParents) if (parent === toolUseId) this.agentParents.delete(agent);
       this.hookAgents.clear();
     }
-    if (this.askedByHook.delete(toolUseId) && !this.confirmedTools.delete(toolUseId) && !this.o.denied.has(toolUseId)) this.breach(toolUseId);
     if (!this.agentCalls.delete(toolUseId)) return;
     if (this.agentCalls.size === 0) this.clearSubagents();
   }
@@ -267,7 +266,23 @@ export class ToolGate {
     if (this.actorless.has(toolId)) this.trip();
   }
 
-  /** Fail closed after the fact: the call ran although its card was never answered. It cannot be undone, so the run stops and says so. */
+  /** `canUseTool` let a call through (an allow of Rust, or the person's yes): a hook-asked call is answered. */
+  private markAnswered(toolId: string): void {
+    if (this.askedByHook.has(toolId)) this.confirmedTools.add(toolId);
+  }
+
+  /**
+   * The result of any tool call (the lead's or a helper agent's). A call that the hook sent to `canUseTool` for a card and that RAN without that
+   * ever answering it (the CLI skipped the question) is a breach: a stop AFTER THE FACT, not a prevention (the call cannot be undone). A call
+   * that ended in an error was refused or never started, so it is not one.
+   */
+  noteResult(toolUseId: string, isError: boolean): void {
+    if (!this.askedByHook.delete(toolUseId)) return;
+    const answered = this.confirmedTools.delete(toolUseId);
+    if (!answered && !isError && !this.o.denied.has(toolUseId)) this.breach(toolUseId);
+  }
+
+  /** Stop after the fact: the call ran although its card was never answered. It cannot be undone, so the run stops and says so. */
   private breach(toolId: string): void {
     this.o.sink.emit({ kind: 'error', class: 'policy', message: `A tool call (${toolId}) that needed your answer ran without it; the run was stopped. The Claude CLI did not ask for the answer the IDE requested.`, retryable: false });
     this.o.onBreach?.();
@@ -401,7 +416,6 @@ export class ToolGate {
       const asked = await this.confirmStops(toolId, toolName, input, o.signal, actor, d);
       if ('refused' in asked) return asked.refused;
       d = asked.d;
-      if (d.decision !== 'deny') this.confirmedTools.add(toolId);
     }
     if (d.decision === 'deny') {
       this.audit(toolId, toolName, input, d, actor);
@@ -411,6 +425,7 @@ export class ToolGate {
     if (d.decision === 'allow') {
       const refusal = await this.refuseCliPrompt(toolId, toolName, input, o, actor);
       if (refusal) return refusal;
+      this.markAnswered(toolId);
       return { behavior: 'allow', updatedInput: forward };
     }
     if (toolName === 'ExitPlanMode' && !actor) return this.planApproval(toolId, input, o.signal);
@@ -418,7 +433,10 @@ export class ToolGate {
     const a = await this.requestAnswer(reqId, toolId, o.signal, () =>
       this.o.sink.emit({ kind: 'permission.request', reqId, toolId, intent: intentFor(toolName, input, undefined, actor), options: offeredOptions(d), ...(d.sessionAllow ? { sessionAllow: d.sessionAllow } : {}) }));
     this.o.sink.emit({ kind: 'permission.resolved', reqId, outcome: a.outcome, by: 'user' });
-    if (a.outcome === 'allow') return { behavior: 'allow', updatedInput: forward };
+    if (a.outcome === 'allow') {
+      this.markAnswered(toolId);
+      return { behavior: 'allow', updatedInput: forward };
+    }
     this.o.denied.add(toolId);
     return { behavior: 'deny', message: a.message ?? (a.outcome === 'cancelled' ? 'cancelled' : 'The user declined this action.') };
   };

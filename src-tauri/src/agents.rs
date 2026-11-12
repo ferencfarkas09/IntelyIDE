@@ -22,6 +22,13 @@ use crate::modules::switchhook::{self, BoxFuture, SwitchHook};
 
 type Res<T> = Result<T, EngineError>;
 
+/// The main window is visible and not minimised, so a card of a confirmable stop can be seen (updated by `set_card_window` from the main thread).
+static CARD_WINDOW: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+
+pub fn set_card_window(visible: bool) {
+    CARD_WINDOW.store(visible, std::sync::atomic::Ordering::Relaxed);
+}
+
 /// Forwards committed events to the webview in batches (`agent:events`).
 struct TauriHostSink {
     app: AppHandle,
@@ -133,9 +140,9 @@ impl AgentSlot {
         // the always-list of confirmable stops lives next to the other IDE state, never inside a repository; a card of such a stop is shown
         // only while a window of the IDE is open on this computer
         cfg.stop_allow = Some(Arc::new(intely_agent_host::stop_allow::StopAllow::open(&cfg.data_dir)));
-        let ui_app = app.clone();
-        // (a window that is hidden or minimised cannot show the card: it does not count)
-        cfg.ui_attached = Some(Arc::new(move || ui_app.webview_windows().values().any(|w| w.is_visible().unwrap_or(false) && !w.is_minimized().unwrap_or(true))));
+        // (the main window only, and only while it is visible and not minimised: the radar does not render these cards; read from an atomic that
+        // the main thread keeps, never from a window function)
+        cfg.ui_attached = Some(Arc::new(|| CARD_WINDOW.load(std::sync::atomic::Ordering::Relaxed)));
         let git = cfg.git.clone();
         // track E: file roles and the run supervisor sit on this one host (one sidecar, one gate)
         let (observer, roles) = crate::modules::roles::prepare(&mut cfg, Arc::new(TauriHostSink { app: app.clone() }));

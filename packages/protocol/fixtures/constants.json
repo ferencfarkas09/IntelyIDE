@@ -112,10 +112,6 @@
         "variant": "a `.env` file inside a folder of the run"
       },
       {
-        "rule": "script.protected-path",
-        "variant": "a `.env` file inside a folder of the run, named in a script or inline code"
-      },
-      {
         "rule": "cli.prompt-denied",
         "variant": "a prompt of the Claude CLI that Automatic and Bypass cannot answer"
       }

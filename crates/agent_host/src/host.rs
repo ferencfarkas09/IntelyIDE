@@ -2702,7 +2702,8 @@ impl Inner {
 
     fn ingest(&self, sc: &Arc<Sidecar>, agent_id: &str, provider: &str, batch: Vec<BatchEvent>) {
         // (asked before the state lock is taken: the window check belongs to the app and must never be called while the host's state is locked)
-        let ui = self.cfg.ui_attached.as_ref().is_some_and(|f| f());
+        // (only for a batch that carries a card of a confirmable stop)
+        let ui = !batch.iter().any(|b| matches!(&b.kind, EventKind::PermissionRequest { confirm: Some(_), .. })) || self.cfg.ui_attached.as_ref().is_some_and(|f| f());
         let mut st = lock(&self.state);
         // the card of a message to another run says who gets it and what it says (made here, from the host's own view of the runs)
         let mut cards: HashMap<String, PeerCard> = batch

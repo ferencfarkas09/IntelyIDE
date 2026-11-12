@@ -840,9 +840,34 @@ describe('a tier-2 call that runs without its card being answered', () => {
     guard.beginTurn();
     const gate = new ToolGate({ agentId: 'a1', provider: 'claude', policy: { decide: async () => stop }, sink: guard, denied: new Set(), mode: () => 'automatic', onBreach: () => { breached++; } });
     expect(decisionOf(await hook(gate, 'Read', { file_path: '/work/.env' }, 'b1'))).toMatchObject({ permissionDecision: 'ask' });
-    gate.toolResult('b1'); // the tool ran, no card was ever shown
+    gate.noteResult('b1', false); // the tool ran, no card was ever shown
     expect(breached).toBe(1);
     expect((out.find((e) => e.kind === 'error') as any)?.message).toContain('ran without it');
+  });
+  it('is not a breach when the CLI never asked and the call ended in an error, or when a grant arrived and the call was let through', async () => {
+    let breached = 0;
+    const st = { granted: false };
+    const policy: PolicyClient = { decide: async () => (st.granted ? { decision: 'allow', by: 'default' } : stop) };
+    const { gate } = rig(policy, { mode: 'automatic' });
+    (gate as any).o.onBreach = () => { breached++; };
+    // B: the hook asked, the CLI never called canUseTool (turn stopped, refused by itself): the result is an error
+    await hook(gate, 'Read', { file_path: '/work/.env' }, 'f1');
+    gate.noteResult('f1', true);
+    // A: the hook asked, a grant arrived and the epoch moved, canUseTool finds an allow and lets the call through
+    await hook(gate, 'Read', { file_path: '/work/.env' }, 'f2');
+    st.granted = true;
+    gate.bumpEpoch();
+    expect(await gate.canUseTool('Read', { file_path: '/work/.env' }, { toolUseID: 'f2', signal: new AbortController().signal } as never)).toMatchObject({ behavior: 'allow' });
+    gate.noteResult('f2', false);
+    expect(breached).toBe(0);
+  });
+  it('covers a helper agent\'s call too (the session reports every result)', async () => {
+    let breached = 0;
+    const { gate } = rig(fixed(stop), { mode: 'automatic', delegating: true });
+    (gate as any).o.onBreach = () => { breached++; };
+    await hook(gate, 'Read', { file_path: '/work/.env' }, 'h1', { agent_id: 'sub-1', agent_type: 'dev' });
+    gate.noteResult('h1', false);
+    expect(breached).toBe(1);
   });
   it('is not a breach when the card was answered, or the call was refused', async () => {
     let breached = 0;
@@ -856,10 +881,10 @@ describe('a tier-2 call that runs without its card being answered', () => {
     st.granted = true;
     gate.answer('perm-b2', { outcome: 'allow', grant: 'once' });
     await p;
-    gate.toolResult('b2');
+    gate.noteResult('b2', false);
     await hook(gate, 'Read', { file_path: '/work/.env' }, 'b3');
     denied.add('b3'); // refused by the person
-    gate.toolResult('b3');
+    gate.noteResult('b3', false);
     expect(breached).toBe(0);
   });
 });

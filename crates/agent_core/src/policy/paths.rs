@@ -558,8 +558,9 @@ pub struct Jail {
     tool_id: String,
     /// Standing grants (run, always) that lifted a stop while this jail judged: reported with the decision.
     used: Arc<Mutex<Vec<UsedGrant>>>,
-    /// Some grant (of any scope) lifted a stop while this jail judged.
+    /// Some grant (of any scope) lifted a stop while this jail judged, and whether one of them was an edit grant.
     lifted: Arc<std::sync::atomic::AtomicBool>,
+    lifted_edit: Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl Jail {
@@ -568,7 +569,7 @@ impl Jail {
         let mut roots = vec![cwd.clone()];
         roots.extend(add_dirs.iter().map(|d| canonical_lossy(&abs_or_lexical(d))));
         let home_real = home.map(|h| canonical_lossy(&abs_or_lexical(h)));
-        Self { roots, cwd, home: home.map(Path::to_path_buf), home_real, state_dir: None, mcp_code_paths: Vec::new(), scratch: Vec::new(), grants: Vec::new(), tool_id: String::new(), used: Arc::default(), lifted: Arc::default() }
+        Self { roots, cwd, home: home.map(Path::to_path_buf), home_real, state_dir: None, mcp_code_paths: Vec::new(), scratch: Vec::new(), grants: Vec::new(), tool_id: String::new(), used: Arc::default(), lifted: Arc::default(), lifted_edit: Arc::default() }
     }
 
     pub fn with_state_dir(mut self, dir: Option<&Path>) -> Self {
@@ -627,6 +628,9 @@ impl Jail {
         let scope = real.to_string_lossy();
         let Some(g) = self.grants.iter().find(|g| g.covers(kind, &scope, &self.tool_id)) else { return false };
         self.lifted.store(true, std::sync::atomic::Ordering::Relaxed);
+        if kind == ConfirmKind::SecretEdit {
+            self.lifted_edit.store(true, std::sync::atomic::Ordering::Relaxed);
+        }
         // a "once" grant was logged with its card; a standing one is recorded so the gate can write it to the run log
         if g.tool_id.is_none() {
             let rule = if kind == ConfirmKind::SecretEdit { "fs.protected" } else { "read.never-read" };
@@ -640,7 +644,25 @@ impl Jail {
         true
     }
 
-    /// Whether any grant lifted a stop while this jail judged (a command that is judged with a lifted stop may not be a secret sink).
+    /// Whether an edit grant lifted a stop while this jail judged.
+    pub fn lifted_edit(&self) -> bool {
+        self.lifted_edit.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    /// This jail as it would judge if the person said yes: every secret lifted, read and edit (a redirect into `.env` names the file as both). Nothing it records reaches the original (its own flags).
+    pub fn as_if_allowed(&self, kind: ConfirmKind) -> Jail {
+        let mut j = self.clone();
+        j.used = Arc::default();
+        j.lifted = Arc::default();
+        j.lifted_edit = Arc::default();
+        j.tool_id = String::new();
+        let mk = |k| StopGrant { kind: k, scope: super::confirm::ALL_OF_KIND.to_string(), tool_id: None, from_list: false };
+        let _ = kind;
+        j.grants = vec![mk(ConfirmKind::SecretEdit), mk(ConfirmKind::SecretFile)];
+        j
+    }
+
+    /// Whether any grant lifted a stop while this jail judged (the command must then be only what a grant may lift: `secret_cmd`).
     pub fn lifted(&self) -> bool {
         self.lifted.load(std::sync::atomic::Ordering::Relaxed)
     }

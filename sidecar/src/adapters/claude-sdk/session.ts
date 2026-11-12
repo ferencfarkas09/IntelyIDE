@@ -333,6 +333,10 @@ export class ClaudeSession implements AgentSession {
     if (typeof m.parent_tool_use_id === 'string' || m.parent_tool_use_id === null) for (const id of toolUseIds(m)) this.gate.noteToolParent(id, m.parent_tool_use_id);
     // the lead got the result of an `Agent` call, or the turn ended: no sub-agent is in flight any more (SubagentStop is not reported for
     // one that ran out of turns, which used to leave every later call of the lead attributed to an unknown actor); the notes meant for it are over too
+    // every result, a helper agent's too: a call that was to wait for a card and ran without it stops the run (after the fact)
+    if (m.type === 'user') {
+      for (const b of Array.isArray(m.message?.content) ? m.message.content : []) if (b?.type === 'tool_result' && typeof b.tool_use_id === 'string') this.gate.noteResult(b.tool_use_id, b.is_error === true);
+    }
     if (m.type === 'user' && !m.parent_tool_use_id) {
       for (const b of Array.isArray(m.message?.content) ? m.message.content : []) if (b?.type === 'tool_result' && typeof b.tool_use_id === 'string') this.gate.toolResult(b.tool_use_id);
     }
