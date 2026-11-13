@@ -17,7 +17,10 @@ export interface SegmentedControlProps<T extends string> {
   options: SegmentedOption<T>[];
   value: T;
   onChange: (value: T) => void;
-  size?: "sm" | "md";
+  /** sm 24 px, md 28 px, lg 34 px (28 px items). */
+  size?: "sm" | "md" | "lg";
+  /** `accent`: a capsule whose chosen item is filled with the accent (the mode switch). */
+  variant?: "default" | "accent";
   "aria-label": string;
   fullWidth?: boolean;
   class?: string;
@@ -67,6 +70,7 @@ export function SegmentedControl<T extends string>(props: SegmentedControlProps<
       aria-label={props["aria-label"]}
       class={props.class ? `ui-seg ${props.class}` : "ui-seg"}
       data-size={props.size ?? "md"}
+      data-variant={props.variant ?? "default"}
       data-full={props.fullWidth ? "" : undefined}
       data-ready={thumb().ready ? "" : undefined}
       style={{ "--seg-x": `${thumb().x}px`, "--seg-w": `${thumb().w}px` }}

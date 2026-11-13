@@ -19,10 +19,7 @@ async function newAutoRun(repoName, prompt, { mode = "automatic" } = {}) {
   const pop = await waitFor(() => q(".newrun"), { what: "the New run popover" });
   await waitFor(() => qa(".mode-card", pop).length > 0, { what: "the mode cards of New run", timeout: 30000 });
   await pickModeConfirm(pop, mode);
-  for (const b of qa('[aria-label="Repositories"] button', pop)) {
-    const want = text(b).includes(repoName);
-    if ((b.getAttribute("aria-pressed") === "true") !== want) b.click();
-  }
+  pickRepos(pop, (name) => name.includes(repoName));
   await sleep(100);
   await typeInto(q('textarea[aria-label="Prompt"]', pop), prompt);
   await clickButton("Start run", pop);
@@ -39,10 +36,7 @@ async function newRoleRun(role, repoNames, prompt, mode) {
   await waitFor(() => radio.getAttribute("aria-checked") === "true", { what: `role ${role} picked` });
   await sleep(150);
   await pickModeConfirm(pop, mode);
-  for (const b of qa('[aria-label="Repositories"] button', pop)) {
-    const want = repoNames.some((n) => text(b).includes(n));
-    if ((b.getAttribute("aria-pressed") === "true") !== want) b.click();
-  }
+  pickRepos(pop, (name) => repoNames.some((n) => name.includes(n)));
   await sleep(100);
   await typeInto(q('textarea[aria-label="Prompt"]', pop), prompt);
   await clickButton("Start run", pop);

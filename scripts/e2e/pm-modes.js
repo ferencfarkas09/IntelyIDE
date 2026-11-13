@@ -50,10 +50,7 @@ async function dialogFor(role, repoName) {
   radio.click();
   await waitFor(() => radio.getAttribute("aria-checked") === "true", { what: `role ${role} picked` });
   await sleep(150);
-  for (const b of qa('[aria-label="Repositories"] button', pop)) {
-    const want = text(b).includes(repoName);
-    if ((b.getAttribute("aria-pressed") === "true") !== want) b.click();
-  }
+  pickRepos(pop, (name) => name.includes(repoName));
   await sleep(100);
   return pop;
 }

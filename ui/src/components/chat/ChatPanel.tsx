@@ -1,4 +1,4 @@
-import { createMemo, Match, onMount, Show, Switch } from "solid-js";
+import { createMemo, Match, onMount, Show, Suspense, Switch } from "solid-js";
 import { execute } from "../../platform/commands";
 import { isForeign } from "../../store/agentScope";
 import { agentAnnouncement, agentRow, agentRows, agentsError, agentsLoaded, agentView, bannerDismissed, dismissBanner, interruptRun, isInterrupting, needsYouCount, rewindRun, selectAgent, selectedAgentId, selectStartingRun, sendMessage, sendNote, startAgentStore } from "../../store/agents";
@@ -30,7 +30,10 @@ export function RunView(props: { agentId: string }) {
           <RunHeader agent={a()} stopping={isInterrupting(a().agentId)} onInterrupt={() => void interruptRun(a().agentId).catch(fail("chat.fail.interrupt"))} onRewind={() => void rewindRun(a().agentId).catch(fail("chat.fail.rewind"))} />
           {/* the summary and the test cards together never take more than about 40% of the run: they scroll, the transcript keeps its room */}
           <div class="chat__top">
-            <RunSlots place="top" agent={a()} />
+            {/* a slot that loads late suspends here, not at the boundary around the whole workspace (which would take the composer out of the document) */}
+            <Suspense>
+              <RunSlots place="top" agent={a()} />
+            </Suspense>
           </div>
           <Show when={view()} fallback={<div class="chat__loading"><Skeleton height={48} /><Skeleton height={96} /></div>}>
             {(v) => (

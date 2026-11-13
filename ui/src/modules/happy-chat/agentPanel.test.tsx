@@ -79,14 +79,14 @@ describe("the Agent workspace's side panel", () => {
     setAppMode("agent");
     render(() => <AgentWorkspace />);
     expect(screen.queryByTestId("agent-panel")).toBeNull();
-    const sessions = screen.getByText("Sessions");
+    const sessions = screen.getByRole("heading", { name: "Runs" });
     showChat();
     const panel = screen.getByTestId("agent-panel");
     expect(panel.getAttribute("aria-label")).toBe("Team chat");
     // the sessions list is the same element: opening a side panel does not reset the run in front of it
-    expect(screen.getByText("Sessions")).toBe(sessions);
+    expect(screen.getByRole("heading", { name: "Runs" })).toBe(sessions);
     fireEvent.click(screen.getByRole("button", { name: "Fake chat, close" }));
     expect(screen.queryByTestId("agent-panel")).toBeNull();
-    expect(screen.getByText("Sessions")).toBe(sessions);
+    expect(screen.getByRole("heading", { name: "Runs" })).toBe(sessions);
   });
 });

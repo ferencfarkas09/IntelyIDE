@@ -54,7 +54,9 @@ describe("<Shell> and workspaces", () => {
     expect(screen.getByRole("button", { name: "Settings" })).toBeTruthy();
     // the Agent/Editor control and the branch pills have nothing to act on
     expect(container.querySelector('[role="radiogroup"], .ui-segmented')).toBeNull();
-    expect(container.querySelector(".ui-pill")).toBeNull();
+    expect(container.querySelector(".ui-pill, .ttl__chip")).toBeNull();
+    // nor has the palette field anything to search in
+    expect(container.querySelector('[data-testid="title-search"]')).toBeNull();
   });
 
   it("the Settings button of the title bar opens the Settings dialog command", async () => {
@@ -71,7 +73,12 @@ describe("<Shell> and workspaces", () => {
     expect(container.querySelector('[data-testid="welcome"]')).toBeNull();
     expect(container.querySelector(".rail")).not.toBeNull();
     expect(container.querySelector(".switcher")?.getAttribute("aria-label")).toBe("Workspace: Happy workspace");
-    await waitFor(() => expect(container.querySelectorAll(".ttl .ui-pill").length).toBe(4));
+    await waitFor(() => expect(container.querySelectorAll(".ttl .ttl__chip").length).toBe(4));
+    // every chip is a button named after its repository and branch, and the mode switch is the accent pill
+    expect([...container.querySelectorAll(".ttl .ttl__chip")].every((c) => /, branch /.test(c.getAttribute("aria-label") ?? ""))).toBe(true);
+    expect(container.querySelector('[role="radiogroup"][aria-label="Mode"]')?.getAttribute("data-variant")).toBe("accent");
+    // the visible way into the command palette
+    expect(screen.getByRole("button", { name: /^Search or run a command/ })).toBeTruthy();
   });
 
   it("a workspace without repositories keeps the rail and says what to do next", async () => {
@@ -105,5 +112,65 @@ describe("<Shell> and workspaces", () => {
     await waitFor(() => expect(document.activeElement?.hasAttribute("data-workspace-heading")).toBe(true), { timeout: 15000 });
     expect(document.activeElement?.textContent).toBe("Happy workspace");
     expect(container.querySelectorAll("h1[data-workspace-heading]")).toHaveLength(1);
+  });
+});
+
+describe("title bar: repositories that do not fit", () => {
+  it("marks the chips that wrapped below the one line as clipped and inert, and names them for the N more menu", async () => {
+    const { hiddenChips } = await import("./TitleContent");
+    const row = document.createElement("div");
+    row.innerHTML = '<span data-repo="a"></span><span data-repo="b"></span><span data-repo="c"></span>';
+    const tops = [0, 0, 26];
+    [...row.children].forEach((el, i) => Object.defineProperty(el, "offsetTop", { get: () => tops[i] }));
+    expect(hiddenChips(row)).toEqual(["c"]);
+    expect(row.children[2].hasAttribute("data-clipped")).toBe(true);
+    expect(row.children[2].hasAttribute("inert")).toBe(true);
+    expect(row.children[0].hasAttribute("inert")).toBe(false);
+    // the window got wider: everything fits again
+    tops[2] = 0;
+    expect(hiddenChips(row)).toEqual([]);
+    expect(row.children[2].hasAttribute("inert")).toBe(false);
+  });
+
+  it("gives the focus back to the N more chip when the branch popup of a clipped repository closes", async () => {
+    const { popupRepo, setPopupRepo } = await import("../modules/branches/uiState");
+    await boot(createMockIpc("normal", { delayScale: 0 }), "ready");
+    const { container } = render(() => <Shell />);
+    await waitFor(() => expect(container.querySelectorAll(".ttl__chip-slot").length).toBe(4));
+    expect(container.querySelector('[data-testid="title-more-repos"]')).toBeNull();
+    // jsdom lays nothing out: say that the last two chips wrapped to the clipped second line, then change the row so that
+    // its MutationObserver measures again (the ResizeObserver of this environment is a stub that never fires)
+    const row = container.querySelector<HTMLElement>(".ttl__repos")!;
+    const slots = [...row.querySelectorAll<HTMLElement>(".ttl__chip-slot")];
+    slots.forEach((el, i) => Object.defineProperty(el, "offsetTop", { configurable: true, get: () => (i < 2 ? 0 : 26) }));
+    row.appendChild(document.createComment("measure"));
+    const chip = await waitFor(() => {
+      const el = container.querySelector<HTMLElement>('[data-testid="title-more-repos"]');
+      expect(el).not.toBeNull();
+      return el!;
+    });
+    expect(chip.textContent).toMatch(/2/);
+    const clippedId = slots[3].dataset.repo!;
+    const shownId = slots[0].dataset.repo!;
+    expect(slots[3].hasAttribute("inert")).toBe(true);
+
+    // the popup of a clipped repository (opened from the N more menu) closes: the focus lands on N more
+    (document.activeElement as HTMLElement | null)?.blur();
+    setPopupRepo(clippedId);
+    await waitFor(() => expect(slots[3].querySelector('.ttl__chip[aria-expanded="true"]')).not.toBeNull());
+    // the branch panel loads lazily and takes the focus: the focus is inside the popup, as it is for a person using it
+    await waitFor(() => expect(document.activeElement?.closest(".bp")).not.toBeNull());
+    await waitFor(() => expect(document.activeElement?.getAttribute("aria-label")).toBe("Find a branch"));
+    setPopupRepo(null);
+    await waitFor(() => expect(document.activeElement).toBe(chip));
+
+    // the popup of a chip that is on the line is not its business: the focus is not pulled to N more
+    chip.blur();
+    setPopupRepo(shownId);
+    await waitFor(() => expect(document.activeElement?.getAttribute("aria-label")).toBe("Find a branch"));
+    setPopupRepo(null);
+    await waitFor(() => expect(document.activeElement).toBe(slots[0].querySelector(".ttl__chip")));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(document.activeElement).not.toBe(chip);
   });
 });

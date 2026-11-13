@@ -58,8 +58,9 @@ async function rolesShots(lang) {
     return;
   }
   radio.click();
-  const repo = qa('[role="group"] button[aria-pressed]', dialog)[0];
-  if (repo && repo.getAttribute("aria-pressed") !== "true") repo.click();
+  // The repositories are tick cards (a label around a checkbox) since the 1.15 refresh.
+  const repo = qa('.ui-choice input[type="checkbox"]', dialog)[0];
+  if (repo && !repo.checked) repo.click();
   await typeInto(q("textarea", dialog), lang === "hu" ? "Formázd a végösszegeket a pénznemmel" : "Format the totals with the currency");
   qa("button", dialog).find((b) => hasText(b, /^(Start run|Futás indítása)/))?.click();
   await waitFor(() => !q(".newrun"), { what: "the dialog to close" });

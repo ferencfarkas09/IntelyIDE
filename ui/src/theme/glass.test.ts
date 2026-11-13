@@ -1,7 +1,7 @@
 // @ts-expect-error node built-in (the ui package has no node typings)
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { AA_TEXT, SURFACES, STANDARD_SURFACES, contrast, glassComposites } from "./accents";
+import { AA_TEXT, INSET_SURFACES, SURFACES, STANDARD_SURFACES, contrast, glassComposites } from "./accents";
 import { GLASS, rgbaOf, type GlassTheme } from "./glassTokens";
 
 const THEMES: GlassTheme[] = ["dark", "light"];
@@ -104,4 +104,34 @@ describe("text tokens on glass (WCAG AA)", () => {
       expect(SURFACES[theme].slice(0, 5)).toEqual(STANDARD_SURFACES[theme]);
     });
   }
+});
+
+describe("inset wells and the reading pane (1.15 refresh)", () => {
+  for (const theme of THEMES) {
+    const text = standardTokens[theme];
+
+    it(`${theme}: --surface-inset of Standard and of Glass are the colours the accent solver checks`, () => {
+      expect(text["--surface-inset"]).toBe(INSET_SURFACES[theme][0]);
+      expect(glassTokens(theme)["--surface-inset"]).toBe(INSET_SURFACES[theme][1]);
+      expect(SURFACES[theme]).toEqual(expect.arrayContaining([...INSET_SURFACES[theme]]));
+    });
+
+    it(`${theme}: the reading pane is opaque in both skins`, () => {
+      expect(text["--surface-pane"]).toMatch(/^#[0-9a-f]{6}$/);
+      expect(glassTokens(theme)["--surface-pane"]).toMatch(/^#[0-9a-f]{6}$/);
+    });
+
+    it(`${theme}: text and the semantic colours read at >= 4.5:1 on the inset wells and on the reading pane`, () => {
+      const bgs = [...INSET_SURFACES[theme], text["--surface-pane"], glassTokens(theme)["--surface-pane"]];
+      for (const bg of bgs) for (const k of ["--text-1", "--text-2", "--text-3", "--accent-text", "--ok", "--warn", "--danger", "--info"]) expect(contrast(text[k], bg), `${k} on ${bg}`).toBeGreaterThanOrEqual(AA_TEXT);
+    });
+  }
+
+  it("the refresh radii: Standard 10 / 10 / 8 px, Glass 16 / 14 / 10 px", () => {
+    const shared = block(glassCss, ":root,\n[data-theme] {");
+    expect([shared["--radius-panel"], shared["--radius-card"], shared["--radius-ctl"]]).toEqual(["10px", "10px", "var(--radius-3)"]);
+    const glass = block(glassCss, ':root[data-skin="glass"],\n:root[data-skin="glass"] [data-theme] {');
+    expect([glass["--radius-panel"], glass["--radius-card"], glass["--radius-3"]]).toEqual(["16px", "14px", "10px"]);
+    expect(block(tokensCss, ":root {")["--radius-3"]).toBe("8px");
+  });
 });

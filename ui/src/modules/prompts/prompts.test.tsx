@@ -1,11 +1,11 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import enCatalog from "../../i18n/locales/en/prompts.json";
 import huCatalog from "../../i18n/locales/hu/prompts.json";
 import { installDomStubs } from "../../store/testing-u2";
 import type { NewRunSlotContext } from "../../platform/newRunSlots";
 import { allTags, exportJson, fillPrompt, libraryFor, MAX_PROMPTS, MAX_REPO_KEYS, mergeImport, normalizePrompt, parseImport, parseTags, placeholdersIn, readSettings, searchPrompts, upsert } from "./logic";
-import PromptPicker, { insertInto } from "./PromptPicker";
+import PromptPicker, { insertInto, QUICK_PROMPTS } from "./PromptPicker";
 import { STARTER_IDS, starterPrompts } from "./starters";
 import { resetPromptsStore } from "./store";
 import type { SavedPrompt } from "./types";
@@ -133,10 +133,25 @@ describe("the picker in the New Run dialog", () => {
     const setPrompt = vi.fn((v: string) => (text = v));
     const ctx: NewRunSlotContext = { prompt: () => text, setPrompt, repoIds: () => [], permission: () => "edit", pickMode: () => {}, supported: () => [], unavailable: () => ({}), disabled: () => false };
     render(() => <PromptPicker ctx={ctx} />);
-    fireEvent.click(screen.getByRole("button", { name: "Saved prompts" }));
-    fireEvent.click(await screen.findByText("Explain this code in plain language"));
+    fireEvent.click(screen.getByRole("button", { name: "All prompts" }));
+    fireEvent.click(await within(await screen.findByRole("dialog", { name: "Saved prompts" })).findByText("Explain this code in plain language"));
     await waitFor(() => expect(setPrompt).toHaveBeenCalled());
     expect(text.startsWith("Hello\n\nExplain this code in plain language")).toBe(true);
     expect(text).toContain("<selection>");
+  });
+
+  it("shows the first prompts as chips, one click away, and keeps the whole list behind All prompts", async () => {
+    let text = "";
+    const setPrompt = vi.fn((v: string) => (text = v));
+    const ctx: NewRunSlotContext = { prompt: () => text, setPrompt, repoIds: () => [], permission: () => "edit", pickMode: () => {}, supported: () => [], unavailable: () => ({}), disabled: () => false };
+    render(() => <PromptPicker ctx={ctx} />);
+    const group = within(screen.getByRole("group", { name: "Saved prompts" }));
+    const chips = group.getAllByRole("button");
+    expect(chips).toHaveLength(QUICK_PROMPTS + 1);
+    expect(chips[chips.length - 1].textContent).toBe("All prompts");
+    expect(chips.slice(0, QUICK_PROMPTS).map((c) => c.textContent)).toEqual(starterPrompts().slice(0, QUICK_PROMPTS).map((p) => p.title));
+    fireEvent.click(chips[0]);
+    await waitFor(() => expect(setPrompt).toHaveBeenCalledTimes(1));
+    expect(text.length).toBeGreaterThan(0);
   });
 });

@@ -1,6 +1,7 @@
-import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
+import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { setLocale } from "../../i18n";
 import type { RoleProviderCaps } from "../../ipc/roles";
 import { getCommand } from "../../platform/commands";
 import { settingsSections } from "../../platform/settings";
@@ -82,19 +83,78 @@ describe("<RunPicker>", () => {
     return { value, onChange };
   };
   const select = (name: string) => screen.getByRole("combobox", { name }) as HTMLSelectElement;
+  /** The effort levels are the segments of one radio group, named in full ("Extra high") and shown by a name that fits ("X-high"). */
+  const levels = () => within(screen.getByRole("radiogroup", { name: "Effort" })).getAllByRole("radio");
+  const checked = () => levels().find((r) => r.getAttribute("aria-checked") === "true")?.textContent;
 
   it("lists the role default, every model and Other, and every effort of the run's model", () => {
     mount();
     expect([...select("Model").options].map((o) => o.textContent)).toEqual(["Default: Sonnet 5.5", "Fable 5.1", "Haiku 4.5", "Sonnet 5.5", "Other model id..."]);
-    expect([...select("Effort").options].map((o) => o.value)).toEqual(["", "low", "medium", "high", "max"]);
-    expect(select("Effort").options[0].textContent).toBe("Default: Medium");
+    expect(levels().map((r) => r.textContent)).toEqual(["Low", "Medium", "High", "Max"]);
+    expect(levels().map((r) => r.getAttribute("aria-label"))).toEqual(["Low", "Medium", "High", "Max"]);
+    expect(checked()).toBe("Medium"); // nothing picked: the role's own effort is the one shown
+  });
+
+  it("picks an effort level with one click, and offers the way back to the role's defaults once something is picked", () => {
+    const { value, onChange } = mount();
+    expect(screen.queryByRole("button", { name: "Use the role's defaults" })).toBeNull();
+    fireEvent.click(screen.getByRole("radio", { name: "High" }));
+    expect(value()).toEqual({ effort: "high" });
+    expect(checked()).toBe("High");
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Use the role's defaults" })).toBeTruthy();
+  });
+
+  it("keeps the keyboard focus on the segment that was clicked or reached with the arrows", async () => {
+    mount();
+    const high = screen.getByRole("radio", { name: "High" });
+    high.focus();
+    fireEvent.click(high);
+    expect(high.isConnected).toBe(true); // the same button, not a new one in its place
+    expect(document.activeElement).toBe(high);
+    expect(high.getAttribute("aria-checked")).toBe("true");
+    fireEvent.keyDown(high, { key: "ArrowRight" });
+    await Promise.resolve();
+    expect(checked()).toBe("Max");
+    expect(document.activeElement).toBe(screen.getByRole("radio", { name: "Max" }));
+  });
+
+  it("shows the level names of the language, the ids staying the values", async () => {
+    await setLocale("hu", { persist: false });
+    try {
+      mount("claude", true, { model: "claude-fable-5-1" });
+      const group = within(screen.getByRole("radiogroup", { name: "Erőfeszítés" })).getAllByRole("radio");
+      expect(group.map((r) => r.textContent)).toEqual(["Alacsony", "Közepes", "Magas", "Extra", "Max"]);
+      expect(group.map((r) => r.getAttribute("aria-label"))).toEqual(["Alacsony", "Közepes", "Magas", "Nagyon magas", "Maximális"]);
+    } finally {
+      await setLocale("en", { persist: false });
+    }
+  });
+
+  it("returns the effort alone to the role's default: the picked model stays, and the focus goes to the level that applies", async () => {
+    const { value } = mount();
+    expect(screen.queryByRole("button", { name: "Role default" })).toBeNull();
+    fireEvent.change(select("Model"), { target: { value: "claude-fable-5-1" } });
+    expect(screen.queryByRole("button", { name: "Role default" })).toBeNull(); // a picked model alone picks no effort
+    fireEvent.click(screen.getByRole("radio", { name: "Extra high" }));
+    expect(value()).toEqual({ model: "claude-fable-5-1", effort: "xhigh" });
+    const back = screen.getByRole("button", { name: "Role default" });
+    back.focus();
+    fireEvent.click(back);
+    expect(value()).toEqual({ model: "claude-fable-5-1" });
+    expect("effort" in value()).toBe(false);
+    expect(select("Model").value).toBe("claude-fable-5-1");
+    expect(checked()).toBe("Medium"); // the role's own effort again
+    expect(screen.queryByRole("button", { name: "Role default" })).toBeNull();
+    await Promise.resolve();
+    expect(document.activeElement).toBe(screen.getByRole("radio", { name: "Medium" }));
   });
 
   it("disables effort for a model without it and clamps the effort when the model changes", () => {
     const { value } = mount("claude", true, { effort: "max" });
     fireEvent.change(select("Model"), { target: { value: "claude-haiku-4-5-20251001" } });
     expect(value()).toEqual({ model: "claude-haiku-4-5-20251001", effort: undefined });
-    expect(select("Effort").disabled).toBe(true);
+    expect(screen.queryByRole("radiogroup", { name: "Effort" })).toBeNull();
     expect(screen.getByText("This model has no effort setting.")).toBeTruthy();
   });
 
@@ -108,7 +168,7 @@ describe("<RunPicker>", () => {
     fireEvent.input(box, { target: { value: "claude-opus-9" } });
     expect(value().model).toBe("claude-opus-9");
     expect(screen.queryByText(/Type a Claude model id/)).toBeNull();
-    expect([...select("Effort").options].map((o) => o.value)).toEqual(["", "low", "medium", "high", "xhigh", "max"]);
+    expect(levels().map((r) => r.textContent)).toEqual(["Low", "Medium", "High", "X-high", "Max"]);
     expect(screen.getByText(/not in the list, so every effort level is offered/)).toBeTruthy();
   });
 

@@ -5,7 +5,7 @@ import type { DirEntry, FileRead } from "../../ipc/files";
 import { setTrayPlanPercent, trayPlanPercent } from "../../store/planUsage";
 import { setUsageApi, type UsageApi } from "../usage/api";
 import { resetUsage } from "../usage/store";
-import { lastDays, limitTone, partOfDay, pulseOf, startOfDay, subjectOf, type PulseRow } from "./logic";
+import { barHeights, lastDays, limitTone, pulseList, pulseOf, startOfDay, subjectOf, testTally, type PulseRow } from "./logic";
 import { fiveHourPercent, resetPlanPoll, startPlanPoll } from "./planPoll";
 import { detectStack, pickTips, readRepoStack } from "./stack";
 import { dashboardAtStart, dashboardEnabled, resetDashboardPrefs, setDashboardAtStart, setTrayPlanEnabled, syncDashboardPrefs, trayPlanEnabled } from "./toggle";
@@ -52,9 +52,38 @@ describe("small helpers", () => {
     expect(lastDays([], "nonsense", 3)).toEqual([]);
     expect(subjectOf("fix: the thing\n\nbody")).toBe("fix: the thing");
     expect(subjectOf("x".repeat(100), 10)).toBe(`${"x".repeat(9)}…`);
-    expect(partOfDay(new Date(2026, 0, 1, 8).getTime())).toBe("morning");
-    expect(partOfDay(new Date(2026, 0, 1, 13).getTime())).toBe("afternoon");
-    expect(partOfDay(new Date(2026, 0, 1, 21).getTime())).toBe("evening");
+    expect(barHeights([0, 1, 50, 100])).toEqual([0, 3, 50, 100]);
+    expect(barHeights([0, 0])).toEqual([0, 0]);
+  });
+
+  it("orders the pulse list: needs you, ready, working, failed, the newest first, without the reviewed ones", () => {
+    const rows = [
+      { agentId: "done-old", status: "done" as const, startedAt: 1 },
+      { agentId: "run", status: "running" as const, startedAt: 5 },
+      { agentId: "seen", status: "done" as const, startedAt: 6 },
+      { agentId: "bad", status: "error" as const, startedAt: 9 },
+      { agentId: "ask", status: "needsYou" as const, startedAt: 2 },
+      { agentId: "done-new", status: "done" as const, startedAt: 4 },
+    ];
+    const all = pulseList(rows, new Set(["seen"]), 10);
+    expect(all.items.map((i) => `${i.kind}:${i.row.agentId}`)).toEqual(["needsYou:ask", "ready:done-new", "ready:done-old", "running:run", "failed:bad"]);
+    expect(all.more).toBe(0);
+    const few = pulseList(rows, new Set(), 2);
+    expect(few.items.map((i) => i.row.agentId)).toEqual(["ask", "seen"]);
+    expect(few.more).toBe(4);
+  });
+
+  it("tallies the latest test verdict of each repository", () => {
+    expect(testTally([])).toBeUndefined();
+    expect(testTally([{ repoId: "a", status: "running" }, { repoId: "b", status: "noTests" }, { repoId: "c", status: "notTested" }])).toBeUndefined();
+    const tally = testTally([
+      { repoId: "a", status: "failed", summary: { failed: 4 }, finishedAt: 10 },
+      { repoId: "a", status: "passed", summary: { failed: 0 }, finishedAt: 20 },
+      { repoId: "b", status: "failed", summary: { failed: 2 }, finishedAt: 5 },
+      { repoId: "c", status: "timeout", finishedAt: 7 },
+      { repoId: "d", status: "waiting" },
+    ]);
+    expect(tally).toEqual({ total: 3, passing: 1, failing: [{ repoId: "b", failed: 2 }, { repoId: "c", failed: 0 }] });
   });
 });
 

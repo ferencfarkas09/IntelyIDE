@@ -12,7 +12,7 @@ const ALL: PermissionMode[] = ["readOnly", "ask", "edit", "automatic", "bypass"]
 const cards = () => screen.getAllByRole("radio") as HTMLButtonElement[];
 const names = () => cards().map((c) => c.dataset.mode);
 
-function Harness(props: { start?: PermissionMode; modes?: PermissionMode[]; unavailable?: Partial<Record<PermissionMode, string>>; confirm?: PermissionMode[]; onChange?: (m: PermissionMode) => void }) {
+function Harness(props: { start?: PermissionMode; modes?: PermissionMode[]; unavailable?: Partial<Record<PermissionMode, string>>; confirm?: PermissionMode[]; onChange?: (m: PermissionMode) => void; layout?: "grid" | "list" | "radio"; plain?: Partial<Record<PermissionMode, { label: string; hint?: string }>> }) {
   const [value, setValue] = createSignal<PermissionMode | undefined>(props.start);
   return (
     <>
@@ -24,6 +24,8 @@ function Harness(props: { start?: PermissionMode; modes?: PermissionMode[]; unav
         labelledBy="lg"
         unavailable={props.unavailable}
         confirm={props.confirm}
+        layout={props.layout}
+        plain={props.plain}
       />
     </>
   );
@@ -83,6 +85,37 @@ describe("<ModeCards>", () => {
     expect(cards()[4].getAttribute("aria-haspopup")).toBe("dialog");
     expect(cards()[4].title).toBe("Asks for your confirmation first");
     expect(cards()[0].getAttribute("aria-haspopup")).toBeNull();
+  });
+
+  it("draws radio cards with a dot in the radio layout, and keeps the group, the order and the one tab stop", () => {
+    render(() => <Harness start="edit" layout="radio" />);
+    expect(screen.getByRole("radiogroup", { name: "Permission mode" }).getAttribute("data-layout")).toBe("radio");
+    expect(names()).toEqual(ALL);
+    expect(cards().every((c) => c.querySelector(".mode-card__dot")?.getAttribute("aria-hidden") === "true")).toBe(true);
+    expect(cards().map((c) => c.tabIndex)).toEqual([-1, -1, 0, -1, -1]);
+    cleanup();
+    render(() => <Harness start="edit" />);
+    expect(cards().some((c) => c.querySelector(".mode-card__dot"))).toBe(false);
+  });
+
+  it("leads with a plain name where one is given, keeps the mode's own name beside it and its full explanation as the tooltip", () => {
+    const onChange = vi.fn();
+    render(() => <Harness start="ask" layout="radio" plain={{ ask: { label: "Careful", hint: "Asks you first." }, edit: { label: "Balanced" } }} onChange={onChange} confirm={["bypass"]} />);
+    const [plan, ask, edit, , bypass] = cards();
+    expect(ask.querySelector(".mode-card__label")?.textContent).toBe("Careful");
+    expect(ask.querySelector(".mode-card__mode")?.textContent).toBe("Ask");
+    expect(document.getElementById(ask.getAttribute("aria-describedby")!)?.textContent).toBe("Asks you first.");
+    expect(ask.title).toBe("Asks before every edit and every command.");
+    // a plain name without a line of its own keeps the mode's explanation in the card
+    expect(edit.querySelector(".mode-card__label")?.textContent).toBe("Balanced");
+    expect(document.getElementById(edit.getAttribute("aria-describedby")!)?.textContent).toMatch(/^Edits files in your repositories/);
+    expect(edit.title).toBe("");
+    // the modes without a plain name are as ever, and Bypass still says it asks first
+    expect(plan.querySelector(".mode-card__label")?.textContent).toBe("Plan / read only");
+    expect(plan.querySelector(".mode-card__mode")).toBeNull();
+    expect(bypass.title).toBe("Asks for your confirmation first");
+    fireEvent.click(edit);
+    expect(onChange).toHaveBeenCalledWith("edit");
   });
 
   it("disables a mode with its reason in the tooltip and the description, and skips it with the arrows", () => {
