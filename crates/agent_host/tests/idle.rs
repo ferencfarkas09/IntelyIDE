@@ -57,7 +57,7 @@ fn a_run_that_works_or_waits_is_not_idle() {
     assert!(!working.is_idle());
 
     let mut waiting = finished_run(StopReason::EndTurn);
-    waiting.state.perms.insert("r1".into(), PendingPermission { options: vec![PermissionOption::AllowOnce, PermissionOption::Deny], answering: false, intent: ToolIntent::exec("touch x") });
+    waiting.state.perms.insert("r1".into(), PendingPermission { options: vec![PermissionOption::AllowOnce, PermissionOption::Deny], answering: false, intent: ToolIntent::exec("touch x"), tool_id: "t".into(), confirm: None });
     assert!(!waiting.is_idle());
 
     // a run that has not said anything yet reads "running", not "finished"

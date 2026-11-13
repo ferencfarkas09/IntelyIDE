@@ -601,7 +601,7 @@ fn h5_approving_a_plan_switches_the_run_to_the_chosen_mode_in_one_step() {
     let r = Rig::new();
     let id = r.start("mock-plain-reply", Some(ReadOnly)).agent_id;
     plan_card(&r, &id, "p1");
-    r.host.answer_permission_with(&id, "p1", PermissionDecision::AllowOnce, AnswerExtra { mode: Some(Edit), feedback: None }).expect("approve");
+    r.host.answer_permission_with(&id, "p1", PermissionDecision::AllowOnce, AnswerExtra { mode: Some(Edit), feedback: None, ..Default::default() }).expect("approve");
     let ctx = r.host.context(&id).unwrap();
     assert_eq!((ctx.mode, ctx.strict_jail), (Edit, true));
     assert_eq!(r.disk_meta(&id)["permission"], "edit");
@@ -621,7 +621,7 @@ fn h5_bypass_and_plan_are_never_a_continuation_and_the_card_stays_pending() {
     let id = r.start("mock-plain-reply", Some(ReadOnly)).agent_id;
     plan_card(&r, &id, "p1");
     for wrong in [Bypass, ReadOnly] {
-        let e = r.host.answer_permission_with(&id, "p1", PermissionDecision::AllowOnce, AnswerExtra { mode: Some(wrong), feedback: None }).expect_err("refused");
+        let e = r.host.answer_permission_with(&id, "p1", PermissionDecision::AllowOnce, AnswerExtra { mode: Some(wrong), feedback: None, ..Default::default() }).expect_err("refused");
         assert_eq!(e.code, "invalidMode", "{wrong:?}: {}", e.message);
     }
     assert_eq!((r.host.context(&id).unwrap().mode, r.answers("p1").len()), (ReadOnly, 0), "nothing changed and nothing was sent");
@@ -638,11 +638,11 @@ fn h5_a_writer_mode_that_cannot_get_the_lease_leaves_the_plan_card_pending_and_t
     let id = r.start("mock-plain-reply", Some(ReadOnly)).agent_id;
     r.start("mock-tool-permission", Some(Edit)); // holds the repository's writer lease
     plan_card(&r, &id, "p1");
-    let e = r.host.answer_permission_with(&id, "p1", PermissionDecision::AllowOnce, AnswerExtra { mode: Some(Automatic), feedback: None }).expect_err("lease");
+    let e = r.host.answer_permission_with(&id, "p1", PermissionDecision::AllowOnce, AnswerExtra { mode: Some(Automatic), feedback: None, ..Default::default() }).expect_err("lease");
     assert_eq!(e.code, "writeLease", "{}", e.message);
     assert_eq!((r.host.context(&id).unwrap().mode, r.disk_meta(&id)["permission"].clone(), r.answers("p1").len()), (ReadOnly, json!("readOnly"), 0));
     // Ask is no writer mode: the same card can still be approved
-    r.host.answer_permission_with(&id, "p1", PermissionDecision::AllowOnce, AnswerExtra { mode: Some(Ask), feedback: None }).expect("approve in Ask");
+    r.host.answer_permission_with(&id, "p1", PermissionDecision::AllowOnce, AnswerExtra { mode: Some(Ask), feedback: None, ..Default::default() }).expect("approve in Ask");
     assert_eq!(r.host.context(&id).unwrap().mode, Ask);
     r.host.shutdown();
 }
@@ -653,7 +653,7 @@ fn h5_when_the_user_switched_away_meanwhile_the_current_mode_is_kept() {
     let id = r.start("mock-plain-reply", Some(ReadOnly)).agent_id;
     plan_card(&r, &id, "p1");
     r.switch(&id, Edit).unwrap();
-    r.host.answer_permission_with(&id, "p1", PermissionDecision::AllowOnce, AnswerExtra { mode: Some(Automatic), feedback: None }).expect("the click stands");
+    r.host.answer_permission_with(&id, "p1", PermissionDecision::AllowOnce, AnswerExtra { mode: Some(Automatic), feedback: None, ..Default::default() }).expect("the click stands");
     assert_eq!(r.host.context(&id).unwrap().mode, Edit, "the user's later choice wins");
     assert_eq!(r.answers("p1")[0]["mode"], "edit");
     r.host.shutdown();
@@ -665,7 +665,7 @@ fn h5_rejecting_a_plan_forwards_the_feedback_and_leaves_plan_mode() {
     let id = r.start("mock-plain-reply", Some(ReadOnly)).agent_id;
     plan_card(&r, &id, "p1");
     let long = "x".repeat(5000);
-    r.host.answer_permission_with(&id, "p1", PermissionDecision::Deny, AnswerExtra { mode: None, feedback: Some(format!("  {long}  ")) }).expect("reject");
+    r.host.answer_permission_with(&id, "p1", PermissionDecision::Deny, AnswerExtra { mode: None, feedback: Some(format!("  {long}  ")), ..Default::default() }).expect("reject");
     let answer = &r.answers("p1")[0];
     assert_eq!((answer["outcome"].as_str(), answer["mode"].is_null()), (Some("deny"), true));
     assert_eq!(answer["message"].as_str().unwrap().chars().count(), 4000, "trimmed and cut at 4000 characters");
@@ -680,7 +680,7 @@ fn h5_a_mode_or_feedback_on_the_wrong_kind_of_answer_is_invalid() {
     plan_card(&r, &id, "p1");
     r.switch(&id, Ask).unwrap();
     r.card(&id, "x1", exec("npm test"), &["allow_once", "deny"]);
-    let bad = |req: &str, decision, mode, feedback: Option<&str>| code(r.host.answer_permission_with(&id, req, decision, AnswerExtra { mode, feedback: feedback.map(str::to_string) }));
+    let bad = |req: &str, decision, mode, feedback: Option<&str>| code(r.host.answer_permission_with(&id, req, decision, AnswerExtra { mode, feedback: feedback.map(str::to_string), ..Default::default() }));
     assert_eq!(bad("x1", PermissionDecision::AllowOnce, Some(Edit), None), "invalidAnswer", "a mode on a request that is no plan approval");
     assert_eq!(bad("p1", PermissionDecision::Deny, Some(Edit), None), "invalidAnswer", "a mode on a rejection");
     assert_eq!(bad("p1", PermissionDecision::AllowOnce, None, Some("change it")), "invalidAnswer", "feedback on an approval");

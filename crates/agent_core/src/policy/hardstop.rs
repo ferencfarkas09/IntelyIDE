@@ -20,6 +20,13 @@ mod vars;
 pub use facts::{raw_text_stop, PROC_ENV_PROGRAMS};
 pub(crate) use facts::HARMLESS_DEVICES;
 
+/// What the agent is told when a shell command names a secret file of the run's own project, or a `.env` file it would write: the shell is never
+/// asked about it, the file tools are.
+pub(crate) const USE_READ_TOOL: &str = ". Use the Read tool on it instead: the person is then asked and can allow it";
+/// An operand that is a `.env*` file, which a command may read or change: both tools work.
+pub(crate) const USE_READ_OR_EDIT_TOOL: &str = ". Use the Read tool on it to read it, or the Edit or Write tool to change it, instead: the person is then asked and can allow it";
+pub(crate) const USE_EDIT_TOOL: &str = ". Use the Edit or Write tool on it instead: the person is then asked and can allow it";
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HardStop {
     pub rule: String,
@@ -415,7 +422,8 @@ impl<'a> Walker<'a> {
         }
         let p = paths::resolve(&self.cwd, &word.text, self.jail.home.as_deref());
         if let Some(why) = self.jail.protected_reason(&p) {
-            self.stop("fs.protected", &format!("writes {why}"));
+            let hint = if why == ".env*" && self.jail.file_tool_hint_ok("fs.protected", &p, true) { USE_EDIT_TOOL } else { "" };
+            self.stop("fs.protected", &format!("writes {why}{hint}"));
         } else {
             self.note_exec_surface(&p, &word.text);
         }

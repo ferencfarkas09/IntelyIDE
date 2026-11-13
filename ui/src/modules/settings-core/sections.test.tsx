@@ -237,6 +237,9 @@ describe("<SafetySection>", () => {
     expect(await screen.findByText("Normal mode")).toBeTruthy();
     expect(within(screen.getByRole("list", { name: "Never-add patterns" })).getByText("dump_*")).toBeTruthy();
     expect(within(screen.getByRole("list", { name: "Secret patterns" })).getByText(".env")).toBeTruthy();
+    // there is no list of "always allowed" stops: grants last for one run at most
+    expect(screen.queryByText("Allowed stops")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Revoke/ })).toBeNull();
 
     const repo = repos()[0];
     const live = `Live branches of ${repo.name}`;

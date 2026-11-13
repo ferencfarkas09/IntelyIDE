@@ -24,6 +24,7 @@ import type {
   AgentStartRequest,
   AgentSummary,
   AutoInfo,
+  ConfirmKind,
   McpServerStatus,
   PermissionDecision,
   PermissionMode,
@@ -96,7 +97,7 @@ export interface Ipc extends IpcNamespaces {
    * `extra.mode`: an ExitPlanMode approval continues the run in this mode (`ask`, `edit` or `automatic`).
    * `extra.feedback`: the user's text when an ExitPlanMode request is rejected.
    */
-  agentAnswerPermission(agentId: string, requestId: string, decision: PermissionDecision, extra?: { mode?: PermissionMode; feedback?: string }): Promise<void>;
+  agentAnswerPermission(agentId: string, requestId: string, decision: PermissionDecision, extra?: { mode?: PermissionMode; feedback?: string; confirmBroad?: boolean }): Promise<void>;
   /** Switches the permission mode of a run live; rejects with the codes of the modes spec (`modeNotSupported`, `bypassNotConfirmed`, `writeLease`, ...). */
   agentSetPermission(agentId: string, mode: PermissionMode, opts?: { confirmBypass?: boolean }): Promise<AgentSummary>;
   /** The modes a NEW run of this provider may start in (provider support minus what the kill switch disables). */

@@ -229,6 +229,8 @@ export async function interruptRun(agentId: string): Promise<void> {
 export interface AnswerExtra {
   mode?: PermissionMode;
   feedback?: string;
+  /** The run-wide choice for secret files: the person clicked the second confirmation (the host requires it). */
+  confirmBroad?: boolean;
 }
 
 /**

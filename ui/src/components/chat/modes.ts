@@ -26,6 +26,11 @@ const ERROR_KEY: Record<string, MessageKey> = {
   invalidMode: "modes.err.invalidMode",
   modeChanged: "modes.err.modeChanged",
   optionNotOffered: "modes.err.optionNotOffered",
+  answerOnComputer: "stops.err.answerOnComputer",
+  confirmationRequired: "stops.err.confirmationRequired",
+  rulesMoved: "stops.err.rulesMoved",
+  runWideNotAllowed: "stops.err.runWideNotAllowed",
+  notOnServer: "stops.err.notOnServer",
 };
 
 /** What a refused mode change or answer says: the host's error code in the user's words, else the host's own message. */

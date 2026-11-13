@@ -681,3 +681,228 @@ describe('the PreToolUse payload of a workflow helper (the shape the CLI sends; 
     expect(decisionOf(r)).toMatchObject({ permissionDecision: 'deny' });
   });
 });
+
+// ---------- confirmable (tier 2) stops ----------
+const settle = async () => { await tick(); await tick(); };
+
+describe('confirmable stops: the card, the grant and the audit', () => {
+  const offer = { kind: 'secretFile', rule: 'read.never-read', scope: '/work/.env', repo: '/work' } as const;
+  const stop: PolicyDecision = { decision: 'deny', by: 'hardStop', reason: '/work/.env is on the agent never-read list', rule: 'read.never-read', confirm: offer };
+  const allowed: PolicyDecision = { decision: 'allow', by: 'default', rule: 'read.inside' };
+  /** Rust, as the host answers it: the stop until the card was answered yes, then the allow. */
+  function stub(first: PolicyDecision = stop, after: PolicyDecision = allowed) {
+    const st = { granted: false, asked: [] as unknown[] };
+    const policy: PolicyClient = { decide: async (r) => { st.asked.push(r); return st.granted ? after : first; } };
+    return { st, policy };
+  }
+  it.each(['ask', 'edit', 'automatic', 'bypass'] as const)('%s: the hook makes the CLI ask instead of refusing, and canUseTool puts the four-button card', async (mode) => {
+    const { policy } = stub();
+    const { gate, out, denied } = rig(policy, { mode });
+    expect(decisionOf(await hook(gate, 'Read', { file_path: '/work/.env' }, 'c1'))).toEqual({ hookEventName: 'PreToolUse', permissionDecision: 'ask' });
+    expect(denied.has('c1')).toBe(false);
+    const p = gate.canUseTool('Read', { file_path: '/work/.env' }, { toolUseID: 'c1', signal: new AbortController().signal } as never);
+    await settle();
+    expect(kinds(out, 'permission.request')[0]).toMatchObject({ reqId: 'perm-c1', toolId: 'c1', options: ['allow_once', 'allow_run', 'deny'], confirm: offer });
+    gate.cancelPending('cancelled');
+    expect(await p).toMatchObject({ behavior: 'deny' });
+  });
+
+  it('a yes is judged again by Rust (the host made the grant) and the call goes on; the resolved event carries how far the yes reaches', async () => {
+    const { st, policy } = stub();
+    const { gate, out } = rig(policy, { mode: 'automatic' });
+    const p = gate.canUseTool('Read', { file_path: '/work/.env' }, { toolUseID: 'c2', signal: new AbortController().signal } as never);
+    await settle();
+    st.granted = true; // what the host does before it answers
+    gate.answer('perm-c2', { outcome: 'allow', grant: 'once' });
+    expect(await p).toMatchObject({ behavior: 'allow', updatedInput: { file_path: '/work/.env' } });
+    expect(kinds(out, 'permission.resolved')[0]).toMatchObject({ outcome: 'allow', by: 'user', grant: 'once' });
+  });
+
+  it('a no is a refusal that names the stop, says it stays, and carries the person\'s note', async () => {
+    const { policy } = stub();
+    const { gate, denied } = rig(policy, { mode: 'bypass' });
+    const p = gate.canUseTool('Read', { file_path: '/work/.env' }, { toolUseID: 'c3', signal: new AbortController().signal } as never);
+    await settle();
+    gate.answer('perm-c3', { outcome: 'deny', message: 'use .env.example instead' });
+    const r = (await p) as { behavior: string; message: string };
+    expect(r.behavior).toBe('deny');
+    expect(r.message).toContain('/work/.env');
+    expect(r.message).toContain('declined');
+    expect(r.message).toContain('use .env.example instead');
+    expect(r.message).toContain('Do not retry');
+    expect(denied.has('c3')).toBe(true);
+  });
+
+  it('the cap: a call that keeps meeting stops asks at most four times, each with its own request id', async () => {
+    const forever: PolicyClient = { decide: async () => stop };
+    const g2 = rig(forever, { mode: 'automatic' });
+    const q = g2.gate.canUseTool('Read', { file_path: '/work/.env' }, { toolUseID: 'c5', signal: new AbortController().signal } as never);
+    for (let i = 0; i < 4; i++) { await settle(); g2.gate.answer(i === 0 ? 'perm-c5' : `perm-c5-c${i}`, { outcome: 'allow', grant: 'once' }); }
+    expect(await q).toMatchObject({ behavior: 'deny' });
+    expect(kinds(g2.out, 'permission.request').filter((e) => e.options.length === 3)).toHaveLength(4);
+  });
+
+  it('a stop that is once-only (the run folder is the home folder) offers no run-wide button', async () => {
+    const { gate, out } = rig(fixed({ ...stop, confirm: { ...offer, onceOnly: true } }), { mode: 'automatic' });
+    void gate.canUseTool('Read', { file_path: '/work/.env' }, { toolUseID: 'o1', signal: new AbortController().signal } as never);
+    await settle();
+    expect(kinds(out, 'permission.request')[0]).toMatchObject({ options: ['allow_once', 'deny'], confirm: { onceOnly: true } });
+  });
+
+  it('a stop without an offer, or one that did not come from a hard stop, is refused as before (no card)', async () => {
+    for (const d of [{ ...stop, confirm: undefined }, { ...stop, by: 'roleDeny' as const }]) {
+      const { gate, out } = rig(fixed(d), { mode: 'automatic' });
+      expect(decisionOf(await hook(gate, 'Read', { file_path: '/work/.env' }, 'c6'))).toMatchObject({ permissionDecision: 'deny' });
+      expect(kinds(out, 'permission.request').every((e) => e.options.length === 1)).toBe(true);
+    }
+  });
+
+  it('a standing grant (for the run) that lifts a stop is written to the run log', async () => {
+    const via = (v: 'run'): PolicyDecision => ({ ...allowed, usedGrants: [{ offer, via: v }] });
+    for (const v of ['run'] as const) {
+      const { gate, out } = rig(fixed(via(v)), { mode: 'automatic' });
+      await hook(gate, 'Read', { file_path: '/work/.env' }, `s-${v}`);
+      await gate.canUseTool('Read', { file_path: '/work/.env' }, { toolUseID: `s-${v}`, signal: new AbortController().signal } as never);
+      expect(kinds(out, 'permission.request')).toHaveLength(1); // once, however many times the decision is read
+      expect(kinds(out, 'permission.request')[0]).toMatchObject({ confirm: offer, options: ['deny'] });
+      expect(kinds(out, 'permission.resolved')[0]).toMatchObject({ outcome: 'allow', by: 'saved', grant: v });
+    }
+  });
+});
+
+describe('the Claude CLI prompt as a tier-2 question', () => {
+  const REASON = 'Contains brace with quote character (expansion obfuscation)';
+  const CMD = 'sh -c "echo {\'a\'}"';
+  const cliStop: PolicyDecision = { decision: 'deny', by: 'hardStop', reason: 'cli', rule: 'cli.prompt-denied', confirm: { kind: 'cliPrompt', rule: 'cli.prompt-denied', scope: REASON, repo: '/work' } };
+  const neverAnswered: PolicyDecision = { decision: 'deny', by: 'hardStop', reason: 'never', rule: 'cli.prompt-denied' };
+  // (Rust: a sensitive-file prompt is never offered)
+  const route = (cli: PolicyDecision): PolicyClient => ({ decide: async (r) => (r.intent.tool === 'intely:cli-prompt' ? (/sensitive file/.test(String((r.intent as { args?: string[] }).args?.[0])) ? neverAnswered : cli) : { decision: 'allow', by: 'default', rule: 'exec.auto' }) });
+  const cu = (id: string) => ({ toolUseID: id, signal: new AbortController().signal, decisionReason: REASON }) as never;
+
+  it.each(['automatic'] as const)('%s: asks Rust about the pseudo tool with the exact reason, then shows the card instead of refusing', async (mode) => {
+    const seen: any[] = [];
+    const policy: PolicyClient = { decide: async (r) => { seen.push(r); return route(cliStop).decide(r); } };
+    const { gate, out } = rig(policy, { mode, cwd: '/work', runDirs: ['/work'] });
+    const p = gate.canUseTool('Bash', { command: CMD }, cu('p1'));
+    await settle();
+    const q = seen.find((r) => r.intent.tool === 'intely:cli-prompt');
+    expect(q).toMatchObject({ toolId: 'p1', intent: { class: 'other', tool: 'intely:cli-prompt', args: [REASON] } });
+    expect(kinds(out, 'permission.request')[0]).toMatchObject({ reqId: 'perm-p1', options: ['allow_once', 'allow_run', 'deny'], confirm: { kind: 'cliPrompt', scope: REASON } });
+    gate.answer('perm-p1', { outcome: 'allow', grant: 'run' });
+    expect(await p).toMatchObject({ behavior: 'allow' });
+    expect(kinds(out, 'permission.resolved')[0]).toMatchObject({ outcome: 'allow', grant: 'run' });
+  });
+
+  it('Bypass answers the CLI\'s text heuristics itself (no card, no question); only its sensitive-file prompt stays a refusal', async () => {
+    const { gate, out } = rig(route(cliStop), { mode: 'bypass', cwd: '/work', runDirs: ['/work'] });
+    expect(await gate.canUseTool('Bash', { command: CMD }, cu('p0'))).toMatchObject({ behavior: 'allow' });
+    expect(kinds(out, 'permission.request')).toHaveLength(0);
+    const sensitive = { toolUseID: 'p0b', signal: new AbortController().signal, decisionReason: 'Claude requested permissions to edit /work/.bashrc which is a sensitive file.' } as never;
+    expect(await gate.canUseTool('Edit', { file_path: '/work/.bashrc' }, sensitive)).toMatchObject({ behavior: 'deny' });
+  });
+
+  it('a no refuses with the declined message; Rust\'s own grant answer lets it through without a card and is logged', async () => {
+    const { gate, denied } = rig(route(cliStop), { mode: 'automatic', cwd: '/work', runDirs: ['/work'] });
+    const p = gate.canUseTool('Bash', { command: CMD }, cu('p2'));
+    await settle();
+    gate.answer('perm-p2', { outcome: 'deny' });
+    expect(await p).toMatchObject({ behavior: 'deny', message: expect.stringContaining('declined') });
+    expect(denied.has('p2')).toBe(true);
+    const granted: PolicyDecision = { decision: 'allow', by: 'saved', rule: 'cli.prompt-granted', usedGrants: [{ offer: cliStop.confirm!, via: 'run' }] };
+    const g2 = rig(route(granted), { mode: 'automatic', cwd: '/work', runDirs: ['/work'] });
+    expect(await g2.gate.canUseTool('Bash', { command: CMD }, cu('p3'))).toMatchObject({ behavior: 'allow' });
+    expect(kinds(g2.out, 'permission.request')).toHaveLength(1);
+    expect(kinds(g2.out, 'permission.resolved')[0]).toMatchObject({ by: 'saved', grant: 'run' });
+  });
+
+  it('a reason Rust will not offer (its never list) or a plain "allow" from anything but Rust\'s grant stays the refusal', async () => {
+    const never: PolicyDecision = { decision: 'deny', by: 'hardStop', reason: 'never', rule: 'cli.prompt-denied' };
+    for (const cli of [never, { decision: 'allow', by: 'default', rule: 'exec.auto' } as PolicyDecision]) {
+      const { gate, out } = rig(route(cli), { mode: 'automatic', cwd: '/work', runDirs: ['/work'] });
+      const r = await gate.canUseTool('Bash', { command: CMD }, cu('p4'));
+      expect(r).toMatchObject({ behavior: 'deny', message: expect.stringContaining(REASON) });
+      expect(kinds(out, 'permission.request').every((e) => e.options.length === 1)).toBe(true);
+    }
+  });
+});
+
+describe('a tier-2 call that runs without its card being answered', () => {
+  const offer = { kind: 'secretFile', rule: 'read.never-read', scope: '/work/.env', repo: '/work' } as const;
+  const stop: PolicyDecision = { decision: 'deny', by: 'hardStop', reason: 'x', rule: 'read.never-read', confirm: offer };
+  it('is a breach: the run is stopped and says so (the CLI skipped canUseTool after the hook asked)', async () => {
+    let breached = 0;
+    const out: WireEvent[] = [];
+    const guard = new TurnGuard(new SeqSink((e) => out.push(e)));
+    guard.beginTurn();
+    const gate = new ToolGate({ agentId: 'a1', provider: 'claude', policy: { decide: async () => stop }, sink: guard, denied: new Set(), mode: () => 'automatic', onBreach: () => { breached++; } });
+    expect(decisionOf(await hook(gate, 'Read', { file_path: '/work/.env' }, 'b1'))).toMatchObject({ permissionDecision: 'ask' });
+    gate.noteResult('b1', false); // the tool ran, no card was ever shown
+    expect(breached).toBe(1);
+    expect((out.find((e) => e.kind === 'error') as any)?.message).toContain('ran without it');
+  });
+  it('is not a breach when the CLI refused the call itself, or when a grant arrived and the call was let through', async () => {
+    let breached = 0;
+    const st = { granted: false };
+    const policy: PolicyClient = { decide: async () => (st.granted ? { decision: 'allow', by: 'default' } : stop) };
+    const { gate } = rig(policy, { mode: 'automatic' });
+    (gate as any).o.onBreach = () => { breached++; };
+    // B: the hook asked, the CLI never called canUseTool and refused the call itself: the result is the CLI's own refusal text
+    await hook(gate, 'Read', { file_path: '/work/.env' }, 'f1');
+    gate.noteResult('f1', true, "The user doesn't want to proceed with this tool use. The tool use was rejected.");
+    // A: the hook asked, a grant arrived and the epoch moved, canUseTool finds an allow and lets the call through
+    await hook(gate, 'Read', { file_path: '/work/.env' }, 'f2');
+    st.granted = true;
+    gate.bumpEpoch();
+    expect(await gate.canUseTool('Read', { file_path: '/work/.env' }, { toolUseID: 'f2', signal: new AbortController().signal } as never)).toMatchObject({ behavior: 'allow' });
+    gate.noteResult('f2', false);
+    expect(breached).toBe(0);
+  });
+  it('is a breach when a file tool RAN (a successful result), whatever its output says', async () => {
+    let breached = 0;
+    const { gate } = rig(fixed(stop), { mode: 'automatic' });
+    (gate as any).o.onBreach = () => { breached++; };
+    await hook(gate, 'Read', { file_path: '/work/.env' }, 'x1');
+    gate.noteResult('x1', false, 'Exit code 1\nsome output');
+    expect(breached).toBe(1);
+  });
+  it('is no breach when a FILE tool ended in an error: nothing was read or written (the CLI\'s own "has not been granted" text)', async () => {
+    let breached = 0;
+    const { gate } = rig(fixed(stop), { mode: 'automatic' });
+    (gate as any).o.onBreach = () => { breached++; };
+    for (const [i, tool] of ['Read', 'Edit', 'Write', 'MultiEdit', 'Grep'].entries()) {
+      await hook(gate, tool, { file_path: '/work/.env' }, `e${i}`);
+      gate.noteResult(`e${i}`, true, "Claude requested permissions to write to /work/.env, but you haven't granted it yet.");
+    }
+    expect(breached).toBe(0);
+    // ...but a file tool that SUCCEEDED without its card being answered is still one
+    await hook(gate, 'Read', { file_path: '/work/.env' }, 'e9');
+    gate.noteResult('e9', false);
+    expect(breached).toBe(1);
+  });
+  it('covers a helper agent\'s call too (the session reports every result)', async () => {
+    let breached = 0;
+    const { gate } = rig(fixed(stop), { mode: 'automatic', delegating: true });
+    (gate as any).o.onBreach = () => { breached++; };
+    await hook(gate, 'Read', { file_path: '/work/.env' }, 'h1', { agent_id: 'sub-1', agent_type: 'dev' });
+    gate.noteResult('h1', false);
+    expect(breached).toBe(1);
+  });
+  it('is not a breach when the card was answered, or the call was refused', async () => {
+    let breached = 0;
+    const st = { granted: false };
+    const policy: PolicyClient = { decide: async () => (st.granted ? { decision: 'allow', by: 'default' } : stop) };
+    const { gate, denied } = rig(policy, { mode: 'automatic' });
+    (gate as any).o.onBreach = () => { breached++; };
+    await hook(gate, 'Read', { file_path: '/work/.env' }, 'b2');
+    const p = gate.canUseTool('Read', { file_path: '/work/.env' }, { toolUseID: 'b2', signal: new AbortController().signal } as never);
+    await tick(); await tick();
+    st.granted = true;
+    gate.answer('perm-b2', { outcome: 'allow', grant: 'once' });
+    await p;
+    gate.noteResult('b2', false);
+    await hook(gate, 'Read', { file_path: '/work/.env' }, 'b3');
+    denied.add('b3'); // refused by the person
+    gate.noteResult('b3', false);
+    expect(breached).toBe(0);
+  });
+});

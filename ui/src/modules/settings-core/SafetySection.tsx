@@ -1,5 +1,5 @@
 import { createResource, createSignal, For, lazy, Show, Suspense } from "solid-js";
-import { t } from "../../i18n";
+import { t, type MessageKey } from "../../i18n";
 import { ipc } from "../../ipc";
 import { errorText } from "../../store/snapshots";
 import { repos, saveWorkspace, workspace } from "../../store/workspace";
@@ -105,6 +105,7 @@ export default function SafetySection() {
           </FormGroup>
         )}
       </Show>
+
 
       <FormGroup title={t("safety.neverTitle")} description={t("safety.neverDesc")}>
         <Show when={safety()} fallback={<FormRow label={t("safety.na")} description={t("safety.naDesc")} />}>

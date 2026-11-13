@@ -167,6 +167,8 @@ fn a_policy_decision_with_a_session_allow_round_trips_and_old_decisions_still_pa
         reason: "commands need approval unless saved".into(),
         rule: Some("exec.ask".into()),
         session_allow: Some(SessionAllowOffer { kind: SessionAllowKind::Exec, scope: "git status".into() }),
+        confirm: None,
+        used_grants: Vec::new(),
     };
     let v = serde_json::to_value(&d).unwrap();
     assert_eq!(v["sessionAllow"], json!({"kind": "exec", "scope": "git status"}));

@@ -14,6 +14,8 @@ import type {
   QuestionAnswer,
   RunStatus,
   SessionAllowOffer,
+  ConfirmOffer,
+  StopGrantScope,
   StopReason,
   ToolDiff,
   ToolIntent,
@@ -71,6 +73,10 @@ export interface PermissionItem extends ItemBase {
   decision?: PermissionDecision;
   /** What the "allow always in this session" button would allow (the card states it). */
   sessionAllow?: SessionAllowOffer;
+  /** A stop the person may lift (a secret file of the project, a Claude CLI prompt): the card asks "may this one thing be allowed?". */
+  confirm?: ConfirmOffer;
+  /** How far an allowed confirm card reaches (`once`, `run`, `always`), read from the resolved event; the run log and summary say it. */
+  grant?: StopGrantScope;
   /** A message to another run: who gets it, the mode it works in and an excerpt of the text (made by the host). */
   peer?: PeerCard;
   /** ExitPlanMode only: the full plan text (redacted, at most 64 KiB), whether it was cut, and the working modes the card offers. */
@@ -321,6 +327,7 @@ function applyOne(v: AgentView, ev: AgentEvent): AgentView {
         intent: ev.intent,
         options: decisionsOf(ev.options),
         ...(ev.sessionAllow ? { sessionAllow: ev.sessionAllow } : {}),
+        ...(ev.confirm ? { confirm: ev.confirm } : {}),
         ...(ev.peer ? { peer: ev.peer } : {}),
         ...(ev.plan !== undefined && ev.plan !== null ? { plan: ev.plan } : {}),
         ...(ev.planTruncated ? { planTruncated: true } : {}),
@@ -331,7 +338,7 @@ function applyOne(v: AgentView, ev: AgentEvent): AgentView {
       break;
     case "permission.resolved":
       // A denial nobody here asked for, after the run's mode changed, is the host withdrawing a card its tightening made a denial.
-      update<PermissionItem>(PERM(ev.reqId), (p) => ({ ...p, outcome: ev.outcome, by: ev.by, ...(ev.outcome === "deny" && !p.decision && p.modeAtRequest && v.session && v.session.effective.permission !== p.modeAtRequest ? { withdrawn: true } : {}) }));
+      update<PermissionItem>(PERM(ev.reqId), (p) => ({ ...p, outcome: ev.outcome, by: ev.by, ...(ev.grant ? { grant: ev.grant } : {}), ...(ev.outcome === "deny" && !p.decision && p.modeAtRequest && v.session && v.session.effective.permission !== p.modeAtRequest ? { withdrawn: true } : {}) }));
       break;
     case "question.request":
       push({ ...base(QUEST(ev.reqId)), type: "question", reqId: ev.reqId, prompt: ev.prompt, options: (ev.options ?? []).map((o) => ({ id: o.label, label: o.label, description: o.description ?? undefined })), multi: false });
@@ -434,14 +441,14 @@ function finishTurn(v: AgentView, stopReason: StopReason, ts: number, seq: numbe
 }
 
 /** Local reply bookkeeping: the permission/question card shows the user's pick immediately. */
-export function markPermissionAnswered(view: AgentView, reqId: string, decision: PermissionDecision, extra?: { mode?: PermissionMode; feedback?: string }): AgentView {
+export function markPermissionAnswered(view: AgentView, reqId: string, decision: PermissionDecision, extra?: { mode?: PermissionMode; feedback?: string; confirmBroad?: boolean }): AgentView {
   const at = view.index[PERM(reqId)];
   if (at === undefined) return view;
   const item = view.items[at] as PermissionItem;
   if (item.outcome) return view;
   const items = view.items.slice();
   const { error: _cleared, ...rest } = item;
-  items[at] = { ...rest, decision, outcome: decision === "deny" ? "deny" : "allow", by: "user", ...(extra?.mode ? { mode: extra.mode } : {}), ...(extra?.feedback ? { feedback: extra.feedback } : {}) };
+  items[at] = { ...rest, decision, outcome: decision === "deny" ? "deny" : "allow", by: "user", ...(item.confirm && decision !== "deny" ? { grant: decision === "allowRun" ? "run" : "once" } : {}), ...(extra?.mode ? { mode: extra.mode } : {}), ...(extra?.feedback ? { feedback: extra.feedback } : {}) };
   return { ...view, items };
 }
 
@@ -452,7 +459,7 @@ export function markPermissionAnswered(view: AgentView, reqId: string, decision:
 export function markPermissionRefused(view: AgentView, reqId: string, code: string, message?: string): AgentView {
   const at = view.index[PERM(reqId)];
   if (at === undefined) return view;
-  const { decision: _d, mode: _m, feedback: _f, ...item } = view.items[at] as PermissionItem;
+  const { decision: _d, mode: _m, feedback: _f, grant: _g, ...item } = view.items[at] as PermissionItem;
   const items = view.items.slice();
   items[at] = code === "modeChanged" ? { ...item, outcome: "deny", by: "user", withdrawn: true, error: { code, message } } : { ...item, outcome: undefined, by: undefined, error: { code, message } };
   return { ...view, items };
