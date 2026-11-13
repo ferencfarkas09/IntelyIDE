@@ -1,16 +1,21 @@
 // The screenshot slots. Key = file stem, value = what the real screenshot must show.
 // Real files go in src/static/assets/img/shots/ as <name>-<light|dark>-<width>.<png|webp|avif>.
-// IntelyIDE: 720 / 1440 (from 1600 px sources, never upscaled). IntelyOpti: 720 / 1440 / 2400.
+// IntelyIDE: 720 / 1440 / 2880 from the 2880 x 1800 captures of capture-shots.mjs (make-images.sh on a Mac, make-images.py elsewhere).
+// IntelyOpti: 720 / 1440 / 2400.
 export const SHOTS = {
-  hero: 'Main window: Changes tree, editor and an agent panel (demo workspace)',
+  hero: 'Agent window (Glass): the runs list, a run with a commit blocked by a hard stop and a permission card, and the run details (demo workspace)',
   'changes-tree': 'Changes tree with four repositories and grouped changes',
   'push-dialog': 'Push dialog with one checkbox per repository',
-  'agent-approval': 'Agent safety card: an approval waiting in the needs-you inbox',
+  'agent-approval': 'Agent window (Standard): the same run, with the hard stop and the permission card',
+  dashboard: 'Dashboard (Glass): the heading, the number tiles, Run pulse, Burn-down, Repo heartbeat and Stack tips',
+  'context-meter': 'Agent window (Glass) with the context meter open under the ring of the run header, and the weekly plan usage in the bottom bar',
+  'ask-card': 'Agent window (Glass): a run waiting on the card that asks about a secret-looking file, with Deny, Allow once and Allow all secret files in this run',
+  'new-run': 'New run dialog (Glass): the prompt, saved prompts, repositories as tick cards, and mode, model and effort in the side column',
   rewind: 'Rewind: the snapshot taken at the start of an agent run',
   'workspaces-welcome': 'Welcome screen with recent workspaces and the workspace switcher',
   preview: 'Run panel with live dev-server preview and click-to-source',
   remote: 'Remote: phone companion watching an agent run',
-  'mongo-studio': 'MongoDB Studio, read-only, with an AI-generated query',
+  'mongo-studio': 'MongoDB Studio with an AI-generated query',
   team: 'Team (Beta): a teammate\'s shared run, read-only, with a note waiting for approval',
   'team-memory': 'Team (Beta): shared Claude memory with a pending CLAUDE.md change and a conflict copy',
   'team-chat': 'Team (Beta): the chat in a teammate\'s shared run',
@@ -43,8 +48,7 @@ export const OPTI_SHOTS = {
 export const WIDTHS = [720, 1440, 2880];
 export const OPTI_WIDTHS = [720, 1440, 2400];
 /** Intrinsic size (w, h) the <img> declares at the 1440 variant, to avoid layout shift. */
-export const DEFAULT_DIMS = [1440, 923];
-export const DIMS = {
-  integrations: [1440, 900], 'mcp-catalog': [1440, 900], versions: [1440, 900], 'versions-diff': [1440, 900], intelyfix: [1440, 900], team: [1440, 900], 'team-memory': [1440, 900], 'team-chat': [1440, 900], 'team-commits': [1440, 900], 'api-explorer': [1440, 900],
-};
+export const DEFAULT_DIMS = [1440, 900];
+/** Slots whose files have another shape than the 1440 x 900 window (none since the 1.15 captures). */
+export const DIMS = {};
 export const OPTI_DIMS = [1440, 960];

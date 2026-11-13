@@ -33,7 +33,7 @@ function shell(ctx, { title, desc, body, path, ld = '', preload = '', noindex = 
 <meta http-equiv="Content-Security-Policy" content="${CSP}">
 <title>${esc(title)}</title>
 <meta name="description" content="${esc(desc)}">
-<meta name="theme-color" content="#7c4dff">
+<meta name="theme-color" content="#7447f5">
 <meta name="color-scheme" content="light dark">
 ${noindex ? '<meta name="robots" content="noindex">' : `<link rel="canonical" href="${ctx.abs(path)}">`}
 ${alt}
@@ -332,6 +332,74 @@ ${after}
 </section>`;
 }
 
+
+/**
+ * The centred hero of the IntelyIDE page (the 1.15 page design): a pill, the headline, the lead and the download, then the product
+ * shot and whatever `after` adds under it (the figures). The page gradient is its backdrop, so it has no arcs or cards of its own.
+ */
+function heroCenter(ctx, { kicker, title, lead, copy = '', shot = '', after = '' }) {
+  return `<section class="hero hero-center" aria-labelledby="hero-h">
+<div class="wrap hero-inner">
+<p class="kicker">${kicker}</p>
+<h1 id="hero-h">${title}</h1>
+<p class="lead">${lead}</p>
+${copy}
+${shot}
+${after}
+</div>
+</section>`;
+}
+
+/** A section heading with an optional line above it and a lead under it. */
+const secHead = (id, { eyebrow = '', title, lead = '' }) =>
+  `<div class="sec-head">${eyebrow ? `<p class="eyebrow">${eyebrow}</p>` : ''}<h2 id="${id}">${title}</h2>${lead ? `<p class="lead">${lead}</p>` : ''}</div>`;
+
+/** A tick list that shows its first `open` items and keeps the rest behind "More details" (nothing is left out of the page). */
+function tickList(t, list, open = 3) {
+  const ul = (items) => `<ul class="ticks">${items.map((x) => `<li>${x}</li>`).join('')}</ul>`;
+  if (list.length <= open + 1) return ul(list);
+  return `${ul(list.slice(0, open))}
+<details class="more-ticks"><summary>${t.ui.moreDetails}</summary>${ul(list.slice(open))}</details>`;
+}
+
+/** "New in ...": three cards, the two changes that need words under them, and the fixes worth a line. */
+function whatsNew(ctx) {
+  const n = ctx.t.whatsNew;
+  const cards = n.cards.map((c) => `<li class="card ncard">${iconTile(c.icon)}<h3>${c.h}</h3><p>${c.p}</p><a href="#${c.to}"${ga('cta', `new-${c.to}`)}>${c.more}<span class="sr"> ${c.h}</span></a></li>`).join('');
+  const details = n.items
+    .map((f) => `<article class="detail" id="${f.id}" aria-labelledby="${f.id}-h">
+<h3 id="${f.id}-h">${f.h}</h3>
+<p>${f.p}</p>
+${tickList(ctx.t, f.list, 4)}
+<p class="note">${f.note}</p>
+${f.shot.length ? frame(picture(ctx.root, f.shot[0], f.shot[1], { sizes: '(min-width: 1200px) 510px, 92vw' })) : ''}
+</article>`)
+    .join('\n');
+  return `<section class="section" id="new" aria-labelledby="new-h">
+<div class="wrap">
+${secHead('new-h', n)}
+<ul class="cards ncards">${cards}</ul>
+<div class="new-detail">
+${details}
+</div>
+<div class="fixes"><h3>${n.fixesH}</h3><ul>${n.fixes.map((x) => `<li>${x}</li>`).join('')}</ul></div>
+</div>
+</section>`;
+}
+
+/** "See it, light and dark": the windows of the refreshed app, each as the light and dark split. */
+function gallery(ctx) {
+  const g = ctx.t.gallery;
+  const figs = g.items
+    .map((i) => `<figure class="shot-card">${frame(picture(ctx.root, i.slot, i.alt, { sizes: '(min-width: 1200px) 570px, (min-width: 1000px) 47vw, 92vw' }))}<figcaption>${i.cap}</figcaption></figure>`)
+    .join('');
+  return `<section class="section" id="gallery" aria-labelledby="gallery-h">
+<div class="wrap">
+${secHead('gallery-h', g)}
+<div class="gallery">${figs}</div>
+</div>
+</section>`;
+}
 
 /** "More from IntelyHome" band linking to the other product. */
 function crossBand(ctx, current) {
@@ -752,7 +820,7 @@ function highlights(t) {
     .map((i) => `<li class="card"><h3>${i.h}</h3><p>${i.p}</p><a href="#${i.id}">${t.highlights.more}<span class="sr"> ${i.h}</span></a></li>`)
     .join('');
   return `<section class="section soft" id="highlights" aria-labelledby="highlights-h">
-<div class="wrap"><h2 id="highlights-h">${t.highlights.title}</h2><ul class="cards cards-3">${items}</ul></div>
+<div class="wrap">${secHead('highlights-h', t.highlights)}<ul class="cards cards-3">${items}</ul></div>
 </section>`;
 }
 
@@ -860,7 +928,6 @@ function ide(ctx0) {
   const ctx = withSticky(ctx0, 'ide');
   const { t, cfg, rel } = ctx;
   const dlHome = href(ctx, dlPath(ctx.lang));
-  const why = t.why.cards.map((c) => `<li class="card"><h3>${c.h}</h3><p>${c.p}</p></li>`).join('');
   const features = t.features.items
     .map(
       (f) => `<article class="feature${f.shots.length ? '' : ' feature-solo'}" id="${f.id}" aria-labelledby="${f.id}-h">
@@ -868,7 +935,7 @@ function ide(ctx0) {
 <h3 id="${f.id}-h">${f.h}</h3>
 ${f.pill ? `<p class="pill">${f.pill}</p>` : ''}
 <p>${f.p}</p>
-<ul class="ticks">${f.list.map((x) => `<li>${x}</li>`).join('')}</ul>
+${tickList(t, f.list)}
 ${f.note ? `<p class="note">${f.note}</p>` : ''}
 </div>
 ${f.shots.length ? `<div class="feature-media">${f.shots.map(([n, a]) => frame(picture(ctx.root, n, a))).join('')}</div>` : ''}
@@ -878,29 +945,48 @@ ${f.shots.length ? `<div class="feature-media">${f.shots.map(([n, a]) => frame(p
   const flow = t.trust.flow.map(([h, p]) => `<li><strong>${h}</strong><span>${p}</span></li>`).join('');
   const steps = t.install.steps.map(([h, p]) => `<li><h3>${h}</h3><p>${p}</p></li>`).join('');
   const faq = t.faq.items.map(([q, a]) => `<details class="faq-item"><summary>${q}</summary><p>${a}</p></details>`).join('\n');
-  const hero = heroSplit(ctx, {
-    kicker: t.hero.kicker, title: t.hero.title, lead: t.hero.lead, cards: t.hero.cards, cardsLabel: t.hero.cardsLabel,
+  const checks = t.trust.points.map(([h, p]) => `<li>${icon('check', 24)}<span><strong>${h}</strong> <span>${p}</span></span></li>`).join('');
+  const hero = heroCenter(ctx, {
+    kicker: t.hero.kicker, title: t.hero.title, lead: t.hero.lead,
     copy: `${downloadBlock(ctx, { id: 'hero-dl' })}
 <details class="dl-more"><summary>${t.dl.more}</summary>
 ${assetTable(ctx)}
 <p><a href="${dlHome}"${ga('cta', 'all-downloads')}>${t.dl.allDownloads}</a></p>
 </details>
 ${rel.notice ? `<p class="notice">${rel.notice}</p>` : ''}`,
-    after: `${heroStats(t)}
-<div class="hero-shot">${frame(picture(ctx.root, 'hero', t.hero.shotAlt, { eager: true, sizes: '(min-width: 1000px) 1040px, 92vw' }))}</div>`,
+    shot: `<div class="hero-shot">${frame(picture(ctx.root, 'hero', t.hero.shotAlt, { eager: true, sizes: '(min-width: 1100px) 1060px, 92vw' }))}</div>`,
+    after: heroStats(t),
   });
   const body = `${hero}
+
+${whatsNew(ctx)}
+
+<section class="section" id="trust" aria-labelledby="trust-h">
+<div class="wrap">
+<div class="panel">
+<div class="panel-head"><h2 id="trust-h">${t.trust.title}</h2>
+<p class="lead">${t.trust.lead}</p></div>
+<ul class="checks">${checks}</ul>
+</div>
+<ol class="flow" aria-label="${t.trust.flowLabel}">${flow}</ol>
+<div class="trust-grid">
+<div><h3>${t.trust.rewindH}</h3><p>${t.trust.rewindP}</p></div>
+<div><h3>${t.trust.bestH}</h3><p>${t.trust.bestP} <a href="${cfg.repoUrl}/blob/main/docs/safety.md"${ga('cta', 'safety-doc')}>${t.trust.safetyLink}</a></p></div>
+<div><h3>${t.trust.privH}</h3>
+<p>${t.trust.privP}</p></div>
+<div><h3>${t.trust.signedH}</h3><p>${t.trust.signedP}</p></div>
+</div>
+</div>
+</section>
 
 ${perfSections(ctx)}
 
 ${highlights(t)}
 
-<section class="section" id="why" aria-labelledby="why-h">
-<div class="wrap"><h2 id="why-h">${t.why.title}</h2><ul class="cards">${why}</ul></div>
-</section>
+${gallery(ctx)}
 
 <section class="section soft" id="features" aria-labelledby="features-h">
-<div class="wrap"><h2 id="features-h">${t.features.title}</h2>
+<div class="wrap">${secHead('features-h', t.features)}
 ${features}
 </div>
 </section>
@@ -913,20 +999,6 @@ ${providers(ctx)}
 <div class="wrap"><h2 id="more-h">${t.more.title}</h2>
 <ul class="chips">${t.more.items.map((x) => `<li>${x}</li>`).join('')}</ul>
 <p class="note">${t.more.note}</p></div>
-</section>
-
-<section class="section soft" id="trust" aria-labelledby="trust-h">
-<div class="wrap"><h2 id="trust-h">${t.trust.title}</h2>
-<p class="lead">${t.trust.lead}</p>
-<ol class="flow" aria-label="${t.trust.flowLabel}">${flow}</ol>
-<div class="trust-grid">
-<div><h3>${t.trust.rewindH}</h3><p>${t.trust.rewindP}</p></div>
-<div><h3>${t.trust.bestH}</h3><p>${t.trust.bestP}</p></div>
-<div><h3>${t.trust.privH}</h3>
-<p>${t.trust.privP}</p></div>
-<div><h3>${t.trust.signedH}</h3><p>${t.trust.signedP}</p></div>
-</div>
-</div>
 </section>
 
 <section class="section" id="open-source" aria-labelledby="open-h">

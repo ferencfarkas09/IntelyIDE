@@ -101,22 +101,62 @@ async function demoPort() {
 }
 const mod = { alt: 1, ctrl: 2, meta: 4, shift: 8 };
 
-async function open(c, { query = "", theme, scenario = "showcase" }) {
-  await c.init(`try { localStorage.setItem("intely.theme", ${JSON.stringify(theme)}); localStorage.setItem("intely.extra.contract", "1"); } catch {}`);
+async function open(c, { query = "", theme, scenario = "showcase", storage = {} }) {
+  await c.init(`try { localStorage.setItem("intely.theme", ${JSON.stringify(theme)}); localStorage.setItem("intely.extra.contract", "1"); for (const [k, v] of Object.entries(${JSON.stringify(storage)})) localStorage.setItem(k, v); } catch {}`);
   await c.goto(`${BASE}/?scenario=${scenario}&delay=0&${query}`);
   await c.waitFor(`document.body && document.body.innerText.length > 40`, 90000, "app render");
   await c.settle();
 }
 
+/** Agent mode: opens the demo run that waits for a permission, so the transcript shows a hard stop and the card under it. */
+async function openRun(c) {
+  await waitText(c, "Show order totals with the shop currency");
+  await c.clickEl(".run-card, .run-row__main", "Show order totals with the shop currency");
+  await waitText(c, "Permission needed");
+  await sleep(900);
+  await dismissToasts(c);
+}
+
 // ---------- shots ------------------------------------------------------------------------------------------------
 const SHOTS = {
+  // The Agent window of the 1.15 look (Glass): the runs list, a run with a hard stop and a permission card, and the run details.
   async hero(c) {
-    await clickRow(c, "OrdersTable.tsx");
-    await typeInto(c, "textarea", "feat(orders): show totals with the shop currency");
-    await clickRail(c, "Agents");
-    await waitText(c, "Show order totals with the shop currency in the orders table");
-    await c.clickEl("[class*=agent] *", "Show order totals with the shop currency in the orders table").catch(() => {});
-    await c.settle();
+    await openRun(c);
+  },
+  async dashboard(c) {
+    await c.waitFor(`!!document.querySelector('[data-testid="dashboard"]')`, WAIT, "the Dashboard tab");
+    await waitText(c, "Run pulse");
+    await sleep(900);
+    await dismissToasts(c);
+  },
+  // The ring of the run header and its popover, with the plan usage in the bottom bar (the mock's demo numbers). The run that is
+  // past the warning colour has enough turns for the "At this pace" row.
+  async "context-meter"(c) {
+    await waitText(c, "Which routes touch the orders table?");
+    await c.clickEl(".run-card, .run-row__main", "Which routes touch the orders table?");
+    await c.waitFor(`!!document.querySelector('[data-testid="context-ring"]') && !!document.querySelector('[data-testid="plan-item-weekly"]')`, WAIT, "the context ring and the weekly plan item");
+    await sleep(600);
+    await dismissToasts(c);
+    await c.clickEl('[data-testid="context-ring"]');
+    await c.waitFor(`!!document.querySelector('[data-testid="context-meter-pace"]')`, WAIT, "the context meter with its pace row");
+    await sleep(600);
+  },
+  // The asking card of 1.15 (a secret-looking file of the run's folder): Deny, Allow once, Allow all secret files in this run.
+  // The mock scenario `agent-stop-read` plays a run that reads a little and then waits on that card.
+  async "ask-card"(c) {
+    await waitText(c, "A stop you can lift");
+    await sleep(900);
+    await dismissToasts(c);
+  },
+  async "new-run"(c) {
+    await waitText(c, "Runs");
+    await dismissToasts(c);
+    await c.clickEl(".sessions__bar .ui-btn", "New run");
+    await c.waitFor(`!!document.querySelector('[role="dialog"]')`, WAIT, "the New run dialog");
+    await typeInto(c, "[role=dialog] textarea", "Show order totals with the shop currency in the orders table, and add a test for it.");
+    await clickText(c, "storefront-admin", "[role=dialog]");
+    await c.eval(`document.activeElement?.blur?.()`);
+    await sleep(900);
     await dismissToasts(c);
   },
   async "changes-tree"(c) {
@@ -140,10 +180,9 @@ const SHOTS = {
     await waitText(c, "Dry run");
     await dismissToasts(c);
   },
+  // The same run as the hero in the Standard style: the hard stop on the commit and the permission card under it.
   async "agent-approval"(c) {
-    await c.clickEl(".ui-seg__item", "Agent");
-    await waitText(c, "Permission needed");
-    await dismissToasts(c);
+    await openRun(c);
   },
 };
 
@@ -283,9 +322,10 @@ SHOTS["api-explorer"] = async (c) => {
 SHOTS["mongo-studio"] = async (c) => {
   await dismissToasts(c);
   await clickRail(c, "Database");
-  await clickText(c, "Local fixture", "[class*=mongo], body");
+  await clickText(c, "Local fixture", ".mg-tree");
   await waitText(c, "intely_test_shop");
-  await clickText(c, "orders", "[role=tree], body");
+  // scoped to the studio's tree: on the whole page "orders" first matches the `orders-api` repository chip of the top bar
+  await clickText(c, "orders", ".mg-tree");
   await waitText(c, "Read-only");
   await waitText(c, "Table");
   await c.clickEl('input[placeholder*="orders from"], input[placeholder*="Open orders"], textarea[placeholder*="Open orders"]');
@@ -327,6 +367,13 @@ SHOTS["workspaces-welcome"] = async (c) => {
   await dismissToasts(c);
 };
 SHOTS["workspaces-welcome"].meta = { scenario: "showcase-welcome" };
+SHOTS.hero.meta = { query: "mode=agent&skin=glass" };
+SHOTS["agent-approval"].meta = { query: "mode=agent&skin=standard" };
+// the Commit panel closed, so the Dashboard has the width of the window
+SHOTS.dashboard.meta = { query: "mode=editor&skin=glass", storage: { "intely.layout.panel": "0" } };
+SHOTS["new-run"].meta = { query: "mode=agent&skin=glass" };
+SHOTS["context-meter"].meta = { query: "mode=agent&skin=glass" };
+SHOTS["ask-card"].meta = { query: "mode=agent&skin=glass", scenario: "agent-stop-read" };
 
 /** Team (Beta): the Team tab with the mock team of three (`team=on`). */
 async function openTeamTab(c) {
@@ -390,7 +437,7 @@ for (const name of todo) {
       const c = await launchChrome({ dsf: DSF });
       try {
         const meta = SHOTS[name].meta ?? {};
-        await open(c, { query: meta.query ?? "", theme, scenario: meta.scenario });
+        await open(c, { query: meta.query ?? "", theme, scenario: meta.scenario, storage: meta.storage });
         await SHOTS[name](c, theme);
         await c.settle(300);
         const file = join(OUT, QUICK ? `${name}-${theme}.png` : `${name}-${theme}-2880.png`);
