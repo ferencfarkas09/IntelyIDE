@@ -4,7 +4,7 @@ import type { AnswerExtra } from "../../store/agents";
 import type { McpExposure, PermissionDecision, PermissionMode } from "../../store/agent-types";
 import { Badge, Ban, Button, Icon, ListChecks, ShieldCheck, TextArea } from "../../ui-kit";
 import { t } from "../../i18n";
-import { focusRequest, guardKeys, keyClickTooSoon, refocusAfterAnswer } from "./Cards";
+import { createCardState, focusRequest, guardKeys, keyClickTooSoon, MoreBelow, refocusAfterAnswer } from "./Cards";
 import { Markdown } from "./Markdown";
 import { ModeCards } from "./ModeCards";
 import { AFTER_PLAN, exposureOf, MODE_META, modeErrorText } from "./modes";
@@ -34,6 +34,7 @@ export function PlanApprovalCard(props: { item: PermissionItem; onAnswer: (decis
   const exposure = () => exposureOf(props.mcp);
 
   const keys = guardKeys(() => card);
+  const state = createCardState();
   const send = (decision: PermissionDecision, extra?: AnswerExtra) => {
     refocusAfterAnswer(card);
     props.onAnswer(decision, extra);
@@ -98,7 +99,7 @@ export function PlanApprovalCard(props: { item: PermissionItem; onAnswer: (decis
             <Badge size="sm">{t(MODE_META.readOnly.label)}</Badge>
           </header>
         </div>
-        <div class="perm__body">
+        <div class="perm__body" ref={state.body} data-more={state.more() ? "" : undefined} aria-describedby={state.more() ? state.cueId : undefined}>
           <Show when={props.item.plan} fallback={<p class="plan-approval__notice">{t("modes.plan.noText")}</p>}>
             {planText()}
             <Show when={props.item.planTruncated}>
@@ -107,6 +108,7 @@ export function PlanApprovalCard(props: { item: PermissionItem; onAnswer: (decis
           </Show>
         </div>
         <div class="perm__foot">
+          <MoreBelow state={state} />
           <fieldset class="plan-approval__modes" data-revising={revising() ? "" : undefined}>
             <legend class="plan-approval__legend" id={`${uid}-legend`}>
               {t("modes.plan.continueIn")}
