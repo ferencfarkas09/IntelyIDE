@@ -131,4 +131,46 @@ describe("title bar: repositories that do not fit", () => {
     expect(hiddenChips(row)).toEqual([]);
     expect(row.children[2].hasAttribute("inert")).toBe(false);
   });
+
+  it("gives the focus back to the N more chip when the branch popup of a clipped repository closes", async () => {
+    const { popupRepo, setPopupRepo } = await import("../modules/branches/uiState");
+    await boot(createMockIpc("normal", { delayScale: 0 }), "ready");
+    const { container } = render(() => <Shell />);
+    await waitFor(() => expect(container.querySelectorAll(".ttl__chip-slot").length).toBe(4));
+    expect(container.querySelector('[data-testid="title-more-repos"]')).toBeNull();
+    // jsdom lays nothing out: say that the last two chips wrapped to the clipped second line, then change the row so that
+    // its MutationObserver measures again (the ResizeObserver of this environment is a stub that never fires)
+    const row = container.querySelector<HTMLElement>(".ttl__repos")!;
+    const slots = [...row.querySelectorAll<HTMLElement>(".ttl__chip-slot")];
+    slots.forEach((el, i) => Object.defineProperty(el, "offsetTop", { configurable: true, get: () => (i < 2 ? 0 : 26) }));
+    row.appendChild(document.createComment("measure"));
+    const chip = await waitFor(() => {
+      const el = container.querySelector<HTMLElement>('[data-testid="title-more-repos"]');
+      expect(el).not.toBeNull();
+      return el!;
+    });
+    expect(chip.textContent).toMatch(/2/);
+    const clippedId = slots[3].dataset.repo!;
+    const shownId = slots[0].dataset.repo!;
+    expect(slots[3].hasAttribute("inert")).toBe(true);
+
+    // the popup of a clipped repository (opened from the N more menu) closes: the focus lands on N more
+    (document.activeElement as HTMLElement | null)?.blur();
+    setPopupRepo(clippedId);
+    await waitFor(() => expect(slots[3].querySelector('.ttl__chip[aria-expanded="true"]')).not.toBeNull());
+    // the branch panel loads lazily and takes the focus: the focus is inside the popup, as it is for a person using it
+    await waitFor(() => expect(document.activeElement?.closest(".bp")).not.toBeNull());
+    await waitFor(() => expect(document.activeElement?.getAttribute("aria-label")).toBe("Find a branch"));
+    setPopupRepo(null);
+    await waitFor(() => expect(document.activeElement).toBe(chip));
+
+    // the popup of a chip that is on the line is not its business: the focus is not pulled to N more
+    chip.blur();
+    setPopupRepo(shownId);
+    await waitFor(() => expect(document.activeElement?.getAttribute("aria-label")).toBe("Find a branch"));
+    setPopupRepo(null);
+    await waitFor(() => expect(document.activeElement).toBe(slots[0].querySelector(".ttl__chip")));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(document.activeElement).not.toBe(chip);
+  });
 });

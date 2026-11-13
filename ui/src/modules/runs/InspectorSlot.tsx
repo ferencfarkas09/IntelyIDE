@@ -1,4 +1,4 @@
-import { createSignal, ErrorBoundary, For, onCleanup, Show, Suspense, type JSX } from "solid-js";
+import { createSignal, ErrorBoundary, For, onCleanup, onMount, Show, Suspense, type JSX } from "solid-js";
 import { Dynamic } from "solid-js/web";
 import { t } from "../../i18n";
 import { inspectorPanels } from "../../platform/inspector";
@@ -14,15 +14,19 @@ import { EmptyState, ScrollArea, Spinner, TriangleAlert } from "../../ui-kit";
  */
 function WhenSeen(props: { children: JSX.Element }) {
   const [seen, setSeen] = createSignal(typeof IntersectionObserver === "undefined");
-  const watch = (el: HTMLElement) => {
-    if (seen()) return;
-    const io = new IntersectionObserver((entries) => entries.some((e) => e.isIntersecting) && (setSeen(true), io.disconnect()), { rootMargin: "200px" });
-    io.observe(el);
+  let slot: HTMLDivElement | undefined;
+  onMount(() => {
+    if (seen() || !slot) return;
+    // The column scrolls inside the scroll area, not the window: its viewport is the root, with a short lead so a panel is
+    // ready just before it is scrolled to. The placeholder has the height of a small panel (runs.css), so the cards below the
+    // fold really are outside this box.
+    const io = new IntersectionObserver((entries) => entries.some((e) => e.isIntersecting) && (setSeen(true), io.disconnect()), { root: slot.closest(".ui-scroll__viewport"), rootMargin: "100px" });
+    io.observe(slot);
     onCleanup(() => io.disconnect());
-  };
+  });
   return (
-    <div class="inspector__seen" ref={watch}>
-      <Show when={seen()} fallback={<div class="inspector__loading" />}>
+    <div class="inspector__seen" ref={slot}>
+      <Show when={seen()} fallback={<div class="inspector__placeholder" />}>
         {props.children}
       </Show>
     </div>
@@ -42,7 +46,7 @@ export function InspectorSlot() {
                   <div class="inspector__card-body">
                     <ErrorBoundary fallback={(err) => <EmptyState tone="danger" icon={TriangleAlert} size="sm" title={t("runs.agent.loadFail", { title: panel.title })} description={err instanceof Error ? err.message : String(err)} />}>
                       <WhenSeen>
-                        <Suspense fallback={<div class="inspector__loading"><Spinner /></div>}>
+                        <Suspense fallback={<div class="inspector__loading inspector__placeholder"><Spinner /></div>}>
                           <Dynamic component={panel.component} />
                         </Suspense>
                       </WhenSeen>

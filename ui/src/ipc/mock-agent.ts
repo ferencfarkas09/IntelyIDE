@@ -27,7 +27,7 @@ import { ACP_SCENARIOS, ACP_SCRIPTS, type AcpScenario } from "./mock-acp";
 import { AFTER_PLAN, isUnattended, MODE_ORDER } from "../store/permissionModes";
 
 /** Scenario names understood by the agent part of the mock (`?scenario=agent-...`); any other scenario plays `agent-normal`. */
-export const AGENT_SCENARIOS = ["agent-normal", "agent-permission", "agent-question", "agent-error", "agent-throttle", "agent-subagents", "agent-notes", "agent-delegation", "agent-plan", "agent-stops"] as const;
+export const AGENT_SCENARIOS = ["agent-normal", "agent-permission", "agent-question", "agent-error", "agent-throttle", "agent-subagents", "agent-notes", "agent-delegation", "agent-plan", "agent-two-requests", "agent-long-path", "agent-long-command", "agent-stops"] as const;
 export type AgentScenario = (typeof AGENT_SCENARIOS)[number];
 /** What a run plays: a scenario, or the reviewer script every `reviewer` run gets (the Review UI parses its findings). */
 type ScriptKey = AgentScenario | AcpScenario | "agent-review" | "showcase";
@@ -230,6 +230,15 @@ const PLAN_TEXT = [
   "Nothing outside `admin` is touched, and nothing is committed.",
 ].join("\n");
 
+/** 200 characters: a path as deep as generated code gets. */
+const LONG_PATH = "src/generated/clients/order-export/v2/regions/europe/warehouses/budapest-south/carriers/express-parcel/labels/templates/thermal-printer/100x150mm/localised/hu-HU/OrderExportLabelTemplate.generated.tsx";
+const LONG_COMMAND = [
+  "pnpm --filter @shop/admin exec tsx scripts/fixtures/rebuild-order-fixtures.ts --region europe-central --warehouse budapest-south --carrier express-parcel --locale hu-HU --currency HUF --seed 20260114 \\",
+  "  --out tmp/fixtures/orders/europe-central/budapest-south/express-parcel/hu-HU && \\",
+  "git diff --no-index --stat fixtures/releases/v2.14.0/orders/europe-central/budapest-south/express-parcel/hu-HU tmp/fixtures/orders/europe-central/budapest-south/express-parcel/hu-HU | tee tmp/fixtures/orders-diff.txt && \\",
+  "node scripts/fixtures/assert-no-drift.mjs tmp/fixtures/orders-diff.txt --allow labels/templates --max-changed 0",
+].join("\n");
+
 const SCRIPTS: Record<ScriptKey, Script> = {
   ...ACP_SCRIPTS,
   "agent-review": async (c) => {
@@ -422,6 +431,64 @@ const SCRIPTS: Record<ScriptKey, Script> = {
     await c.tool("t4", { name: "Edit", toolKind: "edit", summary: "src/utils/format.ts", input: { file_path: "src/utils/format.ts" } }, { diff: DIFF, output: "Edited 1 file", ms: 300 });
     await c.stream("m3", ["The formatter is updated."]);
     c.usage(3800, 600);
+  },
+
+  /** Two requests that wait at the same time (two tools of one step): answering one leaves the other open. */
+  "agent-two-requests": async (c) => {
+    c.emit({ kind: "status", state: "running" });
+    await reading(c);
+    await c.stream("m1", ["The formatter change and the test run can go in one step. Both need your approval.\n"]);
+    c.emit({ kind: "tool.start", toolId: "t2", name: "Edit", toolKind: "edit", summary: "src/utils/format.ts", input: { file_path: "src/utils/format.ts" } });
+    c.emit({ kind: "tool.start", toolId: "t3", name: "Bash", toolKind: "exec", summary: "pnpm test --filter orders", input: { command: "pnpm test --filter orders" } });
+    let open = 2;
+    // the run keeps waiting for the person while a request is still open
+    const settle = async (asked: Promise<PermissionDecision>) => {
+      const d = await asked;
+      if (--open > 0) c.emit({ kind: "status", state: "waitingUser" });
+      return d;
+    };
+    const [d1, d2] = await Promise.all([
+      settle(c.permission("p1", "t2", { class: "write", paths: ["src/utils/format.ts"], summary: "Edit src/utils/format.ts in admin" }, ["allowOnce", "allowRun", "deny"], { kind: "write", scope: "" })),
+      settle(c.permission("p2", "t3", { class: "exec", rawCommand: "pnpm test --filter orders", argv: ["pnpm", "test", "--filter", "orders"], summary: "Run the order tests" }, ["allowOnce", "deny"])),
+    ]);
+    c.emit({ kind: "tool.result", toolId: "t2", status: d1 === "deny" ? "denied" : "ok", ...(d1 === "deny" ? { output: "Denied by you" } : { diff: DIFF, durationMs: 40 }) });
+    c.emit({ kind: "tool.result", toolId: "t3", status: d2 === "deny" ? "denied" : "ok", output: d2 === "deny" ? "Denied by you" : "Tests: 14 passed", ...(d2 === "deny" ? {} : { durationMs: 2100 }) });
+    await c.stream("m2", [d1 === "deny" && d2 === "deny" ? "Understood, nothing was changed or run." : "Done with what you allowed."]);
+    c.usage(4300, 540);
+  },
+
+  /** A write to a file whose path is 200 characters long: the card shows where it starts and keeps all of it reachable. */
+  "agent-long-path": async (c) => {
+    c.emit({ kind: "status", state: "running" });
+    await reading(c);
+    await c.stream("m1", ["The generated client for the order export needs one edit.\n"]);
+    c.emit({ kind: "tool.start", toolId: "t2", name: "Edit", toolKind: "edit", summary: LONG_PATH, input: { file_path: LONG_PATH } });
+    const d = await c.permission("p1", "t2", { class: "write", paths: [LONG_PATH], summary: `Edit ${LONG_PATH} in admin` }, ["allowOnce", "allowRun", "deny"], { kind: "write", scope: "" });
+    if (d === "deny") {
+      c.emit({ kind: "tool.result", toolId: "t2", status: "denied", output: "Denied by you" });
+      await c.stream("m2", ["Understood, I will not change the file."]);
+      return;
+    }
+    c.emit({ kind: "tool.result", toolId: "t2", status: "ok", diff: DIFF, durationMs: 40 });
+    await c.stream("m2", ["The generated client is updated."]);
+    c.usage(3900, 480);
+  },
+
+  /** A shell command of several long lines: the card shows its first lines under the title and all of it in its scrolling middle. */
+  "agent-long-command": async (c) => {
+    c.emit({ kind: "status", state: "running" });
+    await reading(c);
+    await c.stream("m1", ["I want to rebuild the fixtures and compare them with the last release.\n"]);
+    c.emit({ kind: "tool.start", toolId: "t2", name: "Bash", toolKind: "exec", summary: "rebuild the order fixtures", input: { command: LONG_COMMAND } });
+    const d = await c.permission("p1", "t2", { class: "exec", rawCommand: LONG_COMMAND, argv: ["pnpm", "--filter", "@shop/admin", "exec", "tsx"], summary: "Rebuild the order fixtures and diff them against the last release" }, ["allowOnce", "deny"]);
+    if (d === "deny") {
+      c.emit({ kind: "tool.result", toolId: "t2", status: "denied", output: "Denied by you" });
+      await c.stream("m2", ["Understood, I will not run it."]);
+      return;
+    }
+    c.emit({ kind: "tool.result", toolId: "t2", status: "ok", output: "fixtures: 42 files rebuilt\nno differences against v2.14.0", durationMs: 5200 });
+    await c.stream("m2", ["The fixtures match the last release."]);
+    c.usage(4000, 500);
   },
 
   "agent-notes": async (c) => {

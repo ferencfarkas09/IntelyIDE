@@ -4,7 +4,7 @@ import type { AnswerExtra } from "../../store/agents";
 import type { McpExposure, PermissionDecision, PermissionMode } from "../../store/agent-types";
 import { Badge, Ban, Button, Icon, ListChecks, ShieldCheck, TextArea } from "../../ui-kit";
 import { t } from "../../i18n";
-import { focusRequest, refocusAfterAnswer } from "./Cards";
+import { focusRequest, guardKeys, keyClickTooSoon, refocusAfterAnswer } from "./Cards";
 import { Markdown } from "./Markdown";
 import { ModeCards } from "./ModeCards";
 import { AFTER_PLAN, exposureOf, MODE_META, modeErrorText } from "./modes";
@@ -33,6 +33,7 @@ export function PlanApprovalCard(props: { item: PermissionItem; onAnswer: (decis
   const [note, setNote] = createSignal("");
   const exposure = () => exposureOf(props.mcp);
 
+  const keys = guardKeys(() => card);
   const send = (decision: PermissionDecision, extra?: AnswerExtra) => {
     refocusAfterAnswer(card);
     props.onAnswer(decision, extra);
@@ -76,6 +77,8 @@ export function PlanApprovalCard(props: { item: PermissionItem; onAnswer: (decis
         </div>
       }
     >
+      {/* The same three parts as every request card: the title on top, the plan in the middle (it scrolls inside the card), and the
+          mode to continue in with the answers at the bottom, so the title and Approve are on screen whenever the card is. */}
       <section
         ref={(el) => {
           card = el;
@@ -85,74 +88,82 @@ export function PlanApprovalCard(props: { item: PermissionItem; onAnswer: (decis
         role="group"
         aria-label={t("modes.plan.aria")}
         data-testid="plan-approval"
+        onKeyDown={keys.down}
+        onKeyUp={keys.up}
       >
-        <header class="perm__head">
-          <Icon icon={ListChecks} size={14} />
-          <span class="perm__title">{t("modes.plan.title")}</span>
-          <Badge size="sm">{t(MODE_META.readOnly.label)}</Badge>
-        </header>
-        <Show when={props.item.plan} fallback={<p class="plan-approval__notice">{t("modes.plan.noText")}</p>}>
-          {planText()}
-          <Show when={props.item.planTruncated}>
-            <p class="plan-approval__notice">{t("modes.plan.truncated")}</p>
+        <div class="perm__top">
+          <header class="perm__head">
+            <Icon icon={ListChecks} size={14} />
+            <span class="perm__title">{t("modes.plan.title")}</span>
+            <Badge size="sm">{t(MODE_META.readOnly.label)}</Badge>
+          </header>
+        </div>
+        <div class="perm__body">
+          <Show when={props.item.plan} fallback={<p class="plan-approval__notice">{t("modes.plan.noText")}</p>}>
+            {planText()}
+            <Show when={props.item.planTruncated}>
+              <p class="plan-approval__notice">{t("modes.plan.truncated")}</p>
+            </Show>
           </Show>
-        </Show>
-        <fieldset class="plan-approval__modes">
-          <legend class="plan-approval__legend" id={`${uid}-legend`}>
-            {t("modes.plan.continueIn")}
-          </legend>
-          <ModeCards modes={modes()} value={mode()} onChange={setPicked} labelledBy={`${uid}-legend`} layout="list" />
-          <Show when={mode() === "automatic"}>
-            <p class="plan-approval__notice" role="status" data-testid="plan-unattended">
-              {t("modes.plan.unattendedNote")}
-              <Show when={exposure().count > 0}>{` ${t("modes.exposure.line", { count: exposure().count, names: exposure().names })}`}</Show>
-              <Show when={exposure().secretNames}>{` ${t("modes.exposure.secretEnv", { names: exposure().secretNames })}`}</Show>
-            </p>
-          </Show>
-        </fieldset>
-        <Show
-          when={revising()}
-          fallback={
-            <div class="perm__actions">
-              <Button size="sm" variant="primary" data-primary onClick={() => send("allowOnce", { mode: mode() })}>
-                {t("modes.plan.approve")}
-              </Button>
-              <Button size="sm" variant="secondary" onClick={() => setRevising(true)}>
-                {t("modes.plan.requestChanges")}
-              </Button>
-            </div>
-          }
-        >
-          <div class="plan-approval__feedback">
-            <label class="plan-approval__legend" for={`${uid}-note`}>
-              {t("modes.plan.feedbackLabel")}
-            </label>
-            <TextArea
-              id={`${uid}-note`}
-              ref={(el: HTMLTextAreaElement) => queueMicrotask(() => el.focus({ preventScroll: true }))}
-              minRows={2}
-              maxRows={8}
-              placeholder={t("modes.plan.placeholder")}
-              value={note()}
-              onInput={(e) => setNote(e.currentTarget.value)}
-              onKeyDown={(e) => (e.metaKey || e.ctrlKey) && e.key === "Enter" && (e.preventDefault(), sendFeedback())}
-            />
-            <div class="perm__actions">
-              <Button size="sm" variant="primary" disabled={!note().trim()} onClick={sendFeedback}>
-                {t("modes.plan.sendFeedback")}
-              </Button>
-              <Show when={!note().trim()}>
-                <Button size="sm" variant="secondary" onClick={() => send("deny")}>
-                  {t("modes.plan.rejectNoNote")}
+        </div>
+        <div class="perm__foot">
+          <fieldset class="plan-approval__modes" data-revising={revising() ? "" : undefined}>
+            <legend class="plan-approval__legend" id={`${uid}-legend`}>
+              {t("modes.plan.continueIn")}
+            </legend>
+            <ModeCards modes={modes()} value={mode()} onChange={setPicked} labelledBy={`${uid}-legend`} layout="list" />
+            <Show when={mode() === "automatic"}>
+              <p class="plan-approval__notice" role="status" data-testid="plan-unattended">
+                {t("modes.plan.unattendedNote")}
+                <Show when={exposure().count > 0}>{` ${t("modes.exposure.line", { count: exposure().count, names: exposure().names })}`}</Show>
+                <Show when={exposure().secretNames}>{` ${t("modes.exposure.secretEnv", { names: exposure().secretNames })}`}</Show>
+              </p>
+            </Show>
+          </fieldset>
+          <Show
+            when={revising()}
+            fallback={
+              <div class="perm__actions">
+                <Button size="sm" variant="primary" data-primary onClick={(e: MouseEvent) => keyClickTooSoon(card, e) || send("allowOnce", { mode: mode() })}>
+                  {t("modes.plan.approve")}
                 </Button>
-              </Show>
-              <Button size="sm" variant="ghost" onClick={() => setRevising(false)}>
-                {t("modes.plan.back")}
-              </Button>
+                <Button size="sm" variant="secondary" onClick={(e: MouseEvent) => keyClickTooSoon(card, e) || setRevising(true)}>
+                  {t("modes.plan.requestChanges")}
+                </Button>
+              </div>
+            }
+          >
+            <div class="plan-approval__feedback">
+              <label class="plan-approval__legend" for={`${uid}-note`}>
+                {t("modes.plan.feedbackLabel")}
+              </label>
+              <TextArea
+                id={`${uid}-note`}
+                ref={(el: HTMLTextAreaElement) => queueMicrotask(() => el.focus({ preventScroll: true }))}
+                minRows={2}
+                maxRows={8}
+                placeholder={t("modes.plan.placeholder")}
+                value={note()}
+                onInput={(e) => setNote(e.currentTarget.value)}
+                onKeyDown={(e) => (e.metaKey || e.ctrlKey) && e.key === "Enter" && (e.preventDefault(), sendFeedback())}
+              />
+              <div class="perm__actions">
+                <Button size="sm" variant="primary" disabled={!note().trim()} onClick={sendFeedback}>
+                  {t("modes.plan.sendFeedback")}
+                </Button>
+                <Show when={!note().trim()}>
+                  <Button size="sm" variant="secondary" onClick={() => send("deny")}>
+                    {t("modes.plan.rejectNoNote")}
+                  </Button>
+                </Show>
+                <Button size="sm" variant="ghost" onClick={() => setRevising(false)}>
+                  {t("modes.plan.back")}
+                </Button>
+              </div>
             </div>
-          </div>
-        </Show>
-        <Show when={props.item.error}>{(e) => <p class="perm__error" role="alert">{modeErrorText(e().code, e().message)}</p>}</Show>
+          </Show>
+          <Show when={props.item.error}>{(e) => <p class="perm__error" role="alert">{modeErrorText(e().code, e().message)}</p>}</Show>
+        </div>
       </section>
     </Show>
   );

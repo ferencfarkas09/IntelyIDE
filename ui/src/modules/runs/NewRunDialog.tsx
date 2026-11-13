@@ -510,7 +510,7 @@ export function NewRunDialog() {
           </Button>
           <Button size="xl" variant="primary" aria-label={t("runs.new.start")} aria-keyshortcuts="Meta+Enter Control+Enter" loading={busy()} disabled={!!blocker()} onClick={() => void start()}>
             {t("runs.new.start")}
-            <span class="ui-btn__kbd" aria-hidden="true">{formatChord("Cmd+Enter").join("")}</span>
+            <span class="ui-btn__kbd" aria-hidden="true">{formatChord("Mod+Enter").join("")}</span>
           </Button>
         </>
       }

@@ -63,6 +63,12 @@
 /* Plan approval */
 .plan-approval { box-shadow: inset 0 0 0 1px var(--accent-border); }
 .plan-approval .perm__head { color: var(--accent-text); }
+/* on the card's tint the quiet hint colour falls under 4.5:1 */
+.plan-approval .mode-card__hint { color: var(--text-2); }
+/* The plan scrolls with the middle of the card while it waits for an answer; the resolved line keeps its own short scroller. */
+.plan-approval .perm__body { min-height: 56px; }
+.plan-approval .perm__body > .plan-approval__text { max-block-size: none; overflow: visible; }
+.plan-approval__modes[data-revising] { display: none; }
 .plan-approval__text { max-block-size: 40vh; overflow: auto; padding: 8px 12px; border-radius: var(--radius-2); background: var(--surface-0); box-shadow: inset 0 0 0 1px var(--border-subtle); }
 .plan-approval__notice { margin: 0; color: var(--text-3); font-size: var(--text-xs); }
 .plan-approval__modes { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; border: 0; min-width: 0; }

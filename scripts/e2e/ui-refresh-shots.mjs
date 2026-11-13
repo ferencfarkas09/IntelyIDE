@@ -1,13 +1,18 @@
 // Screenshots and layout checks of the 1.15 refresh against the MOCK UI in headless Chromium (no app binary, no WKWebView):
-// the Agent run with a permission request, a question, the Dashboard and the New run dialog in Standard and Glass, light and
-// dark, at 1440x900, 1100x700 and 960x600.
+// the Agent run with a permission request, a question, a plan to approve, two requests at once, a request with a 200-character
+// path and one with a long command, a finished and a throttled run, the Dashboard and the New run dialog in Standard and Glass,
+// light and dark, at 1440x900, 1100x700 and 960x600, and two stacked panes at 1440x900.
 // Every shot is audited in the page: text contrast below 4.5:1 (3:1 for large text, badges included), controls that are covered
-// or off screen, a focused control that is not fully on screen, a transcript shorter than 200 px, header chips or a page that
-// scroll sideways. What it cannot tell: how WKWebView (the Mac web view) paints; that needs scripts/shots.sh.
+// or off screen, a focused control that is not fully on screen, a request card whose title, target line or buttons are not
+// fully inside the visible part of the transcript, a transcript whose VISIBLE scroll area (the scroller minus whatever lies over
+// it) is shorter than 200 px, header chips or a page that scroll sideways. The two-request view also plays the keyboard
+// sequence: Enter on the focused "Allow once", then the other card must be fully on screen with the focus, unanswered by an
+// Enter that came straight after. What it cannot tell: how WKWebView (the Mac web view) paints; that needs scripts/shots.sh.
 //
 //   VITE_MOCK_IPC=1 pnpm --dir ui exec vite build --outDir ../.scratch/mock-ui      (or: pnpm --dir ui dev)
 //   node scripts/e2e/ui-refresh-shots.mjs [--dir .scratch/mock-ui | --base http://localhost:1420] [--out .scratch/refresh-shots]
-//                                         [--locale hu] [--scale 2] [--only agent-run,question,dashboard,new-run,context-meter,context-meter-warn,plan-usage]
+//                                         [--locale hu] [--scale 2] [--only agent-run,question,plan,two-requests,context-meter,plan-usage,...]
+//                                         [--skins standard,glass] [--themes dark,light] [--sizes 960x600,1440x900]
 // Playwright comes from PW_DIR (a folder with playwright-core, default .scratch/pw) or from a global install.
 import { createRequire } from "node:module";
 import fs from "node:fs";
@@ -56,7 +61,8 @@ function serve(dir) {
  * the base colour of the backdrop). The chosen item of a segmented control is skipped: its fill is a sibling (the thumb), and
  * accents.test.ts holds the on-accent ink to 4.5:1.
  */
-function audit() {
+function audit(opts = {}) {
+  const minRoom = opts.minRoom ?? 200;
   const parse = (c) => { const m = /rgba?\(\s*([\d.]+)[ ,]+([\d.]+)[ ,]+([\d.]+)(?:[ ,/]+([\d.]+))?/.exec(c || ""); return m ? { r: +m[1], g: +m[2], b: +m[3], a: m[4] === undefined ? 1 : +m[4] } : null; };
   const lum = ({ r, g, b }) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); };
   const ratio = (a, b) => { const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
@@ -115,17 +121,106 @@ function audit() {
       focus.push(`the focused control "${(active.getAttribute("aria-label") ?? active.textContent ?? "").trim().slice(0, 30)}" is not fully on screen (${Math.round(r.top)}-${Math.round(r.bottom)} in ${Math.round(box.top)}-${Math.round(box.bottom)})`);
     }
   }
-  // The conversation must keep a usable height in the smallest window, and nothing may hide content behind a sideways scroller.
+  // The visible rectangle of a scroller: its client box, cut by the window.
+  const viewOf = (scroller) => { const r = scroller.getBoundingClientRect(); const top = r.top + scroller.clientTop; return { top: Math.max(0, top), bottom: Math.min(innerHeight, top + scroller.clientHeight), left: Math.max(0, r.left + scroller.clientLeft), right: Math.min(innerWidth, r.left + scroller.clientLeft + scroller.clientWidth) }; };
+  const inside = (el, box) => { const r = el.getBoundingClientRect(); return r.height > 0 && r.top >= box.top - 1 && r.bottom <= box.bottom + 1 && r.left >= box.left - 1 && r.right <= box.right + 1; };
+  const span = (el) => { const r = el.getBoundingClientRect(); return `${Math.round(r.top)}-${Math.round(r.bottom)}`; };
+  // The conversation must keep a usable height in the smallest window: what counts is the part of the scroller that can be
+  // seen, so whatever lies over it (the cards above the transcript, the typing line, a banner, the jump button) is taken off.
+  // Sampled row by row at two x positions; the longest run of rows that show the scroller's own content is the visible area.
   const room = [];
-  const transcript = document.querySelector('[data-testid="transcript"]');
-  if (transcript && !modal && visible(transcript)) {
-    const h = Math.round(transcript.getBoundingClientRect().height);
-    if (h < 200) room.push(`the transcript is ${h} px tall (minimum 200)`);
-    const chips = document.querySelector(".run-header__chips");
-    if (chips && chips.scrollWidth > chips.clientWidth + 1 && getComputedStyle(chips).display !== "contents") room.push("the header chips scroll sideways");
+  const sizes = [];
+  const transient = ".ui-toast, .ui-toaster, .ui-tooltip";
+  const scrollers = modal ? [] : [...document.querySelectorAll('[data-testid="transcript"] .ui-scroll__viewport')].filter(visible);
+  for (const scroller of scrollers) {
+    const box = viewOf(scroller);
+    const xs = [box.left + (box.right - box.left) * 0.3, box.left + (box.right - box.left) * 0.6];
+    let best = 0, run = 0;
+    for (let y = Math.ceil(box.top); y < Math.floor(box.bottom); y++) {
+      const free = xs.every((x) => { const top = document.elementsFromPoint(x, y + 0.5).find((el) => !el.closest(transient)); return !!top && scroller.contains(top); });
+      run = free ? run + 1 : 0;
+      best = Math.max(best, run);
+    }
+    const chat = scroller.closest(".chat");
+    const h = (sel) => { const el = chat?.querySelector(sel); return el ? Math.round(el.getBoundingClientRect().height) : 0; };
+    sizes.push({ header: h(".run-header"), composer: h(".composer"), transcript: best });
+    if (best < minRoom) room.push(`the visible transcript is ${best} px tall (minimum ${minRoom}; the scroller is ${Math.round(box.bottom - box.top)} px, header ${h(".run-header")}, composer ${h(".composer")})`);
   }
-  return { low: [...new Set(low)].slice(0, 25), covered: [...new Set([...covered, ...focus, ...room])].slice(0, 25), hscroll: document.documentElement.scrollWidth > innerWidth };
+  const chips = modal ? null : document.querySelector(".run-header__chips");
+  if (chips && chips.scrollWidth > chips.clientWidth + 1 && getComputedStyle(chips).display !== "contents") room.push("the header chips scroll sideways");
+  // Request cards (permission, question, plan). In each transcript one card is the one to answer: the one with the focus, else
+  // the one that shows most of itself. Its title, its target line and every button of its action row must be fully inside the
+  // visible rectangle of the scroller and inside the card (a card that scrolls as a whole hides its own top or foot), and no
+  // button may have the focus unless it is fully visible there.
+  const cards = [];
+  for (const scroller of scrollers) {
+    const box = viewOf(scroller);
+    const open = [...scroller.querySelectorAll("section.perm")];
+    if (!open.length) continue;
+    const shown = (c) => { const r = c.getBoundingClientRect(); return Math.max(0, Math.min(r.bottom, box.bottom) - Math.max(r.top, box.top)); };
+    const current = open.find((c) => c.contains(active)) ?? open.slice().sort((a, b) => shown(b) - shown(a))[0];
+    const cardBox = (() => { const r = current.getBoundingClientRect(); return { top: Math.max(r.top, box.top), bottom: Math.min(r.bottom, box.bottom), left: box.left, right: box.right }; })();
+    const name = (current.getAttribute("aria-label") ?? "request").slice(0, 30);
+    const parts = [["title", current.querySelector(".perm__title")], ...(current.matches(".plan-approval") ? [] : [["target line", current.querySelector(".perm__target")]]), ...[...current.querySelectorAll(".perm__foot .perm__actions button")].map((b) => [`button "${b.textContent.trim().slice(0, 24)}"`, b])];
+    if (parts.length < 2) cards.push(`${name}: no action button found`);
+    if (!inside(current, box)) cards.push(`${name}: the card is not fully inside the transcript's visible area (${span(current)} in ${Math.round(box.top)}-${Math.round(box.bottom)})`);
+    for (const [what, el] of parts) {
+      if (!el) cards.push(`${name}: no ${what}`);
+      else if (!inside(el, cardBox)) cards.push(`${name}: the ${what} is not fully visible (${span(el)} in ${Math.round(cardBox.top)}-${Math.round(cardBox.bottom)})`);
+    }
+    for (const c of open) {
+      if (c.contains(active) && active.matches("button, [role='radio']")) {
+        const r = c.getBoundingClientRect();
+        let clip = { top: Math.max(r.top, box.top), bottom: Math.min(r.bottom, box.bottom), left: box.left, right: box.right };
+        const body = active.closest(".perm__body");
+        if (body) { const b = body.getBoundingClientRect(); clip = { ...clip, top: Math.max(clip.top, b.top), bottom: Math.min(clip.bottom, b.bottom) }; }
+        if (!inside(active, clip)) cards.push(`${name}: the focus is on "${active.textContent.trim().slice(0, 24)}", which is not fully visible (${span(active)} in ${Math.round(clip.top)}-${Math.round(clip.bottom)})`);
+      }
+    }
+  }
+  return { low: [...new Set(low)].slice(0, 25), covered: [...new Set([...covered, ...focus, ...room, ...cards])].slice(0, 25), hscroll: document.documentElement.scrollWidth > innerWidth, sizes };
 }
+
+/** Where the keyboard focus is among the open request cards of the page: the card's index and whether it is on its first-choice button. */
+const focusState = (page) => page.evaluate(() => {
+  const open = [...document.querySelectorAll("section.perm")];
+  const a = document.activeElement;
+  return { open: open.length, card: open.findIndex((c) => c.contains(a)), primary: !!a?.hasAttribute?.("data-primary"), label: (a?.textContent ?? "").trim().slice(0, 30) };
+});
+
+/**
+ * Two requests wait. Enter on the focused "Allow once" (after the 600 ms key guard) answers the first; the second must then be
+ * fully visible and hold the focus, and neither an Enter pressed straight after the first nor one pressed just after the focus
+ * moved may have answered it. A last Enter, after the guard, answers it: the keyboard still works.
+ */
+async function twoRequestSequence(page, { name, out, minRoom }) {
+  const findings = [];
+  const start = await focusState(page);
+  if (start.open !== 2) return [`sequence: expected 2 open requests, found ${start.open}`];
+  if (start.card !== 0 || !start.primary) findings.push(`sequence: the focus is not on the first request's first choice (card ${start.card}, "${start.label}")`);
+  await page.waitForTimeout(700);
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Enter"); // already on its way when the first card went away
+  await page.waitForTimeout(300);
+  await page.keyboard.press("Enter"); // the focus has just arrived on the other card: still guarded
+  await page.waitForTimeout(700);
+  const after = await focusState(page);
+  if (after.open !== 1) findings.push(`sequence: ${after.open} request(s) open after one Enter and two early ones (expected 1: the second must not be answered unseen)`);
+  else if (after.card !== 0 || !after.primary) findings.push(`sequence: the second request does not hold the focus on its first choice (focus on "${after.label}")`);
+  await page.screenshot({ path: path.join(out, `${name}-after-enter.png`) });
+  const a = await page.evaluate(audit, { minRoom });
+  findings.push(...a.covered.map((f) => `after Enter: ${f}`));
+  await page.keyboard.press("Enter");
+  await page.waitForTimeout(600);
+  const end = await focusState(page);
+  if (end.open !== 0) findings.push(`sequence: ${end.open} request(s) still open after Enter on the second one, past the guard`);
+  return findings;
+}
+
+const openRun = async (page, which = "first") => {
+  await page.locator(".run-card, .run-row__main")[which]().click();
+  await page.locator('[data-testid="composer"]').first().waitFor();
+};
 
 const VIEWS = {
   "agent-run": {
@@ -158,6 +253,69 @@ const VIEWS = {
     steps: async (page) => {
       await page.locator(".sessions__bar .ui-btn").last().click();
       await page.locator('[role="dialog"]').waitFor();
+    },
+  },
+  // A plan that waits for approval: the title, the mode to continue in and Approve are on screen together; the plan scrolls inside the card.
+  plan: {
+    url: "/?scenario=agent-plan&mode=agent",
+    steps: async (page) => {
+      await openRun(page);
+      await page.locator('[data-testid="plan-approval"]').waitFor();
+    },
+  },
+  // Two requests at once: the first has the focus; then the keyboard sequence.
+  "two-requests": {
+    url: "/?scenario=agent-two-requests&mode=agent",
+    steps: async (page) => {
+      await openRun(page);
+      await page.locator("section.perm").nth(1).waitFor();
+    },
+    sequence: twoRequestSequence,
+  },
+  // What is asked does not fit on a line: a 200-character path, a command of several long lines.
+  "long-path": {
+    url: "/?scenario=agent-long-path&mode=agent",
+    steps: async (page) => {
+      await openRun(page);
+      await page.locator('section.perm[role="group"]').waitFor();
+    },
+  },
+  "long-command": {
+    url: "/?scenario=agent-long-command&mode=agent",
+    steps: async (page) => {
+      await openRun(page);
+      await page.locator('section.perm[role="group"]').waitFor();
+    },
+  },
+  // A finished run (its summary card sits above the transcript) and a throttled one (the notice sits above the composer).
+  finished: {
+    url: "/?scenario=agent-normal&mode=agent",
+    steps: async (page) => {
+      await openRun(page, "last");
+      await page.locator('[data-testid="transcript"]').waitFor();
+    },
+  },
+  throttle: {
+    url: "/?scenario=agent-throttle&mode=agent",
+    steps: async (page) => {
+      await openRun(page);
+      await page.locator('.chat > .banner[data-tone="warn"]').waitFor();
+    },
+  },
+  // Two panes on top of each other: a waiting run above, a finished one below. Each keeps a transcript worth reading.
+  stacked: {
+    url: "/?scenario=agent-permission&mode=agent",
+    sizes: [[1440, 900]],
+    minRoom: 150,
+    steps: async (page) => {
+      await openRun(page);
+      // the fourth layout of the switcher is "two rows"
+      await page.locator('[data-testid="pane-bar"] [role="radio"]').nth(3).click();
+      await page.locator('[data-testid="run-pane"]').nth(1).waitFor();
+      await page.locator('[data-testid="run-pane"]').nth(1).click({ position: { x: 40, y: 60 } });
+      await page.locator(".run-card, .run-row__main").last().click();
+      await page.locator('[data-testid="run-pane"] [data-testid="composer"]').nth(1).waitFor();
+      await page.locator('[data-testid="run-pane"] section.perm[role="group"]').waitFor();
     },
   },
 };
@@ -202,6 +360,10 @@ const out = arg("out", ".scratch/refresh-shots");
 const locale = arg("locale", "");
 const scale = Number(arg("scale", "1"));
 const only = arg("only", Object.keys(VIEWS).join(",")).split(",");
+const skins = arg("skins", "standard,glass").split(",");
+const themes = arg("themes", "dark,light").split(",");
+const sizeFilter = arg("sizes", "");
+const sizesOf = (spec) => (spec.sizes ?? SIZES).filter(([w, h]) => !sizeFilter || sizeFilter.split(",").includes(`${w}x${h}`));
 fs.mkdirSync(out, { recursive: true });
 const served = dir ? await serve(dir) : null;
 const base = served?.base ?? arg("base", "http://localhost:1420");
@@ -215,9 +377,9 @@ for (const view of only) {
     failed++;
     continue;
   }
-  for (const skin of ["standard", "glass"]) {
-    for (const theme of ["dark", "light"]) {
-      for (const [w, h] of SIZES) {
+  for (const skin of skins) {
+    for (const theme of themes) {
+      for (const [w, h] of sizesOf(spec)) {
         const ctx = await browser.newContext({ viewport: { width: w, height: h }, colorScheme: theme, deviceScaleFactor: scale });
         await ctx.addInitScript(([t, l, extra]) => {
           try {
@@ -240,9 +402,14 @@ for (const view of only) {
           for (const close of await page.locator(".ui-toast button[aria-label]").all()) await close.click().catch(() => {});
           await page.waitForTimeout(900);
           await page.screenshot({ path: path.join(out, `${name}.png`) });
-          const a = await page.evaluate(audit);
-          const findings = [...a.low.map((l) => `contrast ${l}`), ...a.covered, ...(a.hscroll ? ["the page scrolls sideways"] : []), ...errors.map((e) => `page error: ${e}`)];
-          console.log(`${findings.length ? "FAIL" : "PASS"}  ${name}${findings.map((f) => `\n      ${f}`).join("")}`);
+          const minRoom = spec.minRoom ?? 200;
+          const a = await page.evaluate(audit, { minRoom });
+          const findings = [...a.low.map((l) => `contrast ${l}`), ...a.covered, ...(a.hscroll ? ["the page scrolls sideways"] : [])];
+          if (spec.sequence) findings.push(...(await spec.sequence(page, { name, out, minRoom })));
+          findings.push(...errors.map((e) => `page error: ${e}`));
+          // header / composer / visible transcript of each pane, for the record
+          const sizes = a.sizes.map((s) => `${s.header}/${s.composer}/${s.transcript}`).join("  ");
+          console.log(`${findings.length ? "FAIL" : "PASS"}  ${name}${sizes ? `  [header/composer/visible transcript ${sizes}]` : ""}${findings.map((f) => `\n      ${f}`).join("")}`);
           if (findings.length) failed++;
         } catch (e) {
           console.log(`FAIL  ${name}\n      ${String(e.message).split("\n")[0]}`);

@@ -203,3 +203,29 @@ describe("<PlanApprovalCard> resolved", () => {
     expect(screen.getByRole("status").textContent).toContain("Plan sent back");
   });
 });
+
+describe("<PlanApprovalCard> layout", () => {
+  it("keeps the title on top and the modes with the answers at the bottom; only the plan is in the scrolling middle", () => {
+    mount(plan({ reqId: "p-plan-layout" }));
+    const card = screen.getByRole("group", { name: "Plan approval" });
+    expect([...card.children].map((c) => c.className)).toEqual(["perm__top", "perm__body", "perm__foot"]);
+    const [top, body, foot] = [...card.children];
+    expect(top.contains(within(card).getByText("A plan is ready"))).toBe(true);
+    expect(body.contains(within(card).getByRole("region", { name: "A plan is ready" }))).toBe(true);
+    expect(foot.contains(screen.getByRole("radiogroup", { name: "Continue in" }))).toBe(true);
+    for (const name of ["Approve plan", "Request changes"]) expect(foot.contains(screen.getByRole("button", { name }))).toBe(true);
+    // the note about working unattended belongs to the choice, so it stays in sight with it
+    fireEvent.click(radio("Automatic"));
+    expect(foot.contains(screen.getByTestId("plan-unattended"))).toBe(true);
+  });
+
+  it("marks the modes as set aside while a note is written (the answer keeps Plan), and brings them back with Back", () => {
+    mount(plan({ reqId: "p-plan-revising" }));
+    const modes = screen.getByRole("radiogroup", { name: "Continue in" }).closest("fieldset")!;
+    expect(modes.hasAttribute("data-revising")).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "Request changes" }));
+    expect(modes.hasAttribute("data-revising")).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(modes.hasAttribute("data-revising")).toBe(false);
+  });
+});

@@ -11,7 +11,7 @@ import { ipc } from "../../ipc";
 import { agentRows, resetAgents, startAgentStore } from "../../store/agents";
 import { resetNewRunSlots } from "../../platform/newRunSlots";
 import { installDomStubs } from "../../store/testing-u2";
-import { formatChord } from "../../platform/keymap";
+import { formatChord, isMac } from "../../platform/keymap";
 import { loadWorkspace } from "../../store/workspace";
 import { setPresetsEnabled } from "../presets/toggle";
 import { NewRunDialog } from "./NewRunDialog";
@@ -188,8 +188,9 @@ describe("<NewRunDialog> layout", () => {
     const start = d.getByRole("button", { name: "Start run" });
     expect(start.querySelector(".ui-btn__kbd")?.getAttribute("aria-hidden")).toBe("true");
     // the platform's own modifier (Ctrl outside macOS), never a hard-coded Cmd
-    expect(start.querySelector(".ui-btn__kbd")?.textContent).toBe(formatChord("Cmd+Enter").join(""));
-    expect(start.querySelector(".ui-btn__kbd")?.textContent).toBe(formatChord("Cmd+Enter", false).join(""));
+    expect(formatChord("Mod+Enter", true).join("")).toBe("⌘↵");
+    expect(formatChord("Mod+Enter", false).join("")).toBe("⌃↵");
+    expect(start.querySelector(".ui-btn__kbd")?.textContent).toBe(isMac() ? "⌘↵" : "⌃↵");
     expect(start.getAttribute("aria-keyshortcuts")).toBe("Meta+Enter Control+Enter");
   });
 

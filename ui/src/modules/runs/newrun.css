@@ -16,11 +16,10 @@
   .newrun .newrun__grid { grid-template-columns: minmax(0, 1fr); gap: var(--newrun-gap); }
   /* the safety cards and the model rows sit side by side while there is room for two */
   .newrun .newrun__side .mode-cards[data-layout="radio"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .newrun .runpicker { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: var(--newrun-gap) var(--space-5); }
-  .newrun .runpicker > :is(.runpicker__other, .runpicker__remembered, .runpicker__ultra, small) { grid-column: 1 / -1; }
+  /* the two-up model and effort row of this width is with the picker's own rules below, after the rule it replaces */
 }
 @container newrun (max-width: 560px) {
-  .newrun .newrun__repos, .newrun .newrun__roles, .newrun .newrun__side .mode-cards[data-layout="radio"], .newrun .runpicker { grid-template-columns: minmax(0, 1fr); }
+  .newrun .newrun__repos, .newrun .newrun__roles, .newrun .newrun__side .mode-cards[data-layout="radio"] { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* ---- Fields and their labels --------------------------------------------- */
@@ -97,12 +96,23 @@
 
 /* ---- Model, effort, ultracode -------------------------------------------- */
 .newrun .runpicker { display: flex; flex-direction: column; gap: var(--newrun-gap); min-width: 0; }
+/* One column of the dialog: model and effort side by side while there is room for two. These come after the rule above on
+   purpose: with the same specificity an earlier `display: grid` lost to `display: flex` and kept only `align-items: start`,
+   which shrank every field to its content and the effort row (a size container, so without a content width) to nothing. */
+@container newrun (max-width: 880px) {
+  .newrun .runpicker { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: var(--newrun-gap) var(--space-5); }
+  .newrun .runpicker > :is(.runpicker__other, .runpicker__remembered, .runpicker__ultra, small) { grid-column: 1 / -1; }
+}
+@container newrun (max-width: 560px) {
+  .newrun .runpicker { grid-template-columns: minmax(0, 1fr); }
+}
 .newrun .runpicker :is(.ui-select, .runpicker__other .ui-input) { --in-h: var(--control-xl); padding-inline: 10px; border-radius: var(--radius-ctl); background: var(--surface-inset); box-shadow: none; }
 .newrun .runpicker .ui-select__chevron { inset-inline-end: 10px; }
 .newrun .runpicker__other { margin-block-start: calc(var(--space-2) - var(--newrun-gap)); }
 .newrun .runpicker__remembered { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 2px var(--space-2); margin-block-start: calc(var(--space-1) - var(--newrun-gap)); }
 /* five translated level names side by side in 320 px: slim side padding, a text that shrinks a little with the row and never spills */
-.newrun .runpicker__effort { container: runpicker-effort / inline-size; }
+/* a size container has no content width: it takes the width of its column, whatever the alignment of the picker around it */
+.newrun .runpicker__effort { container: runpicker-effort / inline-size; box-sizing: border-box; width: 100%; align-self: stretch; justify-self: stretch; }
 .newrun .runpicker .ui-seg[data-full] .ui-seg__item { padding-inline: 2px; font-size: clamp(10.5px, 4.2cqi, var(--text-sm)); }
 .newrun .runpicker .ui-seg__item > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 /* "Role default" comes and goes with a picked effort: the label row keeps its height */

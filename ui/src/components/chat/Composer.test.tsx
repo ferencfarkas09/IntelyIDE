@@ -2,6 +2,9 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@solidjs/testing-li
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetAgents } from "../../store/agents";
 import { installDomStubs } from "../../store/testing-u2";
+import { createSignal, Show } from "solid-js";
+import type { PermissionItem } from "../../store/agent-reducer";
+import { PermissionCard } from "./Cards";
 import { Composer, type ComposerProps } from "./Composer";
 
 installDomStubs();
@@ -110,5 +113,55 @@ describe("<Composer>", () => {
     render(() => <Composer {...idle} />);
     fireEvent.keyDown(field(), { key: ".", metaKey: true });
     expect(idle.onStop).not.toHaveBeenCalled();
+  });
+});
+
+describe("<Composer> and request cards", () => {
+  const perm = (reqId: string): PermissionItem => ({ key: `perm:${reqId}`, ts: 1, type: "permission", reqId, toolId: "t1", intent: { class: "exec", rawCommand: "pnpm install", summary: "Install" }, options: ["allowOnce", "deny"] });
+
+  it("keeps the focus and the caret while a draft is typed when a request arrives; an empty field gives way", async () => {
+    const [ids, setIds] = createSignal<string[]>([]);
+    const answer = vi.fn();
+    render(() => (
+      <div class="chat">
+        <Show when={ids().length}>
+          <PermissionCard item={perm(ids().at(-1)!)} onAnswer={answer} />
+        </Show>
+        <Composer {...props()} />
+      </div>
+    ));
+    field().focus();
+    type("half a sentence");
+    field().setSelectionRange(4, 4);
+    setIds(["composer-typing"]);
+    await new Promise((r) => setTimeout(r, 400));
+    expect(document.activeElement).toBe(field());
+    expect(field().selectionStart).toBe(4);
+    // the next space is text for the draft, never an answer
+    fireEvent.keyDown(field(), { key: " " });
+    fireEvent.keyUp(field(), { key: " " });
+    expect(answer).not.toHaveBeenCalled();
+
+    // nothing is being typed any more: a request that arrives now takes the focus
+    type("");
+    setIds([]);
+    setIds(["composer-empty"]);
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "Allow once" })));
+  });
+
+  it("starts at one line in a compact pane and at two otherwise", () => {
+    const { unmount } = render(() => (
+      <div class="chat" data-compact="">
+        <Composer {...props()} />
+      </div>
+    ));
+    expect(field().rows).toBe(1);
+    unmount();
+    render(() => (
+      <div class="chat">
+        <Composer {...props()} />
+      </div>
+    ));
+    expect(field().rows).toBe(2);
   });
 });

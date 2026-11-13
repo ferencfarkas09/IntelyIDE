@@ -80,6 +80,9 @@
 .inspector__card-body { display: flex; flex-direction: column; min-width: 0; }
 .inspector__card-body > .ui-empty { padding: var(--space-2) 0; }
 .inspector__loading { display: grid; place-items: center; min-height: 48px; }
+/* A panel that is not loaded yet keeps the room of a small panel: at 48 px every card of the column was in view at once and
+   nothing waited. The spinner of a loading panel keeps the same height, so loading one does not pull the next into view. */
+.inspector__placeholder { min-height: 160px; }
 .facts__scroll { min-height: 0; }
 .facts { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; }
 .facts__row { display: grid; grid-template-columns: auto 1fr; gap: var(--space-3); align-items: baseline; font-size: 12.5px; }

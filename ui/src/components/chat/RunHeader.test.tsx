@@ -6,7 +6,7 @@ import type { AgentRow } from "../../store/agents";
 import type { AgentSummary, PermissionMode } from "../../store/agent-types";
 import { installDomStubs } from "../../store/testing-u2";
 import { toast } from "../../ui-kit";
-import { RunHeader } from "./RunHeader";
+import { COMPACT_HEIGHT_PX, COMPACT_WIDTH_PX, RunHeader } from "./RunHeader";
 
 installDomStubs();
 afterEach(() => {
@@ -220,5 +220,75 @@ describe("<RunHeader> mode chip", () => {
     expect(items[3].querySelector(".ui-menu__desc")?.textContent).toContain("fs keep a secret in their environment");
     expect(items[4].querySelector(".ui-menu__desc")?.textContent).toContain("2 tools of fs");
     expect(items[1].querySelector(".ui-menu__desc")?.textContent).not.toContain("fs");
+  });
+});
+
+describe("<RunHeader> compact pane", () => {
+  /** A `.chat` box of a given size around the header; the observer is called by hand (jsdom has no layout). */
+  function inBox(width: number, height: number, a: AgentRow = row({})) {
+    const observers: ResizeObserverCallback[] = [];
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(cb: ResizeObserverCallback) {
+          observers.push(cb);
+        }
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    let size = { width, height };
+    const sized = (el: HTMLDivElement) => Object.defineProperties(el, { clientWidth: { get: () => size.width }, clientHeight: { get: () => size.height } });
+    render(() => (
+      <div class="chat" data-testid="box" ref={sized}>
+        <RunHeader agent={a} stopping={false} onInterrupt={() => {}} onRewind={() => {}} />
+      </div>
+    ));
+    const box = screen.getByTestId("box");
+    return {
+      box,
+      resize(w: number, h: number) {
+        size = { width: w, height: h };
+        observers.forEach((cb) => cb([], {} as ResizeObserver));
+      },
+    };
+  }
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("marks a narrow pane and a short pane as compact, and only the narrow one as narrow", () => {
+    const { box, resize } = inBox(374, 486);
+    expect([box.hasAttribute("data-compact"), box.hasAttribute("data-narrow")]).toEqual([true, true]);
+    // two stacked panes in a large window: wide, but short
+    resize(760, 370);
+    expect([box.hasAttribute("data-compact"), box.hasAttribute("data-narrow")]).toEqual([true, false]);
+    resize(760, 786);
+    expect([box.hasAttribute("data-compact"), box.hasAttribute("data-narrow")]).toEqual([false, false]);
+    resize(COMPACT_WIDTH_PX, 786);
+    expect(box.hasAttribute("data-narrow")).toBe(true);
+    resize(COMPACT_WIDTH_PX + 1, COMPACT_HEIGHT_PX + 1);
+    expect(box.hasAttribute("data-compact")).toBe(false);
+    // a hidden pane has no size: it keeps what it had
+    resize(374, 486);
+    resize(0, 0);
+    expect(box.hasAttribute("data-compact")).toBe(true);
+  });
+
+  it("gives the title a tooltip with the full text and no title attribute of its own", async () => {
+    const title = "Show prices with the currency in the order list and on the receipts";
+    inBox(374, 486, row({ title }));
+    const heading = screen.getByRole("heading", { level: 2 });
+    expect(heading.textContent).toBe(title);
+    // the pane header of the Agent workspace is found by its title: nothing in the run view may start with the run's title
+    expect(screen.queryByTitle(new RegExp(`^${title}`))).toBeNull();
+    fireEvent.pointerOver(heading, { pointerType: "mouse" });
+    await waitFor(() => expect(screen.getByRole("tooltip").textContent).toBe(title));
+  });
+
+  it("keeps the lead chip and the enforcement text in the markup, for the compact rules to place", () => {
+    inBox(374, 486, row({ role: "auto", delegates: [{ name: "developer", description: "d", model: "claude-sonnet-5-5", permission: "edit", scope: "global" }] }));
+    expect(document.querySelector(".run-header__lead")?.textContent).toBe("Lead Sonnet 5.5 + 1 role");
+    expect(document.querySelector(".run-header__tier .run-header__tier-text")?.textContent).toMatch(/\S/);
+    expect(screen.getByRole("note").getAttribute("aria-label")).toMatch(/^Enforcement: /);
   });
 });

@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
+import { cleanup, fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { setLocale } from "../../i18n";
 import type { PermissionItem } from "../../store/agent-reducer";
@@ -66,8 +66,8 @@ describe("tier-2 card", () => {
 
   it("puts the safe default on Deny", async () => {
     show(perm());
-    await new Promise((r) => requestAnimationFrame(() => r(null)));
-    expect(document.activeElement).toBe(btn("Deny, tell the agent no"));
+    // the card settles on screen first (two checks in a row), then the default gets the focus
+    await waitFor(() => expect(document.activeElement).toBe(btn("Deny, tell the agent no")));
     expect(btn("Deny, tell the agent no").hasAttribute("data-primary")).toBe(true);
     expect(btn("Allow once").hasAttribute("data-primary")).toBe(false);
   });
