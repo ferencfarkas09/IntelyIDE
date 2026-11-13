@@ -5,6 +5,7 @@ import { emptyView, reduceEvents } from "../../store/agent-reducer";
 import type { AgentEvent } from "../../store/agent-types";
 import { installDomStubs } from "../../store/testing-u2";
 import { ipc } from "../../ipc";
+import { REVEAL_EVENT } from "./Cards";
 import { Transcript } from "./Transcript";
 
 installDomStubs();
@@ -441,5 +442,81 @@ describe("<Transcript> as a conversation", () => {
       expect(typing()!.textContent).toBe("Waiting for you");
       expect(typing()!.querySelector(".typing__dots")).toBeNull();
     });
+  });
+});
+
+describe("<Transcript> request cards", () => {
+  const asking = () => view([{ kind: "permission.request", reqId: "p-room", toolId: "t1", intent: { class: "exec", rawCommand: "pnpm install", summary: "Install" }, options: ["allowOnce", "deny"] }]);
+
+  it("gives a request card the visible height of the scroller as its maximum, and follows the pane when it is resized", async () => {
+    const observers: ResizeObserverCallback[] = [];
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(cb: ResizeObserverCallback) {
+          observers.push(cb);
+        }
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    render(() => <Transcript agentId="a1" view={asking()} />);
+    const log = await scroller(); // 400 px of visible height
+    const resize = () => observers.forEach((cb) => cb([], {} as ResizeObserver));
+    resize();
+    expect(log.style.getPropertyValue("--perm-max")).toBe("384px");
+    Object.defineProperty(log, "clientHeight", { value: 250, configurable: true });
+    resize();
+    expect(log.style.getPropertyValue("--perm-max")).toBe("234px");
+    // a hidden pane (no height) keeps what it had, and a tiny one still leaves room for a title and a row of buttons
+    Object.defineProperty(log, "clientHeight", { value: 0, configurable: true });
+    resize();
+    expect(log.style.getPropertyValue("--perm-max")).toBe("234px");
+    Object.defineProperty(log, "clientHeight", { value: 60, configurable: true });
+    resize();
+    expect(log.style.getPropertyValue("--perm-max")).toBe("96px");
+  });
+
+  it("stays where a request was brought into view instead of pinning the end over it, and follows again once it is answered", async () => {
+    const [v, setV] = createSignal(asking());
+    let seq = 40;
+    render(() => <Transcript agentId="a1" view={v()} />);
+    const log = await scroller();
+    await frame();
+    // the card's own code scrolled the list so that the whole card shows; that is not the end of the list
+    log.scrollTop = 300;
+    log.dispatchEvent(new CustomEvent(REVEAL_EVENT));
+    fireEvent.scroll(log);
+    setV((cur) => reduceEvents(cur, [ev(++seq, { kind: "text.delta", messageId: "m9", text: "meanwhile" })]));
+    await frame();
+    await frame();
+    expect(log.scrollTop).toBe(300);
+    // the person did not scroll away: no "jump" button over the card's buttons
+    expect(jump()).toBeNull();
+    setV((cur) => reduceEvents(cur, [ev(++seq, { kind: "permission.resolved", reqId: "p-room", outcome: "allow", by: "user" })]));
+    await waitFor(() => expect(log.scrollTop).toBe(5000));
+  });
+
+  it("lets go of that hold when the person scrolls", async () => {
+    render(() => <Transcript agentId="a1" view={asking()} />);
+    const log = await scroller();
+    await frame();
+    log.scrollTop = 300;
+    log.dispatchEvent(new CustomEvent(REVEAL_EVENT));
+    log.dispatchEvent(new WheelEvent("wheel", { deltaY: -40 }));
+    await waitFor(() => expect(jump()).toBeTruthy());
+    expect(jump()!.getAttribute("aria-label")).toBe("Jump to request");
+  });
+
+  it("drops the typing line while the turn is throttled: the notice above the composer says it", async () => {
+    const working = view([{ kind: "status", state: "running" }, { kind: "tool.start", toolId: "t1", name: "Read", toolKind: "read", summary: "a.ts" }]);
+    const { unmount } = render(() => <Transcript agentId="a1" view={working} />);
+    await screen.findByRole("log");
+    expect(document.querySelector(".transcript__typing")).toBeTruthy();
+    unmount();
+    render(() => <Transcript agentId="a1" view={reduceEvents(working, [ev(30, { kind: "status", state: "throttled", retryAfterMs: 60_000, scope: "5-hour window" })])} />);
+    await screen.findByRole("log");
+    expect(document.querySelector(".transcript__typing")).toBeNull();
   });
 });

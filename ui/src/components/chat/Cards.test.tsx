@@ -1,8 +1,9 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { createSignal, Show, type JSX } from "solid-js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PermissionItem, QuestionItem, TurnItem } from "../../store/agent-reducer";
 import { installDomStubs } from "../../store/testing-u2";
-import { CONTINUE_TEXT, PermissionCard, QuestionCard, TurnMarker, resolvedWording, scopeSentence, revealRequest } from "./Cards";
+import { CONTINUE_TEXT, KEY_GUARD_MS, PermissionCard, QuestionCard, REVEAL_EVENT, TurnMarker, personIsTyping, requestVisible, resolvedWording, scopeSentence, revealRequest, trackTyping } from "./Cards";
 
 installDomStubs();
 afterEach(cleanup);
@@ -156,20 +157,405 @@ describe("<PermissionCard> buttons of the 1.15 refresh", () => {
     expect(answer).toHaveBeenCalledWith("allowOnce");
   });
 
-  it("brings the row of buttons and then the focused button into view, after the card", () => {
-    const calls: string[] = [];
-    const card = document.createElement("section");
-    card.innerHTML = '<div class="perm__actions"><button data-primary>Allow once</button></div>';
-    document.body.append(card);
-    const actions = card.querySelector<HTMLElement>(".perm__actions")!;
-    const target = card.querySelector<HTMLElement>("[data-primary]")!;
-    card.scrollIntoView = () => calls.push("card");
-    actions.scrollIntoView = () => calls.push("actions");
-    target.scrollIntoView = () => calls.push("target");
-    revealRequest(card, target);
-    // the focused button is the last word: in a transcript shorter than the card it is the part that must be on screen
-    expect(calls).toEqual(["card", "actions", "target"]);
-    card.remove();
+  it("lays the card out as a top that stays, a middle that scrolls and a foot with the buttons", () => {
+    render(() => <PermissionCard item={perm({ options: ["allowOnce", "allowRun", "deny"], sessionAllow: { kind: "exec", scope: "pnpm" } })} onAnswer={() => {}} />);
+    const card = screen.getByRole("group", { name: "Permission request" });
+    expect([...card.children].map((c) => c.className)).toEqual(["perm__top", "perm__body", "perm__foot"]);
+    // the title and what is asked are in the top, every button is in the foot, the scope sentence scrolls with the middle
+    expect(card.querySelector(".perm__top")!.contains(screen.getByText("Permission needed"))).toBe(true);
+    expect(card.querySelector(".perm__top")!.contains(screen.getByLabelText("Command to run"))).toBe(true);
+    expect(screen.getAllByRole("button").every((b) => card.querySelector(".perm__foot")!.contains(b))).toBe(true);
+    expect(card.querySelector(".perm__body .perm__scope")).toBeTruthy();
+  });
+});
+
+/** A transcript in miniature: the scroller's viewport around the cards and the composer under it, inside one `.chat`. */
+function Stage(props: { children: JSX.Element }) {
+  return (
+    <div class="chat">
+      <div class="ui-scroll">
+        <div class="ui-scroll__viewport" data-testid="viewport">
+          {props.children}
+        </div>
+      </div>
+      <div class="composer">
+        <textarea aria-label="draft" />
+      </div>
+    </div>
+  );
+}
+
+/** jsdom has no layout: the viewport is `height` px tall at y = 100 with a scrollTop that works, and cards are placed by hand. */
+function layout(height = 300) {
+  const viewport = screen.getByTestId("viewport");
+  let top = 0;
+  const box = (y: number, h: number) => ({ top: y, bottom: y + h, height: h, left: 0, right: 300, width: 300, x: 0, y, toJSON: () => ({}) }) as DOMRect;
+  Object.defineProperties(viewport, { clientHeight: { value: height, configurable: true }, scrollTop: { get: () => top, set: (v: number) => void (top = v), configurable: true } });
+  viewport.getBoundingClientRect = () => box(100, height);
+  return {
+    viewport,
+    top: 100,
+    bottom: 100 + height,
+    get scrollTop() {
+      return top;
+    },
+    /** A card at `y` of the scrolled content, `h` tall: its top block is 50 px, its row of buttons 40 px at the end. */
+    place(card: HTMLElement, y: number, h: number) {
+      const at = (dy: number, dh: number) => () => box(100 + y - top + dy, dh);
+      card.getBoundingClientRect = at(0, h);
+      card.querySelector<HTMLElement>(".perm__top")!.getBoundingClientRect = at(10, 50);
+      card.querySelector<HTMLElement>(".perm__foot")!.getBoundingClientRect = at(h - 50, 40);
+      for (const b of card.querySelectorAll<HTMLElement>(".perm__foot button")) b.getBoundingClientRect = at(h - 50, 40);
+      // the scrolling middle between them; a question's first option is at its start
+      card.querySelector<HTMLElement>(".perm__body")!.getBoundingClientRect = at(60, h - 110);
+      for (const b of card.querySelectorAll<HTMLElement>(".perm__body [data-primary]")) b.getBoundingClientRect = at(60, 30);
+    },
+  };
+}
+const cardOf = (button: HTMLElement) => button.closest<HTMLElement>("section.perm")!;
+const allowButtons = () => screen.getAllByRole("button", { name: "Allow once" });
+const rectOf = (el: Element) => el.getBoundingClientRect();
+
+describe("request cards: on screen first, then the focus", () => {
+  beforeEach(() => void vi.useFakeTimers());
+  afterEach(() => void vi.useRealTimers());
+
+  it("reveals the whole card and checks its top block and its buttons against the viewport before Allow once gets the focus", () => {
+    render(() => (
+      <Stage>
+        <PermissionCard item={perm({ reqId: "geo-below" })} onAnswer={() => {}} />
+      </Stage>
+    ));
+    const l = layout();
+    const [allow] = allowButtons();
+    const card = cardOf(allow);
+    l.place(card, 500, 200); // far below the 300 px viewport
+    const reveals = vi.fn();
+    l.viewport.addEventListener(REVEAL_EVENT, reveals);
+    let seenAtFocus: boolean | undefined;
+    allow.addEventListener("focus", () => (seenAtFocus = requestVisible(card, allow)));
+    expect(requestVisible(card, allow)).toBe(false);
+
+    vi.advanceTimersByTime(50); // the frame after the card appeared: it is scrolled into view, nothing is focused yet
+    expect(l.scrollTop).toBe(406); // the card's bottom edge 6 px above the viewport's
+    expect(reveals).toHaveBeenCalledTimes(1);
+    expect(document.activeElement).not.toBe(allow);
+
+    vi.advanceTimersByTime(100); // still there after the list settled: now the focus moves
+    expect(document.activeElement).toBe(allow);
+    expect(seenAtFocus).toBe(true);
+    for (const part of [card, card.querySelector(".perm__top")!, card.querySelector(".perm__foot")!, allow]) {
+      expect(rectOf(part).top).toBeGreaterThanOrEqual(l.top);
+      expect(rectOf(part).bottom).toBeLessThanOrEqual(l.bottom);
+    }
+  });
+
+  it("scrolls up to a card whose title is above the viewport, the same way", () => {
+    render(() => (
+      <Stage>
+        <PermissionCard item={perm({ reqId: "geo-above" })} onAnswer={() => {}} />
+      </Stage>
+    ));
+    const l = layout();
+    const [allow] = allowButtons();
+    l.viewport.scrollTop = 400;
+    l.place(cardOf(allow), 300, 250); // its buttons are on screen, its title is not
+    expect(requestVisible(cardOf(allow), allow)).toBe(false);
+    vi.advanceTimersByTime(200);
+    expect(l.scrollTop).toBe(294);
+    expect(document.activeElement).toBe(allow);
+  });
+
+  it("focuses no button when the top block and the buttons cannot be on screen together", () => {
+    render(() => (
+      <Stage>
+        <PermissionCard item={perm({ reqId: "geo-tall" })} onAnswer={() => {}} />
+      </Stage>
+    ));
+    const l = layout();
+    const [allow] = allowButtons();
+    l.place(cardOf(allow), 0, 500); // taller than the viewport: a pane that is too short
+    const before = document.activeElement;
+    vi.advanceTimersByTime(5000);
+    expect(requestVisible(cardOf(allow), allow)).toBe(false);
+    expect(document.activeElement).toBe(before);
+    expect(document.activeElement?.closest("section.perm")).toBeFalsy();
+  });
+
+  it("focuses no button of a card that has no layout (a hidden pane, a row that is not rendered)", () => {
+    render(() => (
+      <Stage>
+        <PermissionCard item={perm({ reqId: "geo-none" })} onAnswer={() => {}} />
+      </Stage>
+    ));
+    layout(); // the viewport has a height, the card has none
+    vi.advanceTimersByTime(5000);
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it("answers one of two requests, then reveals and checks the other before it gets the focus; Enter within the guard does nothing", () => {
+    const [first, setFirst] = createSignal(perm({ reqId: "two-a", key: "perm:two-a" }));
+    const answerA = vi.fn(() => setFirst((p) => ({ ...p, outcome: "allow" as const, by: "user" as const, decision: "allowOnce" as const })));
+    const answerB = vi.fn();
+    render(() => (
+      <Stage>
+        <PermissionCard item={first()} onAnswer={answerA} />
+        <PermissionCard item={perm({ reqId: "two-b", key: "perm:two-b" })} onAnswer={answerB} />
+      </Stage>
+    ));
+    const l = layout();
+    const [allowA, allowB] = allowButtons();
+    l.place(cardOf(allowA), 0, 200);
+    l.place(cardOf(allowB), 210, 200); // its buttons are under the viewport's edge
+    vi.advanceTimersByTime(200);
+    // one request at a time: the first has the focus, the second did not take it
+    expect(document.activeElement).toBe(allowA);
+
+    vi.advanceTimersByTime(700); // the person reads, then presses Enter
+    expect(fireEvent.keyDown(allowA, { key: "Enter" })).toBe(true);
+    fireEvent.click(allowA); // the click Enter makes
+    expect(answerA).toHaveBeenCalledWith("allowOnce");
+
+    // the answered card is gone; the other one is not focused blind
+    let seenAtFocus: boolean | undefined;
+    allowB.addEventListener("focus", () => (seenAtFocus = requestVisible(cardOf(allowB), allowB)));
+    expect(requestVisible(cardOf(allowB), allowB)).toBe(false);
+    vi.advanceTimersByTime(20);
+    expect(document.activeElement).not.toBe(allowB);
+    // a second Enter that was already on its way lands on nothing
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: "Enter" });
+    expect(answerB).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(150);
+    expect(l.scrollTop).toBe(116); // 210 + 200 - 300 + 6: the whole second card is inside the viewport
+    expect(document.activeElement).toBe(allowB);
+    expect(seenAtFocus).toBe(true);
+
+    // ... and one that arrives right after the focus moved is swallowed: key down, the click it would make, key up
+    expect(fireEvent.keyDown(allowB, { key: "Enter" })).toBe(false);
+    fireEvent.click(allowB);
+    expect(fireEvent.keyUp(allowB, { key: "Enter" })).toBe(false);
+    expect(answerB).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(KEY_GUARD_MS);
+    expect(fireEvent.keyDown(allowB, { key: "Enter" })).toBe(true);
+    fireEvent.click(allowB);
+    expect(answerB).toHaveBeenCalledWith("allowOnce");
+  });
+
+  it("ignores Enter and Space on the card's buttons for 600 ms after the focus arrived; a pointer click works at once", () => {
+    const answer = vi.fn();
+    render(() => (
+      <Stage>
+        <PermissionCard item={perm({ reqId: "guard-1" })} onAnswer={answer} />
+      </Stage>
+    ));
+    const l = layout();
+    const [allow] = allowButtons();
+    const deny = screen.getByRole("button", { name: "Deny" });
+    l.place(cardOf(allow), 0, 200);
+    vi.advanceTimersByTime(116); // frame at 16 ms, focus 100 ms later
+    expect(document.activeElement).toBe(allow);
+    expect(KEY_GUARD_MS).toBe(600);
+
+    vi.advanceTimersByTime(KEY_GUARD_MS - 1);
+    for (const key of ["Enter", " "]) {
+      for (const button of [allow, deny]) {
+        expect(fireEvent.keyDown(button, { key })).toBe(false);
+        fireEvent.click(button); // detail 0: the click a key makes
+        expect(fireEvent.keyUp(button, { key })).toBe(false);
+      }
+    }
+    expect(answer).not.toHaveBeenCalled();
+    // a Space that went down inside the guard does not fire when it comes up after it
+    expect(fireEvent.keyDown(allow, { key: " " })).toBe(false);
+    vi.advanceTimersByTime(50);
+    expect(fireEvent.keyUp(allow, { key: " " })).toBe(false);
+    // a key that is held down repeats: never an answer
+    expect(fireEvent.keyDown(allow, { key: "Enter", repeat: true })).toBe(false);
+    expect(answer).not.toHaveBeenCalled();
+
+    expect(fireEvent.keyDown(allow, { key: "Enter" })).toBe(true);
+    fireEvent.click(allow);
+    expect(answer).toHaveBeenCalledTimes(1);
+  });
+
+  it("lets a pointer click through while the keys are still guarded", () => {
+    const answer = vi.fn();
+    render(() => (
+      <Stage>
+        <PermissionCard item={perm({ reqId: "guard-2" })} onAnswer={answer} />
+      </Stage>
+    ));
+    const l = layout();
+    const [allow] = allowButtons();
+    l.place(cardOf(allow), 0, 200);
+    vi.advanceTimersByTime(120);
+    expect(document.activeElement).toBe(allow);
+    fireEvent.click(allow, { detail: 1 });
+    expect(answer).toHaveBeenCalledWith("allowOnce");
+  });
+
+  it("guards the options and Send answer of a question the same way", () => {
+    const answer = vi.fn();
+    render(() => (
+      <Stage>
+        <QuestionCard item={question({ reqId: "guard-q" })} onAnswer={answer} />
+      </Stage>
+    ));
+    const l = layout();
+    const [a] = screen.getAllByRole("radio");
+    const card = cardOf(a);
+    l.place(card, 0, 200);
+    vi.advanceTimersByTime(120);
+    expect(document.activeElement).toBe(a);
+    expect(fireEvent.keyDown(a, { key: " " })).toBe(false);
+    fireEvent.click(a);
+    expect(a.getAttribute("aria-checked")).toBe("false");
+    vi.advanceTimersByTime(KEY_GUARD_MS);
+    fireEvent.click(a);
+    expect(a.getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "Send answer" }));
+    expect(answer).toHaveBeenCalledWith({ optionIds: ["a"], text: undefined });
+  });
+
+  it("denies on Escape and gives the focus to the composer, not to the next request", () => {
+    const answer = vi.fn();
+    render(() => (
+      <Stage>
+        <PermissionCard item={perm({ reqId: "esc-a" })} onAnswer={answer} />
+        <PermissionCard item={perm({ reqId: "esc-b" })} onAnswer={() => {}} />
+      </Stage>
+    ));
+    const l = layout(600);
+    const [allowA, allowB] = allowButtons();
+    l.place(cardOf(allowA), 0, 200);
+    l.place(cardOf(allowB), 210, 200);
+    vi.advanceTimersByTime(200);
+    expect(document.activeElement).toBe(allowA);
+    fireEvent.keyDown(allowA, { key: "Escape" }); // Escape is not held back by the guard: it changes nothing
+    expect(answer).toHaveBeenCalledWith("deny");
+    vi.advanceTimersByTime(1000);
+    expect(document.activeElement).toBe(screen.getByLabelText("draft"));
+    expect(document.activeElement).not.toBe(allowB);
+  });
+
+  it("goes to the composer after an answer when the next request cannot be shown", () => {
+    const [first, setFirst] = createSignal(perm({ reqId: "next-a", key: "perm:next-a" }));
+    render(() => (
+      <Stage>
+        <PermissionCard item={first()} onAnswer={() => setFirst((p) => ({ ...p, outcome: "allow" as const }))} />
+        <PermissionCard item={perm({ reqId: "next-b", key: "perm:next-b" })} onAnswer={() => {}} />
+      </Stage>
+    ));
+    const l = layout();
+    const [allowA, allowB] = allowButtons();
+    l.place(cardOf(allowA), 0, 200);
+    l.place(cardOf(allowB), 210, 500); // taller than the viewport
+    vi.advanceTimersByTime(1000);
+    expect(document.activeElement).toBe(allowA);
+    fireEvent.click(allowA, { detail: 1 });
+    vi.advanceTimersByTime(5000);
+    expect(document.activeElement).toBe(screen.getByLabelText("draft"));
+  });
+});
+
+describe("request cards never take the focus from a draft that is being typed", () => {
+  beforeEach(() => void vi.useFakeTimers());
+  afterEach(() => void vi.useRealTimers());
+
+  /** The composer's field with a draft in it and the caret after "half", reported the way the Composer does. */
+  function typingDraft() {
+    const draft = screen.getByLabelText("draft") as HTMLTextAreaElement;
+    const stop = trackTyping(draft);
+    draft.focus();
+    draft.value = "half a sentence";
+    draft.setSelectionRange(4, 4);
+    fireEvent.input(draft);
+    return { draft, stop };
+  }
+  const arrive = (id: string) => {
+    const [shown, setShown] = createSignal(false);
+    const answer = vi.fn();
+    render(() => (
+      <Stage>
+        <Show when={shown()}>
+          <PermissionCard item={perm({ reqId: id })} onAnswer={answer} />
+        </Show>
+      </Stage>
+    ));
+    return {
+      answer,
+      show() {
+        setShown(true);
+        const l = layout();
+        l.place(cardOf(allowButtons()[0]), 0, 200);
+      },
+    };
+  };
+
+  it("leaves the focus and the caret in the composer when a request arrives", () => {
+    const stage = arrive("typing-1");
+    const { draft, stop } = typingDraft();
+    expect(personIsTyping()).toBe(true);
+    stage.show();
+    vi.advanceTimersByTime(5000);
+    expect(document.activeElement).toBe(draft);
+    expect(draft.selectionStart).toBe(4);
+    // the space that is typed next is text, not an answer
+    fireEvent.keyDown(draft, { key: " " });
+    expect(stage.answer).not.toHaveBeenCalled();
+    stop();
+  });
+
+  it("gives the focus and the caret back when the run view was taken out of the document and put back as the request arrived", () => {
+    const stage = arrive("typing-remount");
+    const { draft, stop } = typingDraft();
+    const chat = draft.closest(".chat")!;
+    const parent = chat.parentElement!;
+    // a <Suspense> above the workspace falls back for a moment: its content leaves the document, which blurs the field
+    chat.remove();
+    expect(document.activeElement).not.toBe(draft);
+    expect(personIsTyping()).toBe(true);
+    parent.append(chat);
+    stage.show();
+    vi.advanceTimersByTime(5000);
+    expect(document.activeElement).toBe(draft);
+    expect([draft.selectionStart, draft.selectionEnd]).toEqual([4, 4]);
+    expect(document.activeElement?.closest("section.perm")).toBeFalsy();
+    stop();
+  });
+
+  it("takes the focus back for the next key when the loss was silent (no blur event, as in WebKit)", () => {
+    const stage = arrive("typing-silent");
+    const { draft, stop } = typingDraft();
+    const chat = draft.closest(".chat")!;
+    const parent = chat.parentElement!;
+    const blurs = vi.fn();
+    // swallow the blur before the tracker can see it
+    draft.addEventListener("blur", (e) => (blurs(), e.stopImmediatePropagation()), { capture: true });
+    chat.remove();
+    parent.append(chat);
+    expect(document.activeElement).toBe(document.body);
+    fireEvent.keyDown(document.body, { key: " " });
+    expect(document.activeElement).toBe(draft);
+    expect(draft.selectionStart).toBe(4);
+    stage.show();
+    vi.advanceTimersByTime(5000);
+    expect(document.activeElement).toBe(draft);
+    stop();
+  });
+
+  it("lets the request take the focus once the person left the draft on purpose", () => {
+    const stage = arrive("typing-left");
+    const { draft, stop } = typingDraft();
+    fireEvent.pointerDown(document.body); // a click on the page
+    draft.blur();
+    expect(personIsTyping()).toBe(false);
+    stage.show();
+    vi.advanceTimersByTime(200);
+    expect(document.activeElement).toBe(allowButtons()[0]);
+    stop();
   });
 });
 

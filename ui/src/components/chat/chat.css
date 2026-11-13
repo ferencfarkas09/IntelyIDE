@@ -4,7 +4,9 @@
 .chat__bar .ui-btn__label { gap: 6px; }
 .chat__title { color: var(--text-2); font-size: var(--text-sm); font-weight: var(--weight-medium); }
 .chat__grow { flex: 1; }
-.chat__top { flex: none; max-height: 40%; overflow-y: auto; overscroll-behavior: contain; padding: 0 var(--space-5); border-bottom: 1px solid var(--border-subtle); }
+/* The cards above the transcript scroll in at most 40% of the run, and less where that would leave the transcript under about 240 px
+   (the header and the composer take about 280 px, about 150 px in a compact pane). */
+.chat__top { flex: none; max-height: min(40%, max(120px, calc(100% - 520px))); overflow-y: auto; overscroll-behavior: contain; padding: 0 var(--space-5); border-bottom: 1px solid var(--border-subtle); }
 .chat__top > * { max-width: 800px; margin-inline: auto; }
 .chat__top:empty { display: none; }
 .chat__loading { display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-2); }
@@ -66,38 +68,64 @@
 .run-header__tokens { overflow: hidden; text-overflow: ellipsis; }
 .run-header__tokens::after { content: " ·"; }
 @container chat (max-width: 420px) { .run-header__tokens { display: none; } }
-/* A narrow pane (three columns in a small window, several panes side by side): the header folds to a title line and one or two
-   short lines with the permission mode, the MCP servers, the enforcement level and the actions. Role, provider, model, effort,
-   repositories, tokens and cost are in the "This run" card next to it, so they give way here; nothing scrolls sideways. */
-@container chat (max-width: 520px) {
-  .run-header { flex-flow: row wrap; align-items: center; gap: 6px; padding: var(--space-2) var(--space-3); }
-  .run-header__top, .run-header__chips { display: contents; }
-  /* The title line comes first whatever wraps the chips (a tooltip wrapper is not a direct child): negative orders, the rest in document order, the actions last. */
-  .run-header__role { order: -4; }
-  .run-header__tile { width: 24px; height: 24px; border-radius: 7px; font-size: 10px; }
-  .run-header__title { order: -3; flex: 1 1 calc(100% - 150px); min-width: 120px; font-size: var(--text-md); -webkit-line-clamp: 1; line-clamp: 1; }
-  .run-header__state { order: -2; height: 22px; padding: 0 8px; }
-  .run-header__scope { order: -1; flex: 1 1 100%; }
-  .run-header__chips > * { flex: none; }
-  .run-header__actions { order: 1; gap: 4px; margin-inline-start: auto; }
-  .run-header__actions .ui-icon-btn { --ib: 26px; }
-  .run-header__chips > :is(.run-header__name, .run-header__provider, .run-header__model, .run-header__lead, .run-header__repos, .run-header__usage, .run-header__grow) { display: none; }
-  .run-header__chips .ui-badge, .run-header__chips .ui-pill, .run-header__chip { height: 22px; }
-  /* The composer keeps one line of buttons: the send hint and the way to the prompt library (also in the command palette) give way. */
-  .composer { padding: var(--space-1) var(--space-3) var(--space-2); }
-  .composer__box { gap: var(--space-1); padding: var(--space-2); }
-  .composer__hint:not([role="status"]), .composer__prompts { display: none; }
-  .composer__bar { flex-wrap: nowrap; }
-  .composer__bar .ui-btn { --btn-h: var(--control-md); padding-inline: 10px; }
-  .composer__bar .ui-icon-btn { --ib: var(--control-md); }
-  .transcript__row { padding-inline: var(--space-3); }
-  /* Requests stay whole in a short transcript: tighter card, 32 px buttons. */
-  .perm { gap: var(--space-2); padding: var(--space-3); }
-  .perm__tile { width: 28px; height: 28px; border-radius: 8px; }
-  .perm__title { font-size: var(--text-md); }
-  .perm__actions .ui-btn { --btn-h: var(--control-lg); padding-inline: 12px; }
-  .ui-btn.q__option { min-height: var(--control-lg); padding-block: 5px; }
-}
+/* A compact pane: narrow (three columns in a small window, several panes side by side) or short (stacked panes, a small window).
+   `data-compact` and `data-narrow` are set on the `.chat` box by `watchCompact` (RunHeader.tsx) from its real size; a container
+   query cannot ask for the height without `container-type: size`. The header folds to a title line, one line of chips (the
+   permission mode, the MCP servers, the enforcement level) and the actions; the composer starts at one line of text. Role,
+   provider, model, effort, repositories, tokens and cost are in the "This run" card next to it, so they give way here; in a
+   narrow pane the lead chip is there too and the enforcement level is its icon (the tooltip and the label say which). Nothing
+   scrolls sideways. */
+.chat[data-compact] .run-header { flex-flow: row wrap; align-items: center; gap: 4px 6px; padding: 6px var(--space-3); }
+.chat[data-compact] :is(.run-header__top, .run-header__chips) { display: contents; }
+/* The title line comes first whatever wraps the chips (a tooltip wrapper is not a direct child): negative orders, the rest in document order, the actions last. */
+.chat[data-compact] .run-header__role { order: -4; }
+.chat[data-compact] .run-header__tile { width: 24px; height: 24px; border-radius: 7px; font-size: 10px; }
+.chat[data-compact] .run-header__title { order: -3; flex: 1 1 calc(100% - 150px); min-width: 120px; font-size: var(--text-md); -webkit-line-clamp: 1; line-clamp: 1; }
+.chat[data-compact] .run-header__state { order: -2; height: 22px; padding: 0 8px; }
+.chat[data-compact] .run-header__scope { order: -1; flex: 1 1 100%; }
+.chat[data-compact] .run-header__chips > * { flex: none; }
+.chat[data-compact] .run-header__actions { order: 1; gap: 4px; margin-inline-start: auto; }
+.chat[data-compact] .run-header__actions .ui-icon-btn { --ib: var(--control-sm); }
+.chat[data-compact] .run-header__chips > :is(.run-header__name, .run-header__provider, .run-header__model, .run-header__repos, .run-header__usage, .run-header__grow) { display: none; }
+.chat[data-compact] .run-header__chips :is(.ui-badge, .ui-pill), .chat[data-compact] .run-header__chip { height: 22px; }
+.chat[data-narrow] .run-header__chips > .run-header__lead, .chat[data-narrow] .run-header__tier-text { display: none; }
+.chat[data-narrow] .run-header__tier .ui-badge { padding: 0 5px; }
+.chat[data-compact] .chat__top { max-height: min(40%, max(48px, calc(100% - 396px))); }
+/* The composer: one line of text to start with (it grows as you type), 28 px buttons. */
+.chat[data-compact] .composer { gap: 4px; padding: var(--space-1) var(--space-5) var(--space-2); }
+.chat[data-compact] .composer__box { gap: var(--space-1); padding: 6px var(--space-2); border-radius: 12px; }
+.chat[data-compact] .composer__box .ui-input__field { padding-block: 3px; }
+.chat[data-compact] .composer__field::placeholder { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat[data-compact] .composer__bar { flex-wrap: nowrap; }
+.chat[data-compact] .composer__bar .ui-btn { --btn-h: var(--control-md); padding-inline: 10px; }
+.chat[data-compact] .composer__bar .ui-icon-btn { --ib: var(--control-md); }
+/* A narrow pane keeps one line of buttons: the send hint and the way to the prompt library (also in the command palette) give way. */
+.chat[data-narrow] .composer { padding-inline: var(--space-3); }
+.chat[data-narrow] .composer__hint:not([role="status"]), .chat[data-narrow] .composer__prompts { display: none; }
+.chat[data-narrow] .transcript__row { padding-inline: var(--space-3); }
+.chat[data-narrow] .transcript__typing { padding-inline: var(--space-3); }
+/* "Waiting for you" under the list repeats the status pill of the header and the request itself: its line goes to the request. */
+.chat[data-compact] .transcript__typing[data-waiting] { display: none; }
+/* The throttle notice above the composer: one line of title, two of the hint (the countdown is in its first line). */
+.chat[data-compact] > .banner { align-items: center; margin-bottom: 4px; padding: 6px 10px; }
+.chat[data-narrow] > .banner { width: calc(100% - 2 * var(--space-3)); }
+.chat[data-compact] > .banner .banner__title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat[data-compact] > .banner .banner__hint { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
+/* Requests: a tighter card with 28 px buttons, so that the top and the buttons leave room for the middle. */
+.chat[data-compact] .perm { gap: var(--space-2); padding: 10px var(--space-3); }
+.chat[data-compact] .perm__top { gap: 6px; }
+.chat[data-compact] .perm__tile { width: 28px; height: 28px; border-radius: 8px; }
+.chat[data-compact] .perm__title { font-size: var(--text-md); }
+.chat[data-compact] .perm__clamp { -webkit-line-clamp: 2; line-clamp: 2; }
+.chat[data-compact] .perm__code { padding: 5px 8px; }
+.chat[data-compact] .perm__actions { gap: 6px; }
+.chat[data-compact] .perm__actions .ui-btn { --btn-h: var(--control-md); padding-inline: 10px; }
+.chat[data-compact] .ui-btn.q__option { min-height: var(--control-lg); padding-block: 4px; }
+/* The plan card's modes: one line each (the name, then as much of the explanation as fits), side by side where the pane is wide enough. */
+.chat[data-compact] .plan-approval .mode-cards { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 4px; }
+.chat[data-compact] .plan-approval .mode-card { flex-direction: row; align-items: center; gap: 8px; padding: 5px 8px; }
+.chat[data-compact] .plan-approval .mode-card__head { flex: none; }
+.chat[data-compact] .plan-approval .mode-card__hint { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .run-header__cost { flex: none; }
 .run-header__tier { cursor: help; }
 
@@ -243,9 +271,21 @@
 .ui-btn.dpv__more { width: 100%; border-radius: 0; color: var(--text-2); }
 
 /* Permission and question cards: an icon tile, a 15 px title with one line of explanation, the command or path in a mono row, then 36 px buttons with Deny first. */
-.perm { --pc: var(--warn); --pc-bg: var(--warn-subtle); --pc-bd: var(--warn-border); display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4); border: 1px solid var(--pc-bd); border-radius: var(--radius-card); background: var(--pc-bg); font-size: var(--text-base); line-height: 1.45; }
+/* A card is never taller than the visible transcript (`--perm-max`, set by Transcript.tsx from the scroller's height): its top (the
+   title and what is asked) and its foot (the buttons) keep their height, the middle scrolls inside the card. So whenever the card
+   is on screen, the title, the target and every button are. Only where even the top and the foot do not fit does the card scroll
+   as a whole (and then nothing is focused for you, see `requestVisible`). */
+.perm { --pc: var(--warn); --pc-bg: var(--warn-subtle); --pc-bd: var(--warn-border); display: flex; flex-direction: column; gap: var(--space-3); box-sizing: border-box; max-height: var(--perm-max, none); padding: var(--space-4); overflow-y: auto; overscroll-behavior: contain; border: 1px solid var(--pc-bd); border-radius: var(--radius-card); background: var(--pc-bg); font-size: var(--text-base); line-height: 1.45; }
+.perm__top, .perm__foot { display: flex; flex: none; flex-direction: column; gap: var(--space-2); min-width: 0; }
+.perm__body { display: flex; flex: 1 1 auto; flex-direction: column; gap: var(--space-2); min-width: 0; min-height: 20px; overflow-y: auto; overscroll-behavior: contain; }
+.perm__body > * { flex: none; }
+.perm__body:empty { display: none; }
+.q .perm__body { min-height: 44px; }
+/* What is asked, right under the title: up to three lines; when it is cut, all of it is in the middle (`perm__full`). */
+.perm__target { flex: none; }
+.perm__clamp { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; }
 .perm[data-class="read"], .perm[data-class="net"], .perm[data-class="mcp"], .perm.q { --pc: var(--accent-text); --pc-bg: var(--accent-subtle); --pc-bd: var(--accent-border); }
-.perm--done { flex-direction: row; align-items: center; gap: 8px; padding: 8px 12px; border-color: var(--border-subtle); background: transparent; color: var(--text-2); font-size: var(--text-sm); }
+.perm--done { flex-direction: row; align-items: center; gap: 8px; max-height: none; padding: 8px 12px; overflow: visible; border-color: var(--border-subtle); background: transparent; color: var(--text-2); font-size: var(--text-sm); }
 .perm--done[data-outcome="allow"] { color: var(--ok); }
 .perm--done[data-outcome="deny"] { color: var(--warn); }
 .perm__done-text { min-width: 0; overflow-wrap: anywhere; color: var(--text-2); }
@@ -258,9 +298,10 @@
 .perm__head .ui-badge { flex: none; }
 .perm__summary { margin: 0; color: var(--text-1); overflow-wrap: anywhere; }
 .perm__code { margin: 0; padding: 8px 10px; overflow-x: auto; background: var(--surface-2); border-radius: var(--radius-ctl); font-size: var(--text-sm); line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
-.perm__code--cmd { max-height: 9em; overflow-y: auto; color: var(--text-1); }
+.perm__code--cmd { color: var(--text-1); }
+.perm__target.perm__code { overflow: hidden; }
 .perm__said { margin: 0; color: var(--text-2); font-size: var(--text-sm); overflow-wrap: anywhere; }
-.perm__paths { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 8px 10px; list-style: none; border-radius: var(--radius-ctl); background: var(--surface-2); color: var(--text-1); font-size: var(--text-sm); }
+.perm__paths { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 8px 10px; list-style: none; border-radius: var(--radius-ctl); background: var(--surface-2); color: var(--text-1); font-size: var(--text-sm); overflow-wrap: anywhere; }
 .perm__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .perm__note, .perm__scope { margin: 0; color: var(--text-2); font-size: var(--text-sm); }
 .q__options { display: flex; flex-direction: column; gap: 6px; }

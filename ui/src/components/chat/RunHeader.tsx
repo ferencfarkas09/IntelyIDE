@@ -1,4 +1,4 @@
-import { createSignal, For, onCleanup, Show } from "solid-js";
+import { createSignal, For, onCleanup, onMount, Show, Suspense } from "solid-js";
 import { execute } from "../../platform/commands";
 import type { AgentRow } from "../../store/agents";
 import { foreignReason, isForeign } from "../../store/agentScope";
@@ -22,6 +22,31 @@ const STATUS_TONE = { running: "accent", needsYou: "warn", done: "ok", error: "d
 function shownStatus(a: AgentRow): { text: string; tone: "accent" | "warn" | "ok" | "danger" } {
   if (a.status === "running" && a.throttle) return { text: a.throttle.state === "retrying" ? t("chat.throttle.retrying") : t("chat.throttle.throttled"), tone: "warn" };
   return { text: t(STATUS_TEXT[a.status]), tone: STATUS_TONE[a.status] };
+}
+
+/** A `.chat` box at most this wide or this tall shows the compact header and composer (`data-compact`), so the transcript keeps its room. */
+export const COMPACT_WIDTH_PX = 520;
+export const COMPACT_HEIGHT_PX = 600;
+
+/**
+ * Marks the `.chat` box around `anchor` as compact while it is narrow (three columns in a small window, panes side by side) or
+ * short (stacked panes, a small window): `data-compact`, plus `data-narrow` when the width is the reason. An attribute and not a
+ * container query, because a query on the height needs `container-type: size` on the box, which takes its size out of the layout.
+ */
+export function watchCompact(anchor: HTMLElement | undefined): void {
+  const chat = anchor?.closest<HTMLElement>(".chat");
+  if (!chat || typeof ResizeObserver === "undefined") return;
+  const apply = () => {
+    const w = chat.clientWidth;
+    const h = chat.clientHeight;
+    if (w <= 0 || h <= 0) return; // a hidden pane keeps what it had
+    chat.toggleAttribute("data-compact", w <= COMPACT_WIDTH_PX || h <= COMPACT_HEIGHT_PX);
+    chat.toggleAttribute("data-narrow", w <= COMPACT_WIDTH_PX);
+  };
+  apply();
+  const ro = new ResizeObserver(apply);
+  ro.observe(chat);
+  onCleanup(() => ro.disconnect());
 }
 
 /** Two letters for the role tile: the first letters of the first two words, or the first two letters of one word. */
@@ -59,20 +84,27 @@ export function RunHeader(props: { agent: AgentRow; stopping: boolean; onInterru
     setArmed(false);
     props.onRewind();
   };
+  let root: HTMLElement | undefined;
+  onMount(() => watchCompact(root));
   return (
-    <header class="run-header" data-testid="run-header" data-bypass={effectiveMode(a()) === "bypass" ? "" : undefined}>
+    <header ref={root} class="run-header" data-testid="run-header" data-bypass={effectiveMode(a()) === "bypass" ? "" : undefined}>
       <div class="run-header__top">
         <span class="run-header__role" title={t("chat.header.provider", { name: providerName(a().provider) })}>
           <span class="run-header__tile" aria-hidden="true">{initials(roleName())}</span>
         </span>
-        <h2 class="run-header__title">{a().title}</h2>
+        {/* the compact header shows one line of the title: the tooltip has all of it (not a `title` attribute, the pane header owns that) */}
+        <Tooltip label={a().title}>
+          <h2 class="run-header__title">{a().title}</h2>
+        </Tooltip>
         <span class="run-header__state" data-tone={shownStatus(a()).tone}>
           <StatusDot tone={shownStatus(a()).tone} size={6} label={shownStatus(a()).text} />
           <span class="run-header__status">{shownStatus(a()).text}</span>
         </span>
         <span class="run-header__actions">
           {/* Slot for what other modules add to the header (the context ring of the token saver lands here). */}
-          <RunSlots place="header" agent={a()} />
+          <Suspense>
+            <RunSlots place="header" agent={a()} />
+          </Suspense>
           <HeaderShare runId={a().agentId} />
           <IconButton icon={FileSearch} variant="secondary" label={t("chat.header.inspect")} tooltip={t("chat.header.inspectTip")} size="lg" onClick={() => void execute("inspector.open")} />
           <IconButton
@@ -119,7 +151,7 @@ export function RunHeader(props: { agent: AgentRow; stopping: boolean; onInterru
         <Tooltip label={tierTitle()}>
           <span class="run-header__tier" tabindex="0" role="note" aria-label={t("chat.header.enforcementAria", { tier: TIER_LABEL[tier()], title: tierTitle() })}>
             <Badge tone={TIER_TONE[tier()]} icon={ShieldCheck} variant="outline">
-              {t("chat.header.enforcement", { tier: TIER_LABEL[tier()] })}
+              <span class="run-header__tier-text">{t("chat.header.enforcement", { tier: TIER_LABEL[tier()] })}</span>
             </Badge>
           </span>
         </Tooltip>

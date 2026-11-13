@@ -31,6 +31,12 @@ export default function RunSummaryPanel() {
               <Fact label={t("runs.role")}>{r().role}</Fact>
               <Fact label={t("runs.provider")}>{r().provider}</Fact>
               <Fact label={t("runs.summary.model")}>{modelLabel(view()?.session?.model ?? r().model)}</Fact>
+              {/* the lead and its roles: the narrow run header has no room for this chip */}
+              <Show when={(r().delegates?.length ?? 0) > 0}>
+                <Fact label={t("chat.header.leadFact")} title={t("runs.leadTip")}>
+                  {t("runs.leadChip", { model: modelLabel(r().model), count: r().delegates!.length })}
+                </Fact>
+              </Show>
               <Fact label={t("runs.summary.effort")} title={t("runs.summary.effortTip")}>
                 {r().requested.effort ?? t("runs.na")}
                 <Show when={differs(r().requested.effort, applied()?.effort)}>

@@ -4,7 +4,7 @@ import { buildRows, isExitPlan, pendingPermissions, pendingQuestions, type Agent
 import { agentRow, agentView, answerPermission, answerQuestion, sendMessage, sendNote } from "../../store/agents";
 import { ArrowDown, EmptyState, IconButton, MessageSquare, ScrollArea } from "../../ui-kit";
 import { keepsFollowing, scrollMove } from "../../ui-kit/follow";
-import { CONTINUE_TEXT, ErrorCard, PermissionCard, PlanCard, QuestionCard, ThinkingBlock, TurnMarker } from "./Cards";
+import { CONTINUE_TEXT, ErrorCard, PermissionCard, PlanCard, QuestionCard, REVEAL_EVENT, ThinkingBlock, TurnMarker } from "./Cards";
 import { PlanApprovalCard } from "./PlanApprovalCard";
 import { estimateRow } from "./rowSize";
 import { Markdown } from "./Markdown";
@@ -16,6 +16,10 @@ import { MessageAttachments } from "../../modules/attachments/Chips";
 import { t } from "../../i18n";
 
 const STICK_PX = 64;
+/** A request card is never taller than the visible transcript minus this (the row's own padding and a little air). */
+const CARD_MARGIN_PX = 16;
+/** ... and never shorter than this, however small the pane is. */
+const CARD_MIN_PX = 96;
 
 /** Which side of the conversation a row is on: the person's bubbles on the right, everything the agent does on the left, markers between. */
 type Side = "user" | "agent" | "aside";
@@ -157,6 +161,9 @@ export function Transcript(props: { agentId: string; view: AgentView; readOnly?:
   });
   const [scrollEl, setScrollEl] = createSignal<HTMLDivElement>();
   const [stick, setStick] = createSignal(true);
+  // A request card was scrolled into view by its own code (`revealRequest`) and that is not the end of the list: the end is not
+  // pinned over it, and no "jump to latest" is offered, until the request is answered or the person scrolls.
+  const [held, setHeld] = createSignal(false);
 
   const virt = createVirtualizer({
     get count() {
@@ -224,6 +231,8 @@ export function Transcript(props: { agentId: string; view: AgentView; readOnly?:
     if (!el) return;
     const move = scrollMove(lastTop, el.scrollTop);
     lastTop = el.scrollTop;
+    // held on a request: only the person (wheel, touch, drag, keys: see `watch`) or the answer lets go
+    if (held()) return;
     if (keepsFollowing(gap(el), move, STICK_PX)) setStick(true);
     else if (dragging) setStick(false);
   };
@@ -232,6 +241,7 @@ export function Transcript(props: { agentId: string; view: AgentView; readOnly?:
   let releaseFrame = 0;
   // `up`: the sign of intent says "up" (wheel up, PageUp, Home, ArrowUp); a touch or a drag says it by where the scroll ended up.
   const release = (up = false) => {
+    setHeld(false);
     releasing = true;
     cancelAnimationFrame(pinFrame);
     cancelAnimationFrame(releaseFrame);
@@ -243,6 +253,11 @@ export function Transcript(props: { agentId: string; view: AgentView; readOnly?:
     });
   };
   const watch = (el: HTMLDivElement) => {
+    // Any scroll the person starts ends the hold on a request (the keys of the card itself are not such a sign).
+    const letGo = () => held() && setHeld(false);
+    el.addEventListener("wheel", letGo, { passive: true });
+    el.addEventListener("touchmove", letGo, { passive: true });
+    el.addEventListener("keydown", (e) => ["PageUp", "PageDown", "Home", "End", "ArrowUp", "ArrowDown"].includes(e.key) && !(e.target instanceof Element && e.target.closest("section.perm")) && letGo());
     el.addEventListener("wheel", (e) => e.deltaY < 0 && release(true), { passive: true });
     el.addEventListener("touchmove", () => release(), { passive: true });
     el.addEventListener("pointerdown", (e) => {
@@ -252,6 +267,22 @@ export function Transcript(props: { agentId: string; view: AgentView; readOnly?:
     });
     el.addEventListener("keydown", (e) => ["PageUp", "Home", "ArrowUp"].includes(e.key) && release(true));
     new ResizeObserver(() => mayPin() && (el.scrollTop = el.scrollHeight)).observe(el.firstElementChild ?? el);
+    // A request card that was brought into view: where it is now is where the list stays (a card is at most as tall as the
+    // viewport, so pinning the end could only hide the top of an earlier request).
+    el.addEventListener(REVEAL_EVENT, () => {
+      if (gap(el) <= 1) {
+        // the request is the end of the list: following it is the same thing
+        if (held()) (setHeld(false), setStick(true));
+        return;
+      }
+      cancelAnimationFrame(pinFrame);
+      lastTop = el.scrollTop;
+      setHeld(true);
+      setStick(false);
+    });
+    // The height a request card may take: the visible height of this scroller, so its title and its buttons are on screen together.
+    const cardRoom = () => el.clientHeight > 0 && el.style.setProperty("--perm-max", `${Math.max(el.clientHeight - CARD_MARGIN_PX, CARD_MIN_PX)}px`);
+    cardRoom();
     // The pane itself coming back from a zero size (a hidden layout, a collapsed split) or changing width: the rows were measured
     // against the old box (or against nothing), so measure the ones on screen again instead of waiting for a layout switch.
     let seenW = el.clientWidth;
@@ -261,6 +292,7 @@ export function Transcript(props: { agentId: string; view: AgentView; readOnly?:
       const resized = el.clientWidth !== seenW;
       seenW = el.clientWidth;
       seenH = el.clientHeight;
+      cardRoom();
       // a frame later: the virtual list first has to draw the rows the new box shows
       if (revived || resized) {
         cancelAnimationFrame(measureFrame);
@@ -270,6 +302,15 @@ export function Transcript(props: { agentId: string; view: AgentView; readOnly?:
     setScrollEl(el);
   };
   const needsYou = () => !props.readOnly && pendingPermissions(props.view).length + pendingQuestions(props.view).length > 0;
+  // The last request was answered: the list that was held on a request follows the stream again.
+  createEffect(
+    on(needsYou, (waiting) => {
+      if (waiting || !held()) return;
+      setHeld(false);
+      setStick(true);
+      toBottom();
+    }),
+  );
 
   const lastError = createMemo(() => [...props.view.items].reverse().find((i) => i.type === "error")?.key);
   const retryText = createMemo(() => {
@@ -293,7 +334,8 @@ export function Transcript(props: { agentId: string; view: AgentView; readOnly?:
     const item = last();
     return item?.type === "text" && !item.done;
   };
-  const working = () => props.view.turnActive && rows().length > 0 && !streaming();
+  // (a throttled turn says so in the banner above the composer: a second line under the list would only take its room)
+  const working = () => props.view.turnActive && rows().length > 0 && !streaming() && !props.view.throttle;
   const workingText = () => (needsYou() ? t("runs.activity.waiting") : props.view.state === "thinking" ? t("runs.activity.thinking") : t("runs.activity.working"));
 
   return (
@@ -336,7 +378,7 @@ export function Transcript(props: { agentId: string; view: AgentView; readOnly?:
           </div>
         </div>
       </Show>
-      <Show when={!stick() && rows().length > 0}>
+      <Show when={!stick() && !held() && rows().length > 0}>
         <div class="transcript__jump" data-tone={needsYou() ? "warn" : undefined}>
           <IconButton
             icon={ArrowDown}
