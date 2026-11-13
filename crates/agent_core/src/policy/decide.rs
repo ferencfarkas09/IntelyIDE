@@ -499,7 +499,9 @@ fn judge(ctx: &PolicyContext, intent: &ToolIntent, tool_id: &str, provider: &str
     let tool_ok = |name: &str| denied_by_role_list(&eff, &ToolIntent::from_claude_tool(name, &serde_json::json!({ "file_path": "x" }))).is_none();
     let jail = jail.with_hints(tool_ok("Read"), eff.mode != PermissionMode::ReadOnly && tool_ok("Edit") && tool_ok("Write"));
     let d = match intent.class {
-        ToolClass::Other if intent.tool.as_deref() == Some(CLI_PROMPT_TOOL) => decide_cli_prompt(&eff, intent, tool_id),
+        // (the Claude CLI's own prompt: no other adapter has one, so a raw intent of another provider that names this pseudo tool is an
+        // unknown tool like any other)
+        ToolClass::Other if claude && intent.tool.as_deref() == Some(CLI_PROMPT_TOOL) => decide_cli_prompt(&eff, intent, tool_id),
         ToolClass::Exec => decide_exec(&eff, intent, &jail),
         ToolClass::Write => decide_write(&eff, intent, &jail),
         ToolClass::Read => decide_read(&eff, intent, &jail),
@@ -1011,7 +1013,7 @@ pub const OTHER_STATE_CHANGE: [&str; 16] = [
 /// not one that was measured as harmless: "may a person allow this one?". The name has a colon, which no tool of the CLI or an MCP server has.
 pub const CLI_PROMPT_TOOL: &str = "intely:cli-prompt";
 
-/// The longest CLI reason kept as an always-list scope.
+/// The longest CLI reason kept in a card's scope.
 pub const MAX_CLI_REASON: usize = 300;
 
 /// The intent the gate (and the host, when it judges a card again) uses to ask about a CLI prompt: the reason is the only argument.

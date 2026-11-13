@@ -331,6 +331,7 @@ pub fn pending_permission(agent_id: &str, req_id: &str, tool_id: &str, intent: &
         expires_at: now_ms + REQUEST_TTL_MS,
         plan_excerpt: None,
         plan_truncated: None,
+        confirm: None,
     }
 }
 
@@ -374,10 +375,19 @@ pub fn pending_question(agent_id: &str, req_id: &str, tool_id: Option<&str>, pro
         expires_at: now_ms + REQUEST_TTL_MS,
         plan_excerpt: None,
         plan_truncated: None,
+        confirm: None,
     }
 }
 
 /// Used by the gateway to refuse a path that points into the state dir without a full intent.
 pub fn is_state_path(ctx: &PolicyContext, path: &Path) -> bool {
     ctx.state_dir.as_deref().is_some_and(|d| path.starts_with(d))
+}
+
+/// A confirmable (tier 2) stop is answered on the computer only: the phone shows the card as "answer on your computer" and cannot
+/// answer it. One rule for every path that registers such a card (live events and a rebuild after a restart).
+pub fn mark_confirm_card(p: &mut PendingRequest) {
+    p.eligibility = Eligibility::DesktopOnly;
+    p.risk = Risk::Blocked;
+    p.confirm = Some(true);
 }

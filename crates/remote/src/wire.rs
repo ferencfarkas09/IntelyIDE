@@ -156,6 +156,10 @@ wire! {
         #[serde(default)]
         #[cfg_attr(feature = "specta", specta(optional))]
         pub plan_truncated: Option<bool>,
+        /// A stop the person may lift on the computer: the phone shows it as "answer on your computer" (it cannot answer it).
+        #[serde(default)]
+        #[cfg_attr(feature = "specta", specta(optional))]
+        pub confirm: Option<bool>,
     }
 
     #[serde(tag = "t", rename_all = "camelCase", rename_all_fields = "camelCase")]
