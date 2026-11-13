@@ -1,30 +1,39 @@
 import { createSignal, For, onCleanup, Show } from "solid-js";
-import { t } from "../../i18n";
+import { fmt, t } from "../../i18n";
 import { Button, Popover } from "../../ui-kit";
-import { barItems, itemLabel, itemName, planRows, rowHint, rowName, type PlanRow } from "./bar";
+import { itemLabel, itemName, notCurrent, planRows, rowHint, rowName, shownItems, type PlanRow } from "./bar";
 import { openUsage } from "./open";
-import { limits } from "./store";
+import { planShown } from "./store";
 import "./planbar.css";
 
-/** The plan-usage popover: every window the plan reports, with its percent, bar and reset time, and the way to the Usage view. */
+/** The line under a row: its reset time, or, while its number is not current, when the last reading was made. */
+const hintOf = (r: PlanRow, now: number): string => (notCurrent(r, now) ? t("planbar.updatingHint", { time: fmt.time(planShown()?.at ?? now) }) : rowHint(r, now));
+
+/**
+ * The plan-usage popover: every window the plan reports, with its percent, bar and reset time, and the way to the Usage view.
+ * The rows scroll inside a box of capped height, so a plan with many model classes neither covers the bar nor opens scrolled
+ * to its end; the button stays below them.
+ */
 export function PlanPopover(props: { now: number; close: () => void }) {
   return (
     <div class="pu" data-testid="plan-usage">
       <h2 class="pu__title">{t("planbar.title")}</h2>
-      <For each={planRows(limits())}>
-        {(r) => (
-          <div class="pu__row" data-tone={r.tone} data-testid={`plan-row-${r.kind}`}>
-            <div class="pu__head">
-              <span class="pu__name">{rowName(r)}</span>
-              <span class="pu__pct ui-tnum">{r.percent}%</span>
+      <div class="pu__rows" data-testid="plan-rows">
+        <For each={planRows(planShown()?.limits)}>
+          {(r) => (
+            <div class="pu__row" data-tone={r.tone} data-current={notCurrent(r, props.now) ? "no" : undefined} data-testid={`plan-row-${r.kind}`}>
+              <div class="pu__head">
+                <span class="pu__name">{rowName(r)}</span>
+                <span class="pu__pct ui-tnum">{notCurrent(r, props.now) ? t("planbar.updating") : `${r.percent}%`}</span>
+              </div>
+              <div class="pu__bar" role="img" aria-label={notCurrent(r, props.now) ? t("planbar.updatingAria", { name: rowName(r) }) : t("planbar.rowAria", { percent: r.percent })}>
+                <div class="pu__bar-fill" style={{ width: notCurrent(r, props.now) ? "0%" : `${r.percent}%` }} />
+              </div>
+              <span class="pu__hint ui-tnum">{hintOf(r, props.now)}</span>
             </div>
-            <div class="pu__bar" role="img" aria-label={t("planbar.rowAria", { percent: r.percent })}>
-              <div class="pu__bar-fill" style={{ width: `${r.percent}%` }} />
-            </div>
-            <span class="pu__hint ui-tnum">{rowHint(r, props.now)}</span>
-          </div>
-        )}
-      </For>
+          )}
+        </For>
+      </div>
       <Button
         variant="secondary"
         class="pu__open"
@@ -39,7 +48,9 @@ export function PlanPopover(props: { now: number; close: () => void }) {
   );
 }
 
-function Item(props: { row: PlanRow; now: number }) {
+function Item(props: { row: PlanRow; rows: PlanRow[]; now: number }) {
+  const stale = () => notCurrent(props.row, props.now);
+  const label = () => itemLabel(props.row, props.rows);
   return (
     <Popover
       placement="top-end"
@@ -47,12 +58,21 @@ function Item(props: { row: PlanRow; now: number }) {
       aria-label={t("planbar.title")}
       class="pu-popover"
       trigger={(p) => (
-        <button {...p} type="button" class="pb" data-tone={props.row.tone} data-testid={`plan-item-${props.row.kind}`} aria-label={itemName(props.row, props.now)}>
-          <span class="pb__label">{itemLabel(props.row)}</span>
+        <button
+          {...p}
+          type="button"
+          class="pb"
+          data-tone={stale() ? undefined : props.row.tone}
+          data-current={stale() ? "no" : undefined}
+          data-testid={`plan-item-${props.row.kind}`}
+          aria-label={itemName(props.row, props.now, props.rows)}
+          title={label()}
+        >
+          <span class="pb__label">{label()}</span>
           <span class="pb__track" aria-hidden="true">
-            <span class="pb__fill" style={{ width: `${props.row.percent}%` }} />
+            <span class="pb__fill" style={{ width: stale() ? "0%" : `${props.row.percent}%` }} />
           </span>
-          <span class="pb__pct ui-tnum" aria-hidden="true">{props.row.percent}%</span>
+          <span class="pb__pct ui-tnum" aria-hidden="true">{stale() ? t("planbar.updating") : `${props.row.percent}%`}</span>
         </button>
       )}
     >
@@ -63,14 +83,14 @@ function Item(props: { row: PlanRow; now: number }) {
 
 /** Bottom bar: "Weekly" and the week of each model class the plan names; a click on either opens the plan-usage popover. */
 export default function PlanBar() {
-  // the reset time is told as a clock time; the minute tick only turns "Resets at 18:50" into "Resets now" in time
+  // the minute tick turns "Resets at 18:50" into "updating…" once the time has passed and no new reading came
   const [now, setNow] = createSignal(Date.now());
   const tick = setInterval(() => setNow(Date.now()), 60_000);
   onCleanup(() => clearInterval(tick));
   return (
-    <Show when={barItems(limits()).length > 0}>
+    <Show when={shownItems().length > 0}>
       <span class="pb-group" role="group" aria-label={t("planbar.title")}>
-        <For each={barItems(limits())}>{(r) => <Item row={r} now={now()} />}</For>
+        <For each={shownItems()}>{(r) => <Item row={r} rows={shownItems()} now={now()} />}</For>
       </span>
     </Show>
   );

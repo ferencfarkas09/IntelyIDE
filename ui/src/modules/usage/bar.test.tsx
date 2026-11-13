@@ -11,10 +11,10 @@ globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {
 
 import { resetStatusItems, statusItems } from "../../platform/statusbar";
 import { createMockUsage, normalizeLimits, setUsageApi } from "./api";
-import { barItems, FIRST_READ_MS, itemName, MAX_BAR_SCOPED, planBar, planBarVisible, planRows, READ_EVERY_MS, resetText, RETRY_UNAVAILABLE_MS, rowHint, startPlanBarReader } from "./bar";
+import { barItems, FIRST_READ_MS, itemLabel, itemName, MAX_BAR_SCOPED, planBar, planBarVisible, planRows, READ_EVERY_MS, resetText, RETRY_UNAVAILABLE_MS, rowHint, startPlanBarReader } from "./bar";
 import { extraScoped, scopedWindows } from "./logic";
 import PlanBar from "./PlanBar";
-import { limits, refreshLimits, resetUsage } from "./store";
+import { limits, planShown, refreshLimits, resetUsage } from "./store";
 import type { PlanLimits } from "./types";
 
 // local times, so the wording does not depend on the machine's zone
@@ -64,15 +64,17 @@ describe("what the bar and the popover show", () => {
   it("lists the week of all models, each model week and the 5-hour window, with whole percents and tones", () => {
     expect(planRows(PLAN)).toEqual([
       { id: "sevenDay", kind: "weekly", percent: 42, tone: "ok", resetsAt: WEEK },
-      { id: "scoped:Fable", kind: "scoped", name: "Fable", percent: 18, tone: "ok", resetsAt: WEEK },
+      { id: "scoped:0", kind: "scoped", name: "Fable", percent: 18, tone: "ok", resetsAt: WEEK },
       { id: "fiveHour", kind: "fiveHour", percent: 76, tone: "warn", resetsAt: at(12, 18, 50) },
     ]);
-    expect(barItems(PLAN).map((r) => r.id)).toEqual(["sevenDay", "scoped:Fable"]);
+    expect(barItems(PLAN).map((r) => r.id)).toEqual(["sevenDay", "scoped:0"]);
   });
 
-  it("grades a window calm below 70 percent, warning from 70 and danger from 90, and clamps what the CLI reports", () => {
+  it("grades the rounded percent it shows, warning from 70 and danger from 90, and clamps what the CLI reports", () => {
     const tone = (utilization: number) => planRows({ available: true, plan: null, sevenDay: { utilization, resetsAt: WEEK } })[0];
-    expect([0, 42, 69.9, 70, 78, 89.9, 90, 96].map((u) => tone(u).tone)).toEqual(["ok", "ok", "ok", "warn", "warn", "warn", "danger", "danger"]);
+    expect([0, 42, 69.4, 69.5, 70, 78, 89.4, 89.5, 90, 96].map((u) => tone(u).tone)).toEqual(["ok", "ok", "ok", "warn", "warn", "warn", "warn", "danger", "danger", "danger"]);
+    // what is shown as "70%" is always the warning colour, in the bar and in the ring alike
+    for (const u of [69.5, 70, 70.4]) expect(tone(u)).toMatchObject({ percent: 70, tone: "warn" });
     expect(tone(140)).toMatchObject({ percent: 100, tone: "danger" });
     expect(tone(-5)).toMatchObject({ percent: 0, tone: "ok" });
     expect(tone(Number.NaN)).toMatchObject({ percent: 0 });
@@ -209,6 +211,102 @@ describe("the extra", () => {
     expect(asked).toBe(2);
   });
 
+  it("a failed read after a good one keeps the numbers, shows them as not current, and tries again at the next tick", async () => {
+    vi.useFakeTimers({ now: NOW });
+    let answer: () => Promise<PlanLimits> = async () => PLAN;
+    let asked = 0;
+    setUsageApi({ report: async () => { throw new Error("not asked"); }, limits: () => (asked++, answer()) });
+    const stop = startPlanBarReader();
+    await vi.advanceTimersByTimeAsync(FIRST_READ_MS);
+    render(() => <PlanBar />);
+    expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual(["Weekly42%", "Fable18%"]);
+    answer = async () => ({ available: false, reason: "failed", detail: "timeout" });
+    await vi.advanceTimersByTimeAsync(READ_EVERY_MS);
+    expect(asked).toBe(2);
+    // still there, muted, "updating…" in place of the old percent
+    const items = screen.getAllByRole("button");
+    expect(items.map((b) => b.textContent)).toEqual(["Weeklyupdating…", "Fableupdating…"]);
+    expect(items.map((b) => b.getAttribute("data-current"))).toEqual(["no", "no"]);
+    expect(items[0].getAttribute("aria-label")).toBe("Weekly: not current, updating");
+    // not the 30-minute wait of a missing plan: the next tick reads again, and a good answer makes it current
+    answer = async () => PLAN;
+    await vi.advanceTimersByTimeAsync(READ_EVERY_MS);
+    expect(asked).toBe(3);
+    expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual(["Weekly42%", "Fable18%"]);
+    stop();
+  });
+
+  it("keeps the model rows when the answer has no model_scoped field, and drops them when it is an empty list", async () => {
+    await use(PLAN);
+    expect(barItems(planShown()?.limits).map((r) => r.name ?? r.kind)).toEqual(["weekly", "Fable"]);
+    await use(normalizeLimits({ ok: true, plan: "max", available: true, sevenDay: { utilization: 43, resetsAt: WEEK } }));
+    expect(barItems(planShown()?.limits).map((r) => `${r.name ?? r.kind} ${r.percent}`)).toEqual(["weekly 43", "Fable 18"]);
+    await use(normalizeLimits({ ok: true, plan: "max", available: true, sevenDay: { utilization: 44, resetsAt: WEEK }, modelScoped: [] }));
+    expect(barItems(planShown()?.limits).map((r) => `${r.name ?? r.kind} ${r.percent}`)).toEqual(["weekly 44"]);
+    // signed out: nothing is kept
+    await use({ available: false, reason: "notSignedIn" });
+    expect(planShown()).toBeUndefined();
+  });
+
+  it("shows an item as not current once its reset time has passed without a new reading, and reads once for it", async () => {
+    vi.useFakeTimers({ now: NOW });
+    let asked = 0;
+    const soon = at(12, 14, 3);
+    setUsageApi({ report: async () => { throw new Error("not asked"); }, limits: async () => (asked++, { available: true, plan: "max", sevenDay: { utilization: 97, resetsAt: soon } }) });
+    const stop = startPlanBarReader();
+    await vi.advanceTimersByTimeAsync(FIRST_READ_MS);
+    render(() => <PlanBar />);
+    expect(screen.getByRole("button").textContent).toBe("Weekly97%");
+    // the reset passes; the minute check reads once (the answer still names the old time), the item says it is updating
+    await vi.advanceTimersByTimeAsync(4 * 60_000);
+    expect(asked).toBe(2);
+    expect(screen.getByRole("button").textContent).toBe("Weeklyupdating…");
+    // the next minute check, before the regular five-minute read
+    await vi.advanceTimersByTimeAsync(55_000);
+    expect(asked, "a passed reset time is read for only once").toBe(2);
+    stop();
+  });
+
+  it("reads once when the window is shown again, at most once a minute", async () => {
+    planBar.set(false); // the reader an earlier test registered listens too
+    vi.useFakeTimers({ now: NOW });
+    let asked = 0;
+    setUsageApi({ report: async () => { throw new Error("not asked"); }, limits: async () => (asked++, PLAN) });
+    const stop = startPlanBarReader();
+    await vi.advanceTimersByTimeAsync(FIRST_READ_MS);
+    expect(asked).toBe(1);
+    document.dispatchEvent(new Event("visibilitychange"));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(asked, "within a minute of the last read").toBe(1);
+    await vi.advanceTimersByTimeAsync(2 * 60_000);
+    document.dispatchEvent(new Event("visibilitychange"));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(asked).toBe(2);
+    const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+    await vi.advanceTimersByTimeAsync(2 * 60_000);
+    document.dispatchEvent(new Event("visibilitychange"));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(asked, "hidden: no read").toBe(2);
+    visibility.mockRestore();
+    stop();
+  });
+
+  it("names the built-in week in full when a model class is itself called Weekly, with distinct keys", () => {
+    const l: PlanLimits = { available: true, plan: "max", sevenDay: { utilization: 42, resetsAt: WEEK }, modelScoped: [{ name: "Weekly", utilization: 10, resetsAt: WEEK }, { name: "Fable", utilization: 5, resetsAt: WEEK }] };
+    const rows = barItems(l);
+    expect(rows.map((r) => itemLabel(r, rows))).toEqual(["Weekly (all models)", "Weekly", "Fable"]);
+    expect(new Set(rows.map((r) => r.id)).size).toBe(3);
+    expect(itemLabel(barItems(PLAN)[0], barItems(PLAN))).toBe("Weekly");
+  });
+
+  it("cuts a long label by code point in the IDE too", () => {
+    const name = `${"A".repeat(39)}\u{1F600}${"B".repeat(10)}`;
+    const l = normalizeLimits({ ok: true, plan: "max", available: true, modelScoped: [{ name, utilization: 1, resetsAt: WEEK }, { name: `${name}x`, utilization: 2, resetsAt: WEEK }] });
+    const scoped = l.available ? (l.modelScoped ?? []) : [];
+    expect(scoped.map((w) => w.utilization)).toEqual([1, 2]);
+    expect(scoped[0].name).toBe(`${"A".repeat(39)}\u{1F600}…`);
+  });
+
   it("asks rarely while there is no plan to read", async () => {
     vi.useFakeTimers();
     let asked = 0;
@@ -226,7 +324,7 @@ describe("the extra", () => {
   it("a plan that cannot be read never throws and shows nothing", async () => {
     setUsageApi({ report: async () => { throw new Error("not asked"); }, limits: async () => { throw new Error("boom"); } });
     await expect(refreshLimits()).resolves.toBeUndefined();
-    expect(limits()).toBeUndefined();
+    expect(limits()).toEqual({ available: false, reason: "failed" });
     expect(planBarVisible()).toBe(false);
   });
 
@@ -247,5 +345,33 @@ describe("the strings", () => {
       expect(holes(h), k).toEqual(holes((en as Record<string, string>)[k]));
     }
     expect((hu as Record<string, string>)["planbar.weekly"]).toBe("Heti");
+  });
+});
+
+describe("the switch at startup", () => {
+  it("honours settings.json when the webview's mirror is empty: no read and no item before the stored value is known", async () => {
+    vi.resetModules();
+    let resolveSettings: (v: Record<string, unknown>) => void = () => {};
+    vi.doMock("../../ipc", () => ({ ipc: { settings: { get: () => new Promise((r) => (resolveSettings = r)), set: async () => undefined } } }));
+    localStorage.clear();
+    const api = await import("./api");
+    const statusbar = await import("../../platform/statusbar");
+    let asked = 0;
+    api.setUsageApi({ report: async () => { throw new Error("not asked"); }, limits: async () => (asked++, PLAN) });
+    vi.useFakeTimers();
+    const { register } = await import("./index");
+    register();
+    await vi.advanceTimersByTimeAsync(FIRST_READ_MS * 2);
+    expect(asked, "nothing is read while the stored switch is not known").toBe(0);
+    resolveSettings({ planBar: false });
+    await vi.advanceTimersByTimeAsync(FIRST_READ_MS * 2);
+    expect(asked).toBe(0);
+    expect(statusbar.statusItems("right").map((i) => i.id)).not.toContain("usage.plan");
+    const bar = await import("./bar");
+    expect(bar.planBar.on()).toBe(false);
+    expect(localStorage.getItem("intely.extra.planBar")).toBe("0");
+    api.setUsageApi(undefined);
+    vi.doUnmock("../../ipc");
+    vi.resetModules();
   });
 });

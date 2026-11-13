@@ -31,15 +31,22 @@ export function normalizeLimits(raw: unknown): PlanLimits {
     return w && typeof w.utilization === "number" && typeof w.resetsAt === "string" ? { utilization: w.utilization, resetsAt: w.resetsAt } : undefined;
   };
   const out = { fiveHour: win(r.fiveHour), sevenDay: win(r.sevenDay), sevenDayOpus: win(r.sevenDayOpus), sevenDaySonnet: win(r.sevenDaySonnet) };
-  // the per-model weeks, under the label the plan data gave them: a row without a label or numbers is dropped
+  // the per-model weeks, under the label the plan data gave them: a row without a label or numbers is dropped, so is a second
+  // row of the very same label; a label is cut by code point (never half a surrogate pair)
   const modelScoped: ScopedWindow[] = [];
+  const seen = new Set<string>();
   for (const row of Array.isArray(r.modelScoped) ? r.modelScoped.slice(0, MAX_SCOPED) : []) {
     const w = win(row);
-    const name = typeof (row as { name?: unknown } | null)?.name === "string" ? (row as { name: string }).name.trim().slice(0, MAX_SCOPED_NAME) : "";
-    if (w && name && !modelScoped.some((m) => m.name === name)) modelScoped.push({ name, ...w });
+    const full = typeof (row as { name?: unknown } | null)?.name === "string" ? (row as { name: string }).name.trim() : "";
+    if (!w || !full || seen.has(full)) continue;
+    seen.add(full);
+    const chars = Array.from(full);
+    // one more than the bound: the sidecar's own cut ends in an ellipsis
+    modelScoped.push({ name: chars.length <= MAX_SCOPED_NAME + 1 ? full : `${chars.slice(0, MAX_SCOPED_NAME).join("").trimEnd()}…`, ...w });
   }
   if (r.available === false || (!Object.values(out).some(Boolean) && !modelScoped.length)) return { available: false, reason: "notSignedIn" };
-  return { available: true, plan: typeof r.plan === "string" ? r.plan : null, ...Object.fromEntries(Object.entries(out).filter(([, v]) => v)), ...(modelScoped.length ? { modelScoped } : {}) };
+  // absent (the CLI answered from cached data) stays absent and the store keeps the rows it had; a list, even empty, is the answer
+  return { available: true, plan: typeof r.plan === "string" ? r.plan : null, ...Object.fromEntries(Object.entries(out).filter(([, v]) => v)), ...(Array.isArray(r.modelScoped) ? { modelScoped } : {}) };
 }
 
 const tauriApi: UsageApi = {

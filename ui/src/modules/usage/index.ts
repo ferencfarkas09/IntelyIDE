@@ -2,7 +2,7 @@
 // A tab, a command and a Settings entry; the report is not read until the tab is opened. The bottom bar items ("Weekly" and
 // the week of a model class such as "Fable", when the plan reports one) are a lazy extra with a switch in Settings > Usage,
 // on by default: while on, the plan limits are read a moment after the start and every five minutes.
-import { createEffect, createRoot, lazy } from "solid-js";
+import { createEffect, createRoot, createSignal, lazy } from "solid-js";
 import { t } from "../../i18n";
 import { registerCommand } from "../../platform/commands";
 import { registerSettingsSection } from "../../platform/settings";
@@ -42,5 +42,9 @@ export function register(): void {
     searchTerms: ["usage", "tokens", "cost", "limit", "weekly", "session", "consumption", "bottom bar", "status bar", "fable"],
     component: lazy(() => import("./UsageSection")),
   });
-  createRoot(() => createEffect(() => (planBar.on() ? activate() : deactivate())));
+  // The switch's mirror can be missing (a new webview store) while settings.json says off: nothing is read, and no item is
+  // shown, until the durable value has been adopted.
+  const [synced, setSynced] = createSignal(false);
+  void planBar.sync().finally(() => setSynced(true));
+  createRoot(() => createEffect(() => (synced() && planBar.on() ? activate() : deactivate())));
 }
