@@ -3125,7 +3125,7 @@ dependencies = [
 
 [[package]]
 name = "intely-switch-ide"
-version = "1.14.1"
+version = "1.15.0"
 dependencies = [
  "block2",
  "getrandom 0.4.3",

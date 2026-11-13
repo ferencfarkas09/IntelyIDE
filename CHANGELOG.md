@@ -4,6 +4,8 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [1.15.0] - 2026-11-13
+
 ### Added
 
 - A refreshed look for the window, the runs list, the run view, the New run dialog and the Dashboard, in both styles (Standard and Glass) and both themes. The layout and the information are the same; spacing, type, cards and controls are cleaner. Panels are rounded sheets with small gaps between them (rounder in Glass, flatter in Standard).
@@ -390,7 +392,8 @@ First public release. This is alpha software.
 - Providers other than Claude, Happy, MongoDB Studio and Remote are proven only against mocks or on a local machine.
 - Version 0.1.0 still stores its state in the folder `IntelySwitchIDE` and uses Keychain services named after the earlier bundle identifier; a switch to `com.intelyhome.intelyide` with a migration is planned.
 
-[Unreleased]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.14.1...HEAD
+[Unreleased]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.15.0...HEAD
+[1.15.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.14.1...v1.15.0
 [1.14.1]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.14.0...v1.14.1
 [1.14.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.13.0...v1.14.0
 [1.13.0]: https://github.com/ferencfarkas09/IntelyIDE/compare/v1.12.0...v1.13.0
