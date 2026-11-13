@@ -846,3 +846,28 @@ fn the_phone_sees_the_plan_excerpt_and_the_run_mode_and_a_plan_approval_carries_
     let m = env.send(&mut phone, answer("ap", "plan1", PermissionDecision::AllowOnce, Some(p.intent_hash), None));
     assert_eq!(Env::ack_of(&m, "ap"), Some((true, None)), "{m:?}");
 }
+
+#[test]
+fn a_confirm_card_is_desktop_only_on_the_phone_and_an_answer_is_not_a_forgery() {
+    let mut env = Env::new();
+    let mut phone = env.pair("p", Capability::Reply);
+    let mut intent = ToolIntent::read(&["/work/app/.env"]);
+    intent.summary = "Read /work/app/.env".into();
+    let confirm = env.hub.ask_confirm_permission("r-confirm", intent);
+    let hard = env.hub.ask_permission("r-hard", ToolIntent::exec("git commit -m x"));
+    let got = env.connect(&mut phone);
+    let ServerMsg::Snapshot { needs_you, .. } = &got[1] else { panic!() };
+    let by = |id: &str| needs_you.iter().find(|c| c.req_id == id).unwrap();
+    assert_eq!((by("r-confirm").eligibility, by("r-confirm").confirm), (Eligibility::DesktopOnly, Some(true)));
+    assert_eq!(by("r-hard").confirm, None, "a pure hard stop is not a confirm card");
+    // a phone answer (allow or deny) is not accepted, says "computer", and is audited as such
+    for (op, d) in [("c1", PermissionDecision::AllowOnce), ("c2", PermissionDecision::Deny)] {
+        let m = env.send(&mut phone, answer(op, "r-confirm", d, Some(confirm.intent_hash.clone()), None));
+        assert_eq!(Env::ack_of(&m, op), Some((false, Some("desktopOnly".into()))));
+    }
+    let events = audit_events(&env);
+    assert!(events.iter().any(|e| e == "answer.desktop-only"), "{events:?}");
+    assert!(!events.iter().any(|e| e == "answer.forged"), "{events:?}");
+    assert!(env.hub.permission_answers.lock().unwrap().is_empty());
+    let _ = hard;
+}

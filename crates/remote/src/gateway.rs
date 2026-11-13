@@ -652,7 +652,7 @@ impl GatewayCore {
                 }
                 _ => {
                     e = Eligibility::DesktopOnly;
-                    reason = Some("The Mac cannot judge this request again.".into());
+                    reason = Some("The computer cannot judge this request again.".into());
                 }
             }
         }
@@ -715,6 +715,7 @@ impl GatewayCore {
             expires_at: p.expires_at,
             plan_excerpt: p.plan_excerpt.clone(),
             plan_truncated: p.plan_truncated,
+            confirm: p.confirm,
         }
     }
 
@@ -1154,7 +1155,7 @@ impl GatewayCore {
         let (elig, why) = self.effective_eligibility(cap, &p, rank, forced);
         if elig == Eligibility::DesktopOnly {
             self.store.audit(Record::new("answer.desktop-only").device(&dev.id).req(&a.req_id).agent(&a.agent_id).risk(&risk).intent(&ihash).detail("answered on the phone, not accepted: this request is decided on the computer"));
-            return self.push_msg(link, &ack_err(&op, "desktopOnly", why.as_deref().unwrap_or("This can only be decided on the Mac.")), outs);
+            return self.push_msg(link, &ack_err(&op, "desktopOnly", why.as_deref().unwrap_or("This can only be decided on the computer.")), outs);
         }
 
         match (a.decision, a.question.clone()) {

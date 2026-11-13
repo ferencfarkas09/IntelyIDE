@@ -118,6 +118,15 @@ impl FakeHub {
         p
     }
 
+    /// A confirmable (tier 2) stop as the host registers it: marked by the one shared rule, `mark_confirm_card`.
+    pub fn ask_confirm_permission(&self, req: &str, intent: ToolIntent) -> PendingRequest {
+        let ctx = self.ctx.lock().unwrap().clone();
+        let mut p = pending_permission(AGENT, req, "tool-1", &intent, &ctx, &LowList::default(), self.clock.now_ms());
+        intely_remote::policy::mark_confirm_card(&mut p);
+        self.table.register(p.clone());
+        p
+    }
+
     pub fn ask_question(&self, req: &str, prompt: &str) -> PendingRequest {
         let p = pending_question(AGENT, req, Some("tool-q"), prompt, self.clock.now_ms());
         self.table.register(p.clone());

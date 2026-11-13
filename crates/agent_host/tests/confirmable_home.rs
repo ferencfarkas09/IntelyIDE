@@ -137,5 +137,19 @@ fn a_run_whose_folder_is_the_home_directory_takes_only_a_once_answer() {
     assert!(r.host.context(&id).unwrap().stop_grants.is_empty());
     r.click(&id, "p1", PermissionDecision::AllowOnce).expect("once is still offered");
     assert_eq!(r.answers("p1")[0]["grant"], "once");
+    // no home directory known at all (HOME unset or empty): fail closed, the run-wide choice is refused the same way
+    for unset in [true, false] {
+        if unset {
+            std::env::remove_var("HOME");
+        } else {
+            std::env::set_var("HOME", "");
+        }
+        let id = r.start(Automatic).agent_id;
+        let req = if unset { "q1" } else { "q2" };
+        let intent = json!({"class": "read", "tool": "Read", "paths": [r.env()], "summary": "Read .env"});
+        r.card(&id, req, intent, json!({"kind": "secretFile", "rule": "read.never-read", "scope": r.env(), "repo": r.repo.path.to_string_lossy()}));
+        assert_eq!(code(r.click_broad(&id, req, PermissionDecision::AllowRun)), "runWideNotAllowed", "HOME unset={unset}");
+        assert!(r.host.context(&id).unwrap().stop_grants.is_empty());
+    }
     r.host.shutdown();
 }
