@@ -88,3 +88,9 @@
 /* The banner above a run's transcript (a resume changed the mode on its own). */
 .banner--run { flex: none; margin: 6px var(--space-2) 0; align-items: center; }
 .banner--run .banner__hint { color: var(--text-1); }
+/* A compact pane gives the plan the height: the three modes are a wrapping row of whole labels (never cut, never broken inside a
+   word), their one-line hints stay as the cards' descriptions. */
+.chat[data-compact] .plan-approval .mode-cards[data-layout="list"] { display: flex; flex-wrap: wrap; gap: 6px; }
+.chat[data-compact] .plan-approval .mode-card { flex: 1 1 auto; padding: 6px 10px; }
+.chat[data-compact] .plan-approval .mode-card__hint { display: none; }
+.chat[data-compact] .plan-approval .mode-card__label { white-space: nowrap; }

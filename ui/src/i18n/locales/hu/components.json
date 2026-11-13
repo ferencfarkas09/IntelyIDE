@@ -103,6 +103,7 @@
   "chat.perm.note": "A shell-parancsok és a fájlírások csak egyszer engedélyezhetők; egy mentett szabály olyan hívásokat is lefedne, amelyeket még nem láttál.",
   "chat.perm.full": "Teljes szöveg",
   "chat.perm.details": "A kérés részletei",
+  "chat.perm.more": "Görgess tovább",
   "chat.q.aria": "Kérdés az ügynöktől",
   "chat.q.notAnswered": "Nincs válasz",
   "chat.q.title": "Kérdés",

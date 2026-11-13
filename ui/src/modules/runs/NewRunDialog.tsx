@@ -11,7 +11,7 @@ import { openDockTab } from "../../platform/dock";
 import { openSettings } from "../../platform/settings";
 import type { RoleGroup, RoleProviderCaps } from "../../ipc/roles";
 import type { AgentSummary, AutoInfo, PermissionMode } from "../../store/agent-types";
-import { formatChord } from "../../platform/keymap";
+import { chordLabel } from "../../platform/keymap";
 import { appMode } from "../../platform/mode";
 import { newRunPrefill, takeNewRunPrefill } from "../../platform/newRun";
 import { agentRoles, selectAgent, selectStartingRun, startRun } from "../../store/agents";
@@ -510,7 +510,7 @@ export function NewRunDialog() {
           </Button>
           <Button size="xl" variant="primary" aria-label={t("runs.new.start")} aria-keyshortcuts="Meta+Enter Control+Enter" loading={busy()} disabled={!!blocker()} onClick={() => void start()}>
             {t("runs.new.start")}
-            <span class="ui-btn__kbd" aria-hidden="true">{formatChord("Mod+Enter").join("")}</span>
+            <span class="ui-btn__kbd" aria-hidden="true">{chordLabel("Mod+Enter")}</span>
           </Button>
         </>
       }

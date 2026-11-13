@@ -3,7 +3,9 @@ import { createSignal, Show, type JSX } from "solid-js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PermissionItem, QuestionItem, TurnItem } from "../../store/agent-reducer";
 import { installDomStubs } from "../../store/testing-u2";
-import { CONTINUE_TEXT, KEY_GUARD_MS, PermissionCard, QuestionCard, REVEAL_EVENT, TurnMarker, personIsTyping, requestVisible, resolvedWording, scopeSentence, revealRequest, trackTyping } from "./Cards";
+import { CONTINUE_TEXT, KEY_GUARD_MS, TYPING_GUARD_MS, PermissionCard, QuestionCard, REVEAL_EVENT, TurnMarker, personIsTyping, requestVisible, resolvedWording, scopeSentence, revealRequest, trackTyping } from "./Cards";
+
+import { PlanApprovalCard } from "./PlanApprovalCard";
 
 installDomStubs();
 afterEach(cleanup);
@@ -820,5 +822,129 @@ describe("the confirm card of a stop you can lift (PR #112) in the refreshed lay
     render(() => <PermissionCard item={stop({ options: ["deny"] })} onAnswer={() => {}} />);
     expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual(["Deny, tell the agent no"]);
     expect(screen.getByTestId("stop-phone")).toBeTruthy();
+  });
+});
+
+describe("keys typed for the composer never answer a card, whatever has the focus (review 3)", () => {
+  beforeEach(() => void vi.useFakeTimers());
+  afterEach(() => void vi.useRealTimers());
+
+  /** Types into the composer the way a person does: a key down, the character at the caret, an input event. */
+  const typeInto = (draft: HTMLTextAreaElement, text: string) => {
+    for (const ch of text) {
+      fireEvent.keyDown(draft, { key: ch });
+      const at = draft.selectionStart;
+      draft.value = draft.value.slice(0, at) + ch + draft.value.slice(draft.selectionEnd);
+      draft.setSelectionRange(at + 1, at + 1);
+      fireEvent.input(draft);
+      fireEvent.keyUp(draft, { key: ch });
+    }
+  };
+  const stopItem = () =>
+    perm({
+      reqId: "k-stop",
+      intent: { class: "read", tool: "Read", paths: ["/work/admin/.env"], summary: "Read /work/admin/.env" },
+      options: ["allowOnce", "allowRun", "deny"],
+      confirm: { kind: "secretFile", rule: "read.never-read", scope: "/work/admin/.env", repo: "/work/admin" },
+    });
+  const planItem = (): PermissionItem =>
+    perm({ reqId: "k-plan", intent: { class: "other", tool: "ExitPlanMode", summary: "ExitPlanMode: leave plan mode" }, options: ["allowOnce", "deny"], plan: "## Plan\n\n1. One step", modes: ["ask", "edit", "automatic"] });
+  const KINDS: [string, (answer: () => void) => JSX.Element, () => HTMLElement][] = [
+    ["an exec request", (a) => <PermissionCard item={perm({ reqId: "k-exec" })} onAnswer={a} />, () => screen.getByRole("button", { name: "Allow once" })],
+    ["a write request", (a) => <PermissionCard item={perm({ reqId: "k-write", intent: { class: "write", paths: ["src/a.ts"], summary: "Edit src/a.ts" }, options: ["allowOnce", "allowRun", "deny"], sessionAllow: { kind: "write", scope: "" } })} onAnswer={a} />, () => screen.getByRole("button", { name: "Allow once" })],
+    ["a confirm card", (a) => <PermissionCard item={stopItem()} onAnswer={a} />, () => screen.getByRole("button", { name: "Deny, tell the agent no" })],
+    ["a question (an option)", (a) => <QuestionCard item={question({ reqId: "k-q" })} onAnswer={a} />, () => screen.getByRole("radio", { name: /Option A/ })],
+    ["a plan", (a) => <PlanApprovalCard item={planItem()} onAnswer={a} />, () => screen.getByRole("button", { name: "Approve plan" })],
+  ];
+
+  for (const [kind, card, button] of KINDS) {
+    for (const after of [100, 1400]) {
+      it(`${kind}: a Space typed ${after} ms after a key in the composer goes into the composer and answers nothing`, () => {
+        const answer = vi.fn();
+        render(() => <Stage>{card(answer)}</Stage>);
+        const draft = screen.getByLabelText("draft") as HTMLTextAreaElement;
+        const stop = trackTyping(draft);
+        draft.focus();
+        typeInto(draft, "go");
+        vi.advanceTimersByTime(after);
+        // the focus got onto the card somehow (the guard must not depend on how): the next keys were meant for the draft
+        const b = button();
+        b.focus();
+        expect(document.activeElement).toBe(b);
+        expect(fireEvent.keyDown(b, { key: " " })).toBe(false);
+        fireEvent.click(b); // the click a key makes (detail 0)
+        expect(fireEvent.keyUp(b, { key: " " })).toBe(false);
+        expect(answer).not.toHaveBeenCalled();
+        expect(b.getAttribute("aria-checked")).not.toBe("true");
+        // the space is in the draft, the focus and the caret are back, and typing goes on unbroken
+        expect(document.activeElement).toBe(draft);
+        expect(draft.value).toBe("go ");
+        expect([draft.selectionStart, draft.selectionEnd]).toEqual([3, 3]);
+        typeInto(draft, "ahead and fix it");
+        expect(draft.value).toBe("go ahead and fix it");
+        expect(answer).not.toHaveBeenCalled();
+        stop();
+      });
+    }
+  }
+
+  it("a printable key and Enter that land on a card are redirected too; a pointer click works at once", () => {
+    const answer = vi.fn();
+    render(() => <Stage>{KINDS[0][1](answer)}</Stage>);
+    const draft = screen.getByLabelText("draft") as HTMLTextAreaElement;
+    const stop = trackTyping(draft);
+    draft.focus();
+    typeInto(draft, "g");
+    const allow = screen.getByRole("button", { name: "Allow once" });
+    allow.focus();
+    expect(fireEvent.keyDown(allow, { key: "o" })).toBe(false);
+    expect(draft.value).toBe("go");
+    allow.focus();
+    expect(fireEvent.keyDown(allow, { key: "Enter" })).toBe(false);
+    fireEvent.click(allow);
+    expect(answer).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(draft);
+    // a real click (detail 1) is the person's choice: it answers at once
+    fireEvent.click(allow, { detail: 1 });
+    expect(answer).toHaveBeenCalledWith("allowOnce");
+    stop();
+  });
+
+  it("after the composer was quiet for the guard's time, a key on the card is the card's again", () => {
+    const answer = vi.fn();
+    render(() => <Stage>{KINDS[0][1](answer)}</Stage>);
+    const draft = screen.getByLabelText("draft") as HTMLTextAreaElement;
+    const stop = trackTyping(draft);
+    draft.focus();
+    typeInto(draft, "go");
+    vi.advanceTimersByTime(TYPING_GUARD_MS + 1);
+    const allow = screen.getByRole("button", { name: "Allow once" });
+    allow.focus();
+    expect(fireEvent.keyDown(allow, { key: "Enter" })).toBe(true);
+    fireEvent.click(allow);
+    expect(answer).toHaveBeenCalledWith("allowOnce");
+    expect(draft.value).toBe("go");
+    stop();
+  });
+
+  it("an empty composer that has the focus keeps it when a request arrives", () => {
+    const [shown, setShown] = createSignal(false);
+    render(() => (
+      <Stage>
+        <Show when={shown()}>
+          <PermissionCard item={perm({ reqId: "k-empty" })} onAnswer={() => {}} />
+        </Show>
+      </Stage>
+    ));
+    const draft = screen.getByLabelText("draft") as HTMLTextAreaElement;
+    const stop = trackTyping(draft);
+    draft.focus();
+    expect(draft.value).toBe("");
+    expect(personIsTyping()).toBe(true);
+    setShown(true);
+    layout().place(cardOf(allowButtons()[0]), 0, 200);
+    vi.advanceTimersByTime(5000);
+    expect(document.activeElement).toBe(draft);
+    stop();
   });
 });

@@ -119,7 +119,7 @@ describe("<Composer>", () => {
 describe("<Composer> and request cards", () => {
   const perm = (reqId: string): PermissionItem => ({ key: `perm:${reqId}`, ts: 1, type: "permission", reqId, toolId: "t1", intent: { class: "exec", rawCommand: "pnpm install", summary: "Install" }, options: ["allowOnce", "deny"] });
 
-  it("keeps the focus and the caret while a draft is typed when a request arrives; an empty field gives way", async () => {
+  it("keeps the focus and the caret while a draft is typed when a request arrives, and an empty field keeps it too", async () => {
     const [ids, setIds] = createSignal<string[]>([]);
     const answer = vi.fn();
     render(() => (
@@ -142,11 +142,14 @@ describe("<Composer> and request cards", () => {
     fireEvent.keyUp(field(), { key: " " });
     expect(answer).not.toHaveBeenCalled();
 
-    // nothing is being typed any more: a request that arrives now takes the focus
+    // an EMPTY composer that has the focus keeps it as well: the person clicked into it to type (review 3, the blocker)
     type("");
     setIds([]);
     setIds(["composer-empty"]);
-    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "Allow once" })));
+    await new Promise((r) => setTimeout(r, 1200));
+    expect(document.activeElement).toBe(field());
+    expect(screen.getByRole("button", { name: "Allow once" })).toBeTruthy();
+    expect(answer).not.toHaveBeenCalled();
   });
 
   it("starts at one line in a compact pane and at two otherwise", () => {

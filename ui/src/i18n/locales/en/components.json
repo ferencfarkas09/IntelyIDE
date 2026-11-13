@@ -103,6 +103,7 @@
   "chat.perm.note": "Shell commands and file writes can only be allowed once; a saved rule would cover calls you have not seen.",
   "chat.perm.full": "Full text",
   "chat.perm.details": "Details of the request",
+  "chat.perm.more": "Scroll for more",
   "chat.q.aria": "Question from the agent",
   "chat.q.notAnswered": "Not answered",
   "chat.q.title": "Question",
