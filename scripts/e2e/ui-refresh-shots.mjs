@@ -165,6 +165,11 @@ function audit(opts = {}) {
     const name = (current.getAttribute("aria-label") ?? "request").slice(0, 30);
     const parts = [["title", current.querySelector(".perm__title")], ...(current.matches(".plan-approval") ? [] : [["target line", current.querySelector(".perm__target")]]), ...[...current.querySelectorAll(".perm__foot .perm__actions button")].map((b) => [`button "${b.textContent.trim().slice(0, 24)}"`, b])];
     if (parts.length < 2) cards.push(`${name}: no action button found`);
+    // the layout that keeps the top and the actions on screen: a height cap and a middle that scrolls inside the card
+    if (getComputedStyle(current).maxHeight === "none") cards.push(`${name}: the card has no max-height (it can be taller than the transcript)`);
+    const middle = current.querySelector(":scope > .perm__body");
+    if (!middle) cards.push(`${name}: the card has no scrolling middle (.perm__body)`);
+    else if (!/(auto|scroll)/.test(getComputedStyle(middle).overflowY)) cards.push(`${name}: the card's middle does not scroll (overflow-y ${getComputedStyle(middle).overflowY})`);
     if (!inside(current, box)) cards.push(`${name}: the card is not fully inside the transcript's visible area (${span(current)} in ${Math.round(box.top)}-${Math.round(box.bottom)})`);
     for (const [what, el] of parts) {
       if (!el) cards.push(`${name}: no ${what}`);
@@ -183,6 +188,55 @@ function audit(opts = {}) {
     }
   }
   return { low: [...new Set(low)].slice(0, 25), covered: [...new Set([...covered, ...focus, ...room, ...cards])].slice(0, 25), hscroll: document.documentElement.scrollWidth > innerWidth, sizes };
+}
+
+/**
+ * Runs in the page from its first script on: watches the keyboard focus on every animation frame and right after every
+ * `focus()` call, and records each moment a control has the focus while it is not fully on screen (outside the window or any
+ * scroller or clip around it), or while it sits in a request card whose top block or row of actions is not fully inside the
+ * transcript's visible area. The audit fails on any such moment, not only on the state at the end (a focus that is moved
+ * before the card is revealed and checked lasts a few frames and is gone by the time of the shot).
+ */
+function focusWatch() {
+  const bad = (window.__focusBad = []);
+  const clipBox = (el) => {
+    let box = { top: 0, left: 0, bottom: innerHeight, right: innerWidth };
+    for (let n = el.parentElement; n; n = n.parentElement) {
+      const cs = getComputedStyle(n);
+      if (!/(auto|scroll|hidden|clip)/.test(cs.overflowY + cs.overflowX)) continue;
+      const r = n.getBoundingClientRect();
+      box = { top: Math.max(box.top, r.top), left: Math.max(box.left, r.left), bottom: Math.min(box.bottom, r.bottom), right: Math.min(box.right, r.right) };
+    }
+    return box;
+  };
+  const inside = (r, b) => r.height > 0 && r.top >= b.top - 1 && r.bottom <= b.bottom + 1 && r.left >= b.left - 1 && r.right <= b.right + 1;
+  const check = (how) => {
+    const a = document.activeElement;
+    if (!a || a === document.body || !a.matches?.("button, a[href], [role='radio'], [role='button'], [role='tab'], [role='menuitem']")) return;
+    const label = (a.getAttribute("aria-label") ?? a.textContent ?? "").trim().slice(0, 30);
+    let why = "";
+    if (!inside(a.getBoundingClientRect(), clipBox(a))) why = "the control is not fully on screen";
+    const card = a.closest("section.perm");
+    if (!why && card) {
+      const scroller = card.closest(".ui-scroll__viewport");
+      const view = scroller ? clipBox(card) : { top: 0, left: 0, bottom: innerHeight, right: innerWidth };
+      for (const part of [card.querySelector(".perm__top"), card.querySelector(".perm__foot")]) {
+        if (!part || !inside(part.getBoundingClientRect(), view)) why = "its card's top or actions are not fully on screen";
+      }
+    }
+    if (why && !bad.some((b) => b.label === label && b.why === why)) bad.push({ label, why, how, at: Math.round(performance.now()) });
+  };
+  const original = HTMLElement.prototype.focus;
+  HTMLElement.prototype.focus = function (...args) {
+    const out = original.apply(this, args);
+    check("focus()");
+    return out;
+  };
+  const frame = () => {
+    check("frame");
+    requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
 }
 
 /** Where the keyboard focus is among the open request cards of the page: the card's index and whether it is on its first-choice button. */
@@ -254,6 +308,34 @@ async function typingSequence(page, { name, out }) {
   if (state.open !== 1) findings.push(`typing: ${state.open} open request(s) after typing (expected 1: a space typed into the draft answered it)`);
   if (!state.inComposer) findings.push(`typing: the focus left the composer (it is on ${state.focus})`);
   if (state.value !== typed) findings.push(`typing: the draft lost characters (${state.value.length} of ${typed.length})`);
+  return findings;
+}
+
+/**
+ * Review 3's blocker: the person clicks into the EMPTY composer, a request arrives, and they start typing a moment later. No key
+ * may answer the card: it stays open and the composer gets every character.
+ */
+async function emptyComposerSequence(page, { name, out }) {
+  const findings = [];
+  const text = "go ahead and fix it";
+  await page.locator("section.perm").first().waitFor({ timeout: 20000 });
+  await page.waitForTimeout(1500);
+  for (const ch of text) {
+    await page.keyboard.type(ch);
+    await page.waitForTimeout(60 + Math.round(Math.random() * 90));
+  }
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: path.join(out, `${name}-typed.png`) });
+  const state = await page.evaluate(() => ({
+    open: document.querySelectorAll("section.perm").length,
+    resolved: document.querySelectorAll(".perm--done").length,
+    inComposer: !!document.activeElement?.closest('[data-testid="composer"]'),
+    focus: (document.activeElement?.textContent ?? document.activeElement?.tagName ?? "").trim().slice(0, 30),
+    value: document.querySelector('[data-testid="composer"] textarea')?.value ?? "",
+  }));
+  if (state.open !== 1 || state.resolved) findings.push(`empty composer: the request was answered by typing (${state.open} open, ${state.resolved} resolved)`);
+  if (!state.inComposer) findings.push(`empty composer: the focus left the composer (it is on "${state.focus}")`);
+  if (state.value !== text) findings.push(`empty composer: the composer has "${state.value}", expected "${text}"`);
   return findings;
 }
 
@@ -383,6 +465,15 @@ const VIEWS = {
       await page.locator('[data-testid="transcript"]').waitFor();
     },
   },
+  // Review 3: the person clicked into the empty composer; a request arrives; they type. Nothing is answered, nothing is lost.
+  "empty-composer": {
+    url: "/?scenario=agent-late-request&mode=agent",
+    steps: async (page) => {
+      await openRun(page);
+      await page.locator('[data-testid="composer"] textarea').first().click();
+    },
+    sequence: emptyComposerSequence,
+  },
   // The person types while a request arrives: the composer keeps the focus and every key.
   typing: {
     url: "/?scenario=agent-late-request&mode=agent",
@@ -461,6 +552,7 @@ for (const view of only) {
             /* blocked storage: the defaults show */
           }
         }, [theme, locale, spec.storage ?? {}]);
+        await ctx.addInitScript(focusWatch);
         const page = await ctx.newPage();
         const errors = [];
         page.on("pageerror", (e) => errors.push(e.message));
@@ -478,6 +570,8 @@ for (const view of only) {
           const a = await page.evaluate(audit, { minRoom });
           const findings = [...a.low.map((l) => `contrast ${l}`), ...a.covered, ...(a.hscroll ? ["the page scrolls sideways"] : [])];
           if (spec.check) findings.push(...(await spec.check(page)));
+          // every moment of focus on a control nobody could see, since the page loaded (sampled per frame and per focus() call)
+          for (const b of await page.evaluate(() => window.__focusBad ?? [])) findings.push(`transient focus: "${b.label}" had the focus while ${b.why} (${b.how}, ${b.at} ms)`);
           if (spec.sequence) findings.push(...(await spec.sequence(page, { name, out, minRoom })));
           findings.push(...errors.map((e) => `page error: ${e}`));
           // header / composer / visible transcript of each pane, for the record
