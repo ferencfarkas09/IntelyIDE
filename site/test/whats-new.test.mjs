@@ -63,11 +63,14 @@ describe('what is new in 1.15', () => {
     assert.match(ask(en), /Shell commands that name a secret file stay refused in every mode/);
     assert.match(ask(en), /file tools on that exact file/);
     assert.match(ask(en), /A paired phone shows the card but cannot answer it/);
-    assert.match(ask(en), /Only a person at the main window of the IDE on the computer can say yes/);
+    assert.match(ask(en), /Only the main window of the IDE on your computer can say yes/);
     assert.match(ask(en), /stays a hard stop that nothing lifts: commit, push, merge/);
     assert.match(ask(en), /Best effort/);
-    assert.match(ask(en), /Three answers: Deny, Allow once, or Allow all secret files in this run\. The last one asks you to confirm on a warning and lasts until the run stops/);
-    assert.match(ask(en), /every secret-looking file inside the folders of the run/);
+    assert.match(ask(en), /Three answers: Deny, Allow once, or Allow for this run\. For a secret file the last one reads “Allow all secret files in this run”, asks you to confirm on a warning, and covers the lead agent and its helpers until you press Stop or the run is closed/);
+    assert.match(ask(en), /every secret-looking file, or editing every <code>\.env<\/code> file, inside the folders of the run/);
+    assert.match(ask(en), /No answer is kept beyond the run/);
+    assert.match(ask(en), /your home folder, the card offers Allow once only/);
+    assert.match(ask(hu), /Leállítás gombot, vagy a futás be nem zárul/);
     for (const t of [en, hu]) assert.doesNotMatch(textOf({ n: t.whatsNew, tr: t.trust }), /always allow|Always allow|mindig engedélyez|Mindig engedélyez/);
     assert.match(ask(hu), /shell-parancsok minden módban tiltva maradnak/);
     assert.match(ask(hu), /pontosan arra az egy fájlra/);

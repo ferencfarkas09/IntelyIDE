@@ -141,6 +141,13 @@ const SHOTS = {
     await c.waitFor(`!!document.querySelector('[data-testid="context-meter-pace"]')`, WAIT, "the context meter with its pace row");
     await sleep(600);
   },
+  // The asking card of 1.15 (a secret-looking file of the run's folder): Deny, Allow once, Allow all secret files in this run.
+  // The mock scenario `agent-stop-read` plays a run that reads a little and then waits on that card.
+  async "ask-card"(c) {
+    await waitText(c, "A stop you can lift");
+    await sleep(900);
+    await dismissToasts(c);
+  },
   async "new-run"(c) {
     await waitText(c, "Runs");
     await dismissToasts(c);
@@ -315,9 +322,10 @@ SHOTS["api-explorer"] = async (c) => {
 SHOTS["mongo-studio"] = async (c) => {
   await dismissToasts(c);
   await clickRail(c, "Database");
-  await clickText(c, "Local fixture", "[class*=mongo], body");
+  await clickText(c, "Local fixture", ".mg-tree");
   await waitText(c, "intely_test_shop");
-  await clickText(c, "orders", "[role=tree], body");
+  // scoped to the studio's tree: on the whole page "orders" first matches the `orders-api` repository chip of the top bar
+  await clickText(c, "orders", ".mg-tree");
   await waitText(c, "Read-only");
   await waitText(c, "Table");
   await c.clickEl('input[placeholder*="orders from"], input[placeholder*="Open orders"], textarea[placeholder*="Open orders"]');
@@ -365,6 +373,7 @@ SHOTS["agent-approval"].meta = { query: "mode=agent&skin=standard" };
 SHOTS.dashboard.meta = { query: "mode=editor&skin=glass", storage: { "intely.layout.panel": "0" } };
 SHOTS["new-run"].meta = { query: "mode=agent&skin=glass" };
 SHOTS["context-meter"].meta = { query: "mode=agent&skin=glass" };
+SHOTS["ask-card"].meta = { query: "mode=agent&skin=glass", scenario: "agent-stop-read" };
 
 /** Team (Beta): the Team tab with the mock team of three (`team=on`). */
 async function openTeamTab(c) {
