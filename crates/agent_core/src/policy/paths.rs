@@ -571,6 +571,8 @@ impl Jail {
         let cwd = canonical_lossy(&abs_or_lexical(cwd));
         let mut roots = vec![cwd.clone()];
         roots.extend(add_dirs.iter().map(|d| canonical_lossy(&abs_or_lexical(d))));
+        // (an empty or relative home is no home: it must not fail open)
+        let home = home.filter(|h| h.is_absolute());
         let home_real = home.map(|h| canonical_lossy(&abs_or_lexical(h)));
         Self { roots, cwd, home: home.map(Path::to_path_buf), home_real, state_dir: None, mcp_code_paths: Vec::new(), scratch: Vec::new(), grants: Vec::new(), tool_id: String::new(), askable: false, hint_read: true, grants_on: false, hint_edit: true, used: Arc::default() }
     }
@@ -605,9 +607,10 @@ impl Jail {
         self
     }
 
-    /// The run's folder is the home directory or one of its ancestors (`/` included): a run-wide grant would reach the home's key stores.
+    /// The run's folder is the home directory or one of its ancestors (`/` included), or no home directory is known: a run-wide grant would reach the home's key stores.
     fn broad_root(&self) -> bool {
-        self.roots.iter().any(|r| r.parent().is_none() || self.home_real.as_deref().is_some_and(|h| h.starts_with(r)))
+        // (no home directory known at all: fail closed, every run is treated as broad)
+        self.home_real.is_none() || self.roots.iter().any(|r| r.parent().is_none() || self.home_real.as_deref().is_some_and(|h| h.starts_with(r)))
     }
 
     pub fn with_grants(mut self, grants: &[StopGrant], tool_id: &str, askable: bool, applies: bool) -> Self {
@@ -806,7 +809,7 @@ impl Jail {
         shown.join(", ")
     }
 
-    /// The canonical folders of the run (its working directory first): what an always-list entry is stored against.
+    /// The canonical folders of the run (its working directory first): the run folder a card offer names.
     pub fn roots(&self) -> &[PathBuf] {
         &self.roots
     }

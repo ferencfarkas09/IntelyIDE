@@ -74,7 +74,7 @@ pub struct StopGrant {
     pub tool_id: Option<String>,
 }
 
-/// The scope that means "every stop of this kind, until the run ends".
+/// The scope that means "every stop of this kind, until Stop or the end of the session".
 pub const ALL_OF_KIND: &str = "*";
 
 impl StopGrant {

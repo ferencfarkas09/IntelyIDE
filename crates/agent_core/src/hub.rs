@@ -86,6 +86,11 @@ wire_types! {
         #[serde(default)]
         #[cfg_attr(feature = "specta", specta(optional))]
         pub plan_truncated: Option<bool>,
+        /// A confirmable (tier 2) stop: the card is lifted on the computer only (never from a phone), so the phone says "answer on your
+        /// computer". `None` for every other request.
+        #[serde(default)]
+        #[cfg_attr(feature = "specta", specta(optional))]
+        pub confirm: Option<bool>,
     }
 
     /// The outcome of an answer: who won.

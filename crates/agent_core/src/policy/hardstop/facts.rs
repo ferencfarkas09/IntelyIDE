@@ -3,7 +3,7 @@
 //! `read.never-read` on operands and redirects, `exec.proc-env` and `exec.catastrophic`. Everything here is best-effort TEXT
 //! analysis like the rest of `hardstop.rs`: it closes the routes the analyser can see.
 
-use super::{USE_READ_OR_EDIT_TOOL, USE_READ_TOOL};
+use super::{USE_EDIT_TOOL, USE_READ_OR_EDIT_TOOL, USE_READ_TOOL};
 use std::path::Path;
 
 use super::protected_args::{candidates, code_like, code_tokens};
@@ -334,9 +334,19 @@ impl<'a> Walker<'a> {
                             return;
                         }
                         // a secret-looking file of the run's own project: the shell cannot be asked about it (no grant lifts a command), but the Read tool can
-                        let hint = if why == "secret file" && self.jail.file_tool_hint_ok("read.never-read", &p, false) {
+                        let hint = if why != "secret file" {
+                            ""
+                        } else if fsview::exists(&p) {
                             // (a command may read it or change it: name both tools where both can work)
-                            if self.jail.file_tool_hint_ok("fs.protected", &p, true) { USE_READ_OR_EDIT_TOOL } else { USE_READ_TOOL }
+                            if self.jail.file_tool_hint_ok("read.never-read", &p, false) {
+                                if self.jail.file_tool_hint_ok("fs.protected", &p, true) { USE_READ_OR_EDIT_TOOL } else { USE_READ_TOOL }
+                            } else {
+                                ""
+                            }
+                        } else if p.parent().is_some_and(fsview::is_dir) && self.jail.file_tool_hint_ok("fs.protected", &p, true) {
+                            // (nothing there yet: only a new `.env` can be created with the Edit or Write tool; a literal `k=v` word such as
+                            // `if=.git/x.pem` names no file at all, and Read of it would be refused without an offer)
+                            USE_EDIT_TOOL
                         } else {
                             ""
                         };
