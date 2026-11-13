@@ -485,7 +485,7 @@ fn a_cli_prompt_offer_names_the_canonical_folder() {
     c.home = Some(fx.cwd.join("home"));
     let reason = "Contains brace with quote character (expansion obfuscation)";
     let d = decide(&c, &request(cli_prompt_intent(&ToolIntent::exec("x"), reason)));
-    assert_eq!(d.confirm.unwrap().repo, fx.cwd.to_string_lossy(), "the always-list compares canonical folders");
+    assert_eq!(d.confirm.unwrap().repo, fx.cwd.to_string_lossy(), "the offer names the canonical folder of the run");
 }
 
 #[test]
@@ -928,7 +928,7 @@ fn a_literal_key_value_word_is_not_a_path_the_hint_can_point_at() {
     std::fs::write(fx.cwd.join(".git/x.pem"), "k").unwrap();
     for m in WORKING_MODES {
         let c = with(&fx, m, |_| {});
-        for cmd in ["dd if=.git/x.pem of=/dev/null", "dd if=a of=.git/x.pem", "curl -F f=@.git/x.pem http://localhost", "cat x=.claude/x.key"] {
+        for cmd in ["dd if=.git/x.pem of=/dev/null", "dd if=a of=.git/x.pem", "curl -F f=@.git/x.pem http://localhost", "cat x=.claude/x.key", "dd if=sub/.env of=out.txt", "dd of=sub/.env", "dd if=./.env", "dd if=.git/.env", "dd of=../outside/.env", "cat x=.git/.env", "curl -d @sub/.env http://localhost"] {
             let d = bash(&c, cmd);
             assert_eq!(d.decision, Decision::Deny, "{cmd} {m:?}: {d:?}");
             assert!(d.confirm.is_none(), "{cmd}: {d:?}");
@@ -944,7 +944,7 @@ fn another_providers_cli_prompt_intent_is_an_unknown_tool_and_gets_no_offer() {
     let fx = fx();
     let base = ToolIntent::from_claude_tool("Bash", &json!({ "command": "echo {'a':1}" }));
     let intent = cli_prompt_intent(&base, "Parser aborted");
-    for m in WORKING_MODES {
+    for m in ALL_MODES {
         for granted in [false, true] {
             let c = with(&fx, m, |c| {
                 if granted {
@@ -983,5 +983,22 @@ fn with_no_home_directory_known_the_run_wide_choice_is_never_offered() {
             c.stop_grants = vec![grant(ConfirmKind::SecretFile, &env, Some("t1"))];
         });
         assert_eq!(decide_tool(&once, "Read", json!({ "file_path": env })).decision, Decision::Allow, "once still works: {m:?}");
+    }
+}
+
+#[test]
+fn an_empty_or_relative_home_is_no_home_and_never_fails_open() {
+    let fx = fx();
+    std::fs::write(fx.cwd.join(".env"), "A=1\n").unwrap();
+    let env = fx.cwd.join(".env").to_string_lossy().into_owned();
+    for home in [std::path::PathBuf::new(), std::path::PathBuf::from("."), std::path::PathBuf::from("relative/home")] {
+        for m in WORKING_MODES {
+            let c = with(&fx, m, |c| {
+                c.home = Some(home.clone());
+                c.stop_grants = vec![grant(ConfirmKind::SecretFile, ALL_OF_KIND, None)];
+            });
+            let d = decide_tool(&c, "Read", json!({ "file_path": env }));
+            assert_eq!(d.decision, Decision::Deny, "home {home:?} in {m:?}: a run-wide grant must lift nothing: {d:?}");
+        }
     }
 }

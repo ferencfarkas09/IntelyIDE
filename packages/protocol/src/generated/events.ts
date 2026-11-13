@@ -208,7 +208,7 @@ export type StatusState = "idle" | "thinking" | "running" | "waitingUser" | "thr
 export type StopGrantScope = 
 /**  This one tool call. */
 "once" | 
-/**  Every stop of the same kind until the run ends. */
+/**  Every stop of the same kind until Stop is pressed or the session ends. */
 "run";
 
 export type StopReason = "endTurn" | "maxTokens" | "maxTurns" | "refusal" | "cancelled" | "error";

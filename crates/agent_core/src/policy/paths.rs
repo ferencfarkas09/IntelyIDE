@@ -571,6 +571,8 @@ impl Jail {
         let cwd = canonical_lossy(&abs_or_lexical(cwd));
         let mut roots = vec![cwd.clone()];
         roots.extend(add_dirs.iter().map(|d| canonical_lossy(&abs_or_lexical(d))));
+        // (an empty or relative home is no home: it must not fail open)
+        let home = home.filter(|h| h.is_absolute());
         let home_real = home.map(|h| canonical_lossy(&abs_or_lexical(h)));
         Self { roots, cwd, home: home.map(Path::to_path_buf), home_real, state_dir: None, mcp_code_paths: Vec::new(), scratch: Vec::new(), grants: Vec::new(), tool_id: String::new(), askable: false, hint_read: true, grants_on: false, hint_edit: true, used: Arc::default() }
     }

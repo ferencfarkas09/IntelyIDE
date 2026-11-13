@@ -343,7 +343,7 @@ impl<'a> Walker<'a> {
                             } else {
                                 ""
                             }
-                        } else if self.jail.file_tool_hint_ok("fs.protected", &p, true) {
+                        } else if p.parent().is_some_and(fsview::is_dir) && self.jail.file_tool_hint_ok("fs.protected", &p, true) {
                             // (nothing there yet: only a new `.env` can be created with the Edit or Write tool; a literal `k=v` word such as
                             // `if=.git/x.pem` names no file at all, and Read of it would be refused without an offer)
                             USE_EDIT_TOOL

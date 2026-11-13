@@ -2542,6 +2542,9 @@ impl Inner {
             let mut st = lock(&self.state);
             let Ok(sc) = self.live_sidecar(&st, agent_id) else { return Ok(()) };
             let run = st.agents.get_mut(agent_id).ok_or_else(|| unknown_agent(agent_id))?;
+            // Stop ends what the person allowed for the run (a grant of a confirmable stop): the next secret asks again. An ordinary follow-up
+            // message in the same live session keeps it; a hard cancel, an idle reclaim and a closed session clear it too (`Run::end_session`).
+            run.ctx.stop_grants.clear();
             // Stop must reach whatever is still waiting on the person (an approval card) even when no turn is open any more.
             let waiting = !run.state.perms.is_empty() || !run.state.questions.is_empty();
             if (!run.state.turn_open && !waiting) || run.cancel.is_some() {
