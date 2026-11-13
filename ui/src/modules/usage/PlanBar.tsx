@@ -18,7 +18,8 @@ export function PlanPopover(props: { now: number; close: () => void }) {
   return (
     <div class="pu" data-testid="plan-usage">
       <h2 class="pu__title">{t("planbar.title")}</h2>
-      <div class="pu__rows" data-testid="plan-rows">
+      {/* a region in the Tab order: when the rows are taller than their box, the arrow keys, Page Up/Down and Home/End scroll it */}
+      <div class="pu__rows" data-testid="plan-rows" tabindex="0" role="region" aria-label={t("planbar.rowsAria")}>
         <For each={planRows(planShown()?.limits)}>
           {(r) => (
             <div class="pu__row" data-tone={r.tone} data-current={notCurrent(r, props.now) ? "no" : undefined} data-testid={`plan-row-${r.kind}`}>

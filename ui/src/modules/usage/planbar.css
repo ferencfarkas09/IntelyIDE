@@ -24,6 +24,7 @@
 .ui-popover.pu-popover[data-kind="dialog"] { display: flex; flex-direction: column; width: min(340px, calc(100vw - 16px)); max-width: none; max-height: min(560px, calc(100vh - 64px)); padding: 18px; overflow: hidden; border-radius: 18px; }
 .pu { display: flex; flex-direction: column; gap: 14px; min-height: 0; font-size: var(--text-base); line-height: 1.45; }
 .pu__rows { display: flex; flex-direction: column; gap: 14px; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.pu__rows:focus-visible { outline: var(--focus-width) solid var(--focus-color); outline-offset: 2px; border-radius: var(--radius-2); }
 .pu__title { margin: 0; color: var(--text-1); font-size: var(--text-lg); font-weight: var(--weight-semibold); }
 .pu__row { --pu: var(--accent-text); display: flex; flex-direction: column; gap: 6px; }
 .pu__row[data-tone="warn"] { --pu: var(--warn); }

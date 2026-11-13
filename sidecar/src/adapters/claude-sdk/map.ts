@@ -130,7 +130,7 @@ function usageOf(state: MapState, r: Raw): UsageRecord | undefined {
     const delta = (per.costUsd ?? 0) - before;
     if (delta > best) { best = delta; model = name; }
   }
-  ctx = leadWindow(mu, state.leadModel);
+  ctx = leadWindow(mu, state.leadModel, state.prevUsage);
   state.contextSize = ctx;
   state.prevUsage = new Map(Object.entries(mu));
   state.cumulative = cum;
@@ -149,15 +149,22 @@ const bareModel = (id: string): string => id.replace(/\[\d+m\]$/i, '').toLowerCa
 
 /**
  * The lead's window from `modelUsage`. The lead is the model of its last message, matched without the `[1m]` suffix. A single
- * listed model is the lead's. With several and no match the window is unknown: no window is guessed from a helper's.
+ * listed model is the lead's. With several and no match the window is unknown: no window is guessed from a helper's. When the
+ * same model is listed both with and without the suffix (`modelUsage` is cumulative, so a switch during the session leaves
+ * both), the one whose usage grew since `prev` (the last result) is the lead's; when that does not settle it, no window.
  */
-export function leadWindow(mu: Record<string, Raw>, leadModel: string | undefined): number | undefined {
+export function leadWindow(mu: Record<string, Raw>, leadModel: string | undefined, prev?: ReadonlyMap<string, Raw>): number | undefined {
   const win = (e: Raw | undefined) => (e && typeof e.contextWindow === 'number' && Number.isFinite(e.contextWindow) && e.contextWindow > 0 ? e.contextWindow : undefined);
   const names = Object.keys(mu);
   if (leadModel) {
     const want = bareModel(leadModel);
-    const hit = names.find((n) => bareModel(n) === want);
-    if (hit) return win(mu[hit]);
+    const hits = names.filter((n) => bareModel(n) === want);
+    if (hits.length === 1) return win(mu[hits[0]]);
+    if (hits.length > 1) {
+      const keys = ['inputTokens', 'outputTokens', 'cacheReadInputTokens', 'cacheCreationInputTokens'];
+      const grew = hits.filter((n) => keys.some((k) => Number(mu[n]?.[k] ?? 0) > Number(prev?.get(n)?.[k] ?? 0)));
+      return grew.length === 1 ? win(mu[grew[0]]) : undefined;
+    }
   }
   return names.length === 1 ? win(mu[names[0]]) : undefined;
 }

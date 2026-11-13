@@ -47,15 +47,17 @@
 .ctxm__actions { display: flex; gap: 8px; }
 .ctxm__actions .ui-btn { flex: 1 1 0; min-width: 0; height: 34px; border-radius: var(--radius-ctl); font-weight: var(--weight-medium); }
 .ctxm__source { margin: 0; color: var(--text-3); font-size: var(--text-sm); }
-/* A narrow pane (the run header folds to short lines, see chat.css): the ring alone, a little smaller than the folded
-   header's buttons, and the buttons closer together, so the group still fits beside the chips and the header gets no extra
-   line. The percent stays in the button's name and in the popover. */
-@container chat (max-width: 520px) {
-  .ctxm-ring { justify-content: center; width: 24px; height: 26px; padding: 0; }
-  .ctxm-ring__svg { width: 16px; height: 16px; }
-  .ctxm-ring__pct { display: none; }
-  .run-header__actions:has(.ctxm-ring) { gap: 2px; }
-}
+/* The folded run header (`.chat[data-compact]`, see chat.css: a title line, then one line of chips and the action buttons).
+   The ring leaves the line of chips, where a long mode chip ("Terv / csak olvasás") would push the buttons onto a line of
+   their own, and sits at the end of the title line instead: the state chip keeps room for it and the title, which is cut to
+   one line there anyway, gives that room up. The ring is a 24 px icon like the folded buttons, without the number (the
+   percent stays in its name, its tooltip and the popover), so the header is exactly as tall as without it. */
+.chat[data-compact] .run-header:has(.ctxm-ring) { position: relative; }
+.chat[data-compact] .run-header:has(.ctxm-ring) .run-header__title { flex-basis: calc(100% - 180px); }
+.chat[data-compact] .run-header:has(.ctxm-ring) .run-header__state { margin-inline-end: 30px; }
+.chat[data-compact] .ctxm-ring { position: absolute; top: 5px; inset-inline-end: var(--space-3); justify-content: center; width: 24px; height: 24px; padding: 0; }
+.chat[data-compact] .ctxm-ring__svg { width: 16px; height: 16px; }
+.chat[data-compact] .ctxm-ring__pct { display: none; }
 /* A short window (the minimum is 960x600): tighter, so more of it fits under the ring. Its height is capped at the room
    under the ring (ContextRing.tsx, fitBelowRing): what does not fit scrolls inside, the ring stays visible. */
 @media (max-height: 700px) {

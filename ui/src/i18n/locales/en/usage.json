@@ -55,6 +55,7 @@
   "planbar.updating": "updating…",
   "planbar.updatingAria": "{name}: not current, updating",
   "planbar.updatingHint": "Not current: the last reading is from {time}. Updating…",
+  "planbar.rowsAria": "Plan usage windows",
   "planbar.weeklyAria": "Weekly plan usage: {percent} percent",
   "planbar.scopedAria": "{name} weekly usage: {percent} percent",
   "planbar.title": "Plan usage",

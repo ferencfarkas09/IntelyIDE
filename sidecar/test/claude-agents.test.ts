@@ -546,6 +546,11 @@ describe('facts and usage', () => {
     expect(leadWindow({ 'claude-sonnet-5-5': { contextWindow: 200_000 } }, undefined), 'one model listed: it is the lead').toBe(200_000);
     expect(leadWindow({ 'claude-opus-5-5[1M]': { contextWindow: 1_000_000 } }, 'claude-opus-5-5')).toBe(1_000_000);
     expect(leadWindow({ 'claude-opus-5-5': { contextWindow: 'x' } }, 'claude-opus-5-5')).toBeUndefined();
+    // the same model with and without [1m] (a switch during the session; modelUsage is cumulative): the one that grew is the lead's
+    const both = { 'claude-opus-5-5': { inputTokens: 10, contextWindow: 200_000 }, 'claude-opus-5-5[1m]': { inputTokens: 50, contextWindow: 1_000_000 } };
+    expect(leadWindow(both, 'claude-opus-5-5', new Map([['claude-opus-5-5', { inputTokens: 10 }], ['claude-opus-5-5[1m]', { inputTokens: 20 }]]))).toBe(1_000_000);
+    expect(leadWindow(both, 'claude-opus-5-5', new Map([['claude-opus-5-5', { inputTokens: 5 }], ['claude-opus-5-5[1m]', { inputTokens: 50 }]]))).toBe(200_000);
+    expect(leadWindow(both, 'claude-opus-5-5', new Map()), 'both grew: not settled, no window').toBeUndefined();
   });
 
   describe('context updates during a turn', () => {

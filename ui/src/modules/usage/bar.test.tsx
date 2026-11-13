@@ -160,6 +160,16 @@ describe("the bar items", () => {
     await vi.waitFor(() => expect(screen.queryByTestId("plan-usage")).toBeNull());
   });
 
+  it("the rows are a named region in the Tab order, so rows beyond the height cap can be scrolled from the keyboard", async () => {
+    await use(PLAN);
+    render(() => <PlanBar />);
+    fireEvent.click(screen.getByRole("button", { name: /^Weekly plan usage/ }));
+    await screen.findByTestId("plan-usage");
+    const rows = screen.getByRole("region", { name: "Plan usage windows" });
+    expect(rows.getAttribute("tabindex")).toBe("0");
+    expect(rows.contains(screen.getAllByRole("img")[0])).toBe(true);
+  });
+
   it("Esc closes the popover and focus returns to the item", async () => {
     await use(PLAN);
     render(() => <PlanBar />);
@@ -305,6 +315,7 @@ describe("the extra", () => {
     const scoped = l.available ? (l.modelScoped ?? []) : [];
     expect(scoped.map((w) => w.utilization)).toEqual([1, 2]);
     expect(scoped[0].name).toBe(`${"A".repeat(39)}\u{1F600}…`);
+    expect(scoped[1].name, "the same cut label is numbered").toBe(`${"A".repeat(39)}\u{1F600}… (2)`);
   });
 
   it("asks rarely while there is no plan to read", async () => {

@@ -44,6 +44,13 @@ export function normalizeLimits(raw: unknown): PlanLimits {
     // one more than the bound: the sidecar's own cut ends in an ellipsis
     modelScoped.push({ name: chars.length <= MAX_SCOPED_NAME + 1 ? full : `${chars.slice(0, MAX_SCOPED_NAME).join("").trimEnd()}…`, ...w });
   }
+  // two long labels that only differ after the cut read the same: they are numbered, so each row can be told apart
+  const seenNames = new Map<string, number>();
+  for (const m of modelScoped) {
+    const n = (seenNames.get(m.name) ?? 0) + 1;
+    seenNames.set(m.name, n);
+    if (n > 1) m.name = `${m.name} (${n})`;
+  }
   if (r.available === false || (!Object.values(out).some(Boolean) && !modelScoped.length)) return { available: false, reason: "notSignedIn" };
   // absent (the CLI answered from cached data) stays absent and the store keeps the rows it had; a list, even empty, is the answer
   return { available: true, plan: typeof r.plan === "string" ? r.plan : null, ...Object.fromEntries(Object.entries(out).filter(([, v]) => v)), ...(Array.isArray(r.modelScoped) ? { modelScoped } : {}) };
