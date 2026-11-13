@@ -22,30 +22,64 @@ const focused = new Set<string>();
 const isTextField = (el: Element | null): el is HTMLInputElement | HTMLTextAreaElement => el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement;
 
 /* ---- Typing guard -------------------------------------------------------------------------------------------------------------
- * A person who is typing a message must never lose the focus to a card: the next space or Enter would answer a request. Looking at
- * `document.activeElement` when the card arrives is not enough, because the composer can lose the focus without the person doing
- * anything: a `<Suspense>` above the run view that falls back for a moment takes its content out of the document and puts it back
- * (a lazy chip of the run list that is created again does that), and a field that leaves the document is blurred. So the composer
- * reports its focus here, and a blur nobody asked for is undone. */
+ * A person in the composer must never lose the focus to a card, empty field or not: the next space or Enter would answer a
+ * request. Looking at `document.activeElement` when the card arrives is not enough, because the composer can lose the focus
+ * without the person doing anything: a `<Suspense>` above the run view that falls back for a moment takes its content out of the
+ * document and puts it back, and a field that leaves the document is blurred. So the composer reports its focus here, and a blur
+ * nobody asked for is undone, caret included.
+ * A second guard does not depend on the focus at all: Enter, Space or a printable key that lands on a card's control within
+ * `TYPING_GUARD_MS` of the last key typed in the composer was meant for the composer. It is put there (the character inserted
+ * at the caret) and the control is not activated. Pointer clicks are never touched. */
 let typing: { field: HTMLTextAreaElement; start: number; end: number; lost: boolean } | undefined;
 let lastPointerDown = 0;
 let pointerWatched = false;
 const RESTORE_MS = [0, 16, 50, 120, 250, 500];
+/** For this long after a key typed in the composer, keys that land on a card go back to the composer. */
+export const TYPING_GUARD_MS = 1500;
+let lastComposerKey: { field: HTMLTextAreaElement; at: number } | undefined;
 
-/** True while a composer draft is being typed: its field has (or just lost, without the person's doing) the focus and is not empty. */
+/** True while the composer holds the focus (or just lost it without the person's doing), or another text field with text in it does. */
 export function personIsTyping(): boolean {
-  if (typing && typing.field.value.trim() !== "") return true;
+  if (typing) return true;
   const active = document.activeElement;
+  if (active instanceof HTMLElement && active.closest(".composer")) return true;
   return isTextField(active) && active.value.trim() !== "";
+}
+
+/** The composer field a key that lands on a card was meant for: the one typed in within `TYPING_GUARD_MS`. */
+export function composerKeyRecent(): HTMLTextAreaElement | undefined {
+  const k = lastComposerKey;
+  // a click since that key means the person moved on to something else
+  return k && k.field.isConnected && lastPointerDown <= k.at && Date.now() - k.at < TYPING_GUARD_MS ? k.field : undefined;
+}
+
+/** Puts a character typed at a card back into the composer: focus, caret, then the text as typed (an `input` event follows). */
+export function redirectToComposer(field: HTMLTextAreaElement, text: string): void {
+  const start = typing?.field === field ? typing.start : field.value.length;
+  const end = typing?.field === field ? typing.end : field.value.length;
+  field.focus({ preventScroll: true });
+  if (document.activeElement === field && (field.selectionStart !== start || field.selectionEnd !== end)) field.setSelectionRange(start, end);
+  if (!text) return;
+  let done = false;
+  try {
+    done = typeof document.execCommand === "function" && document.execCommand("insertText", false, text);
+  } catch {
+    done = false;
+  }
+  if (!done) {
+    field.setRangeText(text, field.selectionStart, field.selectionEnd, "end");
+    field.dispatchEvent(new InputEvent("input", { bubbles: true, data: text, inputType: "insertText" }));
+  }
+  lastComposerKey = { field, at: Date.now() };
 }
 
 /**
  * WebKit does not send `blur` when the focused field leaves the document, so the loss can go unseen: before a card looks at the
- * focus, and before a key lands on the page body, the draft that was being typed gets its focus and caret back.
+ * focus, and before a key lands on the page body, the composer that had the focus gets it and its caret back.
  */
 function reclaimTyping(): void {
   const mine = typing;
-  if (!mine || mine.field.value.trim() === "" || !mine.field.isConnected) return;
+  if (!mine || !mine.field.isConnected) return;
   const active = document.activeElement;
   if (active && active !== document.body) return;
   if (!mine.lost) {
@@ -59,9 +93,9 @@ function reclaimTyping(): void {
 }
 
 /**
- * The composer hands its field over: from then on a card never takes the focus while the field has it with a draft in it, and a
- * blur that came from the field leaving the document (not from a click, a Tab or a control taking the focus) is undone, caret
- * included. Returns the cleanup.
+ * The composer hands its field over: from then on a card never takes the focus while the field has it, and a blur that came from
+ * the field leaving the document (not from a click, a Tab or a control taking the focus) is undone, caret included. Returns the
+ * cleanup.
  */
 export function trackTyping(field: HTMLTextAreaElement): () => void {
   if (!pointerWatched) {
@@ -72,13 +106,22 @@ export function trackTyping(field: HTMLTextAreaElement): () => void {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const mark = () => {
     clearTimeout(timer);
-    typing = field.value.trim() !== "" ? { field, start: field.selectionStart, end: field.selectionEnd, lost: false } : typing?.field === field ? undefined : typing;
+    typing = { field, start: field.selectionStart, end: field.selectionEnd, lost: false };
+  };
+  const onKey = (e: KeyboardEvent) => {
+    if (!e.metaKey && !e.ctrlKey && !e.altKey) lastComposerKey = { field, at: Date.now() };
+  };
+  const onSelect = () => {
+    if (typing?.field === field && !typing.lost) {
+      typing.start = field.selectionStart;
+      typing.end = field.selectionEnd;
+    }
   };
   const restore = (i: number) => {
     const mine = typing;
     if (!mine || mine.field !== field || !mine.lost) return;
     const active = document.activeElement;
-    // someone took the focus on purpose meanwhile (a dialog, another field): the draft is no longer being typed
+    // someone took the focus on purpose meanwhile (a dialog, another field): the composer is no longer where the person is
     if (active && active !== document.body && active !== field) return void (typing = undefined);
     if (field.isConnected) {
       field.focus({ preventScroll: true });
@@ -95,7 +138,7 @@ export function trackTyping(field: HTMLTextAreaElement): () => void {
     if (typing?.field !== field) return;
     // The window lost the focus: the field is still the active element and gets the keys back with the window.
     if (document.activeElement === field) return;
-    const meant = e.relatedTarget instanceof Element || Date.now() - lastPointerDown < 250 || field.value.trim() === "";
+    const meant = e.relatedTarget instanceof Element || Date.now() - lastPointerDown < 250;
     if (meant) return void (typing = undefined);
     typing = { field, start: field.selectionStart, end: field.selectionEnd, lost: true };
     clearTimeout(timer);
@@ -103,14 +146,21 @@ export function trackTyping(field: HTMLTextAreaElement): () => void {
   };
   field.addEventListener("focus", mark);
   field.addEventListener("input", mark);
+  field.addEventListener("keydown", onKey);
+  field.addEventListener("keyup", onSelect);
+  field.addEventListener("select", onSelect);
   field.addEventListener("blur", onBlur);
   if (document.activeElement === field) mark();
   return () => {
     clearTimeout(timer);
     field.removeEventListener("focus", mark);
     field.removeEventListener("input", mark);
+    field.removeEventListener("keydown", onKey);
+    field.removeEventListener("keyup", onSelect);
+    field.removeEventListener("select", onSelect);
     field.removeEventListener("blur", onBlur);
     if (typing?.field === field && !typing.lost) typing = undefined;
+    if (lastComposerKey?.field === field) lastComposerKey = undefined;
   };
 }
 
@@ -207,7 +257,7 @@ export const KEY_GUARD_MS = 600;
 const guardedUntil = new WeakMap<HTMLElement, number>();
 export const keyGuarded = (card: HTMLElement | undefined): boolean => !!card && Date.now() < (guardedUntil.get(card) ?? 0);
 /** A click that a key made (Enter or Space on the button) while the card is still guarded; a pointer click always counts. */
-export const keyClickTooSoon = (card: HTMLElement | undefined, e?: { detail?: number }): boolean => !!e && e.detail === 0 && keyGuarded(card);
+export const keyClickTooSoon = (card: HTMLElement | undefined, e?: { detail?: number }): boolean => !!e && e.detail === 0 && (keyGuarded(card) || !!composerKeyRecent());
 
 const isActivation = (e: KeyboardEvent) => e.key === "Enter" || e.key === " " || e.key === "Spacebar";
 const onButton = (e: KeyboardEvent) => e.target instanceof Element && !!e.target.closest("button, [role='button'], [role='radio']");
@@ -225,6 +275,15 @@ export function guardKeys(card: () => HTMLElement | undefined): { down: (e: Keyb
   return {
     /** True when the key was swallowed. */
     down: (e) => {
+      // typed for the composer a moment ago: the key goes back there, whatever has the focus now
+      const field = composerKeyRecent();
+      const printable = e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey;
+      if (field && (printable || e.key === "Enter") && e.target instanceof Element && !field.contains(e.target)) {
+        swallowed.add(e.key);
+        stop(e);
+        if (!e.repeat || printable) redirectToComposer(field, printable ? e.key : "");
+        return true;
+      }
       if (!isActivation(e) || !onButton(e)) return false;
       if (!e.repeat && !keyGuarded(card())) return false;
       swallowed.add(e.key);
@@ -364,11 +423,34 @@ function watchOverflow(el: HTMLElement, set: (over: boolean) => void): void {
   for (const child of el.children) ro.observe(child);
   onCleanup(() => ro.disconnect());
 }
-/** The pieces every request card shares: the element, whether its target line is cut and whether its middle scrolls. */
+let cueSeq = 0;
+/**
+ * The pieces every request card shares: whether its target line is cut, whether its middle scrolls, and whether there is more
+ * of the middle below what shows (the "Scroll for more" cue, which the middle's region names as its description).
+ */
 export function createCardState() {
   const [clipped, setClipped] = createSignal(false);
   const [scrolls, setScrolls] = createSignal(false);
-  return { clipped, scrolls, target: (el: HTMLElement) => watchOverflow(el, setClipped), body: (el: HTMLElement) => watchOverflow(el, setScrolls) };
+  const [atEnd, setAtEnd] = createSignal(true);
+  const cueId = `perm-more-${++cueSeq}`;
+  const body = (el: HTMLElement) => {
+    const check = () => setAtEnd(el.scrollTop + el.clientHeight >= el.scrollHeight - 2);
+    watchOverflow(el, (over) => (setScrolls(over), check()));
+    el.addEventListener("scroll", check, { passive: true });
+  };
+  const more = () => scrolls() && !atEnd();
+  return { clipped, scrolls, more, cueId, target: (el: HTMLElement) => watchOverflow(el, setClipped), body };
+}
+
+/** The cue under a scrolling middle that has more below: a fade on the middle (CSS, `data-more`) and these words. */
+export function MoreBelow(props: { state: ReturnType<typeof createCardState> }) {
+  return (
+    <Show when={props.state.more()}>
+      <p class="perm__more" id={props.state.cueId} data-testid="perm-more">
+        {t("chat.perm.more")}
+      </p>
+    </Show>
+  );
 }
 
 /** The last folder name of a path (the file a secret card is about, the repository it belongs to). */
@@ -593,7 +675,7 @@ export function PermissionCard(props: { item: PermissionItem; onAnswer: (decisio
             </Match>
           </Switch>
         </div>
-        <div class="perm__body" ref={state.body} tabindex={state.scrolls() ? 0 : undefined} role={state.scrolls() ? "region" : undefined} aria-label={state.scrolls() ? t("chat.perm.details") : undefined}>
+        <div class="perm__body" ref={state.body} data-more={state.more() ? "" : undefined} tabindex={state.scrolls() ? 0 : undefined} role={state.scrolls() ? "region" : undefined} aria-label={state.scrolls() ? t("chat.perm.details") : undefined} aria-describedby={state.more() ? state.cueId : undefined}>
           <Show
             when={!confirming()}
             fallback={
@@ -671,6 +753,7 @@ export function PermissionCard(props: { item: PermissionItem; onAnswer: (decisio
           </Show>
         </div>
         <div class="perm__foot">
+          <MoreBelow state={state} />
           <Switch>
             <Match when={stop() && confirming() ? stop() : undefined}>
               <div class="perm__actions" role="alertdialog" aria-labelledby={confirmId()}>
@@ -792,7 +875,7 @@ export function QuestionCard(props: { item: QuestionItem; onAnswer: (answer: Que
           </header>
           <p class="perm__summary perm__target"><span class="perm__clamp" ref={state.target}>{props.item.prompt}</span></p>
         </div>
-        <div class="perm__body" ref={state.body}>
+        <div class="perm__body" ref={state.body} data-more={state.more() ? "" : undefined} aria-describedby={state.more() ? state.cueId : undefined}>
           <Show when={state.clipped()}>
             <p class="perm__summary perm__full ui-selectable" aria-label={t("chat.perm.full")}>{props.item.prompt}</p>
           </Show>
@@ -823,6 +906,7 @@ export function QuestionCard(props: { item: QuestionItem; onAnswer: (answer: Que
           <Input size="sm" aria-label={t("chat.q.own")} placeholder={t("chat.q.own")} value={text()} onInput={(e) => setText(e.currentTarget.value)} onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), submit())} />
         </div>
         <div class="perm__foot">
+          <MoreBelow state={state} />
           <div class="perm__actions">
             <Button size="xl" variant="primary" disabled={!canSend()} onClick={(e: MouseEvent) => submit(e)}>
               {t("chat.q.send")}
