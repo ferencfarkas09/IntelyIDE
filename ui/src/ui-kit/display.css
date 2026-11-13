@@ -69,7 +69,8 @@
   transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 .ui-pill[data-size="sm"] { height: 20px; padding: 0 7px 0 5px; gap: 4px; font-size: var(--text-xs); }
-.ui-pill__text { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--text-1); }
+/* Its own line box: with the pill's line-height of 1 the clip would cut accents (Á, Ő, Ű). */
+.ui-pill__text { min-width: 0; overflow: hidden; line-height: 1.5; text-overflow: ellipsis; color: var(--text-1); }
 button.ui-pill:hover { background: var(--surface-3); border-color: var(--border-strong); }
 button.ui-pill:active { background: var(--surface-4); }
 .ui-pill[data-selected] { --p-bg: var(--accent-subtle); --p-bd: var(--accent-border); }
