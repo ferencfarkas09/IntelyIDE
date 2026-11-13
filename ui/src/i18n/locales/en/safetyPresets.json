@@ -1,13 +1,10 @@
 {
-  "presets.label": "How much the agent may do on its own",
   "presets.careful": "Careful",
   "presets.balanced": "Balanced",
   "presets.autonomous": "Autonomous",
   "presets.careful.desc": "Asks you before every file change and every command.",
   "presets.balanced.desc": "Changes files on its own; asks before running commands other than safe reads.",
   "presets.autonomous.desc": "Changes files and runs commands (tests, lint, builds) on its own, inside the run's folders.",
-  "presets.custom": "A mode below is picked: Plan only reads, Bypass removes the prompts and the folder boundary.",
-  "presets.unsupported": "Not available for this provider",
   "presets.secretOff": "The check for secrets before a commit is off.",
   "presets.secretOn": "Turn on Checks with the secret scan",
   "presets.secretIsOn": "On: a commit that adds something that looks like a password, token or key asks you first.",
