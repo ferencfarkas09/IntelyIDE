@@ -511,7 +511,7 @@ export class ToolGate {
   }
 
   /**
-   * A tool call stopped by tier-2 rules. Each stop is put to the person in turn (a command can meet several: a card per secret file); after
+   * A tool call stopped by tier-2 rules. Each stop is put to the person in turn (a file tool names one file, so one or two in practice); after
    * every yes the call is judged again by Rust with the host's new grant. The loop is capped; a refusal carries a message that tells the model
    * what was declined and not to look for a way around it.
    */

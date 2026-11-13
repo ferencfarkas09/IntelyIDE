@@ -139,11 +139,7 @@ impl HostHub {
     fn on_events(&self, events: &[AgentEvent]) {
         for e in events {
             match &e.kind {
-                EventKind::PermissionRequest { req_id, tool_id, intent, plan, .. } => {
-                    if let Some(ctx) = self.policy_context(&e.agent_id) {
-                        self.table.register(pending_with_plan(&e.agent_id, req_id, tool_id, intent, plan.as_deref(), &ctx, &self.low));
-                    }
-                }
+                EventKind::PermissionRequest { req_id, tool_id, intent, plan, confirm, .. } => self.register_permission(&e.agent_id, req_id, tool_id, intent, plan.as_deref(), confirm.is_some()),
                 EventKind::QuestionRequest { req_id, tool_id, prompt, .. } => self.table.register(pending_question(&e.agent_id, req_id, tool_id.as_deref(), prompt, now_ms())),
                 EventKind::PermissionResolved { req_id, .. } => self.close(req_id, &e.agent_id, PendingKind::Permission),
                 EventKind::ToolResult { tool_id, .. } => {
@@ -190,19 +186,20 @@ impl HostHub {
         }
     }
 
+    /// The one place a permission card is registered for the phone (live events and a rebuild after a restart): a stop the person may lift is
+    /// marked as answered on the computer only (`mark_confirm_card`).
+    fn register_permission(&self, agent_id: &str, req_id: &str, tool_id: &str, intent: &intely_agent_core::policy::intent::ToolIntent, plan: Option<&str>, confirm: bool) {
+        let Some(ctx) = self.policy_context(agent_id) else { return };
+        let mut p = pending_with_plan(agent_id, req_id, tool_id, intent, plan, &ctx, &self.low);
+        if confirm {
+            intely_remote::policy::mark_confirm_card(&mut p);
+        }
+        self.table.register(p);
+    }
+
     fn on_events_register_only(&self, e: &AgentEvent) {
         match &e.kind {
-            EventKind::PermissionRequest { req_id, tool_id, intent, plan, confirm, .. } => {
-                if let Some(ctx) = self.policy_context(&e.agent_id) {
-                    let mut p = pending_with_plan(&e.agent_id, req_id, tool_id, intent, plan.as_deref(), &ctx, &self.low);
-                    // a stop that a person may lift is answered on the computer only: the phone sees "answer on your computer" up front
-                    if confirm.is_some() {
-                        p.eligibility = intely_agent_core::hub::Eligibility::DesktopOnly;
-                        p.risk = intely_agent_core::hub::Risk::Blocked;
-                    }
-                    self.table.register(p);
-                }
-            }
+            EventKind::PermissionRequest { req_id, tool_id, intent, plan, confirm, .. } => self.register_permission(&e.agent_id, req_id, tool_id, intent, plan.as_deref(), confirm.is_some()),
             EventKind::QuestionRequest { req_id, tool_id, prompt, .. } => self.table.register(pending_question(&e.agent_id, req_id, tool_id.as_deref(), prompt, now_ms())),
             _ => {}
         }

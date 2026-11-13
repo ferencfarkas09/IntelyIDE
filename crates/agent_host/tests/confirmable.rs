@@ -338,3 +338,21 @@ fn a_run_wide_grant_ends_with_the_session_and_a_resumed_run_asks_again() {
     assert!(r.host.context(&id).unwrap().stop_grants.is_empty());
     r.host.shutdown();
 }
+
+#[test]
+fn stop_ends_a_run_wide_grant_and_a_plain_follow_up_message_keeps_it() {
+    let r = Rig::new(true);
+    let id = r.start(Automatic).agent_id;
+    r.env_card(&id, "p1");
+    r.click_broad(&id, "p1", PermissionDecision::AllowRun).expect("for the run");
+    assert_ne!(r.judged(&id, "t-x"), Decision::Deny);
+    // an ordinary follow-up message in the same live session keeps it
+    r.host.send(&id, "and another thing").expect("follow-up");
+    assert!(!r.host.context(&id).unwrap().stop_grants.is_empty(), "a follow-up keeps the grant");
+    assert_ne!(r.judged(&id, "t-y"), Decision::Deny);
+    // Stop empties it, and the next Read asks again
+    r.host.interrupt(&id).expect("stop");
+    assert!(r.host.context(&id).unwrap().stop_grants.is_empty(), "Stop ends the grant");
+    assert_eq!(r.judged(&id, "t-z"), Decision::Deny);
+    r.host.shutdown();
+}

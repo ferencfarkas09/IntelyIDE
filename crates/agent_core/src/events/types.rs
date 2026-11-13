@@ -61,7 +61,7 @@ wire_enums! {
     pub enum StopGrantScope {
         /// This one tool call.
         Once,
-        /// Every stop of the same kind until the run ends.
+        /// Every stop of the same kind until Stop is pressed or the session ends.
         Run,
     }
 

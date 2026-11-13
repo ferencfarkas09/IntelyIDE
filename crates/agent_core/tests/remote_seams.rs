@@ -30,6 +30,7 @@ fn pending(req: &str, agent: &str, eligibility: Eligibility, expires_at: u64) ->
         expires_at,
         plan_excerpt: None,
         plan_truncated: None,
+        confirm: None,
     }
 }
 
