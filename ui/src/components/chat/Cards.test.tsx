@@ -731,3 +731,94 @@ describe("<TurnMarker> step limit", () => {
     expect(screen.queryByRole("button", { name: "Continue" })).toBeNull();
   });
 });
+
+describe("the confirm card of a stop you can lift (PR #112) in the refreshed layout", () => {
+  beforeEach(() => void vi.useFakeTimers());
+  afterEach(() => void vi.useRealTimers());
+  const stop = (over: Partial<PermissionItem> = {}) =>
+    perm({
+      intent: { class: "read", tool: "Read", paths: ["/work/admin/.env"], summary: "Read /work/admin/.env" },
+      options: ["allowOnce", "allowRun", "deny"],
+      confirm: { kind: "secretFile", rule: "read.never-read", scope: "/work/admin/.env", repo: "/work/admin" },
+      ...over,
+    });
+  const denyB = () => screen.getByRole("button", { name: "Deny, tell the agent no" });
+  const runB = () => screen.getByRole("button", { name: "Allow all secret files in this run" });
+
+  it("has the fixed top, the scrolling middle and the fixed foot; every button is in the foot, in both steps", () => {
+    render(() => <PermissionCard item={stop()} onAnswer={() => {}} />);
+    const card = screen.getByRole("group", { name: "A stop you can lift" });
+    expect([...card.children].map((c) => c.className)).toEqual(["perm__top", "perm__body", "perm__foot"]);
+    const [top, body, foot] = [...card.children];
+    expect(top.contains(screen.getByText("A stop you can lift"))).toBe(true);
+    expect(top.contains(screen.getByTestId("stop-ask"))).toBe(true);
+    for (const id of ["stop-why", "stop-path", "stop-reach"]) expect(body.contains(screen.getByTestId(id))).toBe(true);
+    expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual(["Deny, tell the agent no", "Allow once", "Allow all secret files in this run"]);
+    expect(screen.getAllByRole("button").every((b) => foot.contains(b))).toBe(true);
+    fireEvent.click(runB(), { detail: 1 });
+    expect(body.contains(screen.getByTestId("stop-confirm"))).toBe(true);
+    expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual(["Cancel", "Yes, allow for this run"]);
+    expect(screen.getAllByRole("button").every((b) => foot.contains(b))).toBe(true);
+    // the Yes button names the question it answers
+    expect(screen.getByTestId("stop-confirm-yes").getAttribute("aria-describedby")).toBe(screen.getByTestId("stop-confirm").id);
+  });
+
+  it("puts the focus on Deny once the card is on screen, never on the run-wide choice; Enter within the guard does nothing", () => {
+    const answer = vi.fn();
+    render(() => (
+      <Stage>
+        <PermissionCard item={stop({ reqId: "stop-focus" })} onAnswer={answer} />
+      </Stage>
+    ));
+    const l = layout();
+    const card = cardOf(denyB());
+    expect(denyB().hasAttribute("data-primary")).toBe(true);
+    expect(runB().hasAttribute("data-primary")).toBe(false);
+    l.place(card, 500, 200);
+    vi.advanceTimersByTime(50);
+    expect(document.activeElement).not.toBe(denyB());
+    vi.advanceTimersByTime(100);
+    expect(document.activeElement).toBe(denyB());
+    expect(requestVisible(card, denyB())).toBe(true);
+    expect(fireEvent.keyDown(denyB(), { key: "Enter" })).toBe(false);
+    fireEvent.click(denyB()); // the click the key makes
+    expect(answer).not.toHaveBeenCalled();
+  });
+
+  it("focuses no button of a confirm card that cannot be on screen as a whole", () => {
+    render(() => (
+      <Stage>
+        <PermissionCard item={stop({ reqId: "stop-tall" })} onAnswer={() => {}} />
+      </Stage>
+    ));
+    const l = layout();
+    l.place(cardOf(denyB()), 0, 500);
+    const before = document.activeElement;
+    vi.advanceTimersByTime(5000);
+    expect(document.activeElement).toBe(before);
+  });
+
+  it("the second step takes the focus to Cancel, Escape takes it back to Deny; nothing ever lands on Yes", async () => {
+    const answer = vi.fn();
+    render(() => <PermissionCard item={stop({ reqId: "stop-step" })} onAnswer={answer} />);
+    fireEvent.click(runB(), { detail: 1 });
+    await Promise.resolve();
+    expect(document.activeElement?.textContent).toBe("Cancel");
+    fireEvent.keyDown(screen.getByRole("group"), { key: "Escape" });
+    await Promise.resolve();
+    expect(document.activeElement).toBe(denyB());
+    expect(answer).not.toHaveBeenCalled();
+    // and Escape on the first step denies and hands the focus to the composer (none here: it stays off the card)
+    fireEvent.keyDown(screen.getByRole("group"), { key: "Escape" });
+    expect(answer).toHaveBeenCalledWith("deny");
+  });
+
+  it("a once-only card (home folder) has no run-wide button; a card the phone shows has only Deny and says where to answer", () => {
+    render(() => <PermissionCard item={stop({ options: ["allowOnce", "deny"] })} onAnswer={() => {}} />);
+    expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual(["Deny, tell the agent no", "Allow once"]);
+    cleanup();
+    render(() => <PermissionCard item={stop({ options: ["deny"] })} onAnswer={() => {}} />);
+    expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual(["Deny, tell the agent no"]);
+    expect(screen.getByTestId("stop-phone")).toBeTruthy();
+  });
+});
