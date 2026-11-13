@@ -51,5 +51,11 @@ wire_types! {
         #[serde(default)]
         #[cfg_attr(feature = "specta", specta(optional))]
         pub per_model: Vec<ModelTokens>,
+        /// `true` = a context update sent while the turn runs (`perTurn` is zero, `cumulative` is the last turn's): only
+        /// `contextUsed` and `contextSize` are new. Absent on the record that ends a turn.
+        #[serde(default)]
+        #[cfg_attr(not(feature = "specta"), serde(skip_serializing_if = "Option::is_none"))]
+        #[cfg_attr(feature = "specta", specta(optional))]
+        pub mid_turn: Option<bool>,
     }
 }

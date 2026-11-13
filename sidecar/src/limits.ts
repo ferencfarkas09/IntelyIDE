@@ -1,4 +1,5 @@
-// Plan limits for the Usage view: how much of the 5 hour session and the 7 day week of the signed-in Claude subscription is used.
+// Plan limits for the Usage view and the bottom bar: how much of the 5 hour session, the 7 day week and the per-model weekly
+// windows (for example "Fable") of the signed-in Claude subscription is used.
 // Read through the Agent SDK's usage control request (the one behind Claude Code's `/usage`): the CLI starts, answers one control
 // request and is closed again. No model call is made and nothing is sent to it. Stateless like `history.ts`: no open session is needed.
 import type { Query } from '@anthropic-ai/claude-agent-sdk';
@@ -15,8 +16,13 @@ export interface LimitWindow {
   resetsAt: string;
 }
 
+/** A weekly window of one model class, under the label the server gave it (for example "Fable"). */
+export interface ScopedWindow extends LimitWindow {
+  name: string;
+}
+
 export type LimitsReply =
-  | { ok: true; plan: string | null; available: boolean; fiveHour?: LimitWindow; sevenDay?: LimitWindow; sevenDayOpus?: LimitWindow; sevenDaySonnet?: LimitWindow }
+  | { ok: true; plan: string | null; available: boolean; fiveHour?: LimitWindow; sevenDay?: LimitWindow; sevenDayOpus?: LimitWindow; sevenDaySonnet?: LimitWindow; modelScoped?: ScopedWindow[] }
   | { error: 'claudeNotFound' | 'failed'; detail?: string };
 
 export interface LimitsRequest {
@@ -38,7 +44,7 @@ interface RawWindow {
 export interface RawUsage {
   subscription_type?: string | null;
   rate_limits_available?: boolean;
-  rate_limits?: { five_hour?: RawWindow | null; seven_day?: RawWindow | null; seven_day_opus?: RawWindow | null; seven_day_sonnet?: RawWindow | null } | null;
+  rate_limits?: { five_hour?: RawWindow | null; seven_day?: RawWindow | null; seven_day_opus?: RawWindow | null; seven_day_sonnet?: RawWindow | null; model_scoped?: (RawWindow & { display_name?: string | null })[] | null } | null;
 }
 
 const TIMEOUT_MS = 25_000;
@@ -48,12 +54,52 @@ const FRESH_MS = 20_000;
 const windowOf = (w: RawWindow | null | undefined): LimitWindow | undefined =>
   w && typeof w.utilization === 'number' && Number.isFinite(w.utilization) && typeof w.resets_at === 'string' ? { utilization: w.utilization, resetsAt: w.resets_at } : undefined;
 
+/** The most per-model weekly windows passed on, and the longest label of one. */
+export const MAX_SCOPED = 6;
+export const MAX_SCOPED_NAME = 40;
+
+// eslint-disable-next-line no-control-regex
+const UNSAFE = /[\u0000-\u001f\u007f-\u009f]|\p{Cf}/gu;
+
+/** A label cut to `max` characters by code point (never half of a surrogate pair), with an ellipsis when it was longer. */
+export function cutLabel(s: string, max = MAX_SCOPED_NAME): string {
+  const chars = Array.from(s);
+  return chars.length <= max ? s : `${chars.slice(0, max).join('').trimEnd()}…`;
+}
+
+/**
+ * The per-model weekly windows (`rate_limits.model_scoped`, the rows the CLI's own /usage shows), under the server's label:
+ * one line, no control or invisible characters, at most `MAX_SCOPED_NAME` characters (cut by code point). A row without a
+ * label, a number or a reset time is dropped, and so is a second row of the very same label; two labels that only share
+ * their start stay two rows.
+ */
+export function scopedOf(rows: unknown): ScopedWindow[] {
+  if (!Array.isArray(rows)) return [];
+  const out: ScopedWindow[] = [];
+  const seen = new Set<string>();
+  for (const r of rows) {
+    if (!r || typeof r !== 'object') continue;
+    const w = windowOf(r as RawWindow);
+    const raw = (r as { display_name?: unknown }).display_name;
+    const full = typeof raw === 'string' ? raw.replace(UNSAFE, '').trim() : '';
+    if (!w || !full || seen.has(full)) continue;
+    seen.add(full);
+    out.push({ name: cutLabel(full), ...w });
+    if (out.length >= MAX_SCOPED) break;
+  }
+  return out;
+}
+
 /** The reply for what the SDK answered. */
 export function replyOf(raw: RawUsage): LimitsReply {
   const rl = raw.rate_limits ?? null;
   const out = { fiveHour: windowOf(rl?.five_hour), sevenDay: windowOf(rl?.seven_day), sevenDayOpus: windowOf(rl?.seven_day_opus), sevenDaySonnet: windowOf(rl?.seven_day_sonnet) };
-  const available = raw.rate_limits_available !== false && Object.values(out).some(Boolean);
-  return { ok: true, plan: typeof raw.subscription_type === 'string' ? raw.subscription_type : null, available, ...Object.fromEntries(Object.entries(out).filter(([, v]) => v)) };
+  const modelScoped = scopedOf(rl?.model_scoped);
+  const available = raw.rate_limits_available !== false && (Object.values(out).some(Boolean) || modelScoped.length > 0);
+  // `model_scoped` absent (an answer from cached data) is passed on as absent, an empty list as empty: the IDE keeps the rows
+  // it had in the first case and drops them in the second
+  const scoped = Array.isArray(rl?.model_scoped) ? { modelScoped } : {};
+  return { ok: true, plan: typeof raw.subscription_type === 'string' ? raw.subscription_type : null, available, ...Object.fromEntries(Object.entries(out).filter(([, v]) => v)), ...scoped };
 }
 
 const withTimeout = <T>(p: Promise<T>, ms: number): Promise<T> =>

@@ -1,6 +1,8 @@
 import { createMemo, For, onMount, Show } from "solid-js";
+import { Dynamic } from "solid-js/web";
 import { t, fmt } from "../../i18n";
 import { Badge, EmptyState, FileText, Icon, MiddleEllipsis, ProgressBar, Skeleton, TriangleAlert } from "../../ui-kit";
+import { cockpitSlots } from "../../platform/cockpitSlots";
 import { loadRunLog, runLog } from "../inspector/runEvents";
 import { buildCockpit, type CockpitWarning } from "./cockpit";
 import { tokens, usd } from "./format";
@@ -59,13 +61,16 @@ export default function CockpitView(props: { runId: string; model?: string }) {
           </Show>
         </section>
 
+        <For each={cockpitSlots("context")}>{(slot) => <Dynamic component={slot.component} runId={props.runId} data={cockpit()} />}</For>
+
         <Show when={cockpit().warnings.length}>
           <ul class="cp__warns" aria-label={t("cockpit.warnings")}>
             <For each={cockpit().warnings}>
               {(w) => (
                 <li class="cp__warn" data-kind={w.kind}>
                   <Icon icon={TriangleAlert} size={14} />
-                  <span>{warningText(w)}</span>
+                  <span class="cp__warn-text">{warningText(w)}</span>
+                  <For each={cockpitSlots("warning")}>{(slot) => <Dynamic component={slot.component} runId={props.runId} data={cockpit()} warning={w} />}</For>
                 </li>
               )}
             </For>
@@ -84,6 +89,7 @@ export default function CockpitView(props: { runId: string; model?: string }) {
                   <div><dt>{t("cockpit.usage.cost")}</dt><dd class="ui-tnum">{usd(u().costUsd)}</dd></div>
                 </dl>
                 <p class="cp__muted">{t("cockpit.usage.note", { basis: t(BASIS_KEY[u().basis] ?? "cockpit.basis.unknown"), model: u().model })}</p>
+                <For each={cockpitSlots("usage")}>{(slot) => <Dynamic component={slot.component} runId={props.runId} data={cockpit()} />}</For>
               </>
             )}
           </Show>

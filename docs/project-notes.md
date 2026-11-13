@@ -19,6 +19,8 @@ Limits: at most 32 KB of each repository file and of the global file, and 96 KB 
 
 A run on a server (Settings > Servers) reads the files on that server, so the panel can differ from what such a run gets.
 
+When Settings > Token saver > Token-saving habits is on, a Claude run also gets a short block of token-saving habits after these files; the panel lists it last, with its exact text. See [Token saver](token-saver.md).
+
 ## Editing
 
 - **Create CLAUDE.md** starts a file with a few headings; nothing is written until you press Save.

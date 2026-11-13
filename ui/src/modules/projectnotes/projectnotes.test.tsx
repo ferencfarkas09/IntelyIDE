@@ -64,6 +64,21 @@ describe("the panel", () => {
     fireEvent.input(box, { target: { value: ["API_TOKEN", "abcdef1234567890"].join("=") } });
     expect(await screen.findByText(/looks like it contains a secret/)).toBeTruthy();
   });
+
+  it("lists the token-saving habits after the files only while Settings > Token saver switched them on", async () => {
+    setVibeIpc({ maskText: async (t) => maskLocally(t), setupChecks: async () => [], projectNotes: async () => plan({ files: [file({ text: "Use pnpm." })], total: 9 }) });
+    await loadWorkspace(createMockIpc("normal", { delayScale: 0 }));
+    await ipc.settings.set("agents", { tokenHabits: false });
+    const first = render(() => <NotesTab />);
+    expect(await screen.findByText("/r/CLAUDE.md")).toBeTruthy();
+    expect(screen.queryByTestId("pnotes-habits")).toBeNull();
+    first.unmount();
+    await ipc.settings.set("agents", { tokenHabits: true });
+    render(() => <NotesTab />);
+    const entry = await screen.findByTestId("pnotes-habits");
+    fireEvent.click(entry.querySelector("button")!);
+    expect(entry.textContent).toContain("Token-saving habits. The user switched these on");
+  });
 });
 
 describe("saving keeps the file's line endings and encoding", () => {

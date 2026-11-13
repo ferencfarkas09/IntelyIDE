@@ -1,6 +1,6 @@
 import { createEffect, createSignal, createUniqueId, on, onCleanup, Show, type JSX } from "solid-js";
 import { createFloating } from "./floating";
-import { tabbables } from "./focus";
+import { tabbables, trapTab } from "./focus";
 import { OverlayPortal } from "./overlay";
 import { muteTooltipFocus } from "./Tooltip";
 import { createPresence } from "./presence";
@@ -35,7 +35,8 @@ export interface PopoverProps {
   class?: string;
 }
 
-/** Anchored, dismissible panel. Esc / outside press close it and focus returns to the trigger. */
+/** Anchored, dismissible panel. Esc / outside press close it and focus returns to the trigger. A dialog keeps Tab and
+ *  Shift+Tab inside itself (they wrap); a menu leaves Tab to its own handling. */
 export function Popover(props: PopoverProps) {
   const id = createUniqueId();
   const [inner, setInner] = createSignal(false);
@@ -128,6 +129,10 @@ export function Popover(props: PopoverProps) {
                 e.preventDefault();
                 e.stopPropagation();
                 close();
+              } else if (e.key === "Tab" && kind() === "dialog" && !e.defaultPrevented && panel) {
+                // A dialog keeps Tab inside: the panel sits in a portal, so the next element in the document is not where the
+                // person was (the page's end, then the top of the window). The trigger is one Escape away.
+                trapTab(e, panel);
               }
             }}
           >

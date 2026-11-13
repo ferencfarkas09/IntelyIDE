@@ -12,7 +12,31 @@ const [loading, setLoading] = createSignal(false);
 const [error, setError] = createSignal<string | undefined>(undefined);
 const [metric, setMetricSignal] = createSignal<Metric>(readStored(METRIC_KEY) === "cost" ? "cost" : "tokens");
 
-export { error, limits, loading, metric, report };
+type Available = Extract<PlanLimits, { available: true }>;
+/** What the bottom bar shows: the last reading that worked, when it was made, and whether the newest read since failed. */
+export interface PlanShown {
+  limits: Available;
+  at: number;
+  /** False after a read that failed (`reason: "failed"`): the numbers are kept but shown as not current. */
+  current: boolean;
+}
+const [planShown, setPlanShown] = createSignal<PlanShown | undefined>(undefined);
+
+export { error, limits, loading, metric, planShown, report };
+
+/**
+ * Takes a new reading. An answer without per-model rows (the field absent: the CLI answered from cached data) keeps the rows
+ * of the reading before; an answer with an empty list drops them. A failed read keeps the last good numbers, marked as not
+ * current; no Claude or no sign-in clears them (there is no plan to show any more).
+ */
+function adopt(l: PlanLimits): void {
+  const prev = planShown()?.limits;
+  const next: PlanLimits = l.available && l.modelScoped === undefined && prev?.modelScoped ? { ...l, modelScoped: prev.modelScoped } : l;
+  setLimits(next);
+  if (next.available) setPlanShown({ limits: next, at: Date.now(), current: true });
+  else if (next.reason === "failed") setPlanShown((cur) => (cur ? { ...cur, current: false } : cur));
+  else setPlanShown(undefined);
+}
 
 export function setMetric(next: Metric): void {
   setMetricSignal(next);
@@ -36,7 +60,7 @@ export function refreshUsage(withLimits = true): Promise<void> {
     try {
       const [r, l] = await Promise.all([api.report(tzOffsetMin()), withLimits ? api.limits() : Promise.resolve(undefined)]);
       setReport(r);
-      if (l) setLimits(l);
+      if (l) adopt(l);
       setError(undefined);
     } catch (e) {
       setError((e as { message?: string }).message ?? String(e));
@@ -48,11 +72,32 @@ export function refreshUsage(withLimits = true): Promise<void> {
   return inflight;
 }
 
+let limitsInflight: Promise<void> | undefined;
+
+/**
+ * Reads the plan limits alone (the bottom bar needs no report). It starts the Claude CLI for a moment, so the caller asks
+ * rarely. Never rejects: a plan that cannot be read is `available: false`. Calls that overlap share one read.
+ */
+export function refreshLimits(): Promise<void> {
+  limitsInflight ??= usageApi()
+    .limits()
+    .then(
+      (l) => adopt(l),
+      () => adopt({ available: false, reason: "failed" }),
+    )
+    .finally(() => {
+      limitsInflight = undefined;
+    });
+  return limitsInflight;
+}
+
 export function resetUsage(): void {
   setReport(undefined);
   setLimits(undefined);
+  setPlanShown(undefined);
   setError(undefined);
   setLoading(false);
   setMetricSignal("tokens");
   inflight = undefined;
+  limitsInflight = undefined;
 }

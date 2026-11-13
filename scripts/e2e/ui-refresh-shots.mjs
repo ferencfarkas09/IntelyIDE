@@ -11,7 +11,7 @@
 //
 //   VITE_MOCK_IPC=1 pnpm --dir ui exec vite build --outDir ../.scratch/mock-ui      (or: pnpm --dir ui dev)
 //   node scripts/e2e/ui-refresh-shots.mjs [--dir .scratch/mock-ui | --base http://localhost:1420] [--out .scratch/refresh-shots]
-//                                         [--locale hu] [--scale 2] [--only agent-run,question,plan,two-requests,...]
+//                                         [--locale hu] [--scale 2] [--only agent-run,question,plan,two-requests,context-meter,plan-usage,...]
 //                                         [--skins standard,glass] [--themes dark,light] [--sizes 960x600,1440x900]
 // Playwright comes from PW_DIR (a folder with playwright-core, default .scratch/pw) or from a global install.
 import { createRequire } from "node:module";
@@ -515,6 +515,50 @@ const VIEWS = {
     },
   },
 };
+// The context meter and the plan usage of the bottom bar (the mock's demo numbers): the ring's popover on the live run, on a
+// finished run past the warning colour, and the plan-usage popover with the three states of a bar item beside it.
+const openRing = async (page, percent) => {
+  const ring = page.locator('[data-testid="context-ring"]');
+  await ring.filter({ hasText: `${percent}%` }).waitFor({ timeout: 20_000 });
+  await ring.click();
+  await page.locator('[data-testid="context-meter"]').waitFor();
+};
+Object.assign(VIEWS, {
+  "context-meter": {
+    url: "/?scenario=agent-normal&mode=agent",
+    steps: async (page) => {
+      await page.locator(".run-card, .run-row__main").first().click();
+      await openRing(page, 31);
+    },
+  },
+  "context-meter-warn": {
+    url: "/?scenario=agent-normal&mode=agent",
+    steps: async (page) => {
+      await page.locator(".run-card, .run-row__main").filter({ hasText: "Which routes" }).first().click();
+      await openRing(page, 78);
+      await page.locator('[data-testid="context-meter-pace"]').waitFor();
+    },
+  },
+  // two 31-character model-class labels in the bar and eight rows in the popover (the mock's ?planRows=many)
+  "plan-usage-many": {
+    url: "/?scenario=agent-normal&mode=agent&planRows=many",
+    steps: async (page) => {
+      await page.locator(".run-card, .run-row__main").first().click();
+      await page.locator('[data-testid="plan-item-weekly"]').waitFor({ timeout: 20_000 });
+      await page.locator('[data-testid="plan-item-scoped"]').first().click();
+      await page.locator('[data-testid="plan-usage"]').waitFor();
+    },
+  },
+  "plan-usage": {
+    url: "/?scenario=agent-normal&mode=agent",
+    steps: async (page) => {
+      await page.locator(".run-card, .run-row__main").first().click();
+      await page.locator('[data-testid="plan-item-weekly"]').waitFor({ timeout: 20_000 });
+      await page.locator('[data-testid="plan-item-scoped"]').first().click();
+      await page.locator('[data-testid="plan-usage"]').waitFor();
+    },
+  },
+});
 const SIZES = [[1440, 900], [1100, 700], [960, 600]];
 
 const dir = arg("dir");

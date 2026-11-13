@@ -215,6 +215,11 @@ wire_types! {
         #[serde(default)]
         #[cfg_attr(feature = "specta", specta(optional))]
         pub peer_tools: Option<bool>,
+        /// `Some(true)` = append the token-saving habits to the prompt (`agents.tokenHabits` on; Claude only).
+        /// `None` = off, and a request that serialises exactly as before.
+        #[serde(default)]
+        #[cfg_attr(feature = "specta", specta(optional))]
+        pub token_habits: Option<bool>,
     }
 
     #[serde(rename_all = "camelCase")]

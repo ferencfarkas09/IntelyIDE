@@ -143,6 +143,11 @@ export type SessionStart = {
 	 *  `None` = no peer tools, and a request that serialises exactly as before.
 	 */
 	peerTools?: boolean | null,
+	/**
+	 *  `Some(true)` = append the token-saving habits to the prompt (`agents.tokenHabits` on; Claude only).
+	 *  `None` = off, and a request that serialises exactly as before.
+	 */
+	tokenHabits?: boolean | null,
 };
 
 /**  Reply to `session/start`. */

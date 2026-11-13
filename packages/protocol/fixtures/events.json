@@ -397,6 +397,7 @@
         "outputTokens": 80,
         "reasoningTokens": 0
       },
+      "midTurn": null,
       "model": "claude-haiku-4-5-20251001",
       "perModel": [
         {

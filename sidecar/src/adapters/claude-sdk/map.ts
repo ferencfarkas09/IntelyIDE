@@ -28,6 +28,19 @@ export interface MapState {
   /** Tool ids refused by policy or the user; their error result is reported as "denied". */
   denied: Set<string>;
   prevUsage: Map<string, Raw>;
+  /** The size of the lead's context: the last prompt it was sent (fresh input, cache read, cache write). The reply is not in it:
+   *  an assistant message carries a placeholder `output_tokens`, the real count only arrives with the result. */
+  contextUsed?: number;
+  /** The model that wrote the lead's last message: its window is the run's context window. */
+  leadModel?: string;
+  /** The lead's window as the last result reported it; undefined when it could not be told apart from a helper model's. */
+  contextSize?: number;
+  /** The last usage record sent with a result: a context update during the turn repeats its counts. */
+  lastUsage?: UsageRecord;
+  /** The context size last sent, when it was sent, and whether a newer one waits for the throttle. */
+  contextSent?: number;
+  contextSentAt?: number;
+  contextPending?: boolean;
   cumulative: UsageTotals;
   status?: StatusState;
   errorThisTurn: boolean;
@@ -116,13 +129,60 @@ function usageOf(state: MapState, r: Raw): UsageRecord | undefined {
     add(cum, e);
     const delta = (per.costUsd ?? 0) - before;
     if (delta > best) { best = delta; model = name; }
-    if (typeof e.contextWindow === 'number') ctx = e.contextWindow;
   }
+  ctx = leadWindow(mu, state.leadModel, state.prevUsage);
+  state.contextSize = ctx;
   state.prevUsage = new Map(Object.entries(mu));
   state.cumulative = cum;
   // cumulative per model (the CLI reports cost per model, not per role; sub-agents are included in modelUsage)
   const perModel = Object.entries(mu).map(([name, e]) => { const t = zero(); add(t, e); return { model: name, tokens: t }; });
-  return { model, costBasis: state.costBasis, ...(ctx ? { contextSize: ctx } : {}), perTurn: per, cumulative: cum, ...(perModel.length ? { perModel } : {}) };
+  const rec: UsageRecord = { model, costBasis: state.costBasis, ...(state.contextUsed ? { contextUsed: state.contextUsed } : {}), ...(ctx ? { contextSize: ctx } : {}), perTurn: per, cumulative: cum, ...(perModel.length ? { perModel } : {}) };
+  state.lastUsage = rec;
+  state.contextSent = state.contextUsed;
+  state.contextSentAt = state.now();
+  state.contextPending = false;
+  return rec;
+}
+
+/** A model id without the context suffix the CLI keys `modelUsage` by ("claude-opus-5-5[1m]"); the API answers without it. */
+const bareModel = (id: string): string => id.replace(/\[\d+m\]$/i, '').toLowerCase();
+
+/**
+ * The lead's window from `modelUsage`. The lead is the model of its last message, matched without the `[1m]` suffix. A single
+ * listed model is the lead's. With several and no match the window is unknown: no window is guessed from a helper's. When the
+ * same model is listed both with and without the suffix (`modelUsage` is cumulative, so a switch during the session leaves
+ * both), the one whose usage grew since `prev` (the last result) is the lead's; when that does not settle it, no window.
+ */
+export function leadWindow(mu: Record<string, Raw>, leadModel: string | undefined, prev?: ReadonlyMap<string, Raw>): number | undefined {
+  const win = (e: Raw | undefined) => (e && typeof e.contextWindow === 'number' && Number.isFinite(e.contextWindow) && e.contextWindow > 0 ? e.contextWindow : undefined);
+  const names = Object.keys(mu);
+  if (leadModel) {
+    const want = bareModel(leadModel);
+    const hits = names.filter((n) => bareModel(n) === want);
+    if (hits.length === 1) return win(mu[hits[0]]);
+    if (hits.length > 1) {
+      const keys = ['inputTokens', 'outputTokens', 'cacheReadInputTokens', 'cacheCreationInputTokens'];
+      const grew = hits.filter((n) => keys.some((k) => Number(mu[n]?.[k] ?? 0) > Number(prev?.get(n)?.[k] ?? 0)));
+      return grew.length === 1 ? win(mu[grew[0]]) : undefined;
+    }
+  }
+  return names.length === 1 ? win(mu[names[0]]) : undefined;
+}
+
+/** Minimum time between two context updates during a turn. */
+export const CONTEXT_THROTTLE_MS = 2000;
+
+/** A context update during the turn: the last result's counts with the new size. Only once a window is known (the ring needs both). */
+function contextUpdate(state: MapState, force = false): EventInput[] {
+  if (state.contextSent === state.contextUsed) { state.contextPending = false; return []; }
+  if (!state.lastUsage || !state.contextSize) return [];
+  const now = state.now();
+  if (!force && state.contextSentAt !== undefined && now - state.contextSentAt < CONTEXT_THROTTLE_MS) { state.contextPending = true; return []; }
+  const { contextUsed: _u, ...rest } = state.lastUsage;
+  state.contextSent = state.contextUsed;
+  state.contextSentAt = now;
+  state.contextPending = false;
+  return [{ kind: 'usage', usage: { ...rest, perTurn: zero(), contextSize: state.contextSize, ...(state.contextUsed ? { contextUsed: state.contextUsed } : {}), midTurn: true } }];
 }
 
 function diffFor(name: string, input: Raw): { path: string; old: string | null; new: string } | undefined {
@@ -141,6 +201,8 @@ function setStatus(state: MapState, s: StatusState, extra: { retryAfterMs?: numb
 /** Maps one SDK message. Mutates `state`; returns zero or more events (raw attached to the first). */
 export function mapRaw(state: MapState, m: Raw): EventInput[] {
   const out = map(state, m);
+  // a newer context size held back by the throttle goes out with the next message once the time has passed
+  if (state.contextPending && m.type !== 'result') out.push(...contextUpdate(state));
   if (out.length) out[0] = { ...out[0], raw: capRaw(m, state.rawCapBytes) } as EventInput;
   return out;
 }
@@ -185,6 +247,12 @@ function mapSystem(state: MapState, m: Raw): EventInput[] {
       return [];
     case 'api_retry':
       return setStatus(state, 'retrying', { retryAfterMs: Number(m.retry_delay_ms ?? 0), scope: String(m.error ?? 'api') });
+    case 'compact_boundary': {
+      // the context was just compacted: its new size, or none until the next answer when the CLI does not say
+      const post = m.compact_metadata?.post_tokens;
+      state.contextUsed = typeof post === 'number' && Number.isFinite(post) && post > 0 ? post : undefined;
+      return contextUpdate(state, true);
+    }
     case 'task_started':
       return [{ kind: 'tool.update', toolId: String(m.tool_use_id), status: 'running', output: truncate(`${m.subagent_type ?? 'subagent'}: ${m.description ?? ''}`, 400) }];
     case 'task_notification':
@@ -213,9 +281,25 @@ function mapStream(state: MapState, e: Raw, sub: { parentToolId?: string }): Eve
   }
 }
 
+/** The size of the prompt one API answer was given (fresh input, cache read, cache write); undefined when the message carries no
+ *  usable usage. The reply's `output_tokens` is left out: an assistant message carries a placeholder there. */
+function contextOf(usage: unknown): number | undefined {
+  if (!usage || typeof usage !== 'object') return undefined;
+  const u = usage as Raw;
+  const n = (k: string) => (typeof u[k] === 'number' && Number.isFinite(u[k]) && u[k] > 0 ? u[k] : 0);
+  const total = n('input_tokens') + n('cache_read_input_tokens') + n('cache_creation_input_tokens');
+  return total > 0 ? total : undefined;
+}
+
 function mapAssistant(state: MapState, m: Raw, parent?: string): EventInput[] {
   const msg = m.message ?? {};
   const out: EventInput[] = [];
+  // the lead's own messages only: a delegate has a context of its own
+  const ctx = parent ? undefined : contextOf(msg.usage);
+  if (ctx !== undefined) {
+    state.contextUsed = ctx;
+    if (typeof msg.model === 'string' && msg.model) state.leadModel = msg.model;
+  }
   const sub = parent ? { parentToolId: parent } : {};
   for (const b of Array.isArray(msg.content) ? msg.content : []) {
     const n = state.assistantBlocks.get(msg.id) ?? 0;
@@ -239,6 +323,8 @@ function mapAssistant(state: MapState, m: Raw, parent?: string): EventInput[] {
     state.errorThisTurn = true;
     out.push({ kind: 'error', class: errorClass(e), message: redact(`${e}${textOf(msg.content) ? `: ${textOf(msg.content)}` : ''}`), retryable: errorClass(e) === 'rate' || e === 'server_error' });
   }
+  // the ring follows the turn: a new size goes out at once, then at most every CONTEXT_THROTTLE_MS
+  if (ctx !== undefined) out.push(...contextUpdate(state));
   return out;
 }
 

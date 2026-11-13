@@ -44,6 +44,15 @@ describe("requestNewRun", () => {
     await waitFor(() => expect((screen.getByLabelText("Prompt") as HTMLTextAreaElement).value).toBe("Second request"));
   });
 
+  it("a role that does not exist leaves the dialog on Auto, and the prompt is still filled (token saver hand-off)", async () => {
+    openCommand();
+    const start = vi.spyOn(ipc.runs, "start");
+    render(() => <NewRunDialog />);
+    expect(await requestNewRun({ prompt: "Continue the map screen", role: "no-such-role", model: "claude-sonnet-5-5", permission: "edit" })).toBe(true);
+    await waitFor(() => expect((screen.getByLabelText("Prompt") as HTMLTextAreaElement).value).toBe("Continue the map screen"));
+    expect(start).not.toHaveBeenCalled();
+  });
+
   it("resolves false and keeps nothing pending when the dialog command does not exist", async () => {
     expect(await requestNewRun({ prompt: "x" })).toBe(false);
     expect(newRunPrefill()).toBeUndefined();

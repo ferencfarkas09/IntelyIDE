@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { IDE_PLAN_NOTE, IDE_SESSION_NOTE } from '../src/adapters/claude-sdk/notes.js';
+import { IDE_PLAN_NOTE, IDE_SESSION_NOTE, TOKEN_HABITS_NOTE } from '../src/adapters/claude-sdk/notes.js';
 import { mapRaw, newMapState } from '../src/adapters/claude-sdk/map.js';
 import { ClaudeSession } from '../src/adapters/claude-sdk/session.js';
 import { SeqSink, TurnGuard } from '../src/turn.js';
@@ -102,6 +102,25 @@ describe('session options per mode (S-2)', () => {
     const b = await open('edit', { role: { name: 'dev', model: 'claude-sonnet-5-5', permission: 'edit', systemPrompt: 'You are the developer.' } });
     expect(fake.options.systemPrompt.append).toBe(`You are the developer.\n\n${IDE_SESSION_NOTE}\n\n${IDE_PLAN_NOTE}`);
     await b.s.close();
+  });
+
+  it('the token-saving habits are off unless the spec asks for them, then come last, after the project instructions, once', async () => {
+    const cwd = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'isw-th-')));
+    fs.writeFileSync(path.join(cwd, 'CLAUDE.md'), 'Project rule: read the whole schema before you change it.');
+    try {
+      const off = await open('ask', { cwd });
+      expect(fake.options.systemPrompt.append).not.toContain('Token-saving habits');
+      await off.s.close();
+      const on = await open('ask', { cwd, tokenHabits: true });
+      const append: string = fake.options.systemPrompt.append;
+      expect(append.endsWith(TOKEN_HABITS_NOTE)).toBe(true);
+      expect(append.split('Token-saving habits.').length - 1).toBe(1);
+      expect(append.indexOf('Project rule: read the whole schema')).toBeLessThan(append.indexOf(TOKEN_HABITS_NOTE));
+      expect(append.startsWith(IDE_SESSION_NOTE)).toBe(true);
+      await on.s.close();
+    } finally {
+      fs.rmSync(cwd, { recursive: true, force: true });
+    }
   });
 
   it('the CLAUDE.md files of the working directory and of the added directories ride in the system prompt, after the notes; the CLI is not asked to load them', async () => {

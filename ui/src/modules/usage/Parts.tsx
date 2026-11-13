@@ -3,7 +3,7 @@ import { fmtCountdown, modelLabel } from "../../components/chat/format";
 import { t } from "../../i18n";
 import { ProgressBar, Skeleton } from "../../ui-kit";
 import { lazyLabels } from "../../components/lazyLabels";
-import { busiestDays, limitTone, metricOf, modelShares, untilReset, windows, type Periods } from "./logic";
+import { busiestDays, extraScoped, limitTone, metricOf, modelShares, untilReset, windows, type Periods } from "./logic";
 import { dayLabel, fmtTokens, formatMetric, formatUsd } from "./format";
 import type { Metric, PlanLimits, UsageReport, UsageTotals } from "./types";
 
@@ -56,6 +56,22 @@ export function LimitsCard(props: { limits: PlanLimits | undefined; now: number 
                       <span class="usage-limit__pct ui-tnum">{t("usage.limits.used", { pct: Math.round(w.utilization) })}</span>
                     </div>
                     <ProgressBar value={w.utilization} tone={limitTone(w.utilization)} aria-label={WINDOW_LABEL[w.key]} />
+                    <div class="usage-limit__reset ui-tnum">{left() === undefined ? "" : left() === 0 ? t("usage.limits.resetNow") : t("usage.limits.resetsIn", { time: fmtCountdown(left()!) })}</div>
+                  </div>
+                );
+              }}
+            </For>
+            <For each={extraScoped(props.limits)}>
+              {(w) => {
+                const left = () => untilReset(w.resetsAt, props.now);
+                const name = () => t("usage.limits.sevenDayScoped", { name: w.name });
+                return (
+                  <div class="usage-limit" data-testid="limit-scoped">
+                    <div class="usage-limit__head">
+                      <span class="usage-limit__name">{name()}</span>
+                      <span class="usage-limit__pct ui-tnum">{t("usage.limits.used", { pct: Math.round(w.utilization) })}</span>
+                    </div>
+                    <ProgressBar value={w.utilization} tone={limitTone(w.utilization)} aria-label={name()} />
                     <div class="usage-limit__reset ui-tnum">{left() === undefined ? "" : left() === 0 ? t("usage.limits.resetNow") : t("usage.limits.resetsIn", { time: fmtCountdown(left()!) })}</div>
                   </div>
                 );
