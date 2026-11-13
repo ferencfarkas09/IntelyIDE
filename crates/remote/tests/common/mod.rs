@@ -114,7 +114,7 @@ impl FakeHub {
         let ctx = self.ctx.lock().unwrap().clone();
         let p = pending_permission(AGENT, req, "tool-1", &intent, &ctx, &LowList::default(), self.clock.now_ms());
         self.table.register(p.clone());
-        self.publish(EventKind::PermissionRequest { req_id: req.into(), tool_id: "tool-1".into(), intent, options: vec![PermissionOption::AllowOnce, PermissionOption::Deny], session_allow: None, plan: None, plan_truncated: None, modes: Vec::new(), peer: None });
+        self.publish(EventKind::PermissionRequest { req_id: req.into(), tool_id: "tool-1".into(), intent, options: vec![PermissionOption::AllowOnce, PermissionOption::Deny], session_allow: None, plan: None, plan_truncated: None, modes: Vec::new(), peer: None, confirm: None });
         p
     }
 
@@ -155,7 +155,7 @@ impl AgentHub for FakeHub {
         self.table.resolve(req_id, agent_id, PendingKind::Permission, intent_hash, origin, self.clock.now_ms())?;
         self.permission_answers.lock().unwrap().push((req_id.into(), decision, origin.clone()));
         let outcome = if matches!(decision, PermissionDecision::Deny) { PermissionOutcome::Deny } else { PermissionOutcome::Allow };
-        self.publish_for(agent_id, EventKind::PermissionResolved { req_id: req_id.into(), outcome, by: DecidedBy::User });
+        self.publish_for(agent_id, EventKind::PermissionResolved { req_id: req_id.into(), outcome, by: DecidedBy::User, grant: None });
         Ok(Resolution { req_id: req_id.into(), agent_id: agent_id.into(), origin: origin.clone() })
     }
     fn answer_question(&self, req_id: &str, agent_id: &str, _answer: QuestionAnswer, intent_hash: Option<&str>, origin: &Origin) -> Result<Resolution, HubError> {

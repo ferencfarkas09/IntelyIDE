@@ -6,6 +6,7 @@
 use specta_typescript::{Number, Unknown};
 
 use crate::delegates::DelegateInfo;
+use crate::policy::confirm::ConfirmOffer;
 use crate::policy::decide::SessionAllowOffer;
 use crate::policy::intent::ToolIntent;
 use crate::providers::{AuthMode, CapDelta, Effort, ModelInfo, PermissionMode, ProviderCaps};
@@ -54,6 +55,14 @@ wire_enums! {
         Default,
         /// The policy channel was down, slow or garbled.
         FailClosed,
+    }
+
+    /// How far an allowed tier-2 card reaches.
+    pub enum StopGrantScope {
+        /// This one tool call.
+        Once,
+        /// Every stop of the same kind until the run ends.
+        Run,
     }
 
     pub enum PermissionOutcome {
@@ -329,9 +338,25 @@ wire_types! {
             #[serde(default)]
             #[cfg_attr(feature = "specta", specta(optional))]
             peer: Option<PeerCard>,
+            /// A tier-2 stop (`policy::confirm`): the card is a "may this one thing be allowed?" card. Display only: the host judges the
+            /// request again when it is answered and trusts only its own result.
+            #[serde(default)]
+            #[cfg_attr(not(feature = "specta"), serde(skip_serializing_if = "Option::is_none"))]
+            #[cfg_attr(feature = "specta", specta(optional))]
+            confirm: Option<ConfirmOffer>,
         },
         #[serde(rename = "permission.resolved")]
-        PermissionResolved { req_id: String, outcome: PermissionOutcome, by: DecidedBy },
+        PermissionResolved {
+            req_id: String,
+            outcome: PermissionOutcome,
+            by: DecidedBy,
+            /// A tier-2 card that was allowed: how far the person's yes reaches. The run log, the run summary and the Needs-You inbox
+            /// read "you allowed reading .env once" from this and the request's `confirm`.
+            #[serde(default)]
+            #[cfg_attr(not(feature = "specta"), serde(skip_serializing_if = "Option::is_none"))]
+            #[cfg_attr(feature = "specta", specta(optional))]
+            grant: Option<StopGrantScope>,
+        },
         #[serde(rename = "question.request")]
         QuestionRequest {
             req_id: String,

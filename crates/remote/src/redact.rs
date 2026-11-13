@@ -441,7 +441,7 @@ impl Redactor {
             }
             // behaviour: host (remote spec 5.7: the phone gets a plan excerpt through its own field; until then it sees no plan, no
             // session-allow offer, no mode list and no "allow always in this session" option)
-            EventKind::PermissionRequest { req_id, tool_id, intent, options, .. } => EventKind::PermissionRequest {
+            EventKind::PermissionRequest { req_id, tool_id, intent, options, confirm, .. } => EventKind::PermissionRequest {
                 req_id: req_id.clone(),
                 tool_id: tool_id.clone(),
                 intent: wire_intent(intent),
@@ -451,12 +451,17 @@ impl Redactor {
                     .copied()
                     .filter(|o| *o != intely_agent_core::events::PermissionOption::AllowRun)
                     .filter(|o| intent.tool.as_deref() != Some(intely_agent_core::peer::SEND_TOOL_FULL) || *o == intely_agent_core::events::PermissionOption::Deny)
+                    // a stop the person may lift (a secret file, a CLI prompt) is answered on the computer only: the gateway marks it desktop-only, so the phone shows it as "answer on the computer" and can neither allow nor refuse it
+                    .filter(|o| confirm.is_none() || *o == intely_agent_core::events::PermissionOption::Deny)
                     .collect(),
                 session_allow: None,
                 plan: None,
                 plan_truncated: None,
                 modes: Vec::new(),
                 peer: None,
+                // the kind and rule only (so the phone can say "answer on your computer"); the offer's scope and folder are blanked. The phone still
+                // gets the intent above like any card (`paths` and `summary`, capped), so it sees WHICH file the agent asked for, and can refuse it
+                confirm: confirm.as_ref().map(|c| intely_agent_core::policy::confirm::ConfirmOffer { kind: c.kind, rule: c.rule.clone(), scope: String::new(), repo: String::new(), once_only: c.once_only }),
             },
             EventKind::PermissionResolved { .. } => e.kind.clone(),
             EventKind::QuestionRequest { req_id, tool_id, prompt, options } => EventKind::QuestionRequest {

@@ -19,10 +19,11 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use intely_agent_core::api::{AgentStartRequest, AgentSummary, AutoInfo, AutoQueue, PermissionDecision, QuestionAnswer, RoleInfo};
 use intely_agent_core::delegates::DelegateRepo;
 use intely_agent_core::events::log::{EventLog, JsonlEventLog};
-use intely_agent_core::events::types::{PeerCard, AgentEvent, BatchEvent, DecidedBy, EffectiveChange, ErrorClass, EventKind, McpServerStatus, ModeChangeReason, PermissionOption, PermissionOutcome, StopReason, ToolStatus};
+use intely_agent_core::events::types::{PeerCard, AgentEvent, BatchEvent, DecidedBy, EffectiveChange, ErrorClass, EventKind, McpServerStatus, ModeChangeReason, PermissionOption, PermissionOutcome, StopGrantScope, StopReason, ToolStatus};
 use intely_agent_core::mcp::{McpPolicy, McpSelection, McpServerRules};
 use intely_agent_core::peer::{self, PeerBook, PeerMode, Refusal, SEND_TOOL_FULL};
-use intely_agent_core::policy::decide::{decide_with, decide_wire, fail_closed, session_allow_for, Decision, DelegateRule, PolicyContext, PolicyDecision, SavedAllow, SessionAllowOffer, STRICT_BACKGROUND};
+use intely_agent_core::policy::confirm::{ConfirmKind, ConfirmOffer, StopGrant, ALL_OF_KIND};
+use intely_agent_core::policy::decide::{cli_prompt_intent, decide_with, decide_wire, fail_closed, session_allow_for, Decision, DelegateRule, PolicyContext, PolicyDecision, SavedAllow, SessionAllowOffer, STRICT_BACKGROUND};
 use intely_agent_core::policy::enforcement::{EnforcementBook, EnforcementChip, Tier};
 use intely_agent_core::policy::fsrpc::RpcFs;
 use intely_agent_core::policy::fsview::FsView;
@@ -341,12 +342,18 @@ pub struct AnswerExtra {
     pub mode: Option<PermissionMode>,
     /// ExitPlanMode rejection only: the user's text for the model.
     pub feedback: Option<String>,
+    /// The answer is a click in the IDE's main window on this computer. Off by default: a card of a confirmable stop is lifted only by an
+    /// answer that says so (a phone, a plugin or any other caller can refuse it, never allow it).
+    pub on_computer: bool,
+    /// "Allow for this run" for secret files: the person clicked the second confirmation that shows the warning. Required by the host,
+    /// not only asked by the card.
+    pub confirm_broad: bool,
 }
 
 /// What `answer_permission_with` decided under the lock: refuse the click (the rules changed), or send the answer.
 enum Step {
     Withdraw(Arc<Sidecar>),
-    Send { sc: Arc<Sidecar>, allow: bool, mode: Option<PermissionMode>, undo: Undo, lease: Option<String>, repo_id: Option<String>, meta: Option<Meta> },
+    Send { sc: Arc<Sidecar>, allow: bool, mode: Option<PermissionMode>, grant: Option<StopGrantScope>, undo: Undo, lease: Option<String>, repo_id: Option<String>, meta: Option<Meta> },
 }
 
 /// What an answer changed before the sidecar took it, to put back when it does not.
@@ -358,6 +365,8 @@ struct Undo {
     lease: Option<bool>,
     /// The mode the run was in before a plan approval changed it.
     mode: Option<PermissionMode>,
+    /// The grant of a confirmable stop that was pushed into the run's context.
+    stop_grant: Option<StopGrant>,
 }
 
 #[derive(Clone)]
@@ -1105,7 +1114,7 @@ impl AgentHost {
     pub fn answer_permission_with(&self, agent_id: &str, req_id: &str, decision: PermissionDecision, extra: AnswerExtra) -> Result<(), EngineError> {
         let inner = &self.inner;
         let feedback = extra.feedback.as_deref().map(str::trim).filter(|f| !f.is_empty()).map(|f| f.chars().take(MAX_FEEDBACK_CHARS).collect::<String>());
-        let allowing = matches!(decision, PermissionDecision::AllowOnce | PermissionDecision::AllowRun);
+        let allowing = !matches!(decision, PermissionDecision::Deny);
         // a run on a server is judged against the server's files over the network: that happens here, never under the lock below
         let prejudged = inner.prejudge_remote(agent_id, req_id, allowing, decision == PermissionDecision::AllowRun);
         // a message to a run that may do more, or that works without prompts, is never saved for the run, whatever the card offered
@@ -1117,6 +1126,10 @@ impl AgentHost {
             let sc = inner.live_sidecar(&st, agent_id)?;
             let run = st.agents.get_mut(agent_id).ok_or_else(|| unknown_agent(agent_id))?;
             let pending = run.state.perms.get(req_id).ok_or_else(|| err("unknownRequest", format!("no pending permission request {req_id}")))?;
+            let confirm_card = pending.confirm.clone();
+            if confirm_card.is_some() && !extra.on_computer && allowing {
+                return Err(err("answerOnComputer", "this stop is allowed only by a click in the main window of the IDE on your computer: open the IDE there (a phone cannot answer it)"));
+            }
             let wanted = match decision {
                 PermissionDecision::AllowOnce => PermissionOption::AllowOnce,
                 PermissionDecision::AllowRun => PermissionOption::AllowRun,
@@ -1130,6 +1143,7 @@ impl AgentHost {
                 return Err(err("alreadyAnswered", "this request was already answered"));
             }
             let intent = pending.intent.clone();
+            let pending_tool_id = pending.tool_id.clone();
             let is_plan = intent.tool.as_deref() == Some("ExitPlanMode") && intent.actor.is_none();
             if extra.mode.is_some() && !(is_plan && decision == PermissionDecision::AllowOnce) {
                 return Err(err("invalidAnswer", "a mode is only accepted when approving a plan"));
@@ -1162,7 +1176,15 @@ impl AgentHost {
                 let lease = run.live.as_ref().and_then(|l| l.lease_id.clone());
                 let repo_id = run.meta.repos.first().map(|r| r.id.clone());
                 let mut body_mode = None;
-                if decision == PermissionDecision::AllowRun {
+                let mut grant_scope = None;
+                if let (Some(card), true) = (&confirm_card, allowing) {
+                    if run.meta.location.is_some() {
+                        return Err(err("notOnServer", "a stop is not lifted for a run on a server yet"));
+                    }
+                    let (g, scope) = Inner::apply_confirm(run, agent_id, &pending_tool_id, &intent, card, decision, extra.confirm_broad)?;
+                    undo.stop_grant = g;
+                    grant_scope = Some(scope);
+                } else if decision == PermissionDecision::AllowRun {
                     // the host derives the saved allow itself and never trusts the event's offer
                     match prejudged.map_or_else(|| session_allow_for(&run.ctx, &intent), |p| p.session.clone()) {
                         Some((saved, _offer)) => {
@@ -1182,7 +1204,7 @@ impl AgentHost {
                                 undo.saved = Some((role, saved));
                             }
                         }
-                        // the rules already allow it (another card of the same kind was answered "always" first, or the user loosened the
+                        // the rules already allow it (another card of the same kind was answered for the run first, or the user loosened the
                         // mode meanwhile): the click is an allow and there is nothing left to remember
                         None if fresh.as_ref().is_some_and(|f| f.decision == Decision::Allow) => {}
                         None => return Err(err("optionNotOffered", "no session allow can be derived for this request")),
@@ -1226,7 +1248,7 @@ impl AgentHost {
                     p.answering = true;
                 }
                 let meta = undo.mode.map(|_| run.meta.clone());
-                Step::Send { sc, allow: allowing, mode: body_mode, undo, lease, repo_id, meta }
+                Step::Send { sc, allow: allowing, mode: body_mode, grant: grant_scope, undo, lease, repo_id, meta }
             }
         };
         match step {
@@ -1239,13 +1261,16 @@ impl AgentHost {
                 }
                 Err(err("sidecarUnavailable", "the agent process did not take the answer"))
             }
-            Step::Send { sc, allow, mode, undo, lease, repo_id, meta } => {
+            Step::Send { sc, allow, mode, grant, undo, lease, repo_id, meta } => {
                 if let Some(m) = &meta {
                     inner.persist_meta(m);
                 }
                 let mut body = json!({"agentId": agent_id, "reqId": req_id, "outcome": if allow { "allow" } else { "deny" }});
                 if let Some(m) = mode {
                     body["mode"] = json!(m);
+                }
+                if let Some(g) = grant {
+                    body["grant"] = json!(g);
                 }
                 if !allow {
                     if let Some(f) = &feedback {
@@ -1269,6 +1294,9 @@ impl AgentHost {
                                 if let Some(list) = list {
                                     list.retain(|a| a != saved);
                                 }
+                            }
+                            if let Some(g) = &undo.stop_grant {
+                                run.ctx.stop_grants.retain(|x| x != g);
                             }
                             if let Some(old) = undo.mode {
                                 run.ctx.mode = old;
@@ -1294,6 +1322,12 @@ impl AgentHost {
                 Ok(())
             }
         }
+    }
+
+    /// The answer to a card, given in the IDE's main window on this computer: the only way a card of a confirmable stop is lifted. Plain
+    /// [`AgentHost::answer_permission`] can refuse such a card but never allow it (`answerOnComputer`).
+    pub fn answer_permission_on_computer(&self, agent_id: &str, req_id: &str, decision: PermissionDecision, confirm_broad: bool) -> Result<(), EngineError> {
+        self.answer_permission_with(agent_id, req_id, decision, AnswerExtra { on_computer: true, confirm_broad, ..AnswerExtra::default() })
     }
 
     /// Exactly-once: the request must be pending and the answer one of its offered options.
@@ -1572,7 +1606,7 @@ impl Inner {
             let st = lock(&self.state);
             let Ok(sc) = self.live_sidecar(&st, agent_id) else { return };
             let Some(run) = st.agents.get(agent_id) else { return };
-            let cards: Vec<(String, ToolIntent)> = run.state.perms.iter().filter(|(_, p)| !p.answering).map(|(id, p)| (id.clone(), p.intent.clone())).collect();
+            let cards: Vec<(String, ToolIntent)> = run.state.perms.iter().filter(|(_, p)| !p.answering && p.confirm.is_none()).map(|(id, p)| (id.clone(), p.intent.clone())).collect();
             (sc, run.ctx.clone(), run.meta.provider.clone(), cards)
         };
         let denied: Vec<String> = cards.into_iter().filter(|(req_id, intent)| rejudge(&ctx, agent_id, req_id, &provider, intent).decision == Decision::Deny).map(|(req_id, _)| req_id).collect();
@@ -1994,7 +2028,12 @@ impl Inner {
                 ctx.fs = Some(fs.clone() as Arc<dyn FsView>);
                 (ctx, Some(fs))
             }
-            _ => (context_for(meta, std::env::var_os("HOME").map(PathBuf::from), role_deny, &self.cfg.data_dir), None),
+            _ => {
+                let mut ctx = context_for(meta, std::env::var_os("HOME").map(PathBuf::from), role_deny, &self.cfg.data_dir);
+                // a card can be shown only while a window is open to answer it
+                ctx.stops_askable = self.cfg.ui_attached.as_ref().is_some_and(|f| f());
+                (ctx, None)
+            }
         }
     }
 
@@ -2111,6 +2150,71 @@ impl Inner {
     /// The sidecar of one generation, here or on a server.
     fn sidecar_gen(&self, st: &State, generation: u64) -> Option<Arc<Sidecar>> {
         st.sidecar.iter().find(|s| s.generation == generation).cloned().or_else(|| lock(&self.remote).values().find(|r| r.sc.generation == generation).map(|r| r.sc.clone()))
+    }
+
+    /// Answering a card of a confirmable stop (tier 2). The host trusts nothing of the card but its kind: the exact thing (path, CLI reason)
+    /// is derived again from the run's current rules, and the stop is lifted only when those rules still refuse it AND offer to lift it.
+    /// Returns the grant that was pushed into the run's context (to undo it) and how far the yes reaches.
+    fn apply_confirm(
+        run: &mut Run,
+        agent_id: &str,
+        tool_id: &str,
+        intent: &ToolIntent,
+        card: &ConfirmOffer,
+        decision: PermissionDecision,
+        confirm_broad: bool,
+    ) -> Result<(Option<StopGrant>, StopGrantScope), EngineError> {
+        // a run-wide yes for secret files reaches every secret-looking file of the run's folders: the second confirmation is required by the host
+        if decision == PermissionDecision::AllowRun && matches!(card.kind, ConfirmKind::SecretFile | ConfirmKind::SecretEdit) && !confirm_broad {
+            return Err(err("confirmationRequired", "allowing secret files for the whole run needs a second confirmation: their content goes to the model provider and may land in logs and transcripts"));
+        }
+        let base = if card.kind == ConfirmKind::CliPrompt { cli_prompt_intent(intent, &card.scope) } else { intent.clone() };
+        // (judged as the real tool call: the grants of the earlier cards of the same call apply, so the next stop of a command is the one that is offered)
+        let fresh = rejudge(&run.ctx, agent_id, tool_id, &run.meta.provider, &base);
+        // another answer got there first (a grant for the run now lifts this very stop): the click is a yes and there is nothing left to grant
+        if fresh.decision == Decision::Allow && matches!(decision, PermissionDecision::AllowOnce | PermissionDecision::AllowRun) {
+            return Ok((None, if decision == PermissionDecision::AllowOnce { StopGrantScope::Once } else { StopGrantScope::Run }));
+        }
+        let offer = fresh.confirm.filter(|_| fresh.decision == Decision::Deny && fresh.by == DecidedBy::HardStop);
+        // the thing the person saw must be the thing that is granted: a file swapped for a link, or a name that now leads elsewhere, is a new question
+        let Some(offer) = offer.filter(|o| o.kind == card.kind && o.scope == card.scope) else {
+            return Err(err("rulesMoved", "the rules no longer offer to allow this; the request was refused. Ask again if it still applies"));
+        };
+        if decision == PermissionDecision::AllowRun && offer.once_only && offer.kind != ConfirmKind::CliPrompt {
+            return Err(err("runWideNotAllowed", "allowing all secret files is not offered when the run's folder is the home folder or above it; allow this one file once"));
+        }
+        let (grant, scope) = match decision {
+            PermissionDecision::AllowOnce => (StopGrant { kind: offer.kind, scope: offer.scope.clone(), tool_id: Some(tool_id.to_string()) }, StopGrantScope::Once),
+            // "for this run": every secret of the kind inside the run's folders (the card says so), but a CLI prompt only for this exact reason
+            PermissionDecision::AllowRun => (StopGrant { kind: offer.kind, scope: if offer.kind == ConfirmKind::CliPrompt { offer.scope.clone() } else { ALL_OF_KIND.to_string() }, tool_id: None }, StopGrantScope::Run),
+            _ => return Err(err("invalidAnswer", "nothing to grant for that answer")),
+        };
+        // "once" grants name a tool call and are useless after it; the list keeps the newest few
+        let once: Vec<usize> = run.ctx.stop_grants.iter().enumerate().filter(|(_, g)| g.tool_id.is_some()).map(|(i, _)| i).collect();
+        if once.len() >= 64 {
+            run.ctx.stop_grants.remove(once[0]);
+        }
+        let pushed = (!run.ctx.stop_grants.contains(&grant)).then(|| grant.clone());
+        if let Some(g) = &pushed {
+            run.ctx.stop_grants.push(g.clone());
+        }
+        Ok((pushed, scope))
+    }
+
+    /// A card of a confirmable stop that nobody can answer on this computer (no window is open, or the run is on a server): refused at once
+    /// with the reason, so the agent adapts instead of waiting for a person who is not there.
+    fn refuse_unanswerable_cards(&self, agent_id: &str, cards: Vec<String>, why: &'static str) {
+        if cards.is_empty() {
+            return;
+        }
+        let Some(inner) = self.me.upgrade() else { return };
+        let host = AgentHost { inner };
+        let agent_id = agent_id.to_string();
+        std::thread::spawn(move || {
+            for req_id in cards {
+                let _ = host.answer_permission_with(&agent_id, &req_id, PermissionDecision::Deny, AnswerExtra { feedback: Some(why.to_string()), ..AnswerExtra::default() });
+            }
+        });
     }
 
     fn live_sidecar(&self, st: &State, agent_id: &str) -> Result<Arc<Sidecar>, EngineError> {
@@ -2564,6 +2668,9 @@ impl Inner {
     }
 
     fn ingest(&self, sc: &Arc<Sidecar>, agent_id: &str, provider: &str, batch: Vec<BatchEvent>) {
+        // (asked before the state lock is taken: the window check belongs to the app and must never be called while the host's state is locked)
+        // (only for a batch that carries a card of a confirmable stop)
+        let ui = !batch.iter().any(|b| matches!(&b.kind, EventKind::PermissionRequest { confirm: Some(_), .. })) || self.cfg.ui_attached.as_ref().is_some_and(|f| f());
         let mut st = lock(&self.state);
         // the card of a message to another run says who gets it and what it says (made here, from the host's own view of the runs)
         let mut cards: HashMap<String, PeerCard> = batch
@@ -2613,10 +2720,22 @@ impl Inner {
             st.negotiated.insert(provider.to_string(), caps);
         }
         let turn_ended = !quiet && stored.iter().any(|e| matches!(e.kind, EventKind::TurnEnd { .. }));
+        // a card of a confirmable stop needs a window on this computer and a run on this computer
+        let on_server = st.agents.get(agent_id).is_some_and(|r| r.meta.location.is_some());
+        // (a request that resolved in the same batch is a log entry of an override, not a card)
+        let resolved: std::collections::HashSet<&String> = stored.iter().filter_map(|e| if let EventKind::PermissionResolved { req_id, .. } = &e.kind { Some(req_id) } else { None }).collect();
+        let unanswerable: Vec<String> = stored
+            .iter()
+            .filter_map(|e| match &e.kind {
+                EventKind::PermissionRequest { req_id, confirm: Some(_), .. } if (on_server || !ui) && !resolved.contains(req_id) => Some(req_id.clone()),
+                _ => None,
+            })
+            .collect();
         if !quiet {
             self.commit(agent_id, stored);
         }
         drop(st);
+        self.refuse_unanswerable_cards(agent_id, unanswerable, if on_server { "This stop is not lifted for a run on a server. Do it without it or ask the user to do it themselves." } else { "No window of the IDE is open and visible on the user's computer to ask, so this stop stays. Do it without it or ask the user to do it themselves." });
         if let Some(m) = meta.filter(|_| !quiet) {
             self.persist_meta(&m);
         }
@@ -2733,7 +2852,7 @@ impl Inner {
             if matches!(sm, PermissionMode::Automatic | PermissionMode::Bypass) {
                 return fail_peer("peer.privilege-unattended", "this run works without asking, so it cannot be asked about a message to a run that may do more");
             }
-            d = PolicyDecision { decision: Decision::Ask, reason: "a run that may do more than this one would read the message: you decide for every message".into(), rule: Some("peer.privilege".into()), session_allow: None, ..d };
+            d = PolicyDecision { decision: Decision::Ask, reason: "a run that may do more than this one would read the message: you decide for every message".into(), rule: Some("peer.privilege".into()), session_allow: None, confirm: None, used_grants: Vec::new(), ..d };
         } else if unattended_target {
             d.session_allow = None;
         }
@@ -3124,7 +3243,7 @@ impl Handler for Inner {
 }
 
 fn fail_peer(rule: &str, reason: &str) -> PolicyDecision {
-    PolicyDecision { decision: Decision::Deny, by: DecidedBy::RoleDeny, reason: reason.into(), rule: Some(rule.into()), session_allow: None }
+    PolicyDecision { decision: Decision::Deny, by: DecidedBy::RoleDeny, reason: reason.into(), rule: Some(rule.into()), session_allow: None, confirm: None, used_grants: Vec::new() }
 }
 
 fn tail_suffix(sc: &Sidecar) -> String {
@@ -3169,7 +3288,7 @@ impl CancelSink for CancelBridge {
 
     fn cancel_permissions(&self, ids: &[String]) {
         self.synth(
-            |run| ids.iter().filter(|id| run.state.perms.contains_key(*id)).map(|id| EventKind::PermissionResolved { req_id: id.clone(), outcome: PermissionOutcome::Cancelled, by: DecidedBy::User }).collect(),
+            |run| ids.iter().filter(|id| run.state.perms.contains_key(*id)).map(|id| EventKind::PermissionResolved { req_id: id.clone(), outcome: PermissionOutcome::Cancelled, by: DecidedBy::User, grant: None }).collect(),
             false,
         );
     }

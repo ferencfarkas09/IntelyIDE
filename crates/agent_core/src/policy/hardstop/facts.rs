@@ -3,6 +3,7 @@
 //! `read.never-read` on operands and redirects, `exec.proc-env` and `exec.catastrophic`. Everything here is best-effort TEXT
 //! analysis like the rest of `hardstop.rs`: it closes the routes the analyser can see.
 
+use super::{USE_READ_OR_EDIT_TOOL, USE_READ_TOOL};
 use std::path::Path;
 
 use super::protected_args::{candidates, code_like, code_tokens};
@@ -332,10 +333,17 @@ impl<'a> Walker<'a> {
                         if program_text && why == "secret file" && !cand.starts_with("file://") && bare_name(lit) && paths::secret_by_extension_only(lit) && !self.ext_name_exists(&p) {
                             return;
                         }
-                        if program_text {
-                            self.stop("read.never-read", &format!("the script or inline code mentions {lit}, which names a secret file ({}); a secret or IDE-state path is never read by an agent ({why})", p.display()));
+                        // a secret-looking file of the run's own project: the shell cannot be asked about it (no grant lifts a command), but the Read tool can
+                        let hint = if why == "secret file" && self.jail.file_tool_hint_ok("read.never-read", &p, false) {
+                            // (a command may read it or change it: name both tools where both can work)
+                            if self.jail.file_tool_hint_ok("fs.protected", &p, true) { USE_READ_OR_EDIT_TOOL } else { USE_READ_TOOL }
                         } else {
-                            self.stop("read.never-read", &format!("{} is a secret or IDE-state path and is never read by an agent ({why})", p.display()));
+                            ""
+                        };
+                        if program_text {
+                            self.stop("read.never-read", &format!("the script or inline code mentions {lit}, which names a secret file ({}); a secret or IDE-state path is never read by an agent ({why}){hint}", p.display()));
+                        } else {
+                            self.stop("read.never-read", &format!("{} is a secret or IDE-state path and is never read by an agent ({why}){hint}", p.display()));
                         }
                         return;
                     }

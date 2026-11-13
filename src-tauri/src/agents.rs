@@ -22,6 +22,13 @@ use crate::modules::switchhook::{self, BoxFuture, SwitchHook};
 
 type Res<T> = Result<T, EngineError>;
 
+/// The main window is visible and not minimised, so a card of a confirmable stop can be seen (updated by `set_card_window` from the main thread).
+static CARD_WINDOW: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+
+pub fn set_card_window(visible: bool) {
+    CARD_WINDOW.store(visible, std::sync::atomic::Ordering::Relaxed);
+}
+
 /// Forwards committed events to the webview in batches (`agent:events`).
 struct TauriHostSink {
     app: AppHandle,
@@ -130,6 +137,9 @@ impl AgentSlot {
         }
         // the servers a run may execute on (Settings > Servers): the registry also answers the settings page
         cfg.servers = app.try_state::<crate::modules::servers::ServersState>().map(|s| s.registry());
+        // (the main window only, and only while it is visible and not minimised: the radar does not render these cards; read from an atomic that
+        // the main thread keeps, never from a window function)
+        cfg.ui_attached = Some(Arc::new(|| CARD_WINDOW.load(std::sync::atomic::Ordering::Relaxed)));
         let git = cfg.git.clone();
         // track E: file roles and the run supervisor sit on this one host (one sidecar, one gate)
         let (observer, roles) = crate::modules::roles::prepare(&mut cfg, Arc::new(TauriHostSink { app: app.clone() }));
@@ -477,17 +487,22 @@ pub async fn agent_interrupt(agents: State<'_, AgentSlot>, agent_id: String) -> 
     blocking(move || host.interrupt(&agent_id)).await
 }
 
+/// A click on a permission card. A card of a confirmable stop is lifted only by a click in the IDE's MAIN window: any other window (the
+/// radar, a plugin page) can refuse it, and the host answers `answerOnComputer` to its yes.
 #[tauri::command]
 pub async fn agent_answer_permission(
+    window: tauri::WebviewWindow,
     agents: State<'_, AgentSlot>,
     agent_id: String,
     request_id: String,
     decision: PermissionDecision,
     mode: Option<PermissionMode>,
     feedback: Option<String>,
+    confirm_broad: Option<bool>,
 ) -> Res<()> {
     let host = agents.host.clone();
-    blocking(move || host.answer_permission_with(&agent_id, &request_id, decision, AnswerExtra { mode, feedback })).await
+    let on_computer = window.label() == "main";
+    blocking(move || host.answer_permission_with(&agent_id, &request_id, decision, AnswerExtra { mode, feedback, on_computer, confirm_broad: confirm_broad.unwrap_or(false) })).await
 }
 
 /// Switches the permission mode of a run live (permission-modes spec 4.9, 5.1). `confirm_bypass` is the user's yes to the Bypass dialog.

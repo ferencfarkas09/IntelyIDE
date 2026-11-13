@@ -19,6 +19,7 @@ import type {
   SessionStart,
   SessionEnv as ProtoSessionEnv,
   SettingSource,
+  StopGrantScope,
   StopReason,
 } from '@intely/protocol';
 
@@ -46,6 +47,7 @@ export type {
   ProviderCaps,
   QuestionOption,
   StatusState,
+  StopGrantScope,
   StopReason,
   TokenCounts as UsageTotals,
   ToolClass,
@@ -144,6 +146,8 @@ export interface PermissionAnswer {
   answers?: Record<string, string>;
   /** ExitPlanMode approval: the continuation mode, always present when the host forwards an approval. */
   mode?: PermissionMode;
+  /** A tier-2 card that was allowed: how far the yes reaches (the host made the grant; this only goes into the run log). */
+  grant?: StopGrantScope;
 }
 
 /** session/start.acp: a user-confirmed command line for the generic ACP provider, or overrides for a profile (gemini). */
