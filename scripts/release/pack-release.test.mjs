@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import { assetNames } from "./assets.mjs";
 import { main as stageMain, stage } from "./stage-artifacts.mjs";
 import { buildSums, checkApp, finalize, main, neutralPrefix, parseSums, patchApp, patchBuffer, plistUrlSchemes, plistVersion, renderNotes, siteRelease, verifyOut } from "./pack-release.mjs";
+import { changelogSection } from "./notes.mjs";
 
 const REAL = join(dirname(fileURLToPath(import.meta.url)), "../..");
 const VERSION = JSON.parse(readFileSync(join(REAL, "package.json"), "utf8")).version;
@@ -237,7 +238,11 @@ describe("finalize and verify on a throwaway folder", () => {
     assert.ok(data.notesUrl && data.sha256sumsUrl && "signed" in data && data.date);
     assert.deepEqual(verifyOut({ version: VERSION, out, commit: "c".repeat(40), siteData: site, macOnly: true }), []);
     const notes = readFileSync(join(out, "RELEASE_NOTES.md"), "utf8");
-    assert.doesNotMatch(notes, /Windows|Linux|AppImage|\.msi|SmartScreen|certutil/);
+    // what the script writes names no other platform; the changelog section is the owner's own text and may (a line about the
+    // unreleased Windows beta), so it is taken out before the check
+    const body = changelogSection(readFileSync(join(REAL, "CHANGELOG.md"), "utf8"), VERSION).body;
+    const generated = String(body).split("\n").reduce((text, line) => (line.trim() ? text.split(line).join("") : text), notes);
+    assert.doesNotMatch(generated, /Windows|Linux|AppImage|\.msi|SmartScreen|certutil/);
     assert.match(notes, /\.dmg/);
     assert.equal(JSON.parse(readFileSync(join(out, "build-record.json"), "utf8")).platforms.join(), "mac");
     assert.equal(readFileSync(join(out, "SHA256SUMS"), "utf8").trim().split("\n").length, 2);
