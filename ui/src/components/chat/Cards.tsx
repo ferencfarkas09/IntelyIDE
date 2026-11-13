@@ -608,7 +608,9 @@ export function PermissionCard(props: { item: PermissionItem; onAnswer: (decisio
           >
             {/* the line in the top was cut (a long path, a long command): all of it is here, where it can be scrolled and selected */}
             <Show when={state.clipped()}>
-              <pre class="perm__code perm__full ui-mono ui-selectable" aria-label={t("chat.perm.full")}>{asked()}</pre>
+              <Show when={!stop()} fallback={<p class="perm__summary perm__full ui-selectable" aria-label={t("chat.perm.full")}>{asked()}</p>}>
+                <pre class="perm__code perm__full ui-mono ui-selectable" aria-label={t("chat.perm.full")}>{asked()}</pre>
+              </Show>
             </Show>
             <Show when={stop()}>
               {(c) => (
@@ -671,7 +673,7 @@ export function PermissionCard(props: { item: PermissionItem; onAnswer: (decisio
         <div class="perm__foot">
           <Switch>
             <Match when={stop() && confirming() ? stop() : undefined}>
-              <div class="perm__actions perm__confirm" role="alertdialog" aria-labelledby={confirmId()}>
+              <div class="perm__actions" role="alertdialog" aria-labelledby={confirmId()}>
                 <Button size="xl" variant="secondary" data-stop-cancel="" onClick={(e: MouseEvent) => keyClickTooSoon(card, e) || toStep(false)}>{t("stops.confirm.cancel")}</Button>
                 <Button size="xl" variant="secondary" data-testid="stop-confirm-yes" aria-describedby={confirmId()} onClick={(e: MouseEvent) => keyClickTooSoon(card, e) || answer("allowRun", { confirmBroad: true })}>{t("stops.confirm.yes")}</Button>
               </div>

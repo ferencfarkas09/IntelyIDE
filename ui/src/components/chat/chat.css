@@ -227,6 +227,8 @@
 .tool-card[data-nested] > .tool-card__head { min-height: var(--control-md); padding-inline: var(--space-1) var(--space-2); font-size: var(--text-sm); }
 .tool-card__head:disabled { cursor: default; }
 .tool-card__head:not(:disabled):hover { background: var(--surface-hover); }
+/* the hover fill is lighter: the muted parts of the row step up to keep 4.5:1 (Glass dark) */
+.tool-card__head:not(:disabled):hover :is(.tool-card__dir, .tool-card__count, .tool-card__time) { color: var(--text-2); }
 .tool-card__head:focus-visible { outline-offset: -2px; border-radius: var(--radius-card); }
 .tool-card__chev { display: inline-flex; flex: none; color: var(--text-3); transition: transform var(--dur-fast) var(--ease); }
 .tool-card__chev[data-open] { transform: rotate(90deg); }
@@ -303,6 +305,8 @@
 .perm__said { margin: 0; color: var(--text-2); font-size: var(--text-sm); overflow-wrap: anywhere; }
 .perm__paths { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 8px 10px; list-style: none; border-radius: var(--radius-ctl); background: var(--surface-2); color: var(--text-1); font-size: var(--text-sm); overflow-wrap: anywhere; }
 .perm__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+/* A label longer than the card is wide (the run-wide choice of a stop in Hungarian) wraps inside its button instead of leaving the card. */
+.perm__actions .ui-btn { max-width: 100%; height: auto; min-height: var(--btn-h); padding-block: 4px; white-space: normal; text-align: center; line-height: 1.25; }
 .perm__note, .perm__scope { margin: 0; color: var(--text-2); font-size: var(--text-sm); }
 .q__options { display: flex; flex-direction: column; gap: 6px; }
 .ui-btn.q__option { justify-content: flex-start; height: auto; min-height: var(--control-xl); padding: 8px 12px; text-align: start; white-space: normal; }
@@ -416,4 +420,3 @@
 .starting__repos { display: flex; flex-wrap: wrap; gap: 6px var(--space-3); margin: 0; padding: 0; list-style: none; color: var(--text-2); font-size: var(--text-sm); }
 .starting__repos li { display: inline-flex; align-items: center; gap: 6px; }
 .perm__stop-ask { font-weight: 600; }
-.perm__confirm { display: flex; flex-direction: column; gap: var(--space-2, 8px); }

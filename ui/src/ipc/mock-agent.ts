@@ -467,6 +467,8 @@ const SCRIPTS: Record<ScriptKey, Script> = {
     c.emit({ kind: "status", state: "running" });
     await reading(c);
     await c.stream("m1", ["The formatter change and the test run can go in one step. Both need your approval.\n"]);
+    // the requests arrive while the run is on screen (the shot audit opens it first)
+    await c.wait(5000);
     c.emit({ kind: "tool.start", toolId: "t2", name: "Edit", toolKind: "edit", summary: "src/utils/format.ts", input: { file_path: "src/utils/format.ts" } });
     c.emit({ kind: "tool.start", toolId: "t3", name: "Bash", toolKind: "exec", summary: "pnpm test --filter orders", input: { command: "pnpm test --filter orders" } });
     let open = 2;
