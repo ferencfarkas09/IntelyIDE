@@ -343,6 +343,16 @@ Object.assign(VIEWS, {
       await page.locator('[data-testid="context-meter-pace"]').waitFor();
     },
   },
+  // two 31-character model-class labels in the bar and eight rows in the popover (the mock's ?planRows=many)
+  "plan-usage-many": {
+    url: "/?scenario=agent-normal&mode=agent&planRows=many",
+    steps: async (page) => {
+      await page.locator(".run-card, .run-row__main").first().click();
+      await page.locator('[data-testid="plan-item-weekly"]').waitFor({ timeout: 20_000 });
+      await page.locator('[data-testid="plan-item-scoped"]').first().click();
+      await page.locator('[data-testid="plan-usage"]').waitFor();
+    },
+  },
   "plan-usage": {
     url: "/?scenario=agent-normal&mode=agent",
     steps: async (page) => {

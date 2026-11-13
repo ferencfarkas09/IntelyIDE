@@ -62,6 +62,7 @@ function Item(props: { row: PlanRow; rows: PlanRow[]; now: number }) {
           {...p}
           type="button"
           class="pb"
+          data-kind={props.row.kind}
           data-tone={stale() ? undefined : props.row.tone}
           data-current={stale() ? "no" : undefined}
           data-testid={`plan-item-${props.row.kind}`}

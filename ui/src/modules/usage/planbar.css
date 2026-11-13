@@ -9,6 +9,9 @@
 /* a long model-class label is cut with an ellipsis (the full name is the item's tooltip), so the group keeps to its box */
 .pb__label { display: block; flex: 0 1 auto; min-width: 0; max-width: 96px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pb__track, .pb__pct { flex: none; }
+/* the built-in week keeps its whole label; only the model classes give way */
+.pb[data-kind="weekly"] { flex: none; }
+.pb[data-kind="weekly"] .pb__label { flex: none; max-width: none; }
 .pb[data-current="no"] { color: var(--text-3); }
 .pb[data-current="no"] .pb__pct { color: var(--text-3); font-weight: var(--weight-regular, 400); font-style: italic; }
 .pb__track { flex: none; width: 72px; height: 5px; overflow: hidden; border-radius: var(--radius-full); background: var(--track); }

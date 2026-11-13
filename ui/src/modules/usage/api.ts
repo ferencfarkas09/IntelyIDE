@@ -64,6 +64,7 @@ let override: UsageApi | undefined;
 export const setUsageApi = (api: UsageApi | undefined): void => void (override = api);
 
 let mock: UsageApi | undefined;
+const manyRows = (): boolean => /[?&]planRows=many\b/.test(globalThis.location?.search ?? "");
 export function usageApi(): UsageApi {
   if (override) return override;
   if (inTauri()) return tauriApi;
@@ -153,7 +154,10 @@ export function createMockUsage(now: number = Date.now(), tzOffsetMin: number = 
         plan: "max",
         fiveHour: { utilization: 28, resetsAt: new Date(now + 2.2 * 3_600_000).toISOString() },
         sevenDay: { utilization: 15, resetsAt: week },
-        modelScoped: [{ name: "Fable", utilization: 78, resetsAt: week }, { name: "Sonnet", utilization: 96, resetsAt: week }],
+        // `?planRows=many` (the layout check of scripts/e2e/ui-refresh-shots.mjs): long labels and more rows than fit
+        modelScoped: manyRows()
+          ? ["Claude Fable 5.2 extended think", "Claude Opus 5.5 with long contxt", "Sonnet", "Haiku", "Fable", "Opus"].map((name, i) => ({ name, utilization: [35, 72, 96, 12, 50, 64][i], resetsAt: week }))
+          : [{ name: "Fable", utilization: 78, resetsAt: week }, { name: "Sonnet", utilization: 96, resetsAt: week }],
       };
     },
   };
