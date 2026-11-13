@@ -125,7 +125,7 @@ export function PermissionCard(props: { card: Card; showRun?: boolean }) {
         >
           <Show when={desktopOnly()}>
             <p class="card__locked" data-testid="desktop-only">
-              <Icon icon={Ban} size={14} /> {c().risk === "blocked" ? "Blocked by policy." : "Desktop only."} Answer this on your Mac.
+              <Icon icon={Ban} size={14} /> Desktop only. Answer this on your computer.
             </p>
           </Show>
           <Show when={!reply() && !desktopOnly()}>

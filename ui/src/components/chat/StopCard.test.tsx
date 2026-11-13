@@ -92,7 +92,7 @@ describe("tier-2 card", () => {
 
   it("the card body says in visible text how far the run-wide choice reaches, for both secret kinds, en and hu", async () => {
     show(perm());
-    expect(screen.getByTestId("stop-reach").textContent).toMatch(/every secret-looking file inside this run's folders \(nothing under \.git, \.claude, \.ssh or the IDE's data\), for the lead agent and its helpers, until the run ends/);
+    expect(screen.getByTestId("stop-reach").textContent).toMatch(/every secret-looking file inside this run's folders \(nothing under \.git, \.claude, \.ssh or the IDE's data\), for the lead agent and its helpers, until this run stops or is resumed/);
     expect(screen.getByTestId("stop-reach").textContent).toMatch(/^“Allow once” covers only this file/);
     cleanup();
     show(perm({ confirm: { ...secret, kind: "secretEdit" } }));
@@ -115,7 +115,7 @@ describe("tier-2 card", () => {
     const on = show(perm());
     fireEvent.click(btn("Allow all secret files in this run"));
     expect(on).not.toHaveBeenCalled();
-    expect(screen.getByTestId("stop-confirm").textContent).toBe("Allow reading every secret-looking file in this run's folders until the run ends? Their content goes to the model provider and may be written to logs and transcripts.");
+    expect(screen.getByTestId("stop-confirm").textContent).toBe("Allow reading every secret-looking file in this run's folders until this run stops or is resumed? Their content goes to the model provider and may be written to logs and transcripts.");
     await Promise.resolve();
     expect(document.activeElement).toBe(btn("Cancel"));
     fireEvent.keyDown(screen.getByRole("group"), { key: "Escape" });
@@ -134,7 +134,7 @@ describe("tier-2 card", () => {
     const on = show(perm({ confirm: { ...secret, kind: "secretEdit" } }));
     fireEvent.click(btn("Allow editing all .env files in this run"));
     expect(on).not.toHaveBeenCalled();
-    expect(screen.getByTestId("stop-confirm").textContent).toMatch(/^Allow changing every secret-looking env file/);
+    expect(screen.getByTestId("stop-confirm").textContent).toMatch(/^Allow changing every \.env file/);
   });
 
   it("the run-wide choice for a CLI reason is one click and carries no confirmBroad", () => {

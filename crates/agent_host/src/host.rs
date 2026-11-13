@@ -343,7 +343,7 @@ pub struct AnswerExtra {
     /// ExitPlanMode rejection only: the user's text for the model.
     pub feedback: Option<String>,
     /// The answer is a click in the IDE's main window on this computer. Off by default: a card of a confirmable stop is lifted only by an
-    /// answer that says so (a phone, a plugin or any other caller can refuse it, never allow it).
+    /// answer that says so (a plugin or any other caller can refuse it, never allow it; a phone cannot answer it at all, the gateway marks it desktop-only).
     pub on_computer: bool,
     /// "Allow for this run" for secret files: the person clicked the second confirmation that shows the warning. Required by the host,
     /// not only asked by the card.
@@ -2029,7 +2029,7 @@ impl Inner {
                 (ctx, Some(fs))
             }
             _ => {
-                let mut ctx = context_for(meta, std::env::var_os("HOME").map(PathBuf::from), role_deny, &self.cfg.data_dir);
+                let mut ctx = context_for(meta, intely_core::sys::home_dir(), role_deny, &self.cfg.data_dir);
                 // a card can be shown only while a window is open to answer it
                 ctx.stops_askable = self.cfg.ui_attached.as_ref().is_some_and(|f| f());
                 (ctx, None)

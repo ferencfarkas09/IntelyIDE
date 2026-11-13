@@ -605,9 +605,10 @@ impl Jail {
         self
     }
 
-    /// The run's folder is the home directory or one of its ancestors (`/` included): a run-wide grant would reach the home's key stores.
+    /// The run's folder is the home directory or one of its ancestors (`/` included), or no home directory is known: a run-wide grant would reach the home's key stores.
     fn broad_root(&self) -> bool {
-        self.roots.iter().any(|r| r.parent().is_none() || self.home_real.as_deref().is_some_and(|h| h.starts_with(r)))
+        // (no home directory known at all: fail closed, every run is treated as broad)
+        self.home_real.is_none() || self.roots.iter().any(|r| r.parent().is_none() || self.home_real.as_deref().is_some_and(|h| h.starts_with(r)))
     }
 
     pub fn with_grants(mut self, grants: &[StopGrant], tool_id: &str, askable: bool, applies: bool) -> Self {
@@ -806,7 +807,7 @@ impl Jail {
         shown.join(", ")
     }
 
-    /// The canonical folders of the run (its working directory first): what an always-list entry is stored against.
+    /// The canonical folders of the run (its working directory first): the run folder a card offer names.
     pub fn roots(&self) -> &[PathBuf] {
         &self.roots
     }

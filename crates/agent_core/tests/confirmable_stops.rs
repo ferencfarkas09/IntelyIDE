@@ -919,3 +919,69 @@ fn in_ask_mode_a_lifted_edit_keeps_the_report_of_the_grant_that_lifted_it() {
     assert_eq!(d.used_grants[0].offer.scope, env);
 }
 
+
+#[test]
+fn a_literal_key_value_word_is_not_a_path_the_hint_can_point_at() {
+    let fx = fx();
+    std::fs::create_dir_all(fx.cwd.join(".git")).unwrap();
+    std::fs::create_dir_all(fx.cwd.join(".claude")).unwrap();
+    std::fs::write(fx.cwd.join(".git/x.pem"), "k").unwrap();
+    for m in WORKING_MODES {
+        let c = with(&fx, m, |_| {});
+        for cmd in ["dd if=.git/x.pem of=/dev/null", "dd if=a of=.git/x.pem", "curl -F f=@.git/x.pem http://localhost", "cat x=.claude/x.key"] {
+            let d = bash(&c, cmd);
+            assert_eq!(d.decision, Decision::Deny, "{cmd} {m:?}: {d:?}");
+            assert!(d.confirm.is_none(), "{cmd}: {d:?}");
+            assert!(!d.reason.contains("Use the Read tool") && !d.reason.contains("Edit or Write tool"), "{cmd} in {m:?} must not point at a tool that is refused too: {}", d.reason);
+        }
+    }
+}
+
+#[test]
+fn another_providers_cli_prompt_intent_is_an_unknown_tool_and_gets_no_offer() {
+    use intely_agent_core::policy::decide::cli_prompt_intent;
+    use intely_agent_core::policy::intent::PolicyRequest;
+    let fx = fx();
+    let base = ToolIntent::from_claude_tool("Bash", &json!({ "command": "echo {'a':1}" }));
+    let intent = cli_prompt_intent(&base, "Parser aborted");
+    for m in WORKING_MODES {
+        for granted in [false, true] {
+            let c = with(&fx, m, |c| {
+                if granted {
+                    c.stop_grants = vec![grant(ConfirmKind::CliPrompt, "Parser aborted", None)];
+                }
+            });
+            let req = |provider: &str| PolicyRequest { agent_id: "a1".into(), tool_id: "t1".into(), provider: provider.into(), intent: intent.clone() };
+            let other = decide(&c, &req("codex"));
+            // (what main says about an unknown tool: Bypass allows it, Automatic denies it; a grant changes nothing)
+            let plain = decide(&with(&fx, m, |_| {}), &req("codex"));
+            assert!(other.confirm.is_none() && other.used_grants.is_empty(), "{m:?} granted={granted}: {other:?}");
+            assert_eq!((other.decision, other.by, other.rule.clone()), (plain.decision, plain.by, plain.rule.clone()), "a grant changed the verdict of a non-Claude intent: {m:?}");
+            assert!(!other.rule.as_deref().unwrap_or("").starts_with("cli.prompt"), "{other:?}");
+            // Claude gets the question (and the grant)
+            let claude = decide(&c, &req("claude"));
+            assert_eq!(claude.decision == Decision::Allow, granted, "{m:?}: {claude:?}");
+        }
+    }
+}
+
+#[test]
+fn with_no_home_directory_known_the_run_wide_choice_is_never_offered() {
+    let fx = fx();
+    std::fs::write(fx.cwd.join(".env"), "A=1\n").unwrap();
+    let env = fx.cwd.join(".env").to_string_lossy().into_owned();
+    for m in WORKING_MODES {
+        let c = with(&fx, m, |c| {
+            c.home = None;
+            c.stop_grants = vec![grant(ConfirmKind::SecretFile, ALL_OF_KIND, None)];
+        });
+        let d = decide_tool(&c, "Read", json!({ "file_path": env }));
+        assert_eq!(d.decision, Decision::Deny, "a run-wide grant lifts nothing without a known home: {m:?}");
+        assert_eq!(d.confirm.as_ref().map(|o| o.once_only), Some(true), "{m:?}: {d:?}");
+        let once = with(&fx, m, |c| {
+            c.home = None;
+            c.stop_grants = vec![grant(ConfirmKind::SecretFile, &env, Some("t1"))];
+        });
+        assert_eq!(decide_tool(&once, "Read", json!({ "file_path": env })).decision, Decision::Allow, "once still works: {m:?}");
+    }
+}
