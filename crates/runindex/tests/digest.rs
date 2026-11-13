@@ -198,8 +198,8 @@ fn the_plan_and_the_final_message_are_decisions() {
     let dir = tempfile::tempdir().unwrap();
     let mut l = Log::new("plan");
     l.prompt("Plan the dark mode");
-    l.push(EventKind::PermissionRequest { req_id: "p1".into(), tool_id: "x".into(), intent: intely_agent_core::policy::intent::ToolIntent::exec("ExitPlanMode"), options: vec![], session_allow: None, plan: Some(format!("# Dark mode\n\n1. Add a theme context\n- **Switch** colors in App.css\n- use key {TOKEN}\n- never shown")), plan_truncated: None, modes: vec![], peer: None });
-    l.push(EventKind::PermissionResolved { req_id: "p1".into(), outcome: PermissionOutcome::Allow, by: DecidedBy::User });
+    l.push(EventKind::PermissionRequest { req_id: "p1".into(), tool_id: "x".into(), intent: intely_agent_core::policy::intent::ToolIntent::exec("ExitPlanMode"), options: vec![], session_allow: None, plan: Some(format!("# Dark mode\n\n1. Add a theme context\n- **Switch** colors in App.css\n- use key {TOKEN}\n- never shown")), plan_truncated: None, modes: vec![], peer: None, confirm: None });
+    l.push(EventKind::PermissionResolved { req_id: "p1".into(), outcome: PermissionOutcome::Allow, by: DecidedBy::User, grant: None });
     l.tool("t1", "TodoWrite", ToolKind::Other, json!({ "todos": [{ "content": "Theme context", "status": "completed" }] }), ToolStatus::Ok, None);
     l.reply("Dark mode is in.").end(StopReason::EndTurn);
     l.write(dir.path(), Some(meta_with_snapshot("web")));

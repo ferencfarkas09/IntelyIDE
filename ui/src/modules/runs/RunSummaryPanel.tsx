@@ -2,6 +2,8 @@ import { For, Show, type JSX } from "solid-js";
 import { costLabel, fmtTokens, modelLabel, PERMISSION_LABEL, TIER_LABEL, TIER_TITLE, TIER_TONE } from "../../components/chat/format";
 import { t } from "../../i18n";
 import { agentRow, agentView, selectedAgentId } from "../../store/agents";
+import { stopDoneWording } from "../../components/chat/Cards";
+import type { PermissionItem } from "../../store/agent-reducer";
 import type { PermissionMode } from "../../store/agent-types";
 import { repoConfig } from "../../store/workspace";
 import { Badge, Bot, EmptyState, ScrollArea } from "../../ui-kit";
@@ -24,6 +26,8 @@ export default function RunSummaryPanel() {
       {(r) => {
         const cost = () => costLabel(r().usage, r().caps.usage ?? { cap: "no" });
         const applied = () => view()?.session?.effective;
+        /** Every stop the person lifted in this run (a card they answered, or a standing grant that did it), worded like the run log. */
+        const stopLines = () => (view()?.items ?? []).filter((i): i is PermissionItem => i.type === "permission").map((i) => stopDoneWording(i)).filter((l): l is string => !!l);
         const differs = (requested: string | null | undefined, effective: string | null | undefined) => !!effective && !!requested && requested !== effective;
         return (
           <ScrollArea class="facts__scroll">
@@ -51,6 +55,13 @@ export default function RunSummaryPanel() {
                   <Badge tone="warn" size="sm" title={t("runs.summary.permissionDiff")}>
                     {t("runs.summary.applied", { value: PERMISSION_LABEL[applied()!.permission as PermissionMode] ?? String(applied()?.permission) })}
                   </Badge>
+                </Show>
+              </Fact>
+              <Fact label={t("stops.summary.label")}>
+                <Show when={stopLines().length} fallback={t("stops.summary.none")}>
+                  <ul class="facts__overrides" data-testid="summary-overrides">
+                    <For each={stopLines()}>{(line) => <li>{line}</li>}</For>
+                  </ul>
                 </Show>
               </Fact>
               <Show when={r().requested.ultracode}>

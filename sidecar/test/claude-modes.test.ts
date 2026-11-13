@@ -18,9 +18,9 @@ afterAll(() => { if (savedConfigDir === undefined) delete process.env.CLAUDE_CON
 // ---------- fake SDK ----------
 const fake = vi.hoisted(() => {
   const state: {
-    options: any; closed: number; queue: any[]; waiter?: () => void; ended: boolean;
+    options: any; closed: number; interrupts: number; queue: any[]; waiter?: () => void; ended: boolean;
     setModeCalls: string[]; setModeImpl: (m: string) => Promise<void>;
-  } = { options: undefined, closed: 0, queue: [], ended: false, setModeCalls: [], setModeImpl: async () => undefined };
+  } = { options: undefined, closed: 0, interrupts: 0, queue: [], ended: false, setModeCalls: [], setModeImpl: async () => undefined };
   return state;
 });
 
@@ -31,7 +31,7 @@ vi.mock('../src/sdk.js', () => ({
       return {
         initializationResult: async () => ({ models: [{ value: 'sonnet', resolvedModel: 'claude-sonnet-5-5', supportsEffort: true, supportedEffortLevels: ['low', 'medium', 'high'] }] }),
         getSettings: async () => ({ applied: { effort: null } }),
-        interrupt: async () => undefined,
+        interrupt: async () => { fake.interrupts++; },
         close: () => { fake.closed++; fake.ended = true; fake.waiter?.(); },
         setModel: async () => undefined,
         setPermissionMode: async (m: string) => { fake.setModeCalls.push(m); await fake.setModeImpl(m); },
@@ -74,7 +74,7 @@ async function open(mode: PermissionMode, over: Partial<SessionSpec> = {}, polic
 }
 const kinds = (out: WireEvent[], kind: string) => out.filter((e) => e.kind === kind) as any[];
 
-beforeEach(() => { fake.options = undefined; fake.closed = 0; fake.queue = []; fake.ended = false; fake.waiter = undefined; fake.setModeCalls = []; fake.setModeImpl = async () => undefined; });
+beforeEach(() => { fake.options = undefined; fake.closed = 0; fake.interrupts = 0; fake.queue = []; fake.ended = false; fake.waiter = undefined; fake.setModeCalls = []; fake.setModeImpl = async () => undefined; });
 afterEach(() => { vi.useRealTimers(); });
 
 describe('session options per mode (S-2)', () => {
@@ -293,3 +293,24 @@ describe('ExitPlanMode through a session', () => {
 });
 
 const decisionOf = (r: any) => r?.hookSpecificOutput as { permissionDecision?: string } | undefined;
+
+describe('a tier-2 call that ran without its card (wired through the session)', () => {
+  const offer = { kind: 'secretFile', rule: 'read.never-read', scope: '/tmp/x/.env', repo: '/tmp/x' } as const;
+  const stop: PolicyDecision = { decision: 'deny', by: 'hardStop', reason: 'x', rule: 'read.never-read', confirm: offer };
+  const result = (id: string, isError: boolean, text: string) => push({ type: 'user', parent_tool_use_id: null, message: { content: [{ type: 'tool_result', tool_use_id: id, is_error: isError, content: text }] } });
+
+  it('a file tool that succeeded stops the run (interrupt) and says so; the CLI\'s own "has not been granted" error does not', async () => {
+    const { s, out, pre } = await open('automatic', {}, { decide: async () => stop });
+    expect(decisionOf(await pre({ tool_name: 'Read', tool_input: { file_path: '/tmp/x/.env' } }, 'r0'))?.permissionDecision).toBe('ask');
+    result('r0', true, "Claude requested permissions to write to /tmp/x/.env, but you haven't granted it yet.");
+    await tick(15);
+    expect(fake.interrupts).toBe(0);
+    expect(kinds(out, 'error')).toHaveLength(0);
+    expect(decisionOf(await pre({ tool_name: 'Read', tool_input: { file_path: '/tmp/x/.env' } }, 'r1'))?.permissionDecision).toBe('ask');
+    result('r1', false, 'SECRET=1');
+    await tick(15);
+    expect(fake.interrupts).toBe(1);
+    expect(kinds(out, 'error')[0]).toMatchObject({ class: 'policy' });
+    await s.close();
+  });
+});

@@ -137,6 +137,9 @@ pub type LaunchSupplier = Arc<dyn Fn() -> Vec<ProviderLaunch> + Send + Sync>;
 /// The installed CLI version of a provider as last detected (`None` = not known); recorded enforcement for another version is stale.
 pub type VersionSupplier = Arc<dyn Fn(&str) -> Option<String> + Send + Sync>;
 
+/// Whether a window of the IDE is open on this computer right now, i.e. whether a card can be seen and answered here.
+pub type UiSupplier = Arc<dyn Fn() -> bool + Send + Sync>;
+
 #[derive(Clone)]
 pub struct HostConfig {
     /// `~/Library/Application Support/IntelySwitchIDE`: runs/, shims/, gate.json, enforcement.json.
@@ -195,6 +198,9 @@ pub struct HostConfig {
     /// The servers a run may execute on (Settings > Servers); `None` = none exist (tests, a build without them): a start that names a
     /// server then fails with `serversUnavailable`.
     pub servers: Option<Arc<crate::remote::ServerRegistry>>,
+    /// Whether a window is open to show a card of a confirmable stop. `None` = no window can be asked (tests, a headless host): such a
+    /// stop is refused at once, with the reason.
+    pub ui_attached: Option<UiSupplier>,
 }
 
 impl HostConfig {
@@ -228,6 +234,7 @@ impl HostConfig {
             mcp_scrub: None,
             no_unattended: false,
             servers: None,
+            ui_attached: None,
         }
     }
 

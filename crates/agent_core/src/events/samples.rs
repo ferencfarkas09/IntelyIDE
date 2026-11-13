@@ -44,7 +44,7 @@ fn turn_end(reason: StopReason) -> EventKind {
 fn permission_request(req_id: &str) -> EventKind {
     let mut intent = ToolIntent::exec("git status");
     intent.actor = Some(Actor { agent_id: "sub-1".into(), role: "researcher".into() });
-    EventKind::PermissionRequest { req_id: req_id.into(), tool_id: "t9".into(), intent, options: vec![PermissionOption::AllowOnce, PermissionOption::AllowRun, PermissionOption::Deny], session_allow: Some(SessionAllowOffer { kind: SessionAllowKind::Exec, scope: "git status".into() }), plan: None, plan_truncated: None, modes: Vec::new(), peer: None }
+    EventKind::PermissionRequest { req_id: req_id.into(), tool_id: "t9".into(), intent, options: vec![PermissionOption::AllowOnce, PermissionOption::AllowRun, PermissionOption::Deny], session_allow: Some(SessionAllowOffer { kind: SessionAllowKind::Exec, scope: "git status".into() }), plan: None, plan_truncated: None, modes: Vec::new(), peer: None, confirm: None }
 }
 
 /// A complete, valid single-agent stream containing every kind exactly once.
@@ -97,7 +97,7 @@ pub fn sample_events() -> Vec<AgentEvent> {
         (Some("t1"), EventKind::TextDone { message_id: "m2".into(), text: "Checking the status.".into(), parent_tool_id: None }),
         (Some("t1"), tool_start("t9")),
         (Some("t1"), permission_request("r1")),
-        (Some("t1"), EventKind::PermissionResolved { req_id: "r1".into(), outcome: PermissionOutcome::Allow, by: DecidedBy::User }),
+        (Some("t1"), EventKind::PermissionResolved { req_id: "r1".into(), outcome: PermissionOutcome::Allow, by: DecidedBy::User, grant: None }),
         (Some("t1"), EventKind::ToolUpdate { tool_id: "t9".into(), status: ToolStatus::Running, output: Some("On branch main".into()) }),
         (Some("t1"), EventKind::ToolResult {
             tool_id: "t9".into(),
@@ -195,7 +195,7 @@ pub fn cases() -> Vec<InvariantCase> {
         case("new-turn-before-old-ended", vec![e(0, Some("t1"), text("m", "a")), e(1, Some("t2"), text("m", "b"))], vec![MissingTurnEnd, MissingTurnEnd]),
         case("unresolved-permission", vec![e(0, Some("t1"), permission_request("r1")), e(1, Some("t1"), turn_end(StopReason::Cancelled))], vec![PermissionUnresolved]),
         case("resolved-without-request", vec![
-            e(0, Some("t1"), EventKind::PermissionResolved { req_id: "r9".into(), outcome: PermissionOutcome::Deny, by: DecidedBy::HardStop }),
+            e(0, Some("t1"), EventKind::PermissionResolved { req_id: "r9".into(), outcome: PermissionOutcome::Deny, by: DecidedBy::HardStop, grant: None }),
             e(1, Some("t1"), turn_end(StopReason::EndTurn)),
         ], vec![ResolvedWithoutRequest]),
         case("tool-never-closed-at-end-of-stream", vec![e(0, Some("t1"), tool_start("x"))], vec![MissingTurnEnd, ToolUnclosed]),

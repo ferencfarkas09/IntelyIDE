@@ -8,6 +8,7 @@ import type {
   McpServerInfo,
   McpServerStatus,
   ModelTokens,
+  ConfirmOffer,
   PermissionDecision,
   PermissionMode,
   ProviderCaps,
@@ -19,13 +20,14 @@ import type {
 import { attachmentRefs } from "../modules/attachments/refs";
 import type { AttachmentRef } from "@intely/protocol";
 import type { Ipc, Unsubscribe } from "./index";
+
 import { capsOfProvider } from "./providerCaps";
 import { mockTier } from "./mock/providers";
 import { ACP_SCENARIOS, ACP_SCRIPTS, type AcpScenario } from "./mock-acp";
 import { AFTER_PLAN, isUnattended, MODE_ORDER } from "../store/permissionModes";
 
 /** Scenario names understood by the agent part of the mock (`?scenario=agent-...`); any other scenario plays `agent-normal`. */
-export const AGENT_SCENARIOS = ["agent-normal", "agent-permission", "agent-question", "agent-error", "agent-throttle", "agent-subagents", "agent-notes", "agent-delegation", "agent-plan", "agent-two-requests", "agent-long-path", "agent-long-command"] as const;
+export const AGENT_SCENARIOS = ["agent-normal", "agent-permission", "agent-question", "agent-error", "agent-throttle", "agent-subagents", "agent-notes", "agent-delegation", "agent-plan", "agent-two-requests", "agent-long-path", "agent-long-command", "agent-stops"] as const;
 export type AgentScenario = (typeof AGENT_SCENARIOS)[number];
 /** What a run plays: a scenario, or the reviewer script every `reviewer` run gets (the Review UI parses its findings). */
 type ScriptKey = AgentScenario | AcpScenario | "agent-review" | "showcase";
@@ -192,6 +194,8 @@ export interface Ctx {
   tool(toolId: string, p: { name: string; toolKind: Extract<EventPayload, { kind: "tool.start" }>["toolKind"]; summary: string; input?: unknown; parentToolId?: string }, result: { status?: "ok" | "error" | "denied"; output?: string; diff?: ToolDiff; ms?: number }, runMs?: number): Promise<void>;
   usage(input: number, output: number, perModel?: ModelTokens[]): void;
   permission(reqId: string, toolId: string, intent: Extract<EventPayload, { kind: "permission.request" }>["intent"], options: PermissionDecision[], sessionAllow?: { kind: "exec" | "net" | "mcp" | "write"; scope: string }): Promise<PermissionDecision>;
+  /** A tier-2 stop: a card that asks in EVERY mode (Automatic and Bypass too), is never answered by a saved allow, and logs how far the yes reaches. */
+  confirmCard(reqId: string, toolId: string, intent: Extract<EventPayload, { kind: "permission.request" }>["intent"], confirm: ConfirmOffer): Promise<{ decision: PermissionDecision; feedback?: string }>;
   /** ExitPlanMode: the approval card with the full plan. Approving continues in `mode` (the run is switched), rejecting keeps Plan and returns the note. */
   plan(reqId: string, toolId: string, text: string): Promise<{ approved: boolean; mode?: PermissionMode; feedback?: string }>;
   question(reqId: string, prompt: string, options: { id: string; label: string; description?: string }[], multi?: boolean): Promise<QuestionAnswer>;
@@ -313,6 +317,30 @@ const SCRIPTS: Record<ScriptKey, Script> = {
     c.emit({ kind: "tool.result", toolId: "t3", status: "ok", output: "Packages: +2\nDone in 3.1s", durationMs: 3100 });
     await c.stream("m2", ["Installed and done."]);
     c.usage(4100, 520);
+  },
+
+  // Tier-2 stops: a secret file of the project, a `.env` edit and a prompt of the Claude CLI. They ask in every mode, and a no is a clear message to the agent.
+  "agent-stops": async (c) => {
+    c.emit({ kind: "status", state: "running" });
+    await c.stream("m1", ["I need the database settings from `.env` and to run a script the CLI flagged.\n\n"]);
+    c.emit({ kind: "tool.start", toolId: "t2", name: "Read", toolKind: "read", summary: ".env", input: { file_path: "/work/admin/.env" } });
+    const d1 = await c.confirmCard("p1", "t2", { class: "read", tool: "Read", paths: ["/work/admin/.env"], summary: "Read /work/admin/.env" }, { kind: "secretFile", rule: "read.never-read", scope: "/work/admin/.env", repo: "/work/admin" });
+    if (d1.decision === "deny") {
+      c.emit({ kind: "tool.result", toolId: "t2", status: "denied", output: d1.feedback ?? "The user declined. This stays stopped; carry on without it." });
+      await c.stream("m2", ["Understood, I will not read `.env`."]);
+      return;
+    }
+    c.emit({ kind: "tool.result", toolId: "t2", status: "ok", output: "DB_HOST=…", durationMs: 30 });
+    c.emit({ kind: "tool.start", toolId: "t3", name: "Bash", toolKind: "exec", summary: "node patch.js", input: { command: "node /tmp/patch.js && sed -n 1,25p src/a.ts" } });
+    const d2 = await c.confirmCard("p2", "t3", { class: "exec", tool: "Bash", rawCommand: "node /tmp/patch.js && sed -n 1,25p src/a.ts", summary: "Run the patch" }, { kind: "cliPrompt", rule: "cli.prompt-denied", scope: "Contains brace with quote character (expansion obfuscation)", repo: "/work/admin" });
+    if (d2.decision === "deny") {
+      c.emit({ kind: "tool.result", toolId: "t3", status: "denied", output: d2.feedback ?? "The user declined." });
+      await c.stream("m3", ["Skipping the script."]);
+      return;
+    }
+    c.emit({ kind: "tool.result", toolId: "t3", status: "ok", output: "done", durationMs: 90 });
+    await c.stream("m3", ["Both done."]);
+    c.usage(2100, 300);
   },
 
   "agent-question": async (c) => {
@@ -527,6 +555,8 @@ interface MockAgent {
   notes: { noteId: string; target: string }[];
   /** `Agent`/`Task` calls that have started and have no result yet. */
   openAgents: Set<string>;
+  /** The offers of the tier-2 cards that wait (an answer to one is checked against its kind). */
+  confirms: Map<string, ConfirmOffer>;
 }
 
 /** What the card answered with: the decision, and for ExitPlanMode the mode to continue in or the note sent back. */
@@ -534,6 +564,7 @@ interface Answer {
   decision: PermissionDecision;
   mode?: PermissionMode;
   feedback?: string;
+  confirmBroad?: boolean;
 }
 
 /** A saved allow covers the same kind of call: a command by its first words, a write by its class. */
@@ -617,7 +648,7 @@ export function createMockAgents(scenarioName: string, scale: number): AgentApi 
       switchableModes: supportsAllModes(provider) ? [...ALL_MODES] : [],
       ...(req.location ? { location: req.location } : {}),
     };
-    const agent: MockAgent = { summary, log: [], seq: 0, turn: 0, retries: 0, script, running: false, cancelled: false, openTools: new Set(), pending: new Map(), cumulative: { input: 0, output: 0 }, saved: new Set(), notes: [], openAgents: new Set() };
+    const agent: MockAgent = { summary, log: [], seq: 0, turn: 0, retries: 0, script, running: false, cancelled: false, openTools: new Set(), pending: new Map(), cumulative: { input: 0, output: 0 }, saved: new Set(), notes: [], openAgents: new Set(), confirms: new Map() };
     agents.set(id, agent);
     return agent;
   }
@@ -711,6 +742,16 @@ export function createMockAgents(scenarioName: string, scale: number): AgentApi 
         ctx.emit({ kind: "permission.resolved", reqId, outcome: decision === "deny" ? "deny" : "allow", by: "user" });
         ctx.emit({ kind: "status", state: "running" });
         return decision;
+      },
+      confirmCard: async (reqId, toolId, intent, confirm) => {
+        agent.confirms.set(reqId, confirm);
+        ctx.emit({ kind: "permission.request", reqId, toolId, intent, options: ["allowOnce", "allowRun", "deny"], confirm } as MockPayload);
+        ctx.emit({ kind: "status", state: "waitingUser" });
+        const a = await ask<Answer>(reqId);
+        const grant = a.decision === "allowRun" ? "run" : "once";
+        ctx.emit({ kind: "permission.resolved", reqId, outcome: a.decision === "deny" ? "deny" : "allow", by: "user", ...(a.decision === "deny" ? {} : { grant }) } as Extract<EventPayload, { kind: "permission.resolved" }>);
+        ctx.emit({ kind: "status", state: "running" });
+        return { decision: a.decision, feedback: a.feedback };
       },
       plan: async (reqId, toolId, text) => {
         const intent = { class: "other", tool: "ExitPlanMode", summary: "ExitPlanMode: leave plan mode" } as Extract<EventPayload, { kind: "permission.request" }>["intent"];
@@ -852,8 +893,11 @@ export function createMockAgents(scenarioName: string, scale: number): AgentApi 
       if (!agent || !resolve) return;
       // The host refuses an answer for a request that is no longer allowed: a tightening made it a denial.
       if (decision !== "deny" && agent.withdrawn?.has(requestId)) throw { code: "modeChanged", message: "The rules changed while this was waiting" };
+      const offer = agent.confirms.get(requestId);
+      // Like the host: a run-wide answer on a secret card covers every secret file of the run, so it needs the second confirmation.
+      if (offer && decision === "allowRun" && (offer.kind === "secretFile" || offer.kind === "secretEdit") && !extra?.confirmBroad) throw { code: "confirmationRequired", message: "Allowing every secret file of this run needs a second confirmation" };
       if (extra?.mode && extra.mode !== "ask" && extra.mode !== "edit" && extra.mode !== "automatic") throw { code: "invalidMode", message: `${extra.mode} cannot be chosen when leaving plan mode` };
-      resolve({ decision, mode: extra?.mode, feedback: extra?.feedback } satisfies Answer);
+      resolve({ decision, mode: extra?.mode, feedback: extra?.feedback, confirmBroad: extra?.confirmBroad } satisfies Answer);
     },
     agentSetPermission: async (agentId, mode, opts) => {
       const agent = agents.get(agentId);

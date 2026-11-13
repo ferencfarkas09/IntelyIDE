@@ -11,6 +11,7 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use super::confirm::{ConfirmOffer, StopGrant, UsedGrant};
 use super::autoallow::{automatic_refusal, is_low_risk_read, is_private_host, net_auto_check, url_host};
 use super::fsview::{self, FsView};
 use super::hardstop::{analyze, analyze_argv, raw_text_stop, Analysis};
@@ -55,6 +56,17 @@ wire_types! {
         #[serde(default)]
         #[cfg_attr(feature = "specta", specta(optional))]
         pub session_allow: Option<SessionAllowOffer>,
+        /// Set only on a `Deny` by a tier-2 hard stop (`policy::confirm`): what a person could allow through a card. The decision itself
+        /// stays a refusal; only a grant in the run's context lifts the stop.
+        #[serde(default)]
+        #[cfg_attr(not(feature = "specta"), serde(skip_serializing_if = "Option::is_none"))]
+        #[cfg_attr(feature = "specta", specta(optional))]
+        pub confirm: Option<ConfirmOffer>,
+        /// Set only on an `Allow` (or, in Ask mode, the `Ask` that follows) that a standing grant for this run made possible: the gate writes each to
+        /// the run log. Empty for everything else.
+        #[serde(default)]
+        #[cfg_attr(not(feature = "specta"), serde(skip_serializing_if = "Vec::is_empty"))]
+        pub used_grants: Vec<UsedGrant>,
     }
 
     /// What an "Allow always in this session" answer would allow; the card states exactly this. Plain data: the UI
@@ -148,6 +160,14 @@ pub struct PolicyContext {
     /// same rules as the lead's, hard stops first.
     #[serde(default)]
     pub ultracode: bool,
+    /// Confirmable (tier 2) stops a person has lifted for this run: "once" (one tool call) and "this run".
+    /// Put here by the host when a person answers a card on this computer; never read from a tool input, never persisted with the run.
+    #[serde(default)]
+    pub stop_grants: Vec<StopGrant>,
+    /// A card can really be raised for this run right now (a local run with a window to show it): only then does a shell refusal say
+    /// "use the Read tool" (otherwise the refusal text is the one without a card).
+    #[serde(default)]
+    pub stops_askable: bool,
     /// The file system the run's files live on: `None` = this machine. For a run on a remote server it answers from the server (see
     /// `policy::fsview`); `decide` judges every path, glob and script against it. Not part of the wire form.
     #[serde(skip)]
@@ -156,7 +176,7 @@ pub struct PolicyContext {
 
 impl std::fmt::Debug for PolicyContext {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let Self { mode, cwd, add_dirs, home, role_deny, subagents, mcp_servers, saved, state_dir, strict_jail, scratch_dirs, delegates, delegation_cap, delegation_used, saved_by_role, plan_dir, mcp_tools, mcp_code_paths, peer_mode, ultracode, fs } = self;
+        let Self { mode, cwd, add_dirs, home, role_deny, subagents, mcp_servers, saved, state_dir, strict_jail, scratch_dirs, delegates, delegation_cap, delegation_used, saved_by_role, plan_dir, mcp_tools, mcp_code_paths, peer_mode, ultracode, stop_grants, stops_askable, fs } = self;
         f.debug_struct("PolicyContext")
             .field("mode", mode)
             .field("cwd", cwd)
@@ -178,6 +198,8 @@ impl std::fmt::Debug for PolicyContext {
             .field("mcp_code_paths", mcp_code_paths)
             .field("peer_mode", peer_mode)
             .field("ultracode", ultracode)
+            .field("stop_grants", stop_grants)
+            .field("stops_askable", stops_askable)
             .field("fs", &fs.as_ref().map(|_| "FsView"))
             .finish()
     }
@@ -185,14 +207,14 @@ impl std::fmt::Debug for PolicyContext {
 
 impl PartialEq for PolicyContext {
     fn eq(&self, other: &Self) -> bool {
-        let Self { mode, cwd, add_dirs, home, role_deny, subagents, mcp_servers, saved, state_dir, strict_jail, scratch_dirs, delegates, delegation_cap, delegation_used, saved_by_role, plan_dir, mcp_tools, mcp_code_paths, peer_mode, ultracode, fs } = self;
-        let Self { mode: o_mode, cwd: o_cwd, add_dirs: o_add_dirs, home: o_home, role_deny: o_role_deny, subagents: o_subagents, mcp_servers: o_mcp_servers, saved: o_saved, state_dir: o_state_dir, strict_jail: o_strict_jail, scratch_dirs: o_scratch_dirs, delegates: o_delegates, delegation_cap: o_delegation_cap, delegation_used: o_delegation_used, saved_by_role: o_saved_by_role, plan_dir: o_plan_dir, mcp_tools: o_mcp_tools, mcp_code_paths: o_mcp_code_paths, peer_mode: o_peer_mode, ultracode: o_ultracode, fs: o_fs } = other;
+        let Self { mode, cwd, add_dirs, home, role_deny, subagents, mcp_servers, saved, state_dir, strict_jail, scratch_dirs, delegates, delegation_cap, delegation_used, saved_by_role, plan_dir, mcp_tools, mcp_code_paths, peer_mode, ultracode, stop_grants, stops_askable, fs } = self;
+        let Self { mode: o_mode, cwd: o_cwd, add_dirs: o_add_dirs, home: o_home, role_deny: o_role_deny, subagents: o_subagents, mcp_servers: o_mcp_servers, saved: o_saved, state_dir: o_state_dir, strict_jail: o_strict_jail, scratch_dirs: o_scratch_dirs, delegates: o_delegates, delegation_cap: o_delegation_cap, delegation_used: o_delegation_used, saved_by_role: o_saved_by_role, plan_dir: o_plan_dir, mcp_tools: o_mcp_tools, mcp_code_paths: o_mcp_code_paths, peer_mode: o_peer_mode, ultracode: o_ultracode, stop_grants: o_stop_grants, stops_askable: o_stops_askable, fs: o_fs } = other;
         let same_fs = match (fs, o_fs) {
             (None, None) => true,
             (Some(a), Some(b)) => Arc::ptr_eq(a, b),
             _ => false,
         };
-        same_fs && mode == o_mode && cwd == o_cwd && add_dirs == o_add_dirs && home == o_home && role_deny == o_role_deny && subagents == o_subagents && mcp_servers == o_mcp_servers && saved == o_saved && state_dir == o_state_dir && strict_jail == o_strict_jail && scratch_dirs == o_scratch_dirs && delegates == o_delegates && delegation_cap == o_delegation_cap && delegation_used == o_delegation_used && saved_by_role == o_saved_by_role && plan_dir == o_plan_dir && mcp_tools == o_mcp_tools && mcp_code_paths == o_mcp_code_paths && peer_mode == o_peer_mode && ultracode == o_ultracode
+        same_fs && mode == o_mode && cwd == o_cwd && add_dirs == o_add_dirs && home == o_home && role_deny == o_role_deny && subagents == o_subagents && mcp_servers == o_mcp_servers && saved == o_saved && state_dir == o_state_dir && strict_jail == o_strict_jail && scratch_dirs == o_scratch_dirs && delegates == o_delegates && delegation_cap == o_delegation_cap && delegation_used == o_delegation_used && saved_by_role == o_saved_by_role && plan_dir == o_plan_dir && mcp_tools == o_mcp_tools && mcp_code_paths == o_mcp_code_paths && peer_mode == o_peer_mode && ultracode == o_ultracode && stop_grants == o_stop_grants && stops_askable == o_stops_askable
     }
 }
 
@@ -265,7 +287,7 @@ impl<'de> Deserialize<'de> for DelegationCounter {
 
 impl PolicyContext {
     pub fn new(mode: PermissionMode, cwd: impl Into<PathBuf>) -> Self {
-        Self { mode, cwd: cwd.into(), add_dirs: Vec::new(), home: None, role_deny: Vec::new(), subagents: Vec::new(), mcp_servers: Vec::new(), saved: Vec::new(), state_dir: None, strict_jail: false, scratch_dirs: Vec::new(), delegates: None, delegation_cap: DEFAULT_DELEGATION_CAP, delegation_used: DelegationCounter::default(), saved_by_role: BTreeMap::new(), plan_dir: None, mcp_tools: BTreeMap::new(), mcp_code_paths: Vec::new(), peer_mode: PeerMode::Ask, ultracode: false, fs: None }
+        Self { mode, cwd: cwd.into(), add_dirs: Vec::new(), home: None, role_deny: Vec::new(), subagents: Vec::new(), mcp_servers: Vec::new(), saved: Vec::new(), state_dir: None, strict_jail: false, scratch_dirs: Vec::new(), delegates: None, delegation_cap: DEFAULT_DELEGATION_CAP, delegation_used: DelegationCounter::default(), saved_by_role: BTreeMap::new(), plan_dir: None, mcp_tools: BTreeMap::new(), mcp_code_paths: Vec::new(), peer_mode: PeerMode::Ask, ultracode: false, stop_grants: Vec::new(), stops_askable: false, fs: None }
     }
 
     /// Judges the run's paths against `fs` (a remote server's files) instead of this machine's.
@@ -276,11 +298,18 @@ impl PolicyContext {
 }
 
 fn verdict(decision: Decision, by: DecidedBy, rule: &str, reason: impl Into<String>) -> PolicyDecision {
-    PolicyDecision { decision, by, reason: reason.into(), rule: Some(rule.to_string()), session_allow: None }
+    PolicyDecision { decision, by, reason: reason.into(), rule: Some(rule.to_string()), session_allow: None, confirm: None, used_grants: Vec::new() }
 }
 
 fn hard_stop(rule: &str, reason: impl Into<String>) -> PolicyDecision {
     verdict(Decision::Deny, DecidedBy::HardStop, rule, reason)
+}
+
+/// A tier-2 refusal: still a hard-stop denial; `offer` says what a person could allow instead. No offer in a read-only role or plan (a
+/// write is never allowed there, and an offer for it would be a card that cannot work).
+fn hard_stop_offer(eff: &Eff, rule: &str, reason: impl Into<String>, offer: Option<ConfirmOffer>, read_only_ok: bool) -> PolicyDecision {
+    let offer = offer.filter(|_| read_only_ok || eff.mode != PermissionMode::ReadOnly);
+    PolicyDecision { confirm: offer, ..hard_stop(rule, reason) }
 }
 
 fn role_deny(rule: &str, reason: impl Into<String>) -> PolicyDecision {
@@ -414,7 +443,7 @@ pub fn session_allow_for(ctx: &PolicyContext, intent: &ToolIntent) -> Option<(Sa
     }
     // the same files as the decision looked at (a run on a server: the server's), and nothing is offered on a half-seen tree
     fsview::with_fs(ctx.fs.clone(), || {
-        let (d, eff_mode) = judge(ctx, intent, STRICT_BACKGROUND);
+        let (d, eff_mode) = judge(ctx, intent, "", "claude", STRICT_BACKGROUND);
         if d.decision != Decision::Ask || !matches!(eff_mode, PermissionMode::Ask | PermissionMode::Edit) || fsview::failed() {
             return None;
         }
@@ -446,7 +475,7 @@ pub fn decide(ctx: &PolicyContext, req: &PolicyRequest) -> PolicyDecision {
 pub fn decide_with(ctx: &PolicyContext, req: &PolicyRequest, strict_background: bool) -> PolicyDecision {
     // every look at a file (symlinks, globs, scripts) goes to the run's own file system, on the thread that does the judging
     fsview::with_fs(ctx.fs.clone(), || {
-        let (d, eff_mode) = judge(ctx, &req.intent, strict_background);
+        let (d, eff_mode) = judge(ctx, &req.intent, &req.tool_id, &req.provider, strict_background);
         let d = settle_unattended(ctx, eff_mode, d);
         // A look that could not be answered (the server did not reply, a listing was cut off) is not "the file is not there": a hard stop
         // may have been hidden by it. What the rules said about a tree seen in part is not trusted; a denial stands as it is.
@@ -458,10 +487,19 @@ pub fn decide_with(ctx: &PolicyContext, req: &PolicyRequest, strict_background: 
 }
 
 /// The verdict of the class rules and the mode the call was judged in.
-fn judge(ctx: &PolicyContext, intent: &ToolIntent, strict_background: bool) -> (PolicyDecision, PermissionMode) {
-    let jail = Jail::new(&ctx.cwd, &ctx.add_dirs, ctx.home.as_deref()).with_state_dir(ctx.state_dir.as_deref()).with_mcp_code_paths(&ctx.mcp_code_paths).with_scratch(&ctx.scratch_dirs);
+fn judge(ctx: &PolicyContext, intent: &ToolIntent, tool_id: &str, provider: &str, strict_background: bool) -> (PolicyDecision, PermissionMode) {
+    // grants and offers exist for the Claude adapter only (its tools are the four file tools of the card): a raw intent that merely NAMES one of
+    // them, from another adapter, gets neither
+    // (the mock adapter stands in for Claude in the demo and in the end-to-end tests, and runs no real tool)
+    let claude = matches!(provider, "claude" | "mock");
+    let grants: &[StopGrant] = if claude { &ctx.stop_grants } else { &[] };
+    let jail = Jail::new(&ctx.cwd, &ctx.add_dirs, ctx.home.as_deref()).with_state_dir(ctx.state_dir.as_deref()).with_mcp_code_paths(&ctx.mcp_code_paths).with_scratch(&ctx.scratch_dirs).with_grants(grants, tool_id, ctx.stops_askable && claude, claude);
     let eff = effective(ctx, intent, strict_background);
+    // what a shell refusal may say: the file tools it names must be usable by THIS caller (its role lists them, and an edit is not read-only)
+    let tool_ok = |name: &str| denied_by_role_list(&eff, &ToolIntent::from_claude_tool(name, &serde_json::json!({ "file_path": "x" }))).is_none();
+    let jail = jail.with_hints(tool_ok("Read"), eff.mode != PermissionMode::ReadOnly && tool_ok("Edit") && tool_ok("Write"));
     let d = match intent.class {
+        ToolClass::Other if intent.tool.as_deref() == Some(CLI_PROMPT_TOOL) => decide_cli_prompt(&eff, intent, tool_id),
         ToolClass::Exec => decide_exec(&eff, intent, &jail),
         ToolClass::Write => decide_write(&eff, intent, &jail),
         ToolClass::Read => decide_read(&eff, intent, &jail),
@@ -469,6 +507,8 @@ fn judge(ctx: &PolicyContext, intent: &ToolIntent, strict_background: bool) -> (
         ToolClass::Mcp => decide_mcp(&eff, intent, &jail),
         ToolClass::Other => decide_other(&eff, intent),
     };
+    let used = jail.take_used();
+    let d = if d.decision != Decision::Deny && !used.is_empty() { PolicyDecision { used_grants: used, ..d } } else { d };
     (d, eff.mode)
 }
 
@@ -541,6 +581,8 @@ fn decide_exec(eff: &Eff, intent: &ToolIntent, jail: &Jail) -> PolicyDecision {
         (None, Some(argv)) if !argv.is_empty() => Some(analyze_argv(argv, jail)),
         _ => None,
     };
+    // A shell command is never lifted by a grant and never carries an offer: every form that names a secret file of the project stays refused
+    // (the reason tells the agent to use the Read tool, where the person is asked). Only the file tools are a question (tier 2).
     if let Some(stop) = analysis.as_ref().and_then(|a| a.hard_stop.as_ref()) {
         return hard_stop(&stop.rule, format!("{} (commit, push and stage-all are done by the human in the IDE)", stop.reason));
     }
@@ -624,8 +666,15 @@ fn decide_write(eff: &Eff, intent: &ToolIntent, jail: &Jail) -> PolicyDecision {
         }
     }
     for p in &resolved {
-        if let Some(why) = jail.protected_reason(p) {
-            return hard_stop("fs.protected", format!("{why} is never written by an agent ({})", p.display()));
+        // (the file tools that write: Edit, Write, MultiEdit, NotebookEdit)
+        // (a grant is consulted only for the four file tools that edit, and never in Plan mode; Codex apply_patch, ACP fs/write_text_file
+        // and the rest keep the refusal that main gives)
+        let asks = eff.mode != PermissionMode::ReadOnly && jail.grants_apply() && denied_by_role_list(eff, intent).is_none() && matches!(intent.tool.as_deref(), Some("Edit" | "Write" | "MultiEdit" | "NotebookEdit"));
+        let refused = if asks { jail.protected_reason_ask(p) } else { jail.protected_reason(p) };
+        if let Some(why) = refused {
+            // (only a `.env` file is a question; the IDE state directory inside a run folder is not)
+            let offer = if why == ".env*" && asks { jail.confirm_offer("fs.protected", p, true) } else { None };
+            return hard_stop_offer(eff, "fs.protected", format!("{why} is never written by an agent ({})", p.display()), offer, false);
         }
     }
     // Bypass has no folder boundary whatever `strict_jail` says; every other mode keeps it.
@@ -696,8 +745,11 @@ fn decide_read(eff: &Eff, intent: &ToolIntent, jail: &Jail) -> PolicyDecision {
         }
         return allow("read.memory-note", "a Claude memory note of one of this run's folders");
     }
-    if let Some((p, why)) = resolved.iter().find_map(|p| jail.never_read_reason(p).map(|w| (p, w))) {
-        return hard_stop("read.never-read", format!("{why}: {} is on the agent never-read list", p.display()));
+    // (a grant is consulted only for the Read and Grep tools: Glob and LS name no content, and nothing else is a question)
+    let asks = jail.grants_apply() && denied_by_role_list(eff, intent).is_none() && matches!(intent.tool.as_deref(), Some("Read" | "Grep"));
+    let never = |p: &PathBuf| if asks { jail.never_read_reason_ask(p) } else { jail.never_read_reason(p) };
+    if let Some((p, why)) = resolved.iter().find_map(|p| never(p).map(|w| (p, w))) {
+        return hard_stop_offer(eff, "read.never-read", format!("{why}: {} is on the agent never-read list", p.display()), jail.confirm_offer("read.never-read", p, false).filter(|_| asks), true);
     }
     if let Some(d) = denied_by_role_list(eff, intent) {
         return d;
@@ -955,6 +1007,47 @@ pub const OTHER_STATE_CHANGE: [&str; 16] = [
     "ProposeSkills", "ProposeGoal", "Mcp", "Monitor",
 ];
 
+/// The pseudo tool the sidecar's gate asks about when the Claude CLI raised its own prompt in Automatic or Bypass and the prompt's reason is
+/// not one that was measured as harmless: "may a person allow this one?". The name has a colon, which no tool of the CLI or an MCP server has.
+pub const CLI_PROMPT_TOOL: &str = "intely:cli-prompt";
+
+/// The longest CLI reason kept as an always-list scope.
+pub const MAX_CLI_REASON: usize = 300;
+
+/// The intent the gate (and the host, when it judges a card again) uses to ask about a CLI prompt: the reason is the only argument.
+pub fn cli_prompt_intent(base: &ToolIntent, reason: &str) -> ToolIntent {
+    let mut i = base.clone();
+    i.class = ToolClass::Other;
+    i.tool = Some(CLI_PROMPT_TOOL.to_string());
+    i.args = vec![reason.trim().chars().take(MAX_CLI_REASON).collect()];
+    i
+}
+
+/// A prompt of the Claude CLI that an Automatic or Bypass run cannot answer. Every other rule has judged the call already (the gate asks only
+/// after a Rust allow); what is left is the CLI's own text heuristics. Tier 2 unless the reason is on the never list
+/// ([`confirm::cli_reason_confirmable`](super::confirm::cli_reason_confirmable)); lifted only by a grant of this exact reason (a run-wide secret grant never covers a CLI prompt).
+fn decide_cli_prompt(eff: &Eff, intent: &ToolIntent, tool_id: &str) -> PolicyDecision {
+    let reason = intent.args.first().map(|r| r.trim().chars().take(MAX_CLI_REASON).collect::<String>()).unwrap_or_default();
+    if !super::confirm::cli_reason_confirmable(&reason) {
+        return hard_stop("cli.prompt-denied", format!("the Claude CLI raised a prompt that is never answered for the person ({reason})"));
+    }
+    // (a CLI prompt is granted by its exact reason only; a wildcard grant never covers one)
+    let covering = eff.ctx.stop_grants.iter().find(|g| g.scope != super::confirm::ALL_OF_KIND && g.covers(super::confirm::ConfirmKind::CliPrompt, &reason, tool_id));
+    if let Some(g) = covering {
+        let via = crate::events::types::StopGrantScope::Run;
+        let mut d = verdict(Decision::Allow, DecidedBy::Saved, "cli.prompt-granted", "a person allowed this kind of Claude CLI prompt");
+        // (a "once" grant was logged with its card)
+        if g.tool_id.is_none() {
+            let offer = ConfirmOffer { kind: super::confirm::ConfirmKind::CliPrompt, rule: "cli.prompt-denied".into(), scope: reason.clone(), repo: canonical_lossy(&eff.ctx.cwd).to_string_lossy().into_owned(), once_only: false };
+            d.used_grants = vec![UsedGrant { offer, via }];
+        }
+        return d;
+    }
+    // (the canonical folder of the run)
+    let offer = ConfirmOffer { kind: super::confirm::ConfirmKind::CliPrompt, rule: "cli.prompt-denied".into(), scope: reason.clone(), repo: canonical_lossy(&eff.ctx.cwd).to_string_lossy().into_owned(), once_only: false };
+    hard_stop_offer(eff, "cli.prompt-denied", format!("the Claude CLI raised its own prompt ({reason}), which this run cannot answer on its own"), Some(offer), false)
+}
+
 fn decide_other(eff: &Eff, intent: &ToolIntent) -> PolicyDecision {
     use PermissionMode::*;
     let Some(name) = intent.tool.as_deref() else {
@@ -1039,7 +1132,7 @@ mod tests {
 
     #[test]
     fn a_forced_ask_in_an_unattended_run_is_a_denial() {
-        let ask = PolicyDecision { decision: Decision::Ask, by: DecidedBy::Default, reason: "x".into(), rule: Some("some.rule".into()), session_allow: None };
+        let ask = PolicyDecision { decision: Decision::Ask, by: DecidedBy::Default, reason: "x".into(), rule: Some("some.rule".into()), session_allow: None, confirm: None, used_grants: Vec::new() };
         let d = convert_unattended_ask(PermissionMode::Automatic, ask.clone());
         assert_eq!((d.decision, d.by, d.rule.as_deref()), (Decision::Deny, DecidedBy::RoleDeny, Some("policy.ask-in-unattended")));
         let d = convert_unattended_ask(PermissionMode::ReadOnly, ask);

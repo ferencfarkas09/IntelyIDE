@@ -307,7 +307,7 @@ describe("permission modes (spec 4.6, 4.7)", () => {
 
 describe("constants", () => {
   it("match the Rust ones", () => {
-    const { allKinds: _kinds, bypassKeeps: _keeps, sdkToolCoverage: _coverage, ...rust } = constants;
+    const { allKinds: _kinds, bypassKeeps: _keeps, sdkToolCoverage: _coverage, confirm: _confirm, ...rust } = constants;
     expect({
       protocolVersion: PROTOCOL_VERSION,
       heartbeatMs: HEARTBEAT_MS,
