@@ -34,7 +34,7 @@ export function createTauriIpc(): Ipc {
     agentSend: (agentId, text, attachments, files) => call("agent_send", { agentId, text, attachments, files }),
     agentInterrupt: (agentId) => call("agent_interrupt", { agentId }),
     agentNote: (agentId, parentToolId, text) => call("agent_note", { agentId, parentToolId: parentToolId ?? null, text }),
-    agentAnswerPermission: (agentId, requestId, decision, extra) => call("agent_answer_permission", { agentId, requestId, decision, ...(extra?.mode ? { mode: extra.mode } : {}), ...(extra?.feedback ? { feedback: extra.feedback } : {}) }),
+    agentAnswerPermission: (agentId, requestId, decision, extra) => call("agent_answer_permission", { agentId, requestId, decision, ...(extra?.mode ? { mode: extra.mode } : {}), ...(extra?.feedback ? { feedback: extra.feedback } : {}), ...(extra?.confirmBroad ? { confirmBroad: true } : {}) }),
     agentSetPermission: (agentId, mode, opts) => call("agent_set_permission", { agentId, mode, ...(opts?.confirmBypass ? { confirmBypass: true } : {}) }),
     agentModes: (provider) => call("agent_modes", { provider }),
     agentMcpStatus: (agentId) => call("agent_mcp_status", { agentId }),

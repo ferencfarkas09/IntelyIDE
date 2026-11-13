@@ -1,6 +1,7 @@
 //! The permission broker: tool intents, shell analysis, hard stops, the decision order and the enforcement chip.
 
 pub mod autoallow;
+pub mod confirm;
 pub mod decide;
 pub mod enforcement;
 pub mod fsrpc;

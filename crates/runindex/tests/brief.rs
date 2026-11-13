@@ -71,7 +71,7 @@ fn unanswered_needs_you_items_are_listed_and_answered_ones_are_not() {
     l.prompt("Clean up")
         .push(EventKind::ToolStart { tool_id: "t1".into(), name: "Bash".into(), tool_kind: ToolKind::Exec, input: json!({}), parent_tool_id: None })
         .permission("p1", "t1", "rm -rf build")
-        .push(EventKind::PermissionResolved { req_id: "p1".into(), outcome: PermissionOutcome::Allow, by: DecidedBy::User })
+        .push(EventKind::PermissionResolved { req_id: "p1".into(), outcome: PermissionOutcome::Allow, by: DecidedBy::User, grant: None })
         .push(EventKind::ToolStart { tool_id: "t2".into(), name: "Bash".into(), tool_kind: ToolKind::Exec, input: json!({}), parent_tool_id: None })
         .permission("p2", "t2", "git push origin main")
         .push(EventKind::QuestionRequest { req_id: "q1".into(), tool_id: None, prompt: "Which branch should I use?".into(), options: vec![] });

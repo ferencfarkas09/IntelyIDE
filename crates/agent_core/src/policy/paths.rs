@@ -7,6 +7,10 @@
 use std::ffi::OsString;
 use std::path::{Component, Path, PathBuf};
 
+use std::sync::{Arc, Mutex};
+
+use super::confirm::{confirmable_env_write_name, confirmable_secret_path, ALL_OF_KIND, ConfirmKind, ConfirmOffer, StopGrant, UsedGrant};
+use crate::events::types::StopGrantScope;
 use super::fsview;
 
 const PROTECTED_DIRS: &[&str] = &[".git", ".husky", ".claude"];
@@ -548,6 +552,18 @@ pub struct Jail {
     /// Scratch roots (`/tmp`): Automatic may keep temporary files there (a `git show HEAD:f > /tmp/x` next to an edit). Not part of
     /// the jail for any other purpose; see [`Jail::in_scratch`].
     scratch: Vec<PathBuf>,
+    /// Confirmable stops a person has lifted (`PolicyContext::stop_grants`), already narrowed to this tool call.
+    grants: Vec<StopGrant>,
+    /// The tool call being judged; a "once" grant names it.
+    tool_id: String,
+    /// A card can really be raised for this run (see `PolicyContext::stops_askable`).
+    askable: bool,
+    /// The shell hint may name the Read tool / the Edit and Write tools: the role allows them and (for an edit) the call is not read-only.
+    hint_read: bool,
+    grants_on: bool,
+    hint_edit: bool,
+    /// Standing grants (for this run) that lifted a stop while this jail judged: reported with the decision.
+    used: Arc<Mutex<Vec<UsedGrant>>>,
 }
 
 impl Jail {
@@ -556,7 +572,7 @@ impl Jail {
         let mut roots = vec![cwd.clone()];
         roots.extend(add_dirs.iter().map(|d| canonical_lossy(&abs_or_lexical(d))));
         let home_real = home.map(|h| canonical_lossy(&abs_or_lexical(h)));
-        Self { roots, cwd, home: home.map(Path::to_path_buf), home_real, state_dir: None, mcp_code_paths: Vec::new(), scratch: Vec::new() }
+        Self { roots, cwd, home: home.map(Path::to_path_buf), home_real, state_dir: None, mcp_code_paths: Vec::new(), scratch: Vec::new(), grants: Vec::new(), tool_id: String::new(), askable: false, hint_read: true, grants_on: false, hint_edit: true, used: Arc::default() }
     }
 
     pub fn with_state_dir(mut self, dir: Option<&Path>) -> Self {
@@ -574,6 +590,106 @@ impl Jail {
     pub fn with_scratch(mut self, dirs: &[PathBuf]) -> Self {
         self.scratch = dirs.iter().map(|d| canonical_lossy(&abs_or_lexical(d))).collect();
         self
+    }
+
+    /// The confirmable stops a person has lifted for this run (`PolicyContext::stop_grants`) and the tool call being judged.
+    /// What the shell refusal may point the agent at (see `file_tool_hint_ok`).
+    /// Grants and offers exist for this call (the Claude adapter's own file tools).
+    pub fn grants_apply(&self) -> bool {
+        self.grants_on
+    }
+
+    pub fn with_hints(mut self, read: bool, edit: bool) -> Self {
+        self.hint_read = read;
+        self.hint_edit = edit;
+        self
+    }
+
+    /// The run's folder is the home directory or one of its ancestors (`/` included): a run-wide grant would reach the home's key stores.
+    fn broad_root(&self) -> bool {
+        self.roots.iter().any(|r| r.parent().is_none() || self.home_real.as_deref().is_some_and(|h| h.starts_with(r)))
+    }
+
+    pub fn with_grants(mut self, grants: &[StopGrant], tool_id: &str, askable: bool, applies: bool) -> Self {
+        self.askable = askable;
+        self.grants_on = applies;
+        self.grants = grants.to_vec();
+        self.tool_id = tool_id.to_string();
+        self
+    }
+
+    /// The canonical path of `resolved` when it is a secret-looking file a person may allow: it is spelled like one (the positive list
+    /// of `confirm::confirmable_secret_name`), it lies INSIDE a folder of the run once symlinks are followed, and both the spelling and the
+    /// real path say "secret file". A path that leaves the run's folders (`../x`, a link that points out) has no scope: it is never offered.
+    fn secret_scope(&self, resolved: &Path) -> Option<PathBuf> {
+        let real = canonical_lossy(resolved);
+        // a directory is never offered (`certs.key/`, a virtualenv called `.env/`): the verdict is the one without grants
+        if real.is_dir() {
+            return None;
+        }
+        let inside = self.roots.iter().any(|r| real.starts_with(r));
+        // a run folder can contain the home directory (or `/`): the home-anchored credential and browser stores and the IDE state directory
+        // are tier 1 whatever the file is called
+        let tier_one_place = [real.as_path(), resolved].iter().any(|p| self.home_never_read_reason(p).is_some() || self.in_state_dir(p));
+        let ok = inside && !tier_one_place && !self.in_tier_one_folder(&real) && !self.in_tier_one_folder(resolved) && confirmable_secret_path(&real) && never_read_reason(&real) == Some("secret file") && never_read_reason(resolved) == Some("secret file");
+        ok.then_some(real)
+    }
+
+    /// Whether `real` lies below a folder that is tier 1 whatever the file is called: `.git`, `.claude`, any `.ssh` folder. A grant (a run
+    /// wide one most of all) never reaches these, and no card offers them.
+    fn in_tier_one_folder(&self, real: &Path) -> bool {
+        // judged by the ABSOLUTE canonical path, whatever the run's folders are: a run folder that itself lies inside `.git/modules/x` is
+        // still inside `.git`
+        real.components().any(|c| {
+            let n = c.as_os_str().to_string_lossy();
+            n.eq_ignore_ascii_case(".git") || n.eq_ignore_ascii_case(".claude") || n.eq_ignore_ascii_case(".ssh")
+        })
+    }
+
+    /// Like [`Jail::secret_scope`] for an edit of a `.env` file: the part of the path below its folder says `.env*` and nothing worse.
+    fn env_edit_scope(&self, resolved: &Path) -> Option<PathBuf> {
+        let real = canonical_lossy(resolved);
+        if real.is_dir() || self.in_tier_one_folder(&real) || self.in_tier_one_folder(resolved) || self.in_state_dir(&real) {
+            return None;
+        }
+        let rel = self.roots.iter().find_map(|r| real.strip_prefix(r).ok())?;
+        let lexical_inside = self.roots.iter().any(|r| resolved.starts_with(r));
+        (lexical_inside && confirmable_env_write_name(&real.file_name()?.to_string_lossy()) && protected_reason(rel) == Some(".env*")).then_some(real)
+    }
+
+    /// What a person could allow for a refused read of `resolved` (`edit` false) or edit (`edit` true); `None` = tier 1.
+    /// Whether a shell refusal may point the agent at the file tools: there is something to offer AND a person can be asked now.
+    pub fn file_tool_hint_ok(&self, rule: &str, resolved: &Path, edit: bool) -> bool {
+        self.askable && (if edit { self.hint_edit } else { self.hint_read }) && self.confirm_offer(rule, resolved, edit).is_some()
+    }
+
+    pub fn confirm_offer(&self, rule: &str, resolved: &Path, edit: bool) -> Option<ConfirmOffer> {
+        let real = if edit { self.env_edit_scope(resolved)? } else { self.secret_scope(resolved)? };
+        let repo = self.roots.iter().find(|r| real.starts_with(r))?;
+        Some(ConfirmOffer { kind: if edit { ConfirmKind::SecretEdit } else { ConfirmKind::SecretFile }, rule: rule.to_string(), scope: real.to_string_lossy().into_owned(), repo: repo.to_string_lossy().into_owned(), once_only: self.broad_root() })
+    }
+
+    fn granted(&self, kind: ConfirmKind, real: &Path) -> bool {
+        let scope = real.to_string_lossy();
+        // (a run-wide grant never counts when the run's folder is the home directory or above it)
+        let broad = self.broad_root();
+        let Some(g) = self.grants.iter().find(|g| !(broad && g.scope == ALL_OF_KIND) && g.covers(kind, &scope, &self.tool_id)) else { return false };
+        // a "once" grant was logged with its card; a standing one is recorded so the gate can write it to the run log
+        if g.tool_id.is_none() {
+            let rule = if kind == ConfirmKind::SecretEdit { "fs.protected" } else { "read.never-read" };
+            let repo = self.roots.iter().find(|r| real.starts_with(r)).map(|r| r.to_string_lossy().into_owned()).unwrap_or_default();
+            let used = UsedGrant { offer: ConfirmOffer { kind, rule: rule.to_string(), scope: scope.into_owned(), repo, once_only: false }, via: StopGrantScope::Run };
+            let mut list = self.used.lock().unwrap_or_else(|e| e.into_inner());
+            if !list.contains(&used) {
+                list.push(used);
+            }
+        }
+        true
+    }
+
+    /// The standing grants that lifted a stop so far.
+    pub fn take_used(&self) -> Vec<UsedGrant> {
+        std::mem::take(&mut *self.used.lock().unwrap_or_else(|e| e.into_inner()))
     }
 
     /// The memory folder of one of the run's OWN folders: `~/.claude/projects/<slug of a run folder>/memory`, for tools that only list names
@@ -637,12 +753,24 @@ impl Jail {
         self.state_dir.as_ref().is_some_and(|d| resolved.starts_with(d))
     }
 
-    /// [`never_read_reason`] plus the state directory and the home-anchored credential and browser stores.
+    /// [`never_read_reason`] plus the state directory and the home-anchored credential and browser stores. **No grant is consulted**: this is
+    /// the predicate of every tier-1 guard (the MCP argument guard, the raw-text scan, the Automatic auto-allow operand check ...). Only the
+    /// tier-2 call sites use [`Jail::never_read_reason_ask`].
     pub fn never_read_reason(&self, resolved: &Path) -> Option<&'static str> {
         if self.in_state_dir(resolved) && !self.in_attachments(resolved) {
             return Some("IDE state directory");
         }
         never_read_reason(resolved).or_else(|| self.home_never_read_reason(resolved))
+    }
+
+    /// [`Jail::never_read_reason`] at a tier-2 call site: a secret-looking file of the run's own project that a person allowed (once, or for the
+    /// run) is not a stop there.
+    pub fn never_read_reason_ask(&self, resolved: &Path) -> Option<&'static str> {
+        let why = self.never_read_reason(resolved);
+        if why == Some("secret file") && self.secret_scope(resolved).is_some_and(|real| self.granted(ConfirmKind::SecretFile, &real)) {
+            return None;
+        }
+        why
     }
 
     /// Credential and profile locations that are only secret at one place, directly under the home directory: a repository's
@@ -678,6 +806,11 @@ impl Jail {
         shown.join(", ")
     }
 
+    /// The canonical folders of the run (its working directory first): what an always-list entry is stored against.
+    pub fn roots(&self) -> &[PathBuf] {
+        &self.roots
+    }
+
     pub fn contains(&self, resolved: &Path) -> bool {
         self.roots.iter().any(|r| resolved.starts_with(r))
     }
@@ -695,6 +828,24 @@ impl Jail {
     /// [`protected_reason`] judged relative to the root the path is in, so a repo that itself lives under
     /// `.claude/worktrees` stays writable; outside every root the full path counts.
     pub fn protected_reason(&self, resolved: &Path) -> Option<&'static str> {
+        self.protected_reason_raw(resolved)
+    }
+
+    /// [`Jail::protected_reason`] at a tier-2 call site (an edit of a `.env` file a person allowed is not a stop there).
+    pub fn protected_reason_ask(&self, resolved: &Path) -> Option<&'static str> {
+        let why = self.protected_reason_raw(resolved);
+        self.env_edit_allowed(why, resolved)
+    }
+
+    /// A `.env` file that a person allowed to be edited is not protected; every other reason stands.
+    fn env_edit_allowed(&self, why: Option<&'static str>, resolved: &Path) -> Option<&'static str> {
+        if why == Some(".env*") && self.env_edit_scope(resolved).is_some_and(|real| self.granted(ConfirmKind::SecretEdit, &real)) {
+            return None;
+        }
+        why
+    }
+
+    fn protected_reason_raw(&self, resolved: &Path) -> Option<&'static str> {
         if self.mcp_code_paths.iter().any(|c| c == resolved) {
             return Some("code of an enabled MCP server");
         }
@@ -710,6 +861,10 @@ impl Jail {
     /// [`Jail::protected_reason`] for a path that a script or inline code only MENTIONS (not a write operand): the repository
     /// protections plus the original git and ssh places, without the system PATH directories and startup files.
     pub fn mention_protected_reason(&self, resolved: &Path) -> Option<&'static str> {
+        self.mention_protected_reason_raw(resolved)
+    }
+
+    fn mention_protected_reason_raw(&self, resolved: &Path) -> Option<&'static str> {
         if self.mcp_code_paths.iter().any(|c| c == resolved) {
             return Some("code of an enabled MCP server");
         }

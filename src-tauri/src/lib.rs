@@ -761,6 +761,17 @@ pub fn run() {
         .expect("error while building IntelySwitchIDE");
 
     app.run(|handle, event| {
+        // Whether the main window can show a card (visible, not minimised), kept in an atomic from the events of the main thread: the host reads it
+        // lock-free and never calls a window function from its reader thread (those wait for the main thread and would hang at quit).
+        match &event {
+            RunEvent::WindowEvent { label, event: WindowEvent::Destroyed, .. } if label == "main" => agents::set_card_window(false),
+            RunEvent::WindowEvent { label, .. } if label == "main" => {
+                let ok = handle.get_webview_window("main").is_some_and(|w| w.is_visible().unwrap_or(false) && !w.is_minimized().unwrap_or(true));
+                agents::set_card_window(ok);
+            }
+            RunEvent::Exit => agents::set_card_window(false),
+            _ => {}
+        }
         // Only the main window's focus counts: the always-on-top radar must not pause or wake the focus-gated work.
         if let RunEvent::WindowEvent { label, event: tauri::WindowEvent::Focused(focused), .. } = &event {
             if label == "main" {

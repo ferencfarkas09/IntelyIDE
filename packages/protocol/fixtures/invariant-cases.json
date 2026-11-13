@@ -238,6 +238,7 @@
       },
       {
         "agentId": "a1",
+        "confirm": null,
         "intent": {
           "actor": {
             "agentId": "sub-1",
@@ -280,6 +281,7 @@
       {
         "agentId": "a1",
         "by": "user",
+        "grant": null,
         "kind": "permission.resolved",
         "outcome": "allow",
         "provider": "claude",
@@ -1011,6 +1013,7 @@
     "events": [
       {
         "agentId": "a1",
+        "confirm": null,
         "intent": {
           "actor": {
             "agentId": "sub-1",
@@ -1071,6 +1074,7 @@
       {
         "agentId": "a1",
         "by": "hardStop",
+        "grant": null,
         "kind": "permission.resolved",
         "outcome": "deny",
         "provider": "claude",

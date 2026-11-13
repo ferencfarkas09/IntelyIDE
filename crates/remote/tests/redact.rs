@@ -67,7 +67,7 @@ fn every_event_kind_is_clean_and_drops_raw() {
         EventKind::ToolStart { tool_id: "t".into(), name: "Bash".into(), tool_kind: ToolKind::Exec, input: json!({"command": format!("echo {}", CANARIES[0]), "env": {"API_TOKEN": CANARIES[7], "PATH": "/bin"}, "headers": [{"authorization": CANARIES[8]}]}), parent_tool_id: None },
         EventKind::ToolUpdate { tool_id: "t".into(), status: ToolStatus::Running, output: Some(format!("DATABASE_PASSWORD={}", CANARIES[6])) },
         EventKind::ToolResult { tool_id: "t".into(), status: ToolStatus::Ok, output: Some(format!("{}\n{}", CANARIES[2], CANARIES[3])), diff: Some(ToolDiff { path: "a.rs".into(), old: None, new: CANARIES[0].into() }), duration_ms: Some(5) },
-        EventKind::PermissionRequest { req_id: "r".into(), tool_id: "t".into(), intent: secret_intent, options: vec![PermissionOption::AllowOnce], session_allow: None, plan: None, plan_truncated: None, modes: Vec::new(), peer: None },
+        EventKind::PermissionRequest { req_id: "r".into(), tool_id: "t".into(), intent: secret_intent, options: vec![PermissionOption::AllowOnce], session_allow: None, plan: None, plan_truncated: None, modes: Vec::new(), peer: None, confirm: None },
         EventKind::QuestionRequest { req_id: "q".into(), tool_id: None, prompt: format!("is {} yours?", CANARIES[0]), options: vec![QuestionOption { label: CANARIES[1].into(), description: Some(CANARIES[2].into()) }] },
         EventKind::Plan { items: vec![PlanItem { content: format!("rotate {}", CANARIES[0]), status: None }] },
         EventKind::Error { class: ErrorClass::Provider, message: format!("401 for key {}", CANARIES[0]), retryable: false },
@@ -206,5 +206,36 @@ fn no_text_makes_a_scrubber_panic() {
         let text = s.clone();
         let r = std::panic::catch_unwind(move || (scrub_text(&text), display(&text, 30), cap(&text, 20), escape_invisible(&text)));
         assert!(r.is_ok(), "a scrubber panicked on {s:?}");
+    }
+}
+
+#[test]
+fn a_confirm_card_reaches_the_phone_with_deny_only_and_no_scope_or_folder() {
+    use intely_agent_core::policy::confirm::{ConfirmKind, ConfirmOffer};
+    let mut r = Redactor::new();
+    let mut intent = ToolIntent::exec("Read .env");
+    intent.paths = vec!["/work/app/.env".into()];
+    let e = ev(EventKind::PermissionRequest {
+        req_id: "r".into(),
+        tool_id: "t".into(),
+        intent,
+        options: vec![PermissionOption::AllowOnce, PermissionOption::AllowRun, PermissionOption::Deny],
+        session_allow: None,
+        plan: None,
+        plan_truncated: None,
+        modes: Vec::new(),
+        peer: None,
+        confirm: Some(ConfirmOffer { kind: ConfirmKind::SecretFile, rule: "read.never-read".into(), scope: "/work/app/.env".into(), repo: "/work/app".into(), once_only: false }),
+    });
+    let w = r.wire_event(&e).expect("the card is sent");
+    match w.kind {
+        EventKind::PermissionRequest { options, confirm, intent, .. } => {
+            assert_eq!(options, vec![PermissionOption::Deny], "the phone can only refuse a stop");
+            let c = confirm.expect("the phone is told it is a stop it may not lift");
+            assert_eq!((c.kind, c.rule.as_str(), c.scope.as_str(), c.repo.as_str()), (ConfirmKind::SecretFile, "read.never-read", "", ""));
+            // what IS sent: the intent like any card (which file was asked for), capped
+            assert_eq!(intent.paths, vec!["/work/app/.env".to_string()]);
+        }
+        other => panic!("{other:?}"),
     }
 }

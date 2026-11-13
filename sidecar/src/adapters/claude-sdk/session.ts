@@ -186,7 +186,7 @@ export class ClaudeSession implements AgentSession {
     const delegating = !!this.delegates;
     this.gate = new ToolGate({
       agentId: spec.agentId, provider: spec.provider, policy: this.policy, sink: this.sink, denied: this.state.denied,
-      delegating, noQuestions: (spec.role.disallowedTools ?? []).includes('AskUserQuestion'), onCanary: () => this.canary(),
+      delegating, noQuestions: (spec.role.disallowedTools ?? []).includes('AskUserQuestion'), onCanary: () => this.canary(), onBreach: () => { void this.interrupt().catch(() => undefined); },
       mode: () => this.mode, noteMode: (m) => this.noteMode(m), lastText: () => this.state.lastText, cwd: spec.cwd, runDirs: [spec.cwd, ...spec.addDirs, ...SCRATCH_DIRS], planDir: spec.planDir,
     });
     const role: ResolvedRole = spec.role;
@@ -333,6 +333,10 @@ export class ClaudeSession implements AgentSession {
     if (typeof m.parent_tool_use_id === 'string' || m.parent_tool_use_id === null) for (const id of toolUseIds(m)) this.gate.noteToolParent(id, m.parent_tool_use_id);
     // the lead got the result of an `Agent` call, or the turn ended: no sub-agent is in flight any more (SubagentStop is not reported for
     // one that ran out of turns, which used to leave every later call of the lead attributed to an unknown actor); the notes meant for it are over too
+    // every result, a helper agent's too: a call that was to wait for a card and ran without it stops the run (after the fact)
+    if (m.type === 'user') {
+      for (const b of Array.isArray(m.message?.content) ? m.message.content : []) if (b?.type === 'tool_result' && typeof b.tool_use_id === 'string') this.gate.noteResult(b.tool_use_id, b.is_error === true, typeof b.content === 'string' ? b.content : Array.isArray(b.content) ? b.content.map((x: { text?: unknown }) => (typeof x?.text === 'string' ? x.text : '')).join(' ') : '');
+    }
     if (m.type === 'user' && !m.parent_tool_use_id) {
       for (const b of Array.isArray(m.message?.content) ? m.message.content : []) if (b?.type === 'tool_result' && typeof b.tool_use_id === 'string') this.gate.toolResult(b.tool_use_id);
     }

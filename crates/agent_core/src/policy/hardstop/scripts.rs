@@ -96,6 +96,7 @@ impl<'a> Walker<'a> {
                 for tok in code_tokens(text) {
                     let p = paths::resolve(&self.cwd, tok, self.jail.home.as_deref());
                     if let Some(why) = self.jail.mention_protected_reason(&p) {
+                        // (a script or inline code is not something a grant can vouch for: tier 1, no offer)
                         self.stop("script.protected-path", &format!("{label} names {why} ({tok})"));
                         break;
                     }
