@@ -218,10 +218,10 @@ export default {
         p: 'Eddig ha az ügynök egy <code>.env</code> fájlhoz nyúlt, elutasítást kapott, és sokszor újra meg újra próbálkozott. Mostantól az elutasítás mellé te is kapsz egy kérdést.',
         list: [
           'A futás mappáin belüli, titoknak látszó fájloknál kérdez (<code>.env</code>, <code>*.pem</code>, <code>*.key</code>, <code>credentials.json</code> és társaik), valamint a Claude CLI néhány olyan kérdésénél, amelyre a futás magától nem tudott válaszolni',
-          'Három válasz közül választhatsz: Elutasítom, Egyszer engedélyezem, vagy Minden titkos fájl engedélyezése ebben a futásban. Az utóbbit egy figyelmeztetésen külön meg kell erősítened, és a futás végén az app semmit sem jegyez meg belőle',
+          'Három válasz közül választhatsz: Elutasítom, Egyszer engedélyezem, vagy Minden titkos fájl engedélyezése ebben a futásban. Az utóbbit egy figyelmeztetésen külön meg kell erősítened, és a futás leállásáig érvényes; utána az app semmit sem jegyez meg belőle',
           'Az egyszeri engedély az IDE fájleszközeire szól, pontosan arra az egy fájlra: a Read és a Grep eszközre, <code>.env</code> fájlnál az Edit és a Write eszközre is. A futásra szóló válasz ugyanezekre az eszközökre érvényes, a futás mappáin belüli összes titoknak látszó fájlra. Az olvasás és a szerkesztés két külön kérdés',
           'A titkos fájlt megnevező shell-parancsok minden módban tiltva maradnak, bármit engedélyeztél is',
-          'Igent csak az mondhat, aki a gépnél, az IDE ablaka előtt ül. A párosított telefonon a kártya csak elutasítani enged, a szerveren futó futásnál pedig a tiltás tiltás marad',
+          'Igent csak az mondhat, aki a gépnél, az IDE főablaka előtt ül. A párosított telefonon a kártya látszik, de válaszolni nem lehet rá, a szerveren futó futásnál pedig a tiltás tiltás marad',
           'A kártya kimondja: a fájl tartalma eljut a modell szolgáltatójához, és naplókba, átiratokba kerülhet. Minden választ rögzít a futás naplója és az összefoglalója',
           'Minden más kemény tiltás marad, amelyet semmi sem old fel: a commit, a push, a merge, a <code>.git</code> teljes tartalma, a lockfájlok, valamint a projekten kívüli kulcsok és hitelesítő adatok',
         ],
@@ -616,7 +616,7 @@ export default {
     points: [
       ['Kemény tiltások minden módban.', 'A commit, a push, a merge, a rebase és a <code>.git</code> teljes tartalma tiltott, Bypass módban is.'],
       ['A kulcsaid a tieid maradnak.', 'A projekten kívüli SSH-kulcsokhoz, felhős hitelesítő adatokhoz és jelszótárolókhoz az ügynök nem nyúlhat, és ezt kártya sem oldja fel.'],
-      ['Ott kérdez, ahol kérdezni biztonságos.', 'A saját projekted titoknak látszó fájljánál egy kártya kérdez meg, a gépednél. Telefonról csak elutasítani lehet.'],
+      ['Ott kérdez, ahol kérdezni biztonságos.', 'A saját projekted titoknak látszó fájljánál egy kártya kérdez meg, a gépednél. Telefonról nem lehet rá válaszolni.'],
       ['Bármelyik lépés visszavonható.', 'Minden futás Rewind pillanatképpel indul és ellenőrzőpontokat őriz, így visszaléphetsz egy lépést, vagy vissza az elejére.'],
       ['Őszintén a korlátokról.', 'A védelem több rétegből áll és legjobb szándék szerint működik; hogy meddig ér, azt a biztonsági modell leírja.'],
     ],

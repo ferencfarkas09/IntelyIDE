@@ -219,10 +219,10 @@ export default {
         p: 'Until now an agent that reached for a <code>.env</code> file was refused, and often tried again and again. Now the refusal comes with a question for you.',
         list: [
           'It asks for secret-looking files inside the folders of the run (<code>.env</code>, <code>*.pem</code>, <code>*.key</code>, <code>credentials.json</code> and the like), and for a short list of prompts of the Claude CLI that a run could not answer by itself',
-          'Three answers: Deny, Allow once, or Allow all secret files in this run. The last one asks you to confirm on a warning, and nothing is remembered after the run ends',
+          'Three answers: Deny, Allow once, or Allow all secret files in this run. The last one asks you to confirm on a warning and lasts until the run stops; nothing is remembered after that',
           'Allow once covers the IDE’s file tools on that exact file: Read and Grep, and Edit and Write for a <code>.env</code> file. The run-wide answer covers the same tools on every secret-looking file inside the folders of the run. Reading and editing are two separate questions',
           'Shell commands that name a secret file stay refused in every mode, whatever you allowed',
-          'Only a person at the IDE window on the computer can say yes. A paired phone shows the card with Deny only, and for a run on a server the stop stays a refusal',
+          'Only a person at the main window of the IDE on the computer can say yes. A paired phone shows the card but cannot answer it, and for a run on a server the stop stays a refusal',
           'The card says plainly that the content of the file goes to the model provider and may land in logs and transcripts. The run log and the run summary record every answer',
           'Everything else stays a hard stop that nothing lifts: commit, push, merge, anything inside <code>.git</code>, lockfiles, and keys and credentials outside the project',
         ],
@@ -617,7 +617,7 @@ export default {
     points: [
       ['Hard stops in every mode.', 'Commit, push, merge, rebase and anything inside <code>.git</code> are refused, in Bypass too.'],
       ['Your keys stay yours.', 'SSH keys, cloud credentials and password stores outside the project are off limits to agents, and no card lifts that.'],
-      ['It asks where asking is safe.', 'For a secret-looking file of your own project a card asks you, at your computer. A phone can only deny.'],
+      ['It asks where asking is safe.', 'For a secret-looking file of your own project a card asks you, at your computer. A phone cannot answer it.'],
       ['Undo any step.', 'Every run starts with a Rewind snapshot and keeps checkpoints, so you can go back one step or to the start.'],
       ['Honest about limits.', 'The protections are layered and best effort, and the safety model says where they end.'],
     ],

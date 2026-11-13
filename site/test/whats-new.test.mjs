@@ -58,20 +58,20 @@ describe('what is new in 1.15', () => {
     });
   }
 
-  it('promises no more about the asking cards than the safety model: file tools only, the shell stays refused, a phone can only deny', () => {
+  it('promises no more about the asking cards than the safety model: file tools only, the shell stays refused, a phone cannot answer', () => {
     const ask = (t) => textOf(t.whatsNew.items.find((f) => f.id === 'ask'));
     assert.match(ask(en), /Shell commands that name a secret file stay refused in every mode/);
     assert.match(ask(en), /file tools on that exact file/);
-    assert.match(ask(en), /A paired phone shows the card with Deny only/);
-    assert.match(ask(en), /Only a person at the IDE window on the computer can say yes/);
+    assert.match(ask(en), /A paired phone shows the card but cannot answer it/);
+    assert.match(ask(en), /Only a person at the main window of the IDE on the computer can say yes/);
     assert.match(ask(en), /stays a hard stop that nothing lifts: commit, push, merge/);
     assert.match(ask(en), /Best effort/);
-    assert.match(ask(en), /Three answers: Deny, Allow once, or Allow all secret files in this run\. The last one asks you to confirm/);
+    assert.match(ask(en), /Three answers: Deny, Allow once, or Allow all secret files in this run\. The last one asks you to confirm on a warning and lasts until the run stops/);
     assert.match(ask(en), /every secret-looking file inside the folders of the run/);
     for (const t of [en, hu]) assert.doesNotMatch(textOf({ n: t.whatsNew, tr: t.trust }), /always allow|Always allow|mindig engedélyez|Mindig engedélyez/);
     assert.match(ask(hu), /shell-parancsok minden módban tiltva maradnak/);
     assert.match(ask(hu), /pontosan arra az egy fájlra/);
-    assert.match(ask(hu), /telefonon a kártya csak elutasítani enged/);
+    assert.match(ask(hu), /telefonon a kártya látszik, de válaszolni nem lehet rá/);
     assert.match(ask(hu), /kemény tiltás marad, amelyet semmi sem old fel: a commit, a push, a merge/);
     for (const t of [en, hu]) assert.doesNotMatch(textOf(t.whatsNew), /shell command[^.]*allow(ed)? (once|for)|parancs[^.]*engedélyezhető/i);
   });
