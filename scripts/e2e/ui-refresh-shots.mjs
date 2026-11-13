@@ -160,7 +160,8 @@ function audit(opts = {}) {
     if (!open.length) continue;
     const shown = (c) => { const r = c.getBoundingClientRect(); return Math.max(0, Math.min(r.bottom, box.bottom) - Math.max(r.top, box.top)); };
     const current = open.find((c) => c.contains(active)) ?? open.slice().sort((a, b) => shown(b) - shown(a))[0];
-    const cardBox = (() => { const r = current.getBoundingClientRect(); return { top: Math.max(r.top, box.top), bottom: Math.min(r.bottom, box.bottom), left: box.left, right: box.right }; })();
+    // a button that sticks out of the side of the card (a label too long for its width) counts as not visible too
+    const cardBox = (() => { const r = current.getBoundingClientRect(); return { top: Math.max(r.top, box.top), bottom: Math.min(r.bottom, box.bottom), left: Math.max(r.left, box.left), right: Math.min(r.right, box.right) }; })();
     const name = (current.getAttribute("aria-label") ?? "request").slice(0, 30);
     const parts = [["title", current.querySelector(".perm__title")], ...(current.matches(".plan-approval") ? [] : [["target line", current.querySelector(".perm__target")]]), ...[...current.querySelectorAll(".perm__foot .perm__actions button")].map((b) => [`button "${b.textContent.trim().slice(0, 24)}"`, b])];
     if (parts.length < 2) cards.push(`${name}: no action button found`);
@@ -338,7 +339,9 @@ const VIEWS = {
     url: "/?scenario=agent-two-requests&mode=agent",
     steps: async (page) => {
       await openRun(page);
-      await page.locator("section.perm").nth(1).waitFor();
+      // the person looks at the run (the focus leaves the run list) before the requests arrive
+      await page.locator('[data-testid="transcript"]').first().click({ position: { x: 20, y: 20 } });
+      await page.locator("section.perm").nth(1).waitFor({ timeout: 15000 });
     },
     sequence: twoRequestSequence,
   },
@@ -466,8 +469,9 @@ for (const view of only) {
           await page.goto(`${base}${spec.url}&skin=${skin}`);
           await page.locator('[data-testid="shell"]').waitFor();
           await spec.steps(page);
-          // Toasts cover what is under them for a few seconds: close them before the shot.
-          for (const close of await page.locator(".ui-toast button[aria-label]").all()) await close.click().catch(() => {});
+          // Toasts cover what is under them for a few seconds: close them before the shot, with a click event that does not
+          // move the keyboard focus (a real click would take it off the request card the audit is about to check).
+          for (const close of await page.locator(".ui-toast button[aria-label]").all()) await close.dispatchEvent("click").catch(() => {});
           await page.waitForTimeout(900);
           await page.screenshot({ path: path.join(out, `${name}.png`) });
           const minRoom = spec.minRoom ?? 200;
