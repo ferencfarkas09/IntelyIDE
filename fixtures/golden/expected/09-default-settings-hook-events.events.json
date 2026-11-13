@@ -129,7 +129,7 @@
   "usage": {
    "model": "claude-haiku-4-5-20251001",
    "costBasis": "subscription",
-   "contextUsed": 17591,
+   "contextUsed": 17590,
    "contextSize": 200000,
    "perTurn": {
     "inputTokens": 909,

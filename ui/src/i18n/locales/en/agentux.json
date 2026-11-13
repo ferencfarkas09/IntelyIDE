@@ -265,7 +265,7 @@
   "ctxmeter.copy": "Copy summary",
   "ctxmeter.copied": "Summary copied",
   "ctxmeter.copyFailed": "Could not copy the summary",
-  "ctxmeter.source": "Counted from the last turn of this run. Nothing leaves this computer.",
+  "ctxmeter.source": "Counted from the agent's last answer in this run. Nothing leaves this computer.",
   "ctxmeter.summary.used": "{used} of {size} tokens used ({percent}%)",
-  "ctxmeter.summary.source": "Counted from the last turn of this run."
+  "ctxmeter.summary.source": "Counted from the agent's last answer in this run."
 }

@@ -1,6 +1,8 @@
 // Pure helpers of the context meter (the ring in the run header and its popover). Every number is one the run reported:
 // the size of the lead's context after its last turn and the model's real window (`contextUsed` and `contextSize` of the
 // run's usage). Nothing is estimated from text and no window is guessed from a model name: without both numbers there is no meter.
+import { fmt } from "../../i18n";
+import { percentTone } from "../usage/logic";
 
 export type MeterTone = "ok" | "warn" | "danger";
 
@@ -14,11 +16,8 @@ export interface Meter {
   tone: MeterTone;
 }
 
-/** Warning colour above this share of the window, danger above the next. */
-export const WARN_ABOVE = 0.7;
-export const DANGER_ABOVE = 0.9;
-
-export const meterTone = (fraction: number): MeterTone => (fraction > DANGER_ABOVE ? "danger" : fraction > WARN_ABOVE ? "warn" : "ok");
+/** The colour of a share of the window: its whole percent as shown, graded like the plan bar (warning from 70, danger from 90). */
+export const meterTone = (fraction: number): MeterTone => percentTone(Math.min(100, Math.round(fraction * 100)));
 
 const real = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
 
@@ -28,7 +27,8 @@ export function contextMeter(usage: { contextUsed?: number | null; contextSize?:
   const size = usage?.contextSize;
   if (!real(used) || !real(size) || used < 0 || size <= 0) return undefined;
   const fraction = used / size;
-  return { used, size, fraction, percent: Math.min(100, Math.round(fraction * 100)), tone: meterTone(fraction) };
+  const percent = Math.min(100, Math.round(fraction * 100));
+  return { used, size, fraction, percent, tone: percentTone(percent) };
 }
 
 /** The ring: radius 14 in a 36 box. */
@@ -40,10 +40,10 @@ export function ringDash(fraction: number): string {
   return `${(f * RING_LENGTH).toFixed(1)} ${RING_LENGTH.toFixed(1)}`;
 }
 
-/** Tokens in short: 950, 62k, 61.5k, 200k, 1M, 1.2M. */
+/** Tokens in short, in the reader's language: 950, 62k, 61.5k (61,5k in Hungarian), 200k, 1M, 1.2M. */
 export function shortTokens(n: number): string {
   if (!Number.isFinite(n) || n < 0) return "0";
-  const one = (v: number) => v.toFixed(1).replace(/\.0$/, "");
+  const one = (v: number) => fmt.number(Math.round(v * 10) / 10);
   if (n < 1000) return String(Math.round(n));
   if (n < 100_000) return `${one(n / 1000)}k`;
   if (n < 999_500) return `${Math.round(n / 1000)}k`;
@@ -75,9 +75,10 @@ export function turnsLeft(history: readonly number[], size: number): number | un
   return left >= 1 && left <= MAX_TURNS_LEFT ? left : undefined;
 }
 
-/** The context size after each turn, from the run's usage events (turns that reported none are skipped). */
-export function contextHistory(events: readonly { kind: string; usage?: { contextUsed?: number | null } }[]): number[] {
+/** The context size after each turn, from the run's usage events (turns that reported none are skipped, and so are the
+ *  updates sent while a turn runs: the pace is per turn). */
+export function contextHistory(events: readonly { kind: string; usage?: { contextUsed?: number | null; midTurn?: boolean | null } }[]): number[] {
   const out: number[] = [];
-  for (const e of events) if (e.kind === "usage" && real(e.usage?.contextUsed)) out.push(e.usage.contextUsed);
+  for (const e of events) if (e.kind === "usage" && !e.usage?.midTurn && real(e.usage?.contextUsed)) out.push(e.usage.contextUsed);
   return out;
 }

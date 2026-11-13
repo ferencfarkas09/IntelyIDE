@@ -224,7 +224,7 @@
   "tokensaver.section.enableDesc": "Alapból be van kapcsolva. A futás fejlécébe a kontextusmérőt, a Kontextus panelre gombokat és sorokat tesz; semmi nem megy a futásnak, amíg meg nem nyomsz egy gombot, vagy be nem kapcsolod az automatikus figyelmeztetést.",
   "tokensaver.section.auto": "Automatikus figyelmeztetés",
   "tokensaver.section.autoDesc": "Alapból ki van kapcsolva. Amíg egy kör fut, az a fájl, amelyet a futás újra és újra nagy darabokban olvas be, ugyanazt a rövid megjegyzést kapja, mint „Szólj az ügynöknek” esetén, fájlonként és futásonként legfeljebb egyszer. Új kört soha nem indít.",
-  "tokensaver.section.threshold": "Kontextus kártya ettől",
+  "tokensaver.section.threshold": "Kontextuskártya ettől",
   "tokensaver.section.thresholdDesc": "Mennyire legyen tele a kontextusablak, mielőtt a Kontextus panel friss futást ajánl.",
   "tokensaver.section.habits": "Tokenspóroló szokások",
   "tokensaver.section.habitsDesc": "Alapból ki van kapcsolva. Az új Claude futások kapnak egy rövid listát tokenspóroló szokásokról (egy fájlt egyszer olvass be és jegyzetelj, a nagy fájlokat részenként olvasd, hagyd ki a node_modules, build és cache mappákat). A CLAUDE.md-d és a biztonsági szabályok mindig erősebbek.",
@@ -265,7 +265,7 @@
   "ctxmeter.copy": "Összegzés másolása",
   "ctxmeter.copied": "Összegzés a vágólapon",
   "ctxmeter.copyFailed": "Nem sikerült kimásolni az összegzést",
-  "ctxmeter.source": "A futás utolsó köréből számolva. Semmi nem hagyja el ezt a gépet.",
+  "ctxmeter.source": "Az ügynök utolsó válaszából számolva. Semmi nem hagyja el ezt a gépet.",
   "ctxmeter.summary.used": "{used} / {size} token foglalt ({percent}%)",
-  "ctxmeter.summary.source": "A futás utolsó köréből számolva."
+  "ctxmeter.summary.source": "Az ügynök utolsó válaszából számolva."
 }

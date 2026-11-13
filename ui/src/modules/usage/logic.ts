@@ -148,10 +148,18 @@ export function modelShares(models: readonly ModelUsage[], metric: Metric): { mo
   return models.map((model) => ({ model, share: total > 0 ? metricOf(model, metric) / total : 0 })).sort((a, b) => b.share - a.share || a.model.model.localeCompare(b.model.model));
 }
 
-/** A plan window's colour: calm below 70 percent, warning below 90, then danger. */
-export function limitTone(utilization: number): "ok" | "warn" | "danger" {
-  return utilization >= 90 ? "danger" : utilization >= 70 ? "warn" : "ok";
+/** Warning colour from this whole percent, danger from the next. One rule for the context ring, its popover and the plan bar. */
+export const WARN_FROM = 70;
+export const DANGER_FROM = 90;
+
+/** The colour of a percent as it is shown: the ROUNDED whole number is graded, so "70%" is always the same colour. */
+export function percentTone(shown: number): "ok" | "warn" | "danger" {
+  const p = Number.isFinite(shown) ? Math.round(shown) : 0;
+  return p >= DANGER_FROM ? "danger" : p >= WARN_FROM ? "warn" : "ok";
 }
+
+/** A plan window's colour: its percent rounded the way it is shown, then graded by `percentTone`. */
+export const limitTone = (utilization: number): "ok" | "warn" | "danger" => percentTone(Math.round(percent(utilization)));
 
 /** Milliseconds until a window resets (0 once it has), or undefined for a time that is not one. */
 export function untilReset(resetsAt: string, now: number): number | undefined {

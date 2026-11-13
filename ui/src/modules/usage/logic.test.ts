@@ -146,7 +146,8 @@ describe("modelShares", () => {
 
 describe("plan limits", () => {
   it("is calm below 70 percent, warns below 90 and then alarms", () => {
-    expect([0, 69.9, 70, 89.9, 90, 100].map(limitTone)).toEqual(["ok", "ok", "warn", "warn", "danger", "danger"]);
+    // the percent is rounded the way it is shown before it is graded
+    expect([0, 69.4, 69.5, 70, 89.4, 89.5, 90, 100].map(limitTone)).toEqual(["ok", "ok", "warn", "warn", "warn", "danger", "danger", "danger"]);
   });
 
   it("clamps what a bar can draw and counts down to a reset", () => {

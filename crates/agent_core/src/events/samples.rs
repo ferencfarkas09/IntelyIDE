@@ -136,6 +136,7 @@ pub fn sample_events() -> Vec<AgentEvent> {
                     model: "claude-haiku-4-5-20251001".into(),
                     tokens: TokenCounts { input_tokens: 1200, output_tokens: 80, cache_read: 900, cache_write: 0, reasoning_tokens: 0, cost_usd: Some(0.0021) },
                 }],
+                mid_turn: None,
             },
         }),
         (Some("t1"), EventKind::Error { class: ErrorClass::Rate, message: "429 Too Many Requests".into(), retryable: true }),

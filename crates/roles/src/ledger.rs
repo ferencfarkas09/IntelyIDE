@@ -97,6 +97,10 @@ impl Ledger {
     }
 
     pub fn record(&mut self, agent_id: &str, usage: &UsageRecord, now_ms: u64) {
+        // a context update during a turn carries no new counts (and would set a resumed run's baseline from zero)
+        if usage.mid_turn == Some(true) {
+            return;
+        }
         let cumulative = totals(&usage.cumulative);
         let e = self.entries.entry(agent_id.to_string()).or_default();
         if e.pending_baseline {
@@ -155,7 +159,7 @@ mod tests {
     }
 
     fn usage(per_turn: TokenCounts, cumulative: TokenCounts) -> UsageRecord {
-        UsageRecord { model: "m".into(), cost_basis: CostBasis::Estimated, per_turn, cumulative, premium_requests: None, context_used: None, context_size: None, per_model: Vec::new() }
+        UsageRecord { model: "m".into(), cost_basis: CostBasis::Estimated, per_turn, cumulative, premium_requests: None, context_used: None, context_size: None, per_model: Vec::new(), mid_turn: None }
     }
 
     #[test]

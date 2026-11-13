@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import en from "../../i18n/locales/en/agentux.json";
 import hu from "../../i18n/locales/hu/agentux.json";
+import { setLocale } from "../../i18n";
 import type { AgentEvent } from "../../store/agent-types";
 import type { AgentRow } from "../../store/agents";
 
@@ -72,8 +73,11 @@ describe("the context meter's numbers", () => {
     expect(contextMeter({ contextUsed: 260_000, contextSize: 200_000 })).toMatchObject({ percent: 100, fraction: 1.3, tone: "danger" });
   });
 
-  it("turns to the warning colour above 70 percent and to danger above 90", () => {
-    expect([0.31, 0.7, 0.701, 0.9, 0.901, 1.2].map(meterTone)).toEqual(["ok", "ok", "warn", "warn", "danger", "danger"]);
+  it("grades the rounded percent it shows: warning from 70, danger from 90 (the plan bar's rule)", () => {
+    expect([0.31, 0.694, 0.695, 0.7, 0.704, 0.894, 0.895, 0.9, 1.2].map(meterTone)).toEqual(["ok", "ok", "warn", "warn", "warn", "warn", "danger", "danger", "danger"]);
+    // the same "70%" is always the same colour
+    for (const used of [139_000, 140_000, 140_800]) expect(contextMeter({ contextUsed: used, contextSize: 200_000 })).toMatchObject({ percent: 70, tone: "warn" });
+    expect(contextMeter({ contextUsed: 138_900, contextSize: 200_000 })).toMatchObject({ percent: 69, tone: "ok" });
     expect(contextMeter({ contextUsed: 156_000, contextSize: 200_000 })?.tone).toBe("warn");
     expect(contextMeter({ contextUsed: 186_000, contextSize: 200_000 })?.tone).toBe("danger");
   });
@@ -87,6 +91,20 @@ describe("the context meter's numbers", () => {
 
   it("writes tokens short", () => {
     expect([950, 1000, 61_500, 62_000, 156_000, 200_000, 999_600, 1_000_000, 1_250_000].map(shortTokens)).toEqual(["950", "1k", "61.5k", "62k", "156k", "200k", "1M", "1M", "1.3M"]);
+  });
+
+  it("writes tokens short with the Hungarian decimal comma", async () => {
+    await setLocale("hu", { persist: false });
+    try {
+      expect([61_500, 62_000, 1_200_000, 1_000_000].map(shortTokens)).toEqual(["61,5k", "62k", "1,2M", "1M"]);
+    } finally {
+      await setLocale("en", { persist: false });
+    }
+  });
+
+  it("leaves the updates sent during a turn out of the pace", () => {
+    const u = (contextUsed: number, midTurn?: boolean) => ({ kind: "usage", usage: { contextUsed, ...(midTurn ? { midTurn } : {}) } });
+    expect(contextHistory([u(10_000), u(14_000, true), u(18_000, true), u(20_000), u(30_000)])).toEqual([10_000, 20_000, 30_000]);
   });
 });
 
@@ -160,7 +178,7 @@ describe("the ring and its popover", () => {
     expect(panel.textContent).toContain("of 200k tokens");
     expect(panel.textContent).toContain("Sonnet 5.5 · 200k window");
     expect(panel.textContent).toContain("How much of this run the agent can keep in mind.");
-    expect(panel.textContent).toContain("Counted from the last turn of this run. Nothing leaves this computer.");
+    expect(panel.textContent).toContain("Counted from the agent's last answer in this run. Nothing leaves this computer.");
     expect(screen.getByRole("img", { name: "31 percent of the context used" })).toBeTruthy();
     expect(screen.getByTestId("context-meter-pace").textContent).toBe("At this paceabout 13 turns left");
     await vi.waitFor(() => expect(store.loaded).toEqual(["r1"]));
@@ -211,12 +229,12 @@ describe("the ring and its popover", () => {
     fireEvent.click(screen.getByTestId("context-ring"));
     fireEvent.click(await screen.findByRole("button", { name: "Copy summary" }));
     await vi.waitFor(() => expect(written).toHaveLength(1));
-    expect(written[0]).toBe(["Context meter", "62k of 200k tokens used (31%)", "Model: Sonnet 5.5 · 200k window", "At this pace: about 13 turns left", "Counted from the last turn of this run."].join("\n"));
+    expect(written[0]).toBe(["Context meter", "62k of 200k tokens used (31%)", "Model: Sonnet 5.5 · 200k window", "At this pace: about 13 turns left", "Counted from the agent's last answer in this run."].join("\n"));
   });
 
   it("the summary leaves the pace line out when there is no pace", () => {
     const meter = contextMeter({ contextUsed: 186_000, contextSize: 200_000 })!;
-    expect(summaryText(meter, "claude-sonnet-5-5", undefined)).toBe(["Context meter", "186k of 200k tokens used (93%)", "Model: Sonnet 5.5 · 200k window", "Counted from the last turn of this run."].join("\n"));
+    expect(summaryText(meter, "claude-sonnet-5-5", undefined)).toBe(["Context meter", "186k of 200k tokens used (93%)", "Model: Sonnet 5.5 · 200k window", "Counted from the agent's last answer in this run."].join("\n"));
     expect(summaryText(meter, "claude-sonnet-5-5", 1)).toContain("At this pace: about 1 turn left");
   });
 

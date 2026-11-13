@@ -59,7 +59,7 @@
   "usage": {
    "model": "claude-haiku-4-5-20251001",
    "costBasis": "subscription",
-   "contextUsed": 15562,
+   "contextUsed": 15558,
    "contextSize": 200000,
    "perTurn": {
     "inputTokens": 910,
@@ -140,7 +140,7 @@
    "old": null,
    "new": "d"
   },
-  "durationMs": 10,
+  "durationMs": 60,
   "seq": 14,
   "ts": 0
  },
@@ -175,7 +175,7 @@
   "usage": {
    "model": "claude-haiku-4-5-20251001",
    "costBasis": "subscription",
-   "contextUsed": 16127,
+   "contextUsed": 16126,
    "contextSize": 200000,
    "perTurn": {
     "inputTokens": 18,
@@ -256,7 +256,7 @@
    "old": null,
    "new": "e"
   },
-  "durationMs": 10,
+  "durationMs": 60,
   "seq": 25,
   "ts": 0
  },
@@ -291,7 +291,7 @@
   "usage": {
    "model": "claude-haiku-4-5-20251001",
    "costBasis": "subscription",
-   "contextUsed": 16650,
+   "contextUsed": 16646,
    "contextSize": 200000,
    "perTurn": {
     "inputTokens": 18,

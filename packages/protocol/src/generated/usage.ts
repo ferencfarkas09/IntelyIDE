@@ -30,4 +30,9 @@ export type UsageRecord = {
 	contextSize?: number | null,
 	/**  Cumulative per model, from the provider's per-model usage (Claude `modelUsage`). Empty = not reported. */
 	perModel?: ModelTokens[],
+	/**
+	 *  `true` = a context update sent while the turn runs (`perTurn` is zero, `cumulative` is the last turn's): only
+	 *  `contextUsed` and `contextSize` are new. Absent on the record that ends a turn.
+	 */
+	midTurn?: boolean | null,
 };
