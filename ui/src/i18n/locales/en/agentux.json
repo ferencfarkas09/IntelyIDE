@@ -240,6 +240,8 @@
   "tokensaver.context.estimated": "This is an estimate from the transcript text; the real size can differ.",
   "tokensaver.context.fresh": "Continue in a fresh run",
   "tokensaver.context.freshHint": "Opens New Run with the original task, a short summary of this run and its changed files, the same role, mode and model. Nothing starts until you press Start run.",
+  "tokensaver.fresh.noLog": "The run's log could not be read, so its task is not known yet. Try again in a moment.",
+  "tokensaver.fresh.server": "This run is on a server. A fresh run from here would start on this Mac, without the server's checkout, so it is not offered; start a new run on the server instead.",
   "tokensaver.context.compact": "Compact the conversation",
   "tokensaver.context.compactHint": "Sends the CLI's /compact: the conversation is replaced by a summary and the run goes on.",
   "tokensaver.context.compactWait": "Available when the current turn ends.",

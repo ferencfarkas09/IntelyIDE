@@ -3,9 +3,9 @@ import { t } from "../../i18n";
 import { modelLabel } from "../../components/chat/format";
 import type { AgentRow } from "../../store/agents";
 import { Button, IconButton, Popover, toast, X } from "../../ui-kit";
-import { buildCockpit } from "../history/cockpit";
 import { loadRunLog, runLog } from "../inspector/runEvents";
 import { canCompact, compact, compactBusy, continueFresh } from "./actions";
+import { handoffOffered } from "./logic";
 import { contextHistory, contextMeter, ringDash, shortTokens, turnsLeft, type Meter } from "./meter";
 import "./tokensaver.css";
 
@@ -27,6 +27,24 @@ export function summaryText(meter: Meter, model: string, left: number | undefine
   return lines.join("\n");
 }
 
+/** Space kept between the ring and the popover, and between the popover and the window's edge. */
+const RING_GAP = 6;
+const EDGE = 8;
+/** Below this the popover is not squeezed under the ring: it scrolls in the space the window has instead. */
+const MIN_ROOM = 220;
+
+/**
+ * Caps the popover at the room under the ring, so that in a short window (960x600, a longer language, the pace row shown) it
+ * scrolls inside instead of being pushed up over its own ring.
+ */
+function fitBelowRing(panel: HTMLElement | undefined): void {
+  const pop = panel?.closest<HTMLElement>(".ui-popover");
+  const ring = pop?.id ? document.querySelector<HTMLElement>(`[aria-controls="${CSS.escape(pop.id)}"]`) : null;
+  if (!pop || !ring) return;
+  const room = Math.floor(window.innerHeight - ring.getBoundingClientRect().bottom - RING_GAP - EDGE);
+  if (room >= MIN_ROOM) pop.style.maxHeight = `${room}px`;
+}
+
 /** The ring's arc and track; decorative, the button carries the name. */
 function Ring(props: { fraction: number }) {
   return (
@@ -40,15 +58,20 @@ function Ring(props: { fraction: number }) {
 /** The popover of the ring: the numbers, what they mean, and what to do about a full context. */
 export function ContextMeterPanel(props: { agent: AgentRow; meter: Meter; close: () => void }) {
   const id = () => props.agent.agentId;
+  let root: HTMLDivElement | undefined;
   // the pace and the changed files come from the run's own log, which is read once and then follows the live events
-  onMount(() => void loadRunLog(id()));
+  onMount(() => {
+    void loadRunLog(id());
+    fitBelowRing(root);
+  });
   const events = () => runLog(id())?.events ?? [];
   const left = createMemo(() => turnsLeft(contextHistory(events()), props.meter.size));
   const [busy, setBusy] = createSignal(false);
+  // the task and the changed files come from the log: the button waits for it
+  const logReady = () => runLog(id())?.status === "ready";
   const fresh = () => {
     setBusy(true);
-    const changed = buildCockpit(events(), props.agent.model).files.filter((f) => f.edits > 0).map((f) => f.path);
-    continueFresh(id(), changed)
+    continueFresh(id())
       .then((opened) => (opened ? props.close() : toast.warn(t("toAgent.noDialog"))), failed("tokensaver.fail.fresh"))
       .finally(() => setBusy(false));
   };
@@ -64,7 +87,7 @@ export function ContextMeterPanel(props: { agent: AgentRow; meter: Meter; close:
     }
   };
   return (
-    <div class="ctxm" data-testid="context-meter" data-tone={props.meter.tone}>
+    <div class="ctxm" ref={root} data-testid="context-meter" data-tone={props.meter.tone}>
       <div class="ctxm__head">
         <h2 class="ctxm__title">{t("ctxmeter.title")}</h2>
         <IconButton icon={X} label={t("ctxmeter.close")} size="md" onClick={props.close} />
@@ -93,10 +116,12 @@ export function ContextMeterPanel(props: { agent: AgentRow; meter: Meter; close:
           )}
         </Show>
       </dl>
-      <button type="button" class="ctxm__primary" disabled={busy()} aria-busy={busy()} title={t("tokensaver.context.freshHint")} onClick={fresh}>
-        <span class="ctxm__primary-title">{t("ctxmeter.fresh")}</span>
-        <span class="ctxm__primary-text">{t("ctxmeter.freshDesc")}</span>
-      </button>
+      <Show when={handoffOffered(props.agent)} fallback={<p class="ctxm__text" data-testid="context-meter-server">{t("tokensaver.fresh.server")}</p>}>
+        <button type="button" class="ctxm__primary" disabled={busy() || !logReady()} aria-busy={busy() || !logReady()} title={t("tokensaver.context.freshHint")} onClick={fresh}>
+          <span class="ctxm__primary-title">{t("ctxmeter.fresh")}</span>
+          <span class="ctxm__primary-text">{t("ctxmeter.freshDesc")}</span>
+        </button>
+      </Show>
       <div class="ctxm__actions">
         <Show when={canCompact(id())}>
           <Button variant="secondary" disabled={compactBusy(id())} title={compactBusy(id()) ? t("tokensaver.context.compactWait") : t("tokensaver.context.compactHint")} onClick={() => void compact(id()).then(props.close, failed("tokensaver.fail.compact"))}>

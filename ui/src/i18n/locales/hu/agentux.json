@@ -240,6 +240,8 @@
   "tokensaver.context.estimated": "Ez becslés az átirat szövegéből; a valódi méret eltérhet.",
   "tokensaver.context.fresh": "Folytatás friss futásban",
   "tokensaver.context.freshHint": "Megnyitja az Új futást az eredeti feladattal, a futás rövid összefoglalójával és a módosított fájlokkal, ugyanazzal a szereppel, móddal és modellel. Semmi nem indul el, amíg meg nem nyomod a Futás indítása gombot.",
+  "tokensaver.fresh.noLog": "A futás naplója nem olvasható, így a feladata még nem ismert. Próbáld újra egy pillanat múlva.",
+  "tokensaver.fresh.server": "Ez a futás egy szerveren van. Az innen indított új futás ezen a Macen indulna, a szerver munkapéldánya nélkül, ezért nem kínáljuk fel; indíts inkább új futást a szerveren.",
   "tokensaver.context.compact": "Beszélgetés tömörítése",
   "tokensaver.context.compactHint": "Elküldi a CLI /compact parancsát: a beszélgetés helyére egy összefoglaló kerül, és a futás folytatódik.",
   "tokensaver.context.compactWait": "Az aktuális kör végén érhető el.",

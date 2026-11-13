@@ -56,7 +56,8 @@
   .ctxm-ring__pct { display: none; }
   .run-header__actions:has(.ctxm-ring) { gap: 2px; }
 }
-/* A short window (the minimum is 960x600): tighter, so the popover fits under the ring instead of covering it. */
+/* A short window (the minimum is 960x600): tighter, so more of it fits under the ring. Its height is capped at the room
+   under the ring (ContextRing.tsx, fitBelowRing): what does not fit scrolls inside, the ring stays visible. */
 @media (max-height: 700px) {
   .ui-popover.ctxm-popover[data-kind="dialog"] { padding: 14px; }
   .ctxm { gap: 10px; }

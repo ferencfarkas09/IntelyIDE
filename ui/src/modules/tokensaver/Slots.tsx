@@ -3,7 +3,8 @@ import { t } from "../../i18n";
 import type { CockpitSlotProps } from "../../platform/cockpitSlots";
 import { Button, toast } from "../../ui-kit";
 import { canCompact, compact, compactBusy, continueFresh, nudged, route, sendNudge } from "./actions";
-import { cacheReadShare, MOSTLY, overThreshold } from "./logic";
+import { agentRow } from "../../store/agents";
+import { cacheReadShare, handoffOffered, MOSTLY, overThreshold } from "./logic";
 import { threshold } from "./prefs";
 import "./tokensaver.css";
 
@@ -50,14 +51,16 @@ export function ContextCard(props: CockpitSlotProps) {
           <p class="ts-card__muted">{t("tokensaver.context.estimated")}</p>
         </Show>
         <div class="ts-card__actions">
-          <Button size="sm" variant="primary" loading={busy()} onClick={fresh}>{t("tokensaver.context.fresh")}</Button>
+          <Show when={handoffOffered(agentRow(props.runId))}>
+            <Button size="sm" variant="primary" loading={busy()} onClick={fresh}>{t("tokensaver.context.fresh")}</Button>
+          </Show>
           <Show when={canCompact(props.runId)}>
             <Button size="sm" variant="secondary" disabled={compactBusy(props.runId)} title={compactBusy(props.runId) ? t("tokensaver.context.compactWait") : t("tokensaver.context.compactHint")} onClick={() => void compact(props.runId).catch(failed("tokensaver.fail.compact"))}>
               {t("tokensaver.context.compact")}
             </Button>
           </Show>
         </div>
-        <p class="ts-card__muted">{t("tokensaver.context.freshHint")}</p>
+        <p class="ts-card__muted">{handoffOffered(agentRow(props.runId)) ? t("tokensaver.context.freshHint") : t("tokensaver.fresh.server")}</p>
       </section>
     </Show>
   );

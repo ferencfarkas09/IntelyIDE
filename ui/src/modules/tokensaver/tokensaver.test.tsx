@@ -4,9 +4,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CockpitData } from "../../platform/cockpitSlots";
 
 const store = vi.hoisted(() => ({
-  rows: {} as Record<string, { agentId: string; caps: { notes?: boolean }; slashCommands?: string[]; repoIds: string[]; role: string; model: string; permission: string; status: string }>,
+  rows: {} as Record<string, { agentId: string; caps: { notes?: boolean }; slashCommands?: string[]; repoIds: string[]; role: string; model: string; permission: string; status: string; location?: string }>,
   views: {} as Record<string, { turnActive: boolean; caps?: { notes?: boolean } }>,
   sent: [] as { how: string; runId: string; text: string }[],
+  logs: {} as Record<string, { status: string; events: unknown[] }>,
+}));
+vi.mock("../inspector/runEvents", () => ({
+  loadRunLog: async (id: string) => void (store.logs[id] ??= { status: "error", events: [] }),
+  runLog: (id: string) => store.logs[id],
 }));
 vi.mock("../../store/agents", () => ({
   agentRow: (id: string) => store.rows[id],
@@ -20,7 +25,7 @@ vi.mock("../../platform/newRun", () => ({ requestNewRun: async (p: unknown) => (
 
 import { resetActions, sendNudge, compact, canCompact, continueFresh } from "./actions";
 import { TOKEN_HABITS_TEXT } from "./habits";
-import { buildHandoffPrompt, cacheReadShare, HANDOFF_HEAD, headBytes, MAX_HANDOFF_BYTES, NudgeLedger, nudgeText, overThreshold, pendingNudges, safePath } from "./logic";
+import { buildHandoffPrompt, cacheReadShare, firstPrompt, HANDOFF_HEAD, originalTask, headBytes, MAX_HANDOFF_BYTES, NudgeLedger, nudgeText, overThreshold, pendingNudges, safePath } from "./logic";
 import { autoNudge, DEFAULT_THRESHOLD, resetPrefs, sanitize, threshold, tokenHabits } from "./prefs";
 import { CacheShare, ContextCard } from "./Slots";
 import { setRunSummaryApi } from "../runsummary/api";
@@ -33,6 +38,7 @@ beforeEach(() => {
   store.rows = {};
   store.views = {};
   store.sent = [];
+  store.logs = {};
   newRun.last = undefined;
   resetActions();
   resetPrefs();
@@ -161,11 +167,49 @@ describe("the hand-off prompt", () => {
 
   it("opens New Run with the run's repos, role, mode and model, starting nothing", async () => {
     run("r1", { permission: "bypass" });
+    store.logs.r1 = { status: "ready", events: [{ kind: "user.message", text: "Fix the login form" }] };
     setRunSummaryApi({ digest: async () => null, scripts: async () => [] });
     expect(await continueFresh("r1", ["src/a.ts"])).toBe(true);
     const p = newRun.last as { prompt: string; repoIds: string[]; role: string; model: string; permission?: string };
     expect([p.repoIds, p.role, p.model, p.permission]).toEqual([["app"], "developer", "claude-sonnet-5-5", undefined]);
     expect(p.prompt).toContain("- src/a.ts");
+    expect(p.prompt).toContain("Original task:\nFix the login form");
+  });
+
+  it("says what is true: the earlier run continues, it was not stopped", () => {
+    expect(HANDOFF_HEAD).toMatch(/continues from it/);
+    expect(HANDOFF_HEAD).not.toMatch(/was stopped/);
+  });
+
+  it("waits for the run's log: no hand-off with an \"(empty)\" task when the log is not there", async () => {
+    run("r1");
+    setRunSummaryApi({ digest: async () => null, scripts: async () => [] });
+    await expect(continueFresh("r1")).rejects.toThrow(/log could not be read/);
+    expect(newRun.last).toBeUndefined();
+  });
+
+  it("is not offered for a run on a server", async () => {
+    run("r1", { location: "build-server" });
+    store.logs.r1 = { status: "ready", events: [{ kind: "user.message", text: "task" }] };
+    await expect(continueFresh("r1")).rejects.toThrow(/on a server/);
+    expect(newRun.last).toBeUndefined();
+    render(() => <ContextCard runId="r1" data={data()} />);
+    expect(screen.queryByRole("button", { name: "Continue in a fresh run" })).toBeNull();
+    expect(screen.getByTestId("tokensaver-context").textContent).toMatch(/on a server/);
+  });
+
+  it("a hand-off of a hand-off carries the original task, not the previous hand-off", async () => {
+    const first = await buildHandoffPrompt({ originalPrompt: "Fix the login form\n\nand the tests", summary: ["Edited a.ts"], changedFiles: ["a.ts"] }, noMask);
+    expect(originalTask(first.prompt)).toBe("Fix the login form\n\nand the tests");
+    expect(originalTask("A plain task")).toBe("A plain task");
+    run("r2");
+    store.logs.r2 = { status: "ready", events: [{ kind: "user.message", text: first.prompt }] };
+    setRunSummaryApi({ digest: async () => null, scripts: async () => [] });
+    expect(firstPrompt(store.logs.r2.events as never)).toBe(first.prompt);
+    await continueFresh("r2", []);
+    const p = newRun.last as { prompt: string };
+    expect(p.prompt.split(HANDOFF_HEAD)).toHaveLength(2);
+    expect(p.prompt).toContain("Original task:\nFix the login form\n\nand the tests\n\nFiles the earlier run changed:");
   });
 });
 

@@ -128,7 +128,8 @@ export interface SessionSpec {
   /** `false` = leave the user's own ~/.claude/CLAUDE.md out of the prompt (Claude only). Absent = on. */
   includeUserMemory?: boolean;
   /** `true` = offer the two peer tools (`peer_list`, `peer_send`) to the lead (Claude only). Absent = none. */
-  peerTools?: boolean;  /** `true` = append the token-saving habits (`agents.tokenHabits`) to the system prompt (Claude only). Absent = off. */
+  peerTools?: boolean;
+  /** `true` = append the token-saving habits (`agents.tokenHabits`) to the system prompt (Claude only). Absent = off. */
   tokenHabits?: boolean;
 }
 

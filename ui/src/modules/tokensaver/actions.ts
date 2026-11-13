@@ -6,10 +6,11 @@ import { t } from "../../i18n";
 import { maskForPrompt } from "../../ipc/vibe";
 import { requestNewRun } from "../../platform/newRun";
 import { agentRow, agentView, sendMessage, sendNote } from "../../store/agents";
-import { runLog } from "../inspector/runEvents";
+import { buildCockpit } from "../history/cockpit";
+import { loadRunLog, runLog } from "../inspector/runEvents";
 import { runSummaryApi } from "../runsummary/api";
 import { bullets } from "../runsummary/logic";
-import { buildHandoffPrompt, firstPrompt, NudgeLedger, nudgeText } from "./logic";
+import { buildHandoffPrompt, firstPrompt, handoffOffered, NudgeLedger, nudgeText, originalTask } from "./logic";
 
 export const ledger = new NudgeLedger();
 /** Bumped on every nudge so the buttons re-read the ledger. */
@@ -52,11 +53,28 @@ export const compactBusy = (runId: string): boolean => agentView(runId)?.turnAct
 
 export const compact = (runId: string): Promise<void> => sendMessage(runId, "/compact");
 
-/** Opens New Run with the hand-off prompt, the run's repositories, role, mode and model. Resolves false when the dialog did not open. */
-export async function continueFresh(runId: string, changedFiles: readonly string[]): Promise<boolean> {
+/** The run's log, read and ready: waits for a read that is under way (up to `waitMs`). Throws when it cannot be read. */
+async function readyLog(runId: string, waitMs = 10_000): Promise<NonNullable<ReturnType<typeof runLog>>> {
+  await loadRunLog(runId);
+  const until = Date.now() + waitMs;
+  while (runLog(runId)?.status === "loading" && Date.now() < until) await new Promise((r) => setTimeout(r, 50));
+  const log = runLog(runId);
+  if (!log || log.status !== "ready") throw new Error(t("tokensaver.fresh.noLog"));
+  return log;
+}
+
+/**
+ * Opens New Run with the hand-off prompt, the run's repositories, role, mode and model. Resolves false when the dialog did not
+ * open. The run's log is read first (never "(empty)" for a task that was only not loaded yet); the changed files come from it
+ * unless the caller has them. Not for a run on a server (see `handoffOffered`).
+ */
+export async function continueFresh(runId: string, changedFiles?: readonly string[]): Promise<boolean> {
   const row = agentRow(runId);
+  if (!handoffOffered(row)) throw new Error(t("tokensaver.fresh.server"));
+  const log = await readyLog(runId);
+  const changed = changedFiles ?? buildCockpit(log.events, row?.model ?? "").files.filter((f) => f.edits > 0).map((f) => f.path);
   const digest = await runSummaryApi().digest(runId).catch(() => null);
-  const { prompt, reduced } = await buildHandoffPrompt({ originalPrompt: firstPrompt(runLog(runId)?.events ?? []), summary: digest ? bullets(digest) : [], changedFiles }, maskForPrompt);
+  const { prompt, reduced } = await buildHandoffPrompt({ originalPrompt: originalTask(firstPrompt(log.events)), summary: digest ? bullets(digest) : [], changedFiles: changed }, maskForPrompt);
   const permission = row?.permission && row.permission !== "bypass" ? row.permission : undefined;
   return requestNewRun({
     prompt,
