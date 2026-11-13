@@ -237,6 +237,13 @@ export function guardKeys(card: () => HTMLElement | undefined): { down: (e: Keyb
   };
 }
 
+/** A control of a card the person is already working in (the second step of a stop and back): brought into view, then focused. */
+export function focusInCard(card: HTMLElement | undefined, el: HTMLElement | null | undefined): void {
+  if (!card?.isConnected || !el) return;
+  revealRequest(card, el);
+  el.focus({ preventScroll: true });
+}
+
 /** When the checks run after the first reveal: the transcript measures its rows and pins its end during the first few frames. */
 const SETTLE_MS = [100, 250, 500, 900];
 /** After the focus moved: the control that has it is looked at again, in case the list still moved under it. */
@@ -455,19 +462,10 @@ export function PermissionCard(props: { item: PermissionItem; onAnswer: (decisio
   const paths = () => (props.item.intent.paths ?? []).filter((p) => !props.item.intent.summary.includes(p));
   const keys = guardKeys(() => card);
   const state = createCardState();
-  const answer = (d: PermissionDecision, opts?: { feedback?: string; confirmBroad?: boolean; toComposer?: boolean }) => {
-    refocusAfterAnswer(card, opts?.toComposer ?? false); // before the answer: the card can leave the DOM as soon as it is sent
-    const extra = opts && (opts.feedback !== undefined || opts.confirmBroad !== undefined) ? { feedback: opts.feedback, confirmBroad: opts.confirmBroad } : undefined;
+  const answer = (d: PermissionDecision, extra?: { feedback?: string; confirmBroad?: boolean }, toComposer = false) => {
+    refocusAfterAnswer(card, toComposer); // before the answer: the card can leave the DOM as soon as it is sent
     if (extra) props.onAnswer(d, extra);
     else props.onAnswer(d);
-  };
-  /** The button a new request puts the focus on: the first allow that is offered (Deny when nothing else is). */
-  const primary = () => (offered().find((d) => d.id !== "deny") ?? offered()[0])?.id;
-  /** What is asked, in one piece: the line under the title shows its start, and all of it when it fits. */
-  const summary = () => (actor() ? t("runs.actorAsks", { role: actor()!.role, summary: plain(props.item.intent.summary) }) : plain(props.item.intent.summary));
-  const asked = () => {
-    const run = peerTarget();
-    return command() ?? (run ? t("peer.card.ask", { run }) : summary());
   };
   // ---- tier 2: a stop the person may lift (secret file of the project, Claude CLI prompt) ----
   const stop = () => props.item.confirm;
@@ -476,13 +474,28 @@ export function PermissionCard(props: { item: PermissionItem; onAnswer: (decisio
   const stopOffers = (id: PermissionDecision) => props.item.options.includes(id);
   /** A secret needs a second click for the run-wide choice (it covers every secret file of the run); a CLI reason does not. */
   const runIsBroad = () => stop()?.kind === "secretFile" || stop()?.kind === "secretEdit";
-  const askRun = () => {
-    if (runIsBroad()) {
-      setConfirming(true);
-      queueMicrotask(() => card?.querySelector<HTMLElement>("[data-stop-cancel]")?.focus());
-    } else answer("allowRun");
+  /** The buttons of a stop, in the order of the row: Deny (the filled, focused default), Allow once, the run-wide choice. */
+  const stopDecisions = () => (["deny", "allowOnce", "allowRun"] as const).filter(stopOffers);
+  /** Into the second step and back: the focus goes to Cancel, and back to Deny; never to a button that allows. */
+  const toStep = (on: boolean) => {
+    setConfirming(on);
+    queueMicrotask(() => focusInCard(card, card?.querySelector<HTMLElement>(on ? "[data-stop-cancel]" : "[data-primary]")));
   };
-  const denyStop = (toComposer = false) => answer("deny", note().trim() ? { feedback: note().trim(), toComposer } : { toComposer });
+  const askRun = () => (runIsBroad() ? toStep(true) : answer("allowRun"));
+  const denyStop = (toComposer = false) => answer("deny", note().trim() ? { feedback: note().trim() } : undefined, toComposer);
+  /** The button a new request puts the focus on: Deny on a stop; else the first allow that is offered (Deny when nothing else is). */
+  const primary = () => (stop() ? "deny" : (offered().find((d) => d.id !== "deny") ?? offered()[0])?.id);
+  /** What is asked, in one piece: the line under the title shows its start, and all of it when it fits. */
+  const summary = () => (actor() ? t("runs.actorAsks", { role: actor()!.role, summary: plain(props.item.intent.summary) }) : plain(props.item.intent.summary));
+  const stopAsk = (c: ConfirmOffer) => t(`stops.ask.${c.kind}` as MessageKey, { what: stopWhat(c) });
+  const asked = () => {
+    const c = stop();
+    if (c) return (actor() ? `${t("stops.who", { role: actor()!.role })}: ` : "") + stopAsk(c);
+    const run = peerTarget();
+    return command() ?? (run ? t("peer.card.ask", { run }) : summary());
+  };
+  const stopLabel = (d: "deny" | "allowOnce" | "allowRun", c: ConfirmOffer) => (d === "deny" ? t("stops.deny") : d === "allowOnce" ? t("stops.once") : t(`stops.run.${c.kind}` as MessageKey));
+  const confirmId = () => `perm-confirm-${props.item.reqId}`;
   return (
     <Show
       when={!props.item.outcome}
@@ -527,17 +540,17 @@ export function PermissionCard(props: { item: PermissionItem; onAnswer: (decisio
         data-stop={stop()?.kind}
         onKeyDown={(e) => {
           if (keys.down(e)) return;
-          if (e.key === "Escape" && confirming()) {
+          if (e.key !== "Escape") return;
+          if (confirming()) {
             // Escape on the second confirmation backs out of it; it never allows anything
             e.preventDefault();
             e.stopPropagation();
-            setConfirming(false);
-            queueMicrotask(() => card?.querySelector<HTMLElement>("[data-primary]")?.focus());
-          } else if (e.key === "Escape" && offered().some((d) => d.id === "deny")) {
+            toStep(false);
+          } else if (offered().some((d) => d.id === "deny")) {
             e.preventDefault();
             e.stopPropagation();
             if (stop()) denyStop(true);
-            else answer("deny", { toComposer: true });
+            else answer("deny", undefined, true);
           }
         }}
         onKeyUp={keys.up}
@@ -560,115 +573,150 @@ export function PermissionCard(props: { item: PermissionItem; onAnswer: (decisio
               )}
             </Show>
           </header>
-          <Show when={stop()}>
-            {(c) => (
-              <p class="perm__summary perm__stop-ask" data-testid="stop-ask">
-                <Show when={actor()}>{(a) => <strong class="perm__actor">{t("stops.who", { role: a().role })}: </strong>}</Show>
-                {t(`stops.ask.${c().kind}` as MessageKey, { what: stopWhat(c()) })}
-              </p>
-            )}
-          </Show>
-          <Show when={peerTarget()}>{(run) => <p class="perm__summary perm__target" data-testid="peer-ask"><span class="perm__clamp" ref={state.target}>{t("peer.card.ask", { run: run() })}</span></p>}</Show>
-          <Show when={command()} fallback={<Show when={!peerTarget() && !stop()}><p class="perm__summary perm__target"><span class="perm__clamp" ref={state.target}>{summary()}</span></p></Show>}>
-            {(c) => <pre class="perm__code perm__code--cmd perm__target ui-mono ui-selectable" aria-label={t("chat.perm.command")}><span class="perm__clamp" ref={state.target}>{c()}</span></pre>}
-          </Show>
+          <Switch>
+            <Match when={stop()}>
+              {(c) => (
+                <p class="perm__summary perm__stop-ask perm__target">
+                  <span class="perm__clamp" ref={state.target} data-testid="stop-ask">
+                    <Show when={actor()}>{(a) => <strong class="perm__actor">{t("stops.who", { role: a().role })}: </strong>}</Show>
+                    {stopAsk(c())}
+                  </span>
+                </p>
+              )}
+            </Match>
+            <Match when={command()}>
+              {(c) => <pre class="perm__code perm__code--cmd perm__target ui-mono ui-selectable" aria-label={t("chat.perm.command")}><span class="perm__clamp" ref={state.target}>{c()}</span></pre>}
+            </Match>
+            <Match when={peerTarget()}>{(run) => <p class="perm__summary perm__target" data-testid="peer-ask"><span class="perm__clamp" ref={state.target}>{t("peer.card.ask", { run: run() })}</span></p>}</Match>
+            <Match when={true}>
+              <p class="perm__summary perm__target"><span class="perm__clamp" ref={state.target}>{summary()}</span></p>
+            </Match>
+          </Switch>
         </div>
         <div class="perm__body" ref={state.body} tabindex={state.scrolls() ? 0 : undefined} role={state.scrolls() ? "region" : undefined} aria-label={state.scrolls() ? t("chat.perm.details") : undefined}>
-          <Show when={stop()}>
-            {(c) => (
-              <>
-                <p class="perm__note" data-testid="stop-why">{t(`stops.why.${c().kind}` as MessageKey)}</p>
-                <Show when={c().kind !== "cliPrompt"}>
-                  <p class="perm__note ui-mono ui-truncate" title={c().scope} data-testid="stop-path">{c().scope}</p>
-                </Show>
-                <Show when={c().kind !== "cliPrompt" && stopOffers("allowRun")}>
-                  <p class="perm__note" data-testid="stop-reach">{t(`stops.reach.${c().kind}` as MessageKey)}</p>
-                </Show>
-              </>
-            )}
-          </Show>
-          {/* the line in the top was cut (a long path, a long command): all of it is here, where it can be scrolled and selected */}
-          <Show when={state.clipped()}>
-            <pre class="perm__code perm__full ui-mono ui-selectable" aria-label={t("chat.perm.full")}>{asked()}</pre>
-          </Show>
-          <Show when={props.item.peer}>
-            {(pc) => (
-              <div class="perm__peer" data-testid="peer-card" data-riskier={pc().riskier ? "" : undefined}>
-                <p class="perm__peer-who">{t("peer.card.target", { title: pc().title, where: pc().location, mode: t(MODE_META[pc().mode].label) })}</p>
-                <Show when={pc().riskier}>
-                  <p class="perm__peer-warn" role="note">{t("peer.card.riskier")}</p>
-                </Show>
-                <pre class="perm__code ui-mono ui-selectable" aria-label={t("peer.card.text")}>{pc().text}</pre>
-              </div>
-            )}
-          </Show>
-          <Show when={!peerTarget() && said()}>{(text) => <p class="perm__said">{t("chat.perm.said", { text: text() })}</p>}</Show>
-          <Show when={paths().length}>
-            <ul class="perm__paths ui-mono">
-              <For each={paths()}>{(p) => <li title={p}>{p}</li>}</For>
-            </ul>
-          </Show>
-          <Show when={props.item.intent.url}>{(url) => <pre class="perm__code ui-mono ui-selectable">{url()}</pre>}</Show>
-          <Show when={scope()}>
-            {(sc) => (
-              <p class="perm__scope" id={scopeId()}>
-                {sc().before}
-                <Show when={sc().after !== undefined}>
-                  <code>{sc().scope}</code>
-                  {sc().after}
-                </Show>
-              </p>
-            )}
-          </Show>
-          <Show when={onceOnly()}>
-            <p class="perm__note">{t("modes.perm.onceOnly")}</p>
+          <Show
+            when={!confirming()}
+            fallback={
+              <Show when={stop()}>
+                {(c) => (
+                  <p class="perm__note perm__confirm-q" id={confirmId()} data-testid="stop-confirm">
+                    {t(`stops.confirm.q.${c().kind}` as MessageKey)}
+                  </p>
+                )}
+              </Show>
+            }
+          >
+            {/* the line in the top was cut (a long path, a long command): all of it is here, where it can be scrolled and selected */}
+            <Show when={state.clipped()}>
+              <pre class="perm__code perm__full ui-mono ui-selectable" aria-label={t("chat.perm.full")}>{asked()}</pre>
+            </Show>
+            <Show when={stop()}>
+              {(c) => (
+                <>
+                  <p class="perm__note" data-testid="stop-why">{t(`stops.why.${c().kind}` as MessageKey)}</p>
+                  <Show when={c().kind !== "cliPrompt"}>
+                    <p class="perm__code perm__stop-path ui-mono ui-selectable" title={c().scope} data-testid="stop-path">{c().scope}</p>
+                  </Show>
+                  <Show when={c().kind === "cliPrompt" && command()}>
+                    {(cmd) => <pre class="perm__code perm__code--cmd ui-mono ui-selectable" aria-label={t("chat.perm.command")}>{cmd()}</pre>}
+                  </Show>
+                  <Show when={c().kind !== "cliPrompt" && stopOffers("allowRun")}>
+                    <p class="perm__note" data-testid="stop-reach">{t(`stops.reach.${c().kind}` as MessageKey)}</p>
+                  </Show>
+                  <Show when={!stopOffers("allowOnce") && stopOffers("deny")}>
+                    <p class="perm__note" role="note" data-testid="stop-phone">{t("stops.phone")}</p>
+                  </Show>
+                </>
+              )}
+            </Show>
+            <Show when={!stop()}>
+              <Show when={props.item.peer}>
+                {(pc) => (
+                  <div class="perm__peer" data-testid="peer-card" data-riskier={pc().riskier ? "" : undefined}>
+                    <p class="perm__peer-who">{t("peer.card.target", { title: pc().title, where: pc().location, mode: t(MODE_META[pc().mode].label) })}</p>
+                    <Show when={pc().riskier}>
+                      <p class="perm__peer-warn" role="note">{t("peer.card.riskier")}</p>
+                    </Show>
+                    <pre class="perm__code ui-mono ui-selectable" aria-label={t("peer.card.text")}>{pc().text}</pre>
+                  </div>
+                )}
+              </Show>
+              <Show when={!peerTarget() && said()}>{(text) => <p class="perm__said">{t("chat.perm.said", { text: text() })}</p>}</Show>
+              <Show when={paths().length}>
+                <ul class="perm__paths ui-mono">
+                  <For each={paths()}>{(p) => <li title={p}>{p}</li>}</For>
+                </ul>
+              </Show>
+              <Show when={props.item.intent.url}>{(url) => <pre class="perm__code ui-mono ui-selectable">{url()}</pre>}</Show>
+              <Show when={scope()}>
+                {(sc) => (
+                  <p class="perm__scope" id={scopeId()}>
+                    {sc().before}
+                    <Show when={sc().after !== undefined}>
+                      <code>{sc().scope}</code>
+                      {sc().after}
+                    </Show>
+                  </p>
+                )}
+              </Show>
+              <Show when={onceOnly()}>
+                <p class="perm__note">{t("modes.perm.onceOnly")}</p>
+              </Show>
+            </Show>
+            <Show when={stop() && stopOffers("deny")}>
+              <Input size="sm" aria-label={t("stops.note")} placeholder={t("stops.note")} value={note()} onInput={(e) => setNote(e.currentTarget.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); denyStop(); } }} />
+            </Show>
           </Show>
         </div>
         <div class="perm__foot">
-          <Show when={stop()}>
-            {(c) => (
-              <>
-                <Show when={!stopOffers("allowOnce") && stopOffers("deny")}>
-                  <p class="perm__note" role="note" data-testid="stop-phone">{t("stops.phone")}</p>
-                </Show>
-                <Show when={!confirming()} fallback={
-                  <div class="perm__confirm" role="alertdialog" aria-label={t(`stops.confirm.q.${c().kind}` as MessageKey)}>
-                    <p class="perm__note" data-testid="stop-confirm">{t(`stops.confirm.q.${c().kind}` as MessageKey)}</p>
-                    <div class="perm__actions">
-                      <Button size="sm" variant="secondary" data-stop-cancel="" onClick={() => { setConfirming(false); queueMicrotask(() => card?.querySelector<HTMLElement>("[data-primary]")?.focus()); }}>{t("stops.confirm.cancel")}</Button>
-                      <Button size="sm" variant="secondary" data-testid="stop-confirm-yes" onClick={(e: MouseEvent) => keyClickTooSoon(card, e) || answer("allowRun", { confirmBroad: true })}>{t("stops.confirm.yes")}</Button>
-                    </div>
-                  </div>
-                }>
-                  <Show when={stopOffers("deny")}>
-                    <Input size="sm" aria-label={t("stops.note")} placeholder={t("stops.note")} value={note()} onInput={(e) => setNote(e.currentTarget.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); denyStop(); } }} />
-                  </Show>
-                  <div class="perm__actions" data-testid="stop-actions">
-                    <Show when={stopOffers("allowOnce")}><Button size="sm" variant="secondary" onClick={(e: MouseEvent) => keyClickTooSoon(card, e) || answer("allowOnce")}>{t("stops.once")}</Button></Show>
-                    <Show when={stopOffers("allowRun")}><Button size="sm" variant="secondary" data-testid="stop-run" onClick={(e: MouseEvent) => keyClickTooSoon(card, e) || askRun()}>{t(`stops.run.${c().kind}` as MessageKey)}</Button></Show>
-                    <Show when={stopOffers("deny")}><Button size="sm" variant="primary" class="perm__deny" data-primary="" title={t("stops.denyTip")} onClick={(e: MouseEvent) => keyClickTooSoon(card, e) || denyStop()}>{t("stops.deny")}</Button></Show>
-                  </div>
-                </Show>
-              </>
-            )}
-          </Show>
-          <div class="perm__actions" hidden={!!stop()}>
-            <For each={stop() ? [] : offered()}>
-              {(d) => (
-                <Button
-                  size="xl"
-                  variant={d.variant}
-                  class={d.id === "deny" ? "perm__deny" : undefined}
-                  data-primary={d.id === primary() ? "" : undefined}
-                  title={d.id === "deny" ? t("chat.withEsc", { tip: t(d.title) }) : d.id === "allowRun" && scope() ? scope()!.text : t(d.title)}
-                  aria-describedby={d.id === "allowRun" && scope() ? scopeId() : undefined}
-                  onClick={(e: MouseEvent) => keyClickTooSoon(card, e) || answer(d.id)}
-                >
-                  {t(d.label)}
-                </Button>
+          <Switch>
+            <Match when={stop() && confirming() ? stop() : undefined}>
+              <div class="perm__actions perm__confirm" role="alertdialog" aria-labelledby={confirmId()}>
+                <Button size="xl" variant="secondary" data-stop-cancel="" onClick={(e: MouseEvent) => keyClickTooSoon(card, e) || toStep(false)}>{t("stops.confirm.cancel")}</Button>
+                <Button size="xl" variant="secondary" data-testid="stop-confirm-yes" aria-describedby={confirmId()} onClick={(e: MouseEvent) => keyClickTooSoon(card, e) || answer("allowRun", { confirmBroad: true })}>{t("stops.confirm.yes")}</Button>
+              </div>
+            </Match>
+            <Match when={stop()}>
+              {(c) => (
+                <div class="perm__actions" data-testid="stop-actions">
+                  <For each={stopDecisions()}>
+                    {(d) => (
+                      <Button
+                        size="xl"
+                        variant={d === "deny" ? "primary" : "secondary"}
+                        class={d === "deny" ? "perm__deny" : undefined}
+                        data-primary={d === "deny" ? "" : undefined}
+                        data-testid={d === "allowRun" ? "stop-run" : undefined}
+                        title={d === "deny" ? t("stops.denyTip") : undefined}
+                        onClick={(e: MouseEvent) => keyClickTooSoon(card, e) || (d === "deny" ? denyStop() : d === "allowOnce" ? answer("allowOnce") : askRun())}
+                      >
+                        {stopLabel(d, c())}
+                      </Button>
+                    )}
+                  </For>
+                </div>
               )}
-            </For>
-          </div>
+            </Match>
+            <Match when={true}>
+              <div class="perm__actions">
+                <For each={offered()}>
+                  {(d) => (
+                    <Button
+                      size="xl"
+                      variant={d.variant}
+                      class={d.id === "deny" ? "perm__deny" : undefined}
+                      data-primary={d.id === primary() ? "" : undefined}
+                      title={d.id === "deny" ? t("chat.withEsc", { tip: t(d.title) }) : d.id === "allowRun" && scope() ? scope()!.text : t(d.title)}
+                      aria-describedby={d.id === "allowRun" && scope() ? scopeId() : undefined}
+                      onClick={(e: MouseEvent) => keyClickTooSoon(card, e) || answer(d.id)}
+                    >
+                      {t(d.label)}
+                    </Button>
+                  )}
+                </For>
+              </div>
+            </Match>
+          </Switch>
           <Show when={props.item.error}>{(e) => <p class="perm__error" role="alert">{modeErrorText(e().code, e().message)}</p>}</Show>
         </div>
       </section>

@@ -66,7 +66,7 @@ describe("tier-2 card", () => {
 
   it("puts the safe default on Deny", async () => {
     show(perm());
-    // the card settles on screen first (two checks in a row), then the default gets the focus
+    // the card is brought into view and checked on screen twice before the focus moves (see `focusRequest`)
     await waitFor(() => expect(document.activeElement).toBe(btn("Deny, tell the agent no")));
     expect(btn("Deny, tell the agent no").hasAttribute("data-primary")).toBe(true);
     expect(btn("Allow once").hasAttribute("data-primary")).toBe(false);
@@ -164,10 +164,10 @@ describe("tier-2 card", () => {
     expect(screen.queryByRole("button", { name: "Allow once" })).toBeNull();
   });
 
-  it("is reachable by Tab in a sensible order", () => {
+  it("is reachable by Tab in a sensible order: the note, then Deny first like every request card, the broadest allow last", () => {
     show(perm());
     const order = [...document.querySelectorAll<HTMLElement>("button, input")].map((e) => e.getAttribute("aria-label") ?? e.textContent);
-    expect(order).toEqual(["Optional note for the agent", "Allow once", "Allow all secret files in this run", "Deny, tell the agent no"]);
+    expect(order).toEqual(["Optional note for the agent", "Deny, tell the agent no", "Allow once", "Allow all secret files in this run"]);
   });
 });
 

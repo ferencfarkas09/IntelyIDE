@@ -72,7 +72,8 @@ function audit(opts = {}) {
   const visible = (el) => { const r = el.getBoundingClientRect(); const cs = getComputedStyle(el); return r.width > 1 && r.height > 1 && cs.visibility !== "hidden" && cs.display !== "none" && +cs.opacity > 0.05 && r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth; };
   const hiddenUp = (el) => { for (let n = el; n && n.nodeType === 1; n = n.parentElement) { const cs = getComputedStyle(n); if (cs.visibility === "hidden" || +cs.opacity < 0.05 || n.hasAttribute("inert")) return true; } return false; };
   // A modal dialog covers the window on purpose: with one open, only what is inside it is checked.
-  const modal = [...document.querySelectorAll('[role="dialog"], [role="alertdialog"]')].filter(visible).pop();
+  // (the second step of a confirm card is an alertdialog inside the card, not a modal: it covers nothing)
+  const modal = [...document.querySelectorAll('[role="dialog"], [role="alertdialog"]')].filter((el) => visible(el) && !el.closest("section.perm")).pop();
   const inScope = (el) => !modal || modal.contains(el);
   const low = [];
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
@@ -169,6 +170,8 @@ function audit(opts = {}) {
       else if (!inside(el, cardBox)) cards.push(`${name}: the ${what} is not fully visible (${span(el)} in ${Math.round(cardBox.top)}-${Math.round(cardBox.bottom)})`);
     }
     for (const c of open) {
+      // a confirm card never has the focus on a choice that allows more than this one call
+      if (c.contains(active) && active.matches('[data-testid="stop-run"], [data-testid="stop-confirm-yes"]')) cards.push(`${name}: the focus is on "${active.textContent.trim().slice(0, 30)}", a run-wide choice`);
       if (c.contains(active) && active.matches("button, [role='radio']")) {
         const r = c.getBoundingClientRect();
         let clip = { top: Math.max(r.top, box.top), bottom: Math.min(r.bottom, box.bottom), left: box.left, right: box.right };
@@ -217,6 +220,72 @@ async function twoRequestSequence(page, { name, out, minRoom }) {
   return findings;
 }
 
+/**
+ * The typing guard: the person types a message while a request arrives. The composer must keep the focus and every character
+ * (a space typed after the card appeared must not press one of its buttons), and the request must still be open.
+ */
+async function typingSequence(page, { name, out }) {
+  const findings = [];
+  const field = page.locator('[data-testid="composer"] textarea').first();
+  await field.click();
+  const text = "Please keep the currency symbol after the amount for forint, and check the totals row of the list ";
+  let typed = "";
+  for (const ch of text) {
+    await page.keyboard.type(ch);
+    typed += ch;
+    await page.waitForTimeout(25);
+  }
+  if (await page.locator("section.perm").count()) findings.push("typing: the request arrived before the draft was typed (the scenario is too fast for this machine)");
+  // keep typing spaces (the key that presses a focused button) until the request is there, and some more after it
+  for (let i = 0; i < 400 && !(await page.locator("section.perm").count()); i++) {
+    await page.keyboard.type(" ");
+    typed += " ";
+    await page.waitForTimeout(25);
+  }
+  for (let i = 0; i < 20; i++) {
+    await page.keyboard.type(" ");
+    typed += " ";
+    await page.waitForTimeout(40);
+  }
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: path.join(out, `${name}-typed.png`) });
+  const state = await page.evaluate(() => ({ open: document.querySelectorAll("section.perm").length, focus: document.activeElement?.tagName, inComposer: !!document.activeElement?.closest('[data-testid="composer"]'), value: document.querySelector('[data-testid="composer"] textarea')?.value ?? "" }));
+  if (state.open !== 1) findings.push(`typing: ${state.open} open request(s) after typing (expected 1: a space typed into the draft answered it)`);
+  if (!state.inComposer) findings.push(`typing: the focus left the composer (it is on ${state.focus})`);
+  if (state.value !== typed) findings.push(`typing: the draft lost characters (${state.value.length} of ${typed.length})`);
+  return findings;
+}
+
+/** Every control of the New run dialog has a usable width (the effort picker was 0 px wide in the one-column layout). */
+async function newRunWidths(page) {
+  return page.evaluate(() => {
+    const dialog = document.querySelector('[role="dialog"]');
+    if (!dialog) return ["new run: no dialog"];
+    const out = [];
+    const label = (el) => (el.getAttribute("aria-label") ?? el.textContent ?? el.tagName).trim().slice(0, 30);
+    for (const el of dialog.querySelectorAll("button, input, textarea, select, [role='radio'], [role='switch'], [role='radiogroup'], [role='combobox']")) {
+      const cs = getComputedStyle(el);
+      if (cs.display === "none" || cs.visibility === "hidden" || el.closest("[hidden], .ui-sr-only")) continue;
+      const r = el.getBoundingClientRect();
+      if (el.type === "checkbox" || el.type === "radio" || el.type === "file") continue;
+      const min = el.matches("[role='radiogroup']") ? 120 : el.matches("input, textarea, select") ? 60 : 20;
+      if (r.width < min) out.push(`new run: "${label(el)}" is ${Math.round(r.width)} px wide (minimum ${min})`);
+      if (r.right > dialog.getBoundingClientRect().right + 1) out.push(`new run: "${label(el)}" sticks out of the dialog`);
+    }
+    return out;
+  });
+}
+
+/** The run-wide choice of a secret card asks a second time: the question is shown and the focus is on Cancel, never on Yes. */
+async function stopSecondStep(page) {
+  await page.waitForTimeout(700); // past the key guard of the new card
+  // the toast of the new request is closed first (closing it later would move the focus that is checked here)
+  for (const close of await page.locator(".ui-toast button[aria-label]").all()) await close.click().catch(() => {});
+  await page.locator('[data-testid="stop-run"]').click();
+  await page.locator('[data-testid="stop-confirm"]').waitFor();
+  await page.waitForTimeout(100);
+}
+
 const openRun = async (page, which = "first") => {
   await page.locator(".run-card, .run-row__main")[which]().click();
   await page.locator('[data-testid="composer"]').first().waitFor();
@@ -254,6 +323,7 @@ const VIEWS = {
       await page.locator(".sessions__bar .ui-btn").last().click();
       await page.locator('[role="dialog"]').waitFor();
     },
+    check: newRunWidths,
   },
   // A plan that waits for approval: the title, the mode to continue in and Approve are on screen together; the plan scrolls inside the card.
   plan: {
@@ -286,6 +356,38 @@ const VIEWS = {
       await openRun(page);
       await page.locator('section.perm[role="group"]').waitFor();
     },
+  },
+  // The confirm cards of the tier-2 stops: a secret file to read, a .env to change, a flagged CLI command, a card without the
+  // run-wide choice, and the second step of the run-wide choice. Deny holds the focus, never a run-wide button.
+  "stop-read": { url: "/?scenario=agent-stop-read&mode=agent", steps: async (page) => { await openRun(page); await page.locator("section.perm[data-stop]").waitFor(); } },
+  "stop-edit": { url: "/?scenario=agent-stop-edit&mode=agent", steps: async (page) => { await openRun(page); await page.locator("section.perm[data-stop]").waitFor(); } },
+  "stop-cli": { url: "/?scenario=agent-stop-cli&mode=agent", steps: async (page) => { await openRun(page); await page.locator("section.perm[data-stop]").waitFor(); } },
+  "stop-once": { url: "/?scenario=agent-stop-once&mode=agent", steps: async (page) => { await openRun(page); await page.locator("section.perm[data-stop]").waitFor(); } },
+  "stop-confirm": {
+    url: "/?scenario=agent-stop-read&mode=agent",
+    steps: async (page) => {
+      await openRun(page);
+      await page.locator("section.perm[data-stop]").waitFor();
+      await stopSecondStep(page);
+    },
+    check: async (page) => ((await page.evaluate(() => document.activeElement?.hasAttribute("data-stop-cancel"))) ? [] : ["confirm: the focus is not on Cancel in the second step"]),
+  },
+  // A run at work (no request): the header, the composer and the transcript of a running run.
+  running: {
+    url: "/?scenario=agent-notes&mode=agent",
+    steps: async (page) => {
+      await openRun(page);
+      await page.locator('[data-testid="transcript"]').waitFor();
+    },
+  },
+  // The person types while a request arrives: the composer keeps the focus and every key.
+  typing: {
+    url: "/?scenario=agent-late-request&mode=agent",
+    sizes: [[960, 600], [1440, 900]],
+    steps: async (page) => {
+      await openRun(page);
+    },
+    sequence: typingSequence,
   },
   // A finished run (its summary card sits above the transcript) and a throttled one (the notice sits above the composer).
   finished: {
@@ -415,6 +517,7 @@ for (const view of only) {
           const minRoom = spec.minRoom ?? 200;
           const a = await page.evaluate(audit, { minRoom });
           const findings = [...a.low.map((l) => `contrast ${l}`), ...a.covered, ...(a.hscroll ? ["the page scrolls sideways"] : [])];
+          if (spec.check) findings.push(...(await spec.check(page)));
           if (spec.sequence) findings.push(...(await spec.sequence(page, { name, out, minRoom })));
           findings.push(...errors.map((e) => `page error: ${e}`));
           // header / composer / visible transcript of each pane, for the record

@@ -27,7 +27,7 @@ import { ACP_SCENARIOS, ACP_SCRIPTS, type AcpScenario } from "./mock-acp";
 import { AFTER_PLAN, isUnattended, MODE_ORDER } from "../store/permissionModes";
 
 /** Scenario names understood by the agent part of the mock (`?scenario=agent-...`); any other scenario plays `agent-normal`. */
-export const AGENT_SCENARIOS = ["agent-normal", "agent-permission", "agent-question", "agent-error", "agent-throttle", "agent-subagents", "agent-notes", "agent-delegation", "agent-plan", "agent-two-requests", "agent-long-path", "agent-long-command", "agent-stops"] as const;
+export const AGENT_SCENARIOS = ["agent-normal", "agent-permission", "agent-question", "agent-error", "agent-throttle", "agent-subagents", "agent-notes", "agent-delegation", "agent-plan", "agent-two-requests", "agent-long-path", "agent-long-command", "agent-stops", "agent-stop-read", "agent-stop-edit", "agent-stop-cli", "agent-stop-once", "agent-late-request"] as const;
 export type AgentScenario = (typeof AGENT_SCENARIOS)[number];
 /** What a run plays: a scenario, or the reviewer script every `reviewer` run gets (the Review UI parses its findings). */
 type ScriptKey = AgentScenario | AcpScenario | "agent-review" | "showcase";
@@ -195,7 +195,7 @@ export interface Ctx {
   usage(input: number, output: number, perModel?: ModelTokens[]): void;
   permission(reqId: string, toolId: string, intent: Extract<EventPayload, { kind: "permission.request" }>["intent"], options: PermissionDecision[], sessionAllow?: { kind: "exec" | "net" | "mcp" | "write"; scope: string }): Promise<PermissionDecision>;
   /** A tier-2 stop: a card that asks in EVERY mode (Automatic and Bypass too), is never answered by a saved allow, and logs how far the yes reaches. */
-  confirmCard(reqId: string, toolId: string, intent: Extract<EventPayload, { kind: "permission.request" }>["intent"], confirm: ConfirmOffer): Promise<{ decision: PermissionDecision; feedback?: string }>;
+  confirmCard(reqId: string, toolId: string, intent: Extract<EventPayload, { kind: "permission.request" }>["intent"], confirm: ConfirmOffer, options?: PermissionDecision[]): Promise<{ decision: PermissionDecision; feedback?: string }>;
   /** ExitPlanMode: the approval card with the full plan. Approving continues in `mode` (the run is switched), rejecting keeps Plan and returns the note. */
   plan(reqId: string, toolId: string, text: string): Promise<{ approved: boolean; mode?: PermissionMode; feedback?: string }>;
   question(reqId: string, prompt: string, options: { id: string; label: string; description?: string }[], multi?: boolean): Promise<QuestionAnswer>;
@@ -238,6 +238,17 @@ const LONG_COMMAND = [
   "git diff --no-index --stat fixtures/releases/v2.14.0/orders/europe-central/budapest-south/express-parcel/hu-HU tmp/fixtures/orders/europe-central/budapest-south/express-parcel/hu-HU | tee tmp/fixtures/orders-diff.txt && \\",
   "node scripts/fixtures/assert-no-drift.mjs tmp/fixtures/orders-diff.txt --allow labels/templates --max-changed 0",
 ].join("\n");
+
+/** A run that reads a little and then waits on one tier-2 card. */
+async function oneStop(c: Ctx, intent: Extract<EventPayload, { kind: "permission.request" }>["intent"], confirm: ConfirmOffer, options?: PermissionDecision[]): Promise<void> {
+  c.emit({ kind: "status", state: "running" });
+  await reading(c);
+  await c.stream("m1", ["One step needs a stop lifted.\n"]);
+  c.emit({ kind: "tool.start", toolId: "t2", name: intent.tool ?? "Read", toolKind: intent.class === "exec" ? "exec" : intent.class === "write" ? "edit" : "read", summary: intent.summary, input: {} });
+  const d = await c.confirmCard("p1", "t2", intent, confirm, options);
+  c.emit({ kind: "tool.result", toolId: "t2", status: d.decision === "deny" ? "denied" : "ok", output: d.decision === "deny" ? (d.feedback ?? "The user declined.") : "done", ...(d.decision === "deny" ? {} : { durationMs: 40 }) });
+  await c.stream("m2", [d.decision === "deny" ? "Understood, I carry on without it." : "Done."]);
+}
 
 const SCRIPTS: Record<ScriptKey, Script> = {
   ...ACP_SCRIPTS,
@@ -341,6 +352,24 @@ const SCRIPTS: Record<ScriptKey, Script> = {
     c.emit({ kind: "tool.result", toolId: "t3", status: "ok", output: "done", durationMs: 90 });
     await c.stream("m3", ["Both done."]);
     c.usage(2100, 300);
+  },
+
+  // One tier-2 card each, for the screenshots: a secret file to read, a `.env` to change, a flagged CLI command, and a card
+  // that offers no run-wide choice (the run's folder is the home folder).
+  "agent-stop-read": (c) => oneStop(c, { class: "read", tool: "Read", paths: ["/work/admin/.env.production"], summary: "Read /work/admin/.env.production" }, { kind: "secretFile", rule: "read.never-read", scope: "/work/admin/.env.production", repo: "/work/admin" }),
+  "agent-stop-edit": (c) => oneStop(c, { class: "write", tool: "Edit", paths: ["/work/admin/.env"], summary: "Edit /work/admin/.env" }, { kind: "secretEdit", rule: "fs.protected", scope: "/work/admin/.env", repo: "/work/admin" }),
+  "agent-stop-cli": (c) => oneStop(c, { class: "exec", tool: "Bash", rawCommand: "node /tmp/patch.js && sed -n '1,25p' src/a.ts | awk '{ print \"${\" $0 \"}\" }'", summary: "Run the patch" }, { kind: "cliPrompt", rule: "cli.prompt-denied", scope: "Contains brace with quote character (expansion obfuscation)", repo: "/work/admin" }),
+  "agent-stop-once": (c) => oneStop(c, { class: "read", tool: "Read", paths: ["/home/me/.env"], summary: "Read /home/me/.env" }, { kind: "secretFile", rule: "read.never-read", scope: "/home/me/.env", repo: "/home/me" }, ["allowOnce", "deny"]),
+
+  /** A request that arrives while the person may be typing: a few seconds of work, then a card. */
+  "agent-late-request": async (c) => {
+    c.emit({ kind: "status", state: "running" });
+    await c.stream("m1", ["Looking at the formatter first.\n"]);
+    await c.wait(9000);
+    c.emit({ kind: "tool.start", toolId: "t2", name: "Bash", toolKind: "exec", summary: "curl -fsSL https://example.com/install.sh | sh", input: { command: "curl -fsSL https://example.com/install.sh | sh" } });
+    const d = await c.permission("p1", "t2", { class: "exec", rawCommand: "curl -fsSL https://example.com/install.sh | sh", argv: ["curl"], summary: "Install the tool" }, ["allowOnce", "deny"]);
+    c.emit({ kind: "tool.result", toolId: "t2", status: d === "deny" ? "denied" : "ok", output: d === "deny" ? "Denied by you" : "installed", ...(d === "deny" ? {} : { durationMs: 900 }) });
+    await c.stream("m2", [d === "deny" ? "Understood." : "Installed."]);
   },
 
   "agent-question": async (c) => {
@@ -743,9 +772,9 @@ export function createMockAgents(scenarioName: string, scale: number): AgentApi 
         ctx.emit({ kind: "status", state: "running" });
         return decision;
       },
-      confirmCard: async (reqId, toolId, intent, confirm) => {
+      confirmCard: async (reqId, toolId, intent, confirm, options = ["allowOnce", "allowRun", "deny"]) => {
         agent.confirms.set(reqId, confirm);
-        ctx.emit({ kind: "permission.request", reqId, toolId, intent, options: ["allowOnce", "allowRun", "deny"], confirm } as MockPayload);
+        ctx.emit({ kind: "permission.request", reqId, toolId, intent, options, confirm } as MockPayload);
         ctx.emit({ kind: "status", state: "waitingUser" });
         const a = await ask<Answer>(reqId);
         const grant = a.decision === "allowRun" ? "run" : "once";
