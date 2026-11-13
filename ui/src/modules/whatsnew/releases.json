@@ -1,5 +1,81 @@
 [
   {
+    "version": "1.15.0",
+    "date": "2026-11-13",
+    "headline": {
+      "en": "A refreshed look, request cards that are always readable before you answer, and secret files you can allow instead of a flat refusal.",
+      "hu": "Megújult megjelenés, válasz előtt mindig olvasható kérés-kártyák, és titkos fájlok, amelyeket elutasítás helyett engedélyezhetsz."
+    },
+    "notes": [
+      {
+        "kind": "new",
+        "title": {
+          "en": "A refreshed look",
+          "hu": "Megújult megjelenés"
+        },
+        "text": {
+          "en": "The window, the runs list, the run view, the New run dialog and the Dashboard have cleaner spacing, type, cards and controls in both styles and both themes. The layout and the information are the same.",
+          "hu": "Az ablak, a futtatások listája, a futtatás nézete, az Új futtatás párbeszédablak és az Áttekintő tisztább térközöket, betűket, kártyákat és vezérlőket kapott, mindkét stílusban és mindkét témában. Az elrendezés és az információ ugyanaz."
+        }
+      },
+      {
+        "kind": "new",
+        "title": {
+          "en": "Some stops now ask you instead of refusing",
+          "hu": "Néhány tiltás most rákérdez elutasítás helyett"
+        },
+        "text": {
+          "en": "When an agent wants to read a secret-looking file of the project, change a .env file, or run a command the Claude CLI flagged, a card asks you, in every mode. You can allow it once or for the run; a run-wide allow for secret files needs a second confirmation, and nothing is remembered after the run.",
+          "hu": "Ha egy ügynök a projekt titkosnak tűnő fájlját olvasná, .env fájlt módosítana, vagy a Claude CLI által megjelölt parancsot futtatna, egy kártya rákérdez, minden módban. Engedélyezheted egyszer vagy a futás idejére; a titkos fájlok futásra szóló engedélyezése második megerősítést kér, és a futás után semmi sem marad meg."
+        }
+      },
+      {
+        "kind": "improved",
+        "title": {
+          "en": "Request cards fit on screen and show what is asked",
+          "hu": "A kérés-kártyák elférnek a képernyőn, és látszik, mit kérnek"
+        },
+        "text": {
+          "en": "A permission, question or plan card is never taller than the conversation: the title and what is asked stay at the top, the details scroll inside the card with a \"Scroll for more\" hint, and the buttons stay at the bottom. Deny is now the first button.",
+          "hu": "Az engedély-, kérdés- és tervkártya sosem magasabb a beszélgetésnél: a cím és a kérés felül marad, a részletek a kártyán belül görgethetők „Görgess tovább” jelzéssel, a gombok alul maradnak. Az Elutasítás most az első gomb."
+        }
+      },
+      {
+        "kind": "fixed",
+        "title": {
+          "en": "Typing never answers a request",
+          "hu": "A gépelés sosem válaszol meg egy kérést"
+        },
+        "text": {
+          "en": "A card that arrives while you are in the message box, typed or not, no longer takes the keyboard focus, so a space you type cannot press its Allow button. A key that lands on a card right after typing goes into your message instead.",
+          "hu": "Ha egy kártya akkor érkezik, amikor az üzenetmezőben vagy (akár gépeltél már, akár nem), már nem veszi el a billentyűzetfókuszt, így egy leütött szóköz nem nyomhatja meg az Engedélyezés gombot. A gépelés után közvetlenül a kártyára kerülő billentyű az üzenetedbe kerül."
+        }
+      },
+      {
+        "kind": "improved",
+        "title": {
+          "en": "Small windows and side-by-side runs",
+          "hu": "Kis ablakok és egymás melletti futtatások"
+        },
+        "text": {
+          "en": "A narrow or short run pane folds its header and keeps the message box to one line, so the conversation keeps its room; the details that do not fit are in the \"This run\" card.",
+          "hu": "A keskeny vagy alacsony futtatás-panel összecsukja a fejlécét, és az üzenetmezőt egy sorban tartja, így a beszélgetésnek marad helye; ami nem fér el, az „Ez a futás” kártyán látható."
+        }
+      },
+      {
+        "kind": "fixed",
+        "title": {
+          "en": "Fewer false refusals and a steadier conversation view",
+          "hu": "Kevesebb téves elutasítás, stabilabb beszélgetésnézet"
+        },
+        "text": {
+          "en": "Code such as event.key is no longer mistaken for a secret file, and the conversation text no longer goes blank while the agent keeps working.",
+          "hu": "Az olyan kód, mint az event.key, már nem számít titkos fájlnak, és a beszélgetés szövege már nem tűnik el, miközben az ügynök dolgozik."
+        }
+      }
+    ]
+  },
+  {
     "version": "1.14.1",
     "date": "2026-10-30",
     "headline": {
