@@ -117,6 +117,19 @@ All props are typed; see the source for the full list.
 | Skin | `applySkin(skin, reduceTransparency)`, `activeSkin()`, `transparencyReduced()`, `appearanceLook()` | See Glass skin above. Settings > Appearance calls `applySkin`; read `appearanceLook()` in effects that paint from tokens. |
 | Theme controller | `initTheme()`, `themePreference()`, `resolvedTheme()`, `setThemePreference("system" \| "dark" \| "light")` | Persisted in `localStorage` (`intely.theme`, try/catch), follows OS changes in system mode, sets `data-theme` on `<html>`. |
 
+## Run transcript (compact tool activity)
+
+The run view reads like a conversation in a chat app: the agent's text first, its tool activity quiet between the messages.
+
+- **Prose.** No bubble and no frame. A reading column of 760 px at most, with text 2 px larger than the UI size (15 px at the default 13 px) and a line height of 1.6. Markdown is rendered in full: headings, lists, tables (they scroll inside themselves when wide), inline code and fenced code with syntax colours, the language on the left and a copy button on the right. Links stay inert labels (the target is in the tooltip): agent output never opens a page by itself.
+- **The person's messages.** Quiet bubbles on the right: a neutral fill (`--surface-3`) and a thin border, 18 px round with one 6 px corner.
+- **Tool activity (Compact, the default).** The calls between two pieces of prose (reads, searches, commands, edits, fetches, MCP calls, thinking, requests that were already settled) are one row: a chevron and a summary such as "Read 4 files, searched twice, ran 3 commands". A finished group is folded; a working group is one live line with the newest step ("Running `pnpm test`", a small spinner that stops under reduced motion). Opened, it lists a line per call: icon, verb, the target in mono (a path gives up its folders before its file name), the size of an edit (`+12 −3`), the time and a mark only when something did not simply work. Each line opens on its own to an inset block: the full command with a copy button (a shell script or a command longer than a line is never shown in full on the line), the output, or the diff. A group of more than 60 lines shows the newest 60 and every failing one, and "Show N more steps".
+- **Failures are never hidden.** A group with a failed call, a blocked call (denied by you or refused by a rule) or a call that waits for you says so on its row with a red or amber dot and the words ("1 failed", "1 blocked", "Waiting for you"), starts open, and its failing line starts open.
+- **What never folds.** A request that waits for you (permission, question, plan approval, the ask-instead-of-block card) keeps its full card with its focus, size and keyboard rules; so do questions, the plan list, errors, notes, turn markers and delegation (an `Agent`/`Task` call keeps its card with its subagent's calls under it, one step quieter: a thin line, no fill).
+- **Detailed.** Settings > Appearance > Tool activity: Detailed shows every call as its own card, as in 1.15. The choice is stored with the appearance settings.
+- **Scrolling.** Open/closed is held by the transcript (per run and key), so it survives the virtual list dropping a row. The toggle you press stays where it is on screen while the row grows or shrinks; the end of the list is followed again only if it is in view. A folded group draws nothing of its body.
+- **Compositing.** Nothing in the transcript (activity rows included) may carry `backdrop-filter`, `filter`, `will-change`, `contain: paint`, `content-visibility` or `mask`: `theme/transcript-guard.test.ts` checks it.
+
 ## Brand
 The logo is B2 (three code lines with an AI cursor and spark), its sources are in `assets/brand/source/`. Everything below is generated, never hand-edited: `node scripts/brand/build-brand.mjs` (dev dependencies `opentype.js`, `@resvg/resvg-js`, `@fontsource/sora`; deterministic; it also calls `pnpm exec tauri icon`).
 

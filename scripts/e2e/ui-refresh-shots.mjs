@@ -584,7 +584,7 @@ const VIEWS = {
       await page.waitForTimeout(500);
     },
   },
-  // Settings > Appearance > Tool activity: Detailed. Every call is its own card again (the view before 1.16).
+  // Settings > Appearance > Tool activity: Detailed. Every call is its own card again (the view of 1.15).
   "busy-detailed": {
     url: "/?scenario=agent-busy&mode=agent",
     storage: { "intely.appearance": JSON.stringify({ toolActivity: "detailed" }) },

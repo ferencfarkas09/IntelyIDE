@@ -4,6 +4,10 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 
 ## [Unreleased]
 
+### Changed
+
+- Run view: the agent's text reads like a chat app (no frame, a reading column, larger type, full Markdown with copy buttons on code), and its tool calls between two messages fold into one quiet row ("Read 4 files, searched twice, ran 3 commands") that opens to a line per call and, from there, to the command, the output or the diff; failures, blocked calls and requests that wait stay visible, and Settings > Appearance > Tool activity > Detailed brings back one card per call.
+
 ## [1.15.0] - 2026-11-13
 
 ### Added
