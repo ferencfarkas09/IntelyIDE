@@ -1,4 +1,4 @@
-import type { TranscriptRow } from "../../store/agent-reducer";
+import { openByDefault, type DisplayRow } from "../../store/toolGroups";
 
 /**
  * A guess of a transcript row's height, from what it holds, for the rows the virtualiser has not drawn yet.
@@ -29,9 +29,15 @@ function textSize(text: string): number {
   return lines * LINE_PX + Math.max(0, breaks - 1) * PARAGRAPH_GAP_PX;
 }
 
-export function estimateRow(row: TranscriptRow | undefined): number {
+/** A folded activity group: one line. An open one (something failed or waits): a line per call it shows, and the failing call's output. */
+const GROUP_PX = 42;
+const GROUP_LINE_PX = 30;
+const GROUP_OPEN_BODY_PX = 140;
+
+export function estimateRow(row: DisplayRow | undefined): number {
   const item = row?.item;
   if (!item) return 72;
+  if (row.group) return openByDefault(row.group) ? GROUP_PX + Math.min(row.group.members.length, 60) * GROUP_LINE_PX + GROUP_OPEN_BODY_PX : GROUP_PX;
   switch (item.type) {
     case "user":
       return USER_CHROME_PX + textSize(item.text);

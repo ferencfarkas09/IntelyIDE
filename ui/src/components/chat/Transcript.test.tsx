@@ -7,6 +7,7 @@ import { installDomStubs } from "../../store/testing-u2";
 import { ipc } from "../../ipc";
 import { REVEAL_EVENT } from "./Cards";
 import { Transcript } from "./Transcript";
+import { setToolActivity } from "../../store/toolActivity";
 
 installDomStubs();
 afterEach(() => {
@@ -415,12 +416,29 @@ describe("<Transcript> as a conversation", () => {
   describe("the line under the conversation while the agent works", () => {
     const typing = () => document.querySelector<HTMLElement>(".transcript__typing");
     it("shows three dots and what the agent is doing while nothing streams", async () => {
-      render(() => <Transcript agentId="a1" view={talk([{ kind: "turn.start", turnId: "t" }, { kind: "status", state: "thinking" }, tool("t1")])} />);
+      render(() => <Transcript agentId="a1" view={talk([{ kind: "turn.start", turnId: "t" }, tool("t1"), { kind: "tool.result", toolId: "t1", status: "ok" }, { kind: "status", state: "thinking" }])} />);
       await screen.findByText("Show prices with the currency");
       expect(typing()).toBeTruthy();
       expect(typing()!.querySelectorAll(".typing__dots i")).toHaveLength(3);
       expect(typing()!.textContent).toBe("Thinking…");
       expect(typing()!.getAttribute("aria-hidden")).toBe("true");
+    });
+
+    it("gives way to the live line of an activity group while a call runs (Compact), and is there in the Detailed view", async () => {
+      const running = talk([{ kind: "turn.start", turnId: "t" }, { kind: "status", state: "running" }, tool("t1")]);
+      const compact = render(() => <Transcript agentId="a1" view={running} />);
+      await screen.findByText("Show prices with the currency");
+      expect(document.querySelector(".act[data-live]")).toBeTruthy();
+      expect(typing()).toBeNull();
+      compact.unmount();
+      setToolActivity("detailed");
+      try {
+        render(() => <Transcript agentId="a1" view={running} />);
+        await screen.findByText("Show prices with the currency");
+        expect(typing()!.textContent).toBe("Working…");
+      } finally {
+        setToolActivity("compact");
+      }
     });
 
     it("is not there while a message streams (it has its own caret), after the turn ended, or before anything was said", async () => {
@@ -510,7 +528,7 @@ describe("<Transcript> request cards", () => {
   });
 
   it("drops the typing line while the turn is throttled: the notice above the composer says it", async () => {
-    const working = view([{ kind: "status", state: "running" }, { kind: "tool.start", toolId: "t1", name: "Read", toolKind: "read", summary: "a.ts" }]);
+    const working = view([{ kind: "status", state: "running" }, { kind: "tool.start", toolId: "t1", name: "Read", toolKind: "read", summary: "a.ts" }, { kind: "tool.result", toolId: "t1", status: "ok" }]);
     const { unmount } = render(() => <Transcript agentId="a1" view={working} />);
     await screen.findByRole("log");
     expect(document.querySelector(".transcript__typing")).toBeTruthy();

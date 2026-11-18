@@ -47,7 +47,7 @@ export function MessageMeta(props: { name?: string; time: number; align?: "end" 
 }
 
 /** Copies the text of a message; appears when the message is hovered or focused. */
-export function CopyButton(props: { text: () => string }) {
+export function CopyButton(props: { text: () => string; /** What is copied, when it is not the message ("Copy command"). */ label?: string }) {
   const [copied, setCopied] = createSignal(false);
   let timer: ReturnType<typeof setTimeout> | undefined;
   onCleanup(() => clearTimeout(timer));
@@ -61,5 +61,5 @@ export function CopyButton(props: { text: () => string }) {
     clearTimeout(timer);
     timer = setTimeout(() => setCopied(false), 1600);
   };
-  return <IconButton class="msg__copy" size="sm" icon={copied() ? Check : Copy} label={copied() ? t("chat.copied") : t("chat.copy")} tooltipPlacement="left" onClick={() => void copy()} />;
+  return <IconButton class="msg__copy" size="sm" icon={copied() ? Check : Copy} label={copied() ? t("chat.copied") : (props.label ?? t("chat.copy"))} tooltipPlacement="left" onClick={() => void copy()} />;
 }

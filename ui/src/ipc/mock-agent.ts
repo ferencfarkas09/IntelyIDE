@@ -304,6 +304,7 @@ async function busy(c: Ctx, live: boolean): Promise<void> {
   if (live) {
     c.emit({ kind: "tool.start", toolId: "b14", name: "Bash", toolKind: "exec", summary: "pnpm vitest run src/utils", input: { command: "pnpm vitest run src/utils" } });
     await c.wait(600_000);
+    c.emit({ kind: "tool.result", toolId: "b14", status: "ok", output: " Test Files  1 passed (1)", durationMs: 600_000 });
     return;
   }
   await bash("b14", "pnpm vitest run src/utils", " ✓ src/utils/format.test.ts (4 tests) 7ms\n\n Test Files  1 passed (1)\n      Tests  4 passed (4)", "ok", 1400);
