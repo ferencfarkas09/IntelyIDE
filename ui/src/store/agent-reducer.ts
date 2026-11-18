@@ -47,6 +47,8 @@ export interface ThinkingItem extends ItemBase {
   type: "thinking";
   text: string;
   done: boolean;
+  /** When the block closed (the next event's time): "Thought for 4s". */
+  endTs?: number;
 }
 export interface ToolItem extends ItemBase {
   type: "tool";
@@ -262,7 +264,7 @@ function attachRefusal(v: AgentView, toolId: string, output: string | null | und
 function applyOne(v: AgentView, ev: AgentEvent): AgentView {
   if (v.lastSeq > 0 && ev.seq > v.lastSeq + 1) v.gaps.push({ from: v.lastSeq + 1, to: ev.seq - 1 });
   v.lastSeq = ev.seq;
-  if (ev.kind !== "thinking.delta") closeThinking(v);
+  if (ev.kind !== "thinking.delta") closeThinking(v, ev.ts);
 
   const upsert = <T extends TranscriptItem>(key: string, make: () => T, patch: (item: T) => T): void => {
     const at = v.index[key];
@@ -391,10 +393,10 @@ function applyOne(v: AgentView, ev: AgentEvent): AgentView {
   return v;
 }
 
-function closeThinking(v: AgentView): void {
+function closeThinking(v: AgentView, ts: number): void {
   for (let i = v.items.length - 1; i >= 0; i--) {
     const item = v.items[i];
-    if (item.type === "thinking" && !item.done) v.items[i] = { ...item, done: true };
+    if (item.type === "thinking" && !item.done) v.items[i] = { ...item, done: true, endTs: ts };
     else if (item.type !== "thinking") break;
   }
 }
@@ -415,8 +417,9 @@ function finishTurn(v: AgentView, stopReason: StopReason, ts: number, seq: numbe
   v.items = v.items.map((item) => {
     switch (item.type) {
       case "text":
-      case "thinking":
         return item.done ? item : { ...item, done: true };
+      case "thinking":
+        return item.done ? item : { ...item, done: true, endTs: ts };
       case "tool":
         return item.status === "running" ? { ...item, status: "cancelled" as const } : item;
       case "permission":
