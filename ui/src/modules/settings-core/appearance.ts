@@ -3,6 +3,7 @@ import { APPEARANCE_MIRROR_KEY, applyAccent } from "../../theme/accents";
 import { applySkin, defaultSkin, hasLocalHistory, loadHostTransparency, localHistoryAtBoot, parseSkin, systemWantsOpaque, type Skin } from "../../theme/skin";
 import type { SettingsValue } from "../../ipc/settings";
 import { DEFAULT_APPEARANCE, normalizeAppearance, type AppearanceSettings } from "./model";
+import { setToolActivity } from "../../store/toolActivity";
 import "./appearance.css";
 
 /** Mirror of the appearance settings so the first paint already has them; settings.json stays the source of truth. */
@@ -25,6 +26,7 @@ export function applyAppearance(a: AppearanceSettings, root: HTMLElement | null 
   root.dataset.density = a.density;
   applyAccent(a.accent, a.customAccent);
   applySkin(a.skin, a.reduceTransparency);
+  setToolActivity(a.toolActivity);
   Object.entries(fontVars(a)).forEach(([name, value]) => root.style.setProperty(name, value));
 }
 

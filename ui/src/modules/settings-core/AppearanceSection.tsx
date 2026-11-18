@@ -6,6 +6,7 @@ import { activeSkin, parseSkin, systemWantsOpaque, type Skin } from "../../theme
 import { applyAppearance, saveMirror } from "./appearance";
 import { FONT_LIMITS, normalizeAppearance, NS, type AppearanceSettings, type Density } from "./model";
 import { useNamespace } from "./namespace";
+import type { ToolActivity } from "../../store/toolActivity";
 import "./settings-core.css";
 import "./appearance.css";
 
@@ -175,6 +176,20 @@ export default function AppearanceSection() {
             options={[
               { value: "comfortable", label: t("appearance.comfortable") },
               { value: "compact", label: t("appearance.compact") },
+            ]}
+          />
+        </FormRow>
+      </FormGroup>
+      <FormGroup>
+        <FormRow label={t("activity.setting")} description={t("activity.settingDesc")}>
+          <SegmentedControl<ToolActivity>
+            size="sm"
+            aria-label={t("activity.setting")}
+            value={appearance.value().toolActivity}
+            onChange={(toolActivity) => set({ toolActivity })}
+            options={[
+              { value: "compact", label: t("activity.compact") },
+              { value: "detailed", label: t("activity.detailed") },
             ]}
           />
         </FormRow>

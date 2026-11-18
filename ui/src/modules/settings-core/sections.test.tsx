@@ -1,4 +1,5 @@
 import { cleanup, configure, fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
+import { toolActivity } from "../../store/toolActivity";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../ipc", async (orig) => {
@@ -158,11 +159,22 @@ describe("<GeneralSection>", () => {
 describe("<AppearanceSection>", () => {
   it("applies density and font size at once and keeps the mirror", async () => {
     render(() => <AppearanceSection />);
-    fireEvent.click(await screen.findByRole("radio", { name: "Compact" }));
+    fireEvent.click(within(await screen.findByRole("radiogroup", { name: "Density" })).getByRole("radio", { name: "Compact" }));
     await waitFor(() => expect(document.documentElement.dataset.density).toBe("compact"));
     fireEvent.change(screen.getByLabelText("Interface font size"), { target: { value: "15" } });
     await waitFor(() => expect(document.documentElement.style.getPropertyValue("--text-base")).toBe("15px"));
     expect(JSON.parse(localStorage.getItem("intely.appearance")!)).toMatchObject({ density: "compact", uiFontSize: 15 });
+  });
+
+  it("switches the tool activity of runs between Compact (default) and Detailed and keeps it with the appearance", async () => {
+    render(() => <AppearanceSection />);
+    const group = await screen.findByRole("radiogroup", { name: "Tool activity" });
+    expect(within(group).getByRole("radio", { name: "Compact" }).getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(within(group).getByRole("radio", { name: "Detailed" }));
+    await waitFor(() => expect(toolActivity()).toBe("detailed"));
+    expect(JSON.parse(localStorage.getItem("intely.appearance")!)).toMatchObject({ toolActivity: "detailed" });
+    fireEvent.click(within(group).getByRole("radio", { name: "Compact" }));
+    await waitFor(() => expect(toolActivity()).toBe("compact"));
   });
 
   it("offers the accent families as a radio grid, applies one at once and persists it", async () => {
