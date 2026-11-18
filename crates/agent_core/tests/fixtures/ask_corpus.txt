@@ -178,7 +178,7 @@ gitw|git add .
 gitw|git cherry-pick abc123
 gitw|git revert HEAD
 gitw|git remote add origin https://x
-gitw|git config user.email a@b.c
+gitw|git config user.email someone
 gitw|git commit --amend --no-edit
 gitw|git push --tags
 gitw|git update-ref refs/heads/main HEAD~1
@@ -222,7 +222,7 @@ net|ping -c 1 google.com
 net|dig example.com
 net|nslookup example.com
 net|ssh user@server 'ls'
-net|ssh -T git@github.com
+net|ssh -T github.com
 net|scp file.txt user@server:/tmp
 net|rsync -av dist/ user@server:/var/www
 net|lsof -i :3000

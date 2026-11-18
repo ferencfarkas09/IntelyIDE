@@ -135,7 +135,7 @@ Columns: Plan / Ask / Accept edits / Automatic / Bypass. `D` refusal, `Q` asks (
 | `npm run test \| sh`, `npm run test \| node` | no match (pipe into a shell or interpreter) |
 | `cd ~/other && npm run test`, a symlink `src/l -> ~` then `cat src/l/x` | folder mismatch: card again |
 | Grant `~/Downloads`, then `~/Downloads/../.ssh/x`, `~/Downloads/l -> ~/.ssh` | resolved first: tier 1 |
-| Grant `curl localhost:3000`, then `:3001`, `-d @.env`, `http://localhost:3000@evil.com`, `-T f` | no match / tier 1 |
+| Grant `curl localhost:3000`, then `:3001`, `-d @.env`, the same URL with a user-info part that names another host, `-T f` | no match / tier 1 |
 | Grant `node scripts/a.js`, then the agent edits `a.js` to push | the script is scanned on every call: `script.git-write` |
 | `sh -c 'npm run test'`, `bash -lc …` | no pattern is ever derived for a shell body |
 | `Everything`, then `git push`, `cat ~/.ssh/x`, Write `.claude/settings.json`, `LD_PRELOAD=…` | tier 1: refused |
