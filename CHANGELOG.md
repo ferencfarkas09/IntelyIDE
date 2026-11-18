@@ -4,6 +4,19 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 
 ## [Unreleased]
 
+### Added
+
+- Editor: "Open File..." in the Project panel header and in the command palette opens a file from disk in the editor, through the in-app file browser with hidden files shown. A file outside the workspace's repositories gets a message that says how to add it instead of an empty tab.
+- Go to file (Cmd+P): an "Include ignored files" tick adds the files `.gitignore` matches (`.env`, logs, local settings) to the list; it is remembered. The files inside an ignored folder such as `node_modules/` stay in the Project tree only.
+
+### Changed
+
+- File and folder pickers: hidden entries are shown by default in the file pickers, whose toggle now reads "Show hidden files and folders"; the folder pickers keep "Show hidden folders" off by default. The choice is remembered by the app (it used to reset every time the dialog opened).
+
+### Fixed
+
+- Editor: a file could open with an empty editor although it had content, every time after "Reveal" on a secret file such as `.env` and whenever the file took a moment to read. The editor now always shows the text, or a message that says why it cannot and what to do.
+
 ## [1.15.0] - 2026-11-13
 
 ### Added

@@ -19,7 +19,7 @@ describe("ipc namespaces", () => {
 
   it("files mock: lists, reads, guards secrets and refuses a stale write", async () => {
     const { files } = createMockNamespaces();
-    expect((await files.listDir("r", "")).map((e) => e.name)).toEqual(["assets", "data", "dist", "docs", "empty-dir", "node_modules", "src", ".env", ".gitignore", "package.json", "README.md"]);
+    expect((await files.listDir("r", "")).map((e) => e.name)).toEqual([".github", ".vscode", "assets", "data", "dist", "docs", "empty-dir", "node_modules", "src", ".env", ".eslintrc", ".gitignore", "debug.log", "package.json", "README.md"]);
     expect((await files.readFile("r", ".env")).text).toBeUndefined();
     expect((await files.readFile("r", ".env", { reveal: true })).text).toBe("SECRET=1\n");
     const read = await files.readFile("r", "README.md");

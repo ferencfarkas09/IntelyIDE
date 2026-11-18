@@ -45,8 +45,12 @@ export interface FilesIpc {
   readFile(repoId: RepoId, relPath: string, opts?: { reveal?: boolean; encoding?: Encoding }): Promise<FileRead>;
   /** Rejects with code `staleFile` when the file changed since `expectedMtimeMs`; 0 means the file is expected not to exist (it is created). */
   writeFile(repoId: RepoId, relPath: string, text: string, expectedMtimeMs: number, opts?: { reveal?: boolean; encoding?: Encoding }): Promise<{ mtimeMs: number }>;
-  /** Every non-ignored file path of the repo, for quick open. */
-  quickOpenIndex(repoId: RepoId): Promise<string[]>;
+  /**
+   * Every non-ignored, non-secret file path of the repo, for quick open. With `includeIgnored` it returns ONLY the ignored
+   * files instead (secret ones included, files inside an ignored folder left out, at most 5000): quick open's "Include
+   * ignored files" adds them to the normal list.
+   */
+  quickOpenIndex(repoId: RepoId, opts?: { includeIgnored?: boolean }): Promise<string[]>;
   /** Creates an empty file or directory. Rejects with code `exists` when the path is taken. */
   createEntry(repoId: RepoId, relPath: string, kind: "file" | "dir"): Promise<void>;
   /** Rejects with code `exists` when `to` is taken. */
@@ -67,7 +71,7 @@ export function createTauriFiles(): FilesIpc {
     readFile: (repoId, relPath, opts) => call("files_read_file", { repoId, relPath, reveal: opts?.reveal, encoding: opts?.encoding }),
     writeFile: (repoId, relPath, text, expectedMtimeMs, opts) =>
       call("files_write_file", { repoId, relPath, text, expectedMtimeMs, reveal: opts?.reveal, encoding: opts?.encoding }),
-    quickOpenIndex: (repoId) => call("files_quick_open_index", { repoId }),
+    quickOpenIndex: (repoId, opts) => call("files_quick_open_index", { repoId, includeIgnored: opts?.includeIgnored }),
     createEntry: (repoId, relPath, kind) => call("files_create_entry", { repoId, relPath, kind }),
     renameEntry: (repoId, from, to) => call("files_rename_entry", { repoId, from, to }),
     trashEntry: (repoId, relPath) => call("files_trash_entry", { repoId, relPath }),

@@ -69,6 +69,7 @@ button.chip:focus-visible { outline: var(--focus-width) solid var(--focus-color)
 .qo__item[aria-selected="true"] { background: var(--surface-selected); }
 .qo__name { flex: none; }
 .qo__dir { flex: 1 1 0; min-width: 0; color: var(--text-3); font-size: var(--text-xs); }
+.qo__item[data-ignored] .qo__name { color: var(--text-3); }
 .qo__state { display: grid; place-items: center; padding: var(--space-6); }
 
 .editor-dialog__hint { min-height: 18px; margin: var(--space-1) 0 0; color: var(--danger); font-size: var(--text-xs); }

@@ -22,6 +22,29 @@ const isDir = (e: DirEntry) => e.kind === "dir" || e.kind === "symlinkDir";
 const isFile = (e: DirEntry) => e.kind === "file" || e.kind === "symlinkFile";
 const PAGE = 10;
 
+/**
+ * "Show hidden" is remembered per app, separately for the file pickers and the folder pickers. A file picker shows hidden
+ * entries until the person turns them off (dotfiles such as .gitignore, .env or .github/ are what people open most often);
+ * a folder picker keeps them out until asked. Storage that throws (private window) falls back to these defaults.
+ */
+const hiddenKey = (kind: PickKind) => (kind === "file" || kind === "files" ? "intely.picker.hidden.files" : "intely.picker.hidden.folders");
+export function showHiddenFor(kind: PickKind): boolean {
+  try {
+    const v = localStorage.getItem(hiddenKey(kind));
+    if (v === "1" || v === "0") return v === "1";
+  } catch {
+    /* blocked storage: the default */
+  }
+  return kind === "file" || kind === "files";
+}
+function rememberShowHidden(kind: PickKind, on: boolean): void {
+  try {
+    localStorage.setItem(hiddenKey(kind), on ? "1" : "0");
+  } catch {
+    /* blocked storage: the choice lasts as long as the dialog */
+  }
+}
+
 /** A short name for the guarded folder, shown in the "macOS may ask for permission" bar. */
 const placeName = (p: ProtectedFolder | null, fallback: string) => (p ? p.charAt(0).toUpperCase() + p.slice(1) : fallback);
 
@@ -36,7 +59,7 @@ export function Browser(props: BrowserProps) {
   const [slow, setSlow] = createSignal(false);
   const [prompt, setPrompt] = createSignal<string | null>(null);
   const [gone, setGone] = createSignal(false);
-  const [hidden, setHidden] = createSignal(false);
+  const [hidden, setHidden] = createSignal(showHiddenFor(props.kind));
   const [back, setBack] = createSignal<string[]>([]);
   const [fwd, setFwd] = createSignal<string[]>([]);
   const [active, setActive] = createSignal(-1);
@@ -285,6 +308,7 @@ export function Browser(props: BrowserProps) {
 
   const toggleHidden = () => {
     setHidden(!hidden());
+    rememberShowHidden(props.kind, hidden());
     if (path()) void load(path()!, { push: false });
   };
 
@@ -496,7 +520,7 @@ export function Browser(props: BrowserProps) {
       </div>
 
       <div class="pp-status">
-        <Checkbox checked={hidden()} onChange={toggleHidden} label={t("picker.hidden")} size="sm" />
+        <Checkbox checked={hidden()} onChange={toggleHidden} label={wantsFiles() ? t("picker.hiddenFiles") : t("picker.hidden")} size="sm" />
         <Show when={listing()?.truncated}>
           <span class="pp-note">{t("picker.truncated", { count: entries().length })}</span>
         </Show>

@@ -18,6 +18,7 @@
   "picker.goToPlaceholder": "Type or paste a path",
   "picker.goToHint": "Quotes, ~ and file:// links are understood.",
   "picker.hidden": "Show hidden folders",
+  "picker.hiddenFiles": "Show hidden files and folders",
   "picker.empty": "This folder is empty",
   "picker.noDirs": "No subfolders",
   "picker.gitBadge": "Git",

@@ -18,6 +18,7 @@
   "picker.goToPlaceholder": "Írj vagy illessz be egy útvonalat",
   "picker.goToHint": "Az idézőjelek, a ~ és a file:// linkek érthetők.",
   "picker.hidden": "Rejtett mappák mutatása",
+  "picker.hiddenFiles": "Rejtett fájlok és mappák mutatása",
   "picker.empty": "Ez a mappa üres",
   "picker.noDirs": "Nincsenek almappák",
   "picker.gitBadge": "Git",

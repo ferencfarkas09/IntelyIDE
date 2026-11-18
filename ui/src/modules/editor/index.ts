@@ -6,7 +6,7 @@ import { appMode } from "../../platform/mode";
 import { activateRailItem, getRailItem, registerRailItem } from "../../platform/rail";
 import { activeTab, canCloseTab, closeTab, registerTabType, tabs } from "../../platform/tabs";
 import { FileText, FolderGit2 } from "../../ui-kit";
-import { activeFileTab, currentRepoId, newEntry, revealInProject } from "./actions";
+import { activeFileTab, currentRepoId, newEntry, openFromDisk, revealInProject } from "./actions";
 import { beforeCloseFile, dirtyTabIds, openFile, saveAll, saveBuffer, viewOf } from "./buffers";
 import { toggleWrap } from "./prefs";
 import { openQuickOpen } from "./quickOpen";
@@ -36,6 +36,7 @@ export function register(): void {
       else openQuickOpen();
     },
   });
+  registerCommand({ id: "editor.openFromDisk", get title() { return t("editor.cmd.openFromDisk"); }, get group() { return t("group.file"); }, keywords: ["open", "browse", "finder", "hidden", "dotfile"], run: () => void openFromDisk() });
   registerCommand({ id: "editor.newFile", get title() { return t("editor.cmd.newFile"); }, get group() { return t("group.file"); }, keywords: ["create"], run: () => { const repoId = currentRepoId(); if (repoId) void newEntry(repoId, "", "file"); } });
   registerCommand({ id: "editor.save", get title() { return t("editor.cmd.save"); }, get group() { return t("group.file"); }, shortcut: "Cmd+S", when: onFile, run: () => void saveBuffer(activeTab()!.id) });
   registerCommand({ id: "editor.saveAll", get title() { return t("editor.cmd.saveAll"); }, get group() { return t("group.file"); }, shortcut: "Cmd+Shift+S", run: () => saveAll() });

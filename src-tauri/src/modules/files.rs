@@ -212,8 +212,17 @@ pub async fn files_reveal_entry(state: State<'_, FilesState>, engine: State<'_, 
 }
 
 #[tauri::command]
-pub async fn files_quick_open_index(state: State<'_, FilesState>, engine: State<'_, EngineSlot>, repo_id: RepoId) -> Res<Vec<String>> {
-    Ok(state.files.quick_open_index(&root(&engine, &repo_id).await?).await?.as_ref().clone())
+pub async fn files_quick_open_index(
+    state: State<'_, FilesState>,
+    engine: State<'_, EngineSlot>,
+    repo_id: RepoId,
+    include_ignored: Option<bool>,
+) -> Res<Vec<String>> {
+    let root = root(&engine, &repo_id).await?;
+    if include_ignored.unwrap_or(false) {
+        return state.files.quick_open_ignored(&root).await;
+    }
+    Ok(state.files.quick_open_index(&root).await?.as_ref().clone())
 }
 
 #[tauri::command]

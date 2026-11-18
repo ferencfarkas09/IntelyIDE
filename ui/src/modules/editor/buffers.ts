@@ -1,5 +1,6 @@
 import { Text, Transaction, type EditorState } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
+import { batch } from "solid-js";
 import { createStore, produce } from "solid-js/store";
 import { ipc } from "../../ipc";
 import type { Encoding, Eol, FileChanged, FileRead } from "../../ipc/files";
@@ -89,11 +90,14 @@ export function currentText(tabId: string): string | undefined {
 
 function applyRead(tabId: string, r: FileRead): void {
   const status = classifyRead(r, revealed.has(tabId));
-  setBuffers(tabId, { status, size: r.size, mtimeMs: r.mtimeMs, eol: r.eol, encoding: r.encoding ?? "utf8", partial: r.tooLarge && r.text !== undefined, dirty: false, conflict: undefined, error: undefined });
-  if (status !== "ready") return;
-  const text = toDoc(r.text ?? "", r.eol);
-  savedDocs.set(tabId, disk(text));
-  setBuffers(tabId, "indent", detectIndent(text));
+  // The document and its indent are stored BEFORE the status turns "ready": a tab already on screen mounts its editor during
+  // that very store write and reads the document right away (1.15.0 showed an empty buffer when the read came in late).
+  const text = status === "ready" ? toDoc(r.text ?? "", r.eol) : undefined;
+  if (text !== undefined) savedDocs.set(tabId, disk(text));
+  batch(() => {
+    if (text !== undefined) setBuffers(tabId, "indent", detectIndent(text));
+    setBuffers(tabId, { status, size: r.size, mtimeMs: r.mtimeMs, eol: r.eol, encoding: r.encoding ?? "utf8", partial: r.tooLarge && r.text !== undefined, dirty: false, conflict: undefined, error: undefined });
+  });
 }
 
 const readOpts = (tabId: string) => ({ reveal: revealed.has(tabId), encoding: forcedEncoding.get(tabId) });
@@ -122,6 +126,11 @@ function discardBuffer(tabId: string): void {
   revealed.delete(tabId);
   forcedEncoding.delete(tabId);
   setBuffers(produce((all) => void delete all[tabId]));
+}
+
+/** The editor could not show a "ready" buffer (no document, or building the editor failed): the tab shows the error and Retry, never a blank pane. */
+export function failBuffer(tabId: string, message: string): void {
+  if (buffers[tabId]) setBuffers(tabId, { status: "error", error: message });
 }
 
 export async function revealSecret(tabId: string): Promise<void> {
