@@ -1,7 +1,9 @@
 // Screenshots and layout checks of the 1.15 refresh against the MOCK UI in headless Chromium (no app binary, no WKWebView):
 // the Agent run with a permission request, a question, a plan to approve, two requests at once, a request with a 200-character
 // path and one with a long command, a finished and a throttled run, the Dashboard and the New run dialog in Standard and Glass,
-// light and dark, at 1440x900, 1100x700 and 960x600, and two stacked panes at 1440x900.
+// light and dark, at 1440x900, 1100x700 and 960x600, and two stacked panes at 1440x900. The busy views are a long unattended
+// run (Compact tool activity, the same run in the Detailed view, the run while a command works, and the groups opened and folded
+// again, where the pressed toggle must not move and nothing may scroll sideways).
 // Every shot is audited in the page: text contrast below 4.5:1 (3:1 for large text, badges included), controls that are covered
 // or off screen, a focused control that is not fully on screen, a request card whose title, target line or buttons are not
 // fully inside the visible part of the transcript, a transcript whose VISIBLE scroll area (the scroller minus whatever lies over
@@ -374,6 +376,62 @@ const openRun = async (page, which = "first") => {
   await page.locator('[data-testid="composer"]').first().waitFor();
 };
 
+/** The busy run has finished: its summary card above the transcript is folded so the conversation has the room. */
+async function busyDone(page) {
+  await openRun(page);
+  await page.getByText("The first test run failed", { exact: false }).first().waitFor({ timeout: 30000 });
+  const summary = page.locator('.runsummary__toggle[aria-expanded="true"]');
+  if (await summary.count()) await summary.first().click();
+  await page.waitForTimeout(600);
+}
+
+/** Every activity row: a button with aria-expanded, one line when folded, nothing wider than the transcript. */
+async function transcriptChecks(page) {
+  return page.evaluate(() => {
+    const out = [];
+    for (const scroller of document.querySelectorAll('[data-testid="transcript"] .ui-scroll__viewport')) {
+      if (scroller.scrollWidth > scroller.clientWidth + 1) out.push(`the transcript scrolls sideways (${scroller.scrollWidth} > ${scroller.clientWidth})`);
+      const box = scroller.getBoundingClientRect();
+      for (const head of scroller.querySelectorAll(".act__head, .act-call__head")) {
+        const r = head.getBoundingClientRect();
+        if (r.right > box.right + 1) out.push(`an activity row sticks out of the transcript: "${head.textContent.trim().slice(0, 40)}"`);
+        if (head.matches(".act__head") && !head.hasAttribute("aria-expanded")) out.push(`a group row has no aria-expanded: "${head.textContent.trim().slice(0, 40)}"`);
+      }
+      for (const group of scroller.querySelectorAll(".act:not([data-open])")) if (group.querySelector(".act__list")) out.push("a folded group renders its body");
+    }
+    return out;
+  });
+}
+
+/** Opens the first group and then the failing call of the group that has one; the pressed toggle must not move on screen. */
+async function toggleChecks(page, { name, out: dir }) {
+  const out = [];
+  const press = async (locator, what) => {
+    await locator.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(150);
+    const before = await locator.boundingBox();
+    await locator.click();
+    await page.waitForTimeout(400);
+    const after = await locator.boundingBox();
+    if (!before || !after) return out.push(`${what}: the toggle is gone after the click`);
+    if (Math.abs(after.y - before.y) > 2) out.push(`${what}: the toggle moved ${Math.round(after.y - before.y)} px when pressed`);
+    // the next step scrolls by script: a focus left behind would be reported as a focused control off screen
+    await page.evaluate(() => document.activeElement?.blur?.());
+  };
+  const first = page.locator(".act__head").first();
+  await press(first, "open the first group");
+  if ((await first.getAttribute("aria-expanded")) !== "true") out.push("the first group did not open");
+  const failing = page.locator('.act-call[data-status="error"] .act-call__head').first();
+  if (await failing.count()) {
+    await press(failing, "fold the failing call");
+    await press(failing, "open the failing call again");
+  } else out.push("no failing call to toggle");
+  await page.screenshot({ path: path.join(dir, `${name}-opened.png`) });
+  out.push(...(await transcriptChecks(page)));
+  await press(first, "fold the first group");
+  return out;
+}
+
 const VIEWS = {
   "agent-run": {
     url: "/?scenario=agent-permission&mode=agent",
@@ -497,6 +555,52 @@ const VIEWS = {
       await openRun(page);
       await page.locator('.chat > .banner[data-tone="warn"]').waitFor();
     },
+  },
+  // A long unattended run (thinking, reads, searches, a long shell script, edits, a failing test, a blocked commit, an MCP call)
+  // that has finished: the transcript reads as prose with quiet activity rows between (Compact, the default).
+  busy: {
+    url: "/?scenario=agent-busy&mode=agent",
+    steps: busyDone,
+    check: transcriptChecks,
+  },
+  // The same finished run, opened up: the first activity group, then the failing command in it; the toggle pressed must stay
+  // where it was on screen (the audit fails on a jump of more than 2 px), and the transcript must not scroll sideways.
+  "busy-open": {
+    url: "/?scenario=agent-busy&mode=agent",
+    steps: busyDone,
+    check: transcriptChecks,
+    sequence: toggleChecks,
+  },
+  // The middle of the same run (its first message and the activity around it): the before/after shot of the PR.
+  "busy-mid": {
+    url: "/?scenario=agent-busy&mode=agent",
+    steps: async (page) => {
+      await busyDone(page);
+      // from the top (a row far above is not drawn by the virtual list until it comes near)
+      await page.evaluate(() => { const el = document.querySelector('[data-testid="transcript"] .ui-scroll__viewport'); if (el) el.scrollTop = 0; });
+      await page.waitForTimeout(400);
+      await page.getByText("The total is formatted with", { exact: false }).first().evaluate((el) => el.scrollIntoView({ block: "start" }));
+      await page.evaluate(() => document.querySelector('[data-testid="transcript"] .ui-scroll__viewport')?.scrollBy(0, -90));
+      await page.waitForTimeout(500);
+    },
+  },
+  // Settings > Appearance > Tool activity: Detailed. Every call is its own card again (the view before 1.16).
+  "busy-detailed": {
+    url: "/?scenario=agent-busy&mode=agent",
+    storage: { "intely.appearance": JSON.stringify({ toolActivity: "detailed" }) },
+    steps: busyDone,
+    check: async (page) => ((await page.locator(".act").count()) ? ["detailed: an activity group is shown in the Detailed view"] : []),
+  },
+  // The same run while a command still runs: the activity row shows one live line with the newest step.
+  "busy-live": {
+    url: "/?scenario=agent-busy-live&mode=agent",
+    steps: async (page) => {
+      await openRun(page);
+      await page.getByText("I update it and run the tests again", { exact: false }).first().waitFor({ timeout: 30000 });
+      await page.locator(".act[data-live]").waitFor();
+      await page.waitForTimeout(800);
+    },
+    check: transcriptChecks,
   },
   // Two panes on top of each other: a waiting run above, a finished one below. Each keeps a transcript worth reading.
   stacked: {
