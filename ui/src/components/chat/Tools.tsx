@@ -9,7 +9,7 @@ import { lazyLabels } from "../lazyLabels";
 import { fmtDuration, modelLabel, subagentRole } from "./format";
 import { NoteInput, NoteRow } from "./Notes";
 
-const KIND_ICON: Record<ToolKind, LucideIcon> = {
+export const KIND_ICON: Record<ToolKind, LucideIcon> = {
   read: FileSearch,
   edit: Pencil,
   delete: Trash2,

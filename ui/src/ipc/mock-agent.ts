@@ -27,7 +27,7 @@ import { ACP_SCENARIOS, ACP_SCRIPTS, type AcpScenario } from "./mock-acp";
 import { AFTER_PLAN, isUnattended, MODE_ORDER } from "../store/permissionModes";
 
 /** Scenario names understood by the agent part of the mock (`?scenario=agent-...`); any other scenario plays `agent-normal`. */
-export const AGENT_SCENARIOS = ["agent-normal", "agent-permission", "agent-question", "agent-error", "agent-throttle", "agent-subagents", "agent-notes", "agent-delegation", "agent-plan", "agent-two-requests", "agent-long-path", "agent-long-command", "agent-stops", "agent-stop-read", "agent-stop-edit", "agent-stop-cli", "agent-stop-once", "agent-late-request"] as const;
+export const AGENT_SCENARIOS = ["agent-normal", "agent-permission", "agent-question", "agent-error", "agent-throttle", "agent-subagents", "agent-notes", "agent-delegation", "agent-plan", "agent-two-requests", "agent-long-path", "agent-long-command", "agent-stops", "agent-stop-read", "agent-stop-edit", "agent-stop-cli", "agent-stop-once", "agent-late-request", "agent-busy", "agent-busy-live"] as const;
 export type AgentScenario = (typeof AGENT_SCENARIOS)[number];
 /** What a run plays: a scenario, or the reviewer script every `reviewer` run gets (the Review UI parses its findings). */
 type ScriptKey = AgentScenario | AcpScenario | "agent-review" | "showcase";
@@ -250,7 +250,77 @@ async function oneStop(c: Ctx, intent: Extract<EventPayload, { kind: "permission
   await c.stream("m2", [d.decision === "deny" ? "Understood, I carry on without it." : "Done."]);
 }
 
+
+/**
+ * A long unattended run, like a real Bypass session: thinking, many reads and searches, a long shell script, edits, a command that
+ * fails, a commit the hard stop blocks, an MCP call and a final answer in rich markdown. `live` stops in the middle of a command
+ * that keeps running (the live line of the activity row). Used by the transcript screenshots (before/after of the compact view).
+ */
+const BUSY_SCRIPT = [
+  "set -euo pipefail",
+  "for f in src/components/modules/orders/*.tsx; do",
+  "  npx prettier --check \"$f\" || echo \"needs formatting: $f\"",
+  "done",
+  "pnpm --filter @shop/admin exec tsc --noEmit --pretty false | tee tmp/tsc.log",
+  "grep -c error tmp/tsc.log || true",
+].join("\n");
+const BUSY_FINAL = [
+  "## What changed\n\n",
+  "Order totals now use the shop currency everywhere in **admin**:\n\n",
+  "1. `money()` in `src/utils/format.ts` formats with `Intl.NumberFormat` (`hu-HU`, `HUF` by default).\n",
+  "2. `OrdersTable`, `OrderRow` and the dashboard's `RevenueCard` call it instead of `toFixed(2)`.\n",
+  "3. The formatter tests cover forint, euro and a zero total.\n\n",
+  "| File | Change |\n| --- | --- |\n| `src/utils/format.ts` | new signature, `Intl` |\n| `OrdersTable.tsx` | uses `money()` |\n| `RevenueCard.tsx` | uses `money()` |\n\n",
+  "```ts\nexport function money(n: number, currency = \"HUF\") {\n  return new Intl.NumberFormat(\"hu-HU\", { style: \"currency\", currency, maximumFractionDigits: 0 }).format(n);\n}\n```\n\n",
+  "One thing to know: I tried to commit, and the IDE blocked it (agents never commit). The change is in the **Changes** tree for you to review and commit. ",
+  "The first test run failed on a stale snapshot; I updated it and the second run passed.",
+];
+async function busy(c: Ctx, live: boolean): Promise<void> {
+  const read = (id: string, path: string, out = "export function …") => c.tool(id, { name: "Read", toolKind: "read", summary: path, input: { file_path: path } }, { output: out, ms: 60 }, 40);
+  const grep = (id: string, pattern: string, out: string) => c.tool(id, { name: "Grep", toolKind: "search", summary: `${pattern} in src/`, input: { pattern } }, { output: out, ms: 90 }, 40);
+  const bash = (id: string, command: string, output: string, status: "ok" | "error" = "ok", ms = 900) => c.tool(id, { name: "Bash", toolKind: "exec", summary: command, input: { command } }, { output, status, ms }, 60);
+  c.emit({ kind: "status", state: "thinking" });
+  for (const t of ["The totals are built in a few places. ", "Read the table, the row and the formatter first, ", "then search for every toFixed."]) {
+    c.emit({ kind: "thinking.delta", messageId: "th1", text: t });
+    await c.wait(60);
+  }
+  c.emit({ kind: "status", state: "running" });
+  await read("b1", "src/components/modules/orders/OrdersTable.tsx", "export function OrdersTable(props: Props) {\n  const total = props.orders.reduce((s, o) => s + o.total, 0);\n  return <tfoot>{total.toFixed(2)}</tfoot>;\n}");
+  await read("b2", "src/components/modules/orders/OrderRow.tsx");
+  await read("b3", "src/utils/format.ts", "export function money(n: number) {\n  return n.toFixed(2);\n}");
+  await grep("b4", "toFixed", "src/utils/format.ts:2:  return n.toFixed(2);\nsrc/components/pages/dashboard/RevenueCard.tsx:18:  {total.toFixed(2)}\nsrc/components/modules/orders/OrdersTable.tsx:3:  {total.toFixed(2)}");
+  await grep("b5", "money\\(", "src/components/modules/orders/OrderRow.tsx:9:  {money(order.total)}");
+  await read("b6", "src/components/pages/dashboard/RevenueCard.tsx");
+  await bash("b7", "git log --oneline -5 -- src/utils/format.ts", "a1c9e02 format: two decimals\n77f1b3a format: first version");
+  c.usage(5200, 610);
+  await c.stream("m1", ["The total is formatted with `toFixed(2)` in three places, so the currency and the thousands separator are lost. ", "I will change `money()` once and call it from all three."], 30);
+  await c.tool("b8", { name: "Edit", toolKind: "edit", summary: "src/utils/format.ts", input: { file_path: "src/utils/format.ts" } }, { diff: DIFF, output: "Edited 1 file", ms: 40 }, 40);
+  await c.tool("b9", { name: "Edit", toolKind: "edit", summary: "src/components/modules/orders/OrdersTable.tsx", input: { file_path: "src/components/modules/orders/OrdersTable.tsx" } }, { diff: { path: "src/components/modules/orders/OrdersTable.tsx", old: "  return <tfoot>{total.toFixed(2)}</tfoot>;", new: "  return <tfoot>{money(total)}</tfoot>;" }, ms: 40 }, 40);
+  await c.tool("b10", { name: "Edit", toolKind: "edit", summary: "src/components/pages/dashboard/RevenueCard.tsx", input: { file_path: "src/components/pages/dashboard/RevenueCard.tsx" } }, { diff: { path: "src/components/pages/dashboard/RevenueCard.tsx", old: "  {total.toFixed(2)}", new: "  {money(total)}" }, ms: 40 }, 40);
+  await bash("b11", BUSY_SCRIPT, "Checking formatting...\nAll matched files use Prettier code style!\n0", "ok", 6400);
+  await bash("b12", "pnpm vitest run src/utils", " FAIL  src/utils/format.test.ts > money > formats forint\n  Snapshot `money 1` mismatched\n  - 12500.00\n  + 12 500 Ft\n\n Test Files  1 failed (1)\n      Tests  1 failed | 3 passed (4)", "error", 1500);
+  await c.stream("m2", ["The snapshot still has the old format; that is expected. I update it and run the tests again."], 30);
+  await c.tool("b13", { name: "Edit", toolKind: "edit", summary: "src/utils/__snapshots__/format.test.ts.snap", input: { file_path: "src/utils/__snapshots__/format.test.ts.snap" } }, { diff: { path: "src/utils/__snapshots__/format.test.ts.snap", old: 'exports[`money 1`] = `"12500.00"`;', new: 'exports[`money 1`] = `"12 500 Ft"`;' }, ms: 40 }, 40);
+  if (live) {
+    c.emit({ kind: "tool.start", toolId: "b14", name: "Bash", toolKind: "exec", summary: "pnpm vitest run src/utils", input: { command: "pnpm vitest run src/utils" } });
+    await c.wait(600_000);
+    c.emit({ kind: "tool.result", toolId: "b14", status: "ok", output: " Test Files  1 passed (1)", durationMs: 600_000 });
+    return;
+  }
+  await bash("b14", "pnpm vitest run src/utils", " ✓ src/utils/format.test.ts (4 tests) 7ms\n\n Test Files  1 passed (1)\n      Tests  4 passed (4)", "ok", 1400);
+  await c.tool("b15", { name: "mcp__github__search_issues", toolKind: "mcp", summary: "github: search_issues currency", input: { query: "currency" } }, { output: "#212 Show prices with the currency (open)", ms: 300 }, 40);
+  const commit = 'git commit -am "Show totals with the shop currency"';
+  c.emit({ kind: "tool.start", toolId: "b16", name: "Bash", toolKind: "exec", summary: commit, input: { command: commit } });
+  c.emit({ kind: "permission.request", reqId: "pb", toolId: "b16", intent: { class: "exec", tool: "Bash", rawCommand: commit, argv: ["git", "commit", "-am", "Show totals with the shop currency"], summary: commit } as Extract<EventPayload, { kind: "permission.request" }>["intent"], options: ["deny"] });
+  c.emit({ kind: "permission.resolved", reqId: "pb", outcome: "deny", by: "hardStop" } as Extract<EventPayload, { kind: "permission.resolved" }>);
+  c.emit({ kind: "tool.result", toolId: "b16", status: "denied", output: "Blocked by policy (hard stop): git commit. Agents never commit or push; you commit from the Changes tree." });
+  c.usage(14800, 2300);
+  await c.stream("m3", BUSY_FINAL, 20);
+}
+
 const SCRIPTS: Record<ScriptKey, Script> = {
+  "agent-busy": (c) => busy(c, false),
+  "agent-busy-live": (c) => busy(c, true),
   ...ACP_SCRIPTS,
   "agent-review": async (c) => {
     c.emit({ kind: "status", state: "running" });

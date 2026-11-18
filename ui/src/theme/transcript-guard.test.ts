@@ -18,11 +18,12 @@ const files = (dir: string): string[] =>
 // Classes of the transcript, the run log, their rows and cards, and every pane that holds them.
 const GUARDED = [
   "transcript", "transcript__scroll", "transcript__inner", "transcript__row", "transcript__col",
-  "msg", "msg-row", "msg-row__main", "msg__bubble", "msg__text", "msg__copy", "msg__meta", "md", "tool-card",
+  "msg", "msg-row", "msg-row__main", "msg__bubble", "msg__text", "msg__copy", "msg__meta", "md", "md-copy", "tool-card",
+  "act", "act__head", "act__list", "act-call", "act-call__head", "act-call__body", "act-block", "act-block__pre",
   "chat", "chat__top", "agent-centre", "agent-centre__run", "agent", "centre", "shell", "shell__mode",
   "run-log", "run-log__body", "run-log__follow", "ui-scroll", "ui-scroll__viewport",
 ];
-const TRIGGERS = /(^|[;\s])(-webkit-)?backdrop-filter\s*:|(^|[;\s])will-change\s*:|(^|[;\s])content-visibility\s*:|(^|[;\s])contain\s*:\s*[^;]*\b(paint|strict|content)\b|(^|[;\s])(-webkit-)?filter\s*:\s*(?!none)/;
+const TRIGGERS = /(^|[;\s])(-webkit-)?backdrop-filter\s*:|(^|[;\s])will-change\s*:|(^|[;\s])content-visibility\s*:|(^|[;\s])contain\s*:\s*[^;]*\b(paint|strict|content)\b|(^|[;\s])(-webkit-)?filter\s*:\s*(?!none)|(^|[;\s])(-webkit-)?mask(-image)?\s*:\s*(?!none)/;
 const hits = (sel: string) => GUARDED.filter((c) => new RegExp(`\\.${c}(?![\\w-])`).test(sel));
 
 function offenders(css: string): string[] {

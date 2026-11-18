@@ -80,6 +80,8 @@ describe("the Team tab", () => {
     await within(main).findByText(/The cart total ignores quantities/);
     expect(within(main).getByText("Jordan", { selector: ".msg__who" })).toBeTruthy();
     expect(within(main).getAllByText("Read-only").length).toBeGreaterThan(0);
+    // the settled request is part of the run's tool activity (one folded row): opened, it is there as information
+    fireEvent.click(await within(main).findByRole("button", { name: /Tool activity/ }));
     const card = await within(main).findByTestId("shared-permission");
     expect(card.textContent).toMatch(/The owner allowed/);
     // the only field is the follow-up suggestion (the run is idle); no button answers a card or starts a turn
@@ -101,7 +103,7 @@ describe("the Team tab", () => {
     install("on");
     render(() => <TeamTab />);
     fireEvent.click(await screen.findByText("Fix the cart total"));
-    await screen.findByTestId("shared-permission");
+    await screen.findByRole("button", { name: /Tool activity/ });
     const more = [{ agentId: "r_jo1", seq: 12, ts: 9, provider: "claude", kind: "user.message", messageId: "m9", text: "One more thing: I updated the changelog." }] as unknown as ReturnType<typeof mockSharedRunEvents>;
     mock.sim.runEvents("m_jo", "r_jo1", more);
     await screen.findByText(/I updated the changelog/);

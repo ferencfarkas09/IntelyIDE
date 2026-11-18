@@ -1,6 +1,7 @@
 import { createSignal, For, Match, onCleanup, Show, Switch } from "solid-js";
 import type { ConfirmOffer } from "../../store/agent-types";
 import type { ErrorItem, PermissionItem, PlanCardItem, QuestionItem, ThinkingItem, TurnItem } from "../../store/agent-reducer";
+import { thoughtSeconds } from "../../store/toolGroups";
 import type { DelegateInfo, PermissionDecision, QuestionAnswer, SessionAllowKind, SessionAllowOffer, StopReason } from "../../store/agent-types";
 import { Badge, Ban, Brain, Button, Check, ChevronRight, CircleAlert, CircleQuestionMark, Icon, Input, ListChecks, ShieldAlert, ShieldCheck, Spinner, TriangleAlert } from "../../ui-kit";
 import { t, type MessageKey } from "../../i18n";
@@ -963,7 +964,7 @@ export function ThinkingBlock(props: { item: ThinkingItem }) {
           <Icon icon={ChevronRight} size={12} />
         </span>
         <Icon icon={Brain} size={14} />
-        <span>{props.item.done ? t("chat.thought") : t("chat.thinking")}</span>
+        <span>{props.item.done ? (thoughtSeconds(props.item) > 0 ? t("activity.thoughtFor", { n: thoughtSeconds(props.item) }) : t("chat.thought")) : t("chat.thinking")}</span>
       </button>
       <Show when={expanded()}>
         <p class="think__body ui-selectable">{props.item.text}</p>

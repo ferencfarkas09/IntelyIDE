@@ -1,6 +1,9 @@
 import { createVirtualizer } from "@tanstack/solid-virtual";
 import { createEffect, createMemo, createSignal, For, Match, on, onCleanup, Show, Switch } from "solid-js";
-import { buildRows, isExitPlan, pendingPermissions, pendingQuestions, type AgentView, type NoteItem, type TranscriptItem, type TranscriptRow } from "../../store/agent-reducer";
+import { buildRows, isExitPlan, pendingPermissions, pendingQuestions, type AgentView, type NoteItem, type PermissionItem, type TranscriptItem, type TranscriptRow } from "../../store/agent-reducer";
+import { groupRows, type DisplayRow } from "../../store/toolGroups";
+import { toolActivity } from "../../store/toolActivity";
+import { ActivityGroup, type OpenState } from "./Activity";
 import { agentRow, agentView, answerPermission, answerQuestion, sendMessage, sendNote } from "../../store/agents";
 import { ArrowDown, EmptyState, IconButton, MessageSquare, ScrollArea } from "../../ui-kit";
 import { keepsFollowing, scrollMove } from "../../ui-kit/follow";
@@ -31,7 +34,7 @@ interface Speaker {
   role?: string;
 }
 
-function RowView(props: { agentId: string; row: TranscriptRow; prev?: TranscriptRow; speaker: Speaker; lastErrorKey: string | undefined; lastTurnKey: string | undefined; canRetry: boolean; retryText: string | undefined; readOnly?: boolean; who?: string }) {
+function RowView(props: { agentId: string; row: DisplayRow; prev?: DisplayRow; open: OpenState; live: boolean; speaker: Speaker; lastErrorKey: string | undefined; lastTurnKey: string | undefined; canRetry: boolean; retryText: string | undefined; readOnly?: boolean; who?: string }) {
   // A note can be added while the run works and its provider takes notes (the capability of the session beats the static one of the run).
   const canNote = () => {
     const view = agentView(props.agentId);
@@ -55,10 +58,22 @@ function RowView(props: { agentId: string; row: TranscriptRow; prev?: Transcript
     const item = props.row.item;
     return item.type === type ? (item as Extract<TranscriptItem, { type: K }>) : undefined;
   };
+  const permission = (p: PermissionItem) => (
+    // The card shows a refused answer itself (it goes back to pending with the reason), so the rejection needs no second report here.
+    <Show
+      when={isExitPlan(p.intent)}
+      fallback={<PermissionCard item={p} delegates={agentView(props.agentId)?.delegates} runTitle={(id) => agentRow(id)?.title} onAnswer={(d, extra) => void answerPermission(props.agentId, p.reqId, d, extra).catch(() => {})} />}
+    >
+      <PlanApprovalCard item={p} mcp={agentRow(props.agentId)?.mcp} onAnswer={(d, extra) => void answerPermission(props.agentId, p.reqId, d, extra).catch(() => {})} />
+    </Show>
+  );
+  /** A member of an activity group that is not a call or a thought: a settled request, drawn as its resolved line. */
+  const member = (row: TranscriptRow) => (row.item.type === "permission" ? (props.readOnly ? <SharedPermission item={row.item} /> : permission(row.item)) : null);
   /** The first row of a run of agent rows carries the avatar, the name and the time. */
   const lead = () => sideOf(props.prev?.item) !== "agent";
   const body = () => (
     <Switch>
+      <Match when={props.row.group}>{(g) => <ActivityGroup group={g()} state={props.open} live={props.live} member={member} />}</Match>
       <Match when={of("user")}>
         {(u) => (
           <div class="msg msg--user" data-self={props.who ? undefined : ""}>
@@ -110,17 +125,7 @@ function RowView(props: { agentId: string; row: TranscriptRow; prev?: Transcript
       <Match when={of("note")}>{(n) => <NoteRow item={n()} onSendAsMessage={canResend(n()) ? (text) => void sendMessage(props.agentId, text).catch(() => {}) : undefined} />}</Match>
       <Match when={props.readOnly ? of("permission") : undefined}>{(p) => <SharedPermission item={p()} />}</Match>
       <Match when={props.readOnly ? of("question") : undefined}>{(q) => <SharedQuestion item={q()} />}</Match>
-      <Match when={of("permission")}>
-        {(p) => (
-          // The card shows a refused answer itself (it goes back to pending with the reason), so the rejection needs no second report here.
-          <Show
-            when={isExitPlan(p().intent)}
-            fallback={<PermissionCard item={p()} delegates={agentView(props.agentId)?.delegates} runTitle={(id) => agentRow(id)?.title} onAnswer={(d, extra) => void answerPermission(props.agentId, p().reqId, d, extra).catch(() => {})} />}
-          >
-            <PlanApprovalCard item={p()} mcp={agentRow(props.agentId)?.mcp} onAnswer={(d, extra) => void answerPermission(props.agentId, p().reqId, d, extra).catch(() => {})} />
-          </Show>
-        )}
-      </Match>
+      <Match when={of("permission")}>{(p) => permission(p())}</Match>
       <Match when={of("question")}>{(q) => <QuestionCard item={q()} onAnswer={(a) => void answerQuestion(props.agentId, q().reqId, a)} />}</Match>
       <Match when={of("plan")}>{(p) => <PlanCard item={p()} />}</Match>
       <Match when={of("error")}>
@@ -155,10 +160,27 @@ function RowView(props: { agentId: string; row: TranscriptRow; prev?: Transcript
  */
 export function Transcript(props: { agentId: string; view: AgentView; readOnly?: boolean; who?: string }) {
   // A turn that ended in an error is already said by the error banner right above its marker.
-  const rows = createMemo(() => {
+  const baseRows = createMemo(() => {
     const all = buildRows(props.view.items);
     return all.filter((r, i) => !(r.item.type === "turn" && r.item.stopReason === "error" && all[i - 1]?.item.type === "error"));
   });
+  // Compact tool activity (the default): the calls between two messages fold into one row; the calls a waiting request asks about
+  // mark their group as waiting. Detailed: one card per call, as before.
+  const rows = createMemo<DisplayRow[]>(() => {
+    if (toolActivity() === "detailed") return baseRows();
+    const waiting = new Set(pendingPermissions(props.view).map((p) => p.toolId));
+    return groupRows(baseRows(), waiting);
+  });
+  // Which groups and calls the person opened or closed (keyed per run: the keys of two runs can be the same). Held here, not in
+  // the row, so a choice survives the virtualiser dropping the row while it is off screen.
+  const [manualOpen, setManualOpen] = createSignal<Record<string, boolean>>({});
+  const openState: OpenState = {
+    isOpen: (key) => manualOpen()[`${props.agentId}|${key}`],
+    toggle: (key, open, anchor) => {
+      keepInPlace(anchor);
+      setManualOpen((m) => ({ ...m, [`${props.agentId}|${key}`]: open }));
+    },
+  };
   const [scrollEl, setScrollEl] = createSignal<HTMLDivElement>();
   const [stick, setStick] = createSignal(true);
   // A request card was scrolled into view by its own code (`revealRequest`) and that is not the end of the list: the end is not
@@ -174,6 +196,10 @@ export function Transcript(props: { agentId: string; view: AgentView; readOnly?:
     getItemKey: (i) => rows()[i]?.key ?? i,
     overscan: 8,
   });
+  // A row that grows or shrinks above the view moves the view with it, so the text on screen stays put (the virtualiser's own
+  // rule). Not the row whose group or call was just toggled: that one is anchored by `keepInPlace` instead.
+  let anchorIndex: number | undefined;
+  virt.shouldAdjustScrollPositionOnItemSizeChange = (item, _delta, instance) => item.index !== anchorIndex && item.start < (instance.scrollOffset ?? 0);
 
   // WebKit holds back resize notifications while the window is hidden or covered (a locked screen, another Space): rows that changed
   // height meanwhile keep their old measure and the next row is drawn over them. Measure the rows on screen again when it comes back.
@@ -194,15 +220,19 @@ export function Transcript(props: { agentId: string; view: AgentView; readOnly?:
     document.removeEventListener("visibilitychange", onVisible);
     window.removeEventListener("focus", remeasure);
     cancelAnimationFrame(measureFrame);
+    cancelAnimationFrame(anchorFrame);
   });
 
   let pinFrame = 0;
+  let anchorFrame = 0;
+  // True while a group or call that was just toggled is held where it is on screen: no pin to the end moves it meanwhile.
+  let anchoring = false;
   let measureFrame = 0;
   // True from a sign of user intent (wheel up, keys, drag) until `release` has looked at where the scroll ended up.
   // Every pin checks it when it RUNS, not when it was queued: whichever frame callback comes first, a pin queued by the
   // stream can never undo a scroll the user has just started.
   let releasing = false;
-  const mayPin = () => stick() && !releasing;
+  const mayPin = () => stick() && !releasing && !anchoring;
   const toBottom = () => {
     cancelAnimationFrame(pinFrame);
     pinFrame = requestAnimationFrame(() => {
@@ -211,6 +241,33 @@ export function Transcript(props: { agentId: string; view: AgentView; readOnly?:
     });
   };
   const gap = (el: HTMLElement) => el.scrollHeight - el.scrollTop - el.clientHeight;
+  /**
+   * The person opened or closed a group (or a call in it): the toggle they pressed stays where it is on screen while the row
+   * grows or shrinks and is measured again (two frames), whatever the stream or the end of the list does meanwhile. Then the list
+   * follows the end again only if the end is in view.
+   */
+  const keepInPlace = (anchor: HTMLElement) => {
+    const el = scrollEl();
+    if (!el) return;
+    const row = anchor.closest<HTMLElement>(".transcript__row");
+    anchorIndex = row ? Number(row.dataset.index) : undefined;
+    const y0 = anchor.getBoundingClientRect().top;
+    anchoring = true;
+    cancelAnimationFrame(pinFrame);
+    cancelAnimationFrame(anchorFrame);
+    anchorFrame = requestAnimationFrame(() => {
+      anchorFrame = requestAnimationFrame(() => {
+        if (anchor.isConnected) {
+          const dy = anchor.getBoundingClientRect().top - y0;
+          if (Math.abs(dy) >= 1) el.scrollTop += dy;
+        }
+        anchoring = false;
+        anchorIndex = undefined;
+        lastTop = el.scrollTop;
+        if (!held()) setStick(gap(el) <= STICK_PX);
+      });
+    });
+  };
   // The DOM of a row is keyed by the row's key, not by the virtual item object (which is recreated on every measurement),
   // so expanded cards and typed answers survive streaming and scrolling.
   const rowIndex = createMemo(() => new Map(rows().map((r, i) => [r.key, i])));
@@ -334,12 +391,17 @@ export function Transcript(props: { agentId: string; view: AgentView; readOnly?:
     const item = last();
     return item?.type === "text" && !item.done;
   };
+  // The newest row is a group at work: its own live line says what happens, so no second "Working" line under it.
+  const liveGroup = () => {
+    const row = rows().at(-1);
+    return !!row?.group && row.group.state === "running";
+  };
   // (a throttled turn says so in the banner above the composer: a second line under the list would only take its room)
-  const working = () => props.view.turnActive && rows().length > 0 && !streaming() && !props.view.throttle;
+  const working = () => props.view.turnActive && rows().length > 0 && !streaming() && !props.view.throttle && (needsYou() || !liveGroup());
   const workingText = () => (needsYou() ? t("runs.activity.waiting") : props.view.state === "thinking" ? t("runs.activity.thinking") : t("runs.activity.working"));
 
   return (
-    <div class="transcript" data-testid="transcript">
+    <div class="transcript" data-testid="transcript" data-activity={toolActivity()}>
       <Show when={rows().length > 0} fallback={<EmptyState icon={MessageSquare} size="sm" title={t("chat.waiting")} description={t("chat.waitingDesc")} />}>
         <ScrollArea class="transcript__scroll" ref={(el) => queueMicrotask(() => watch(el))} onScroll={onScroll} role="log" aria-live="off" aria-label={t("chat.transcript")}>
           <div class="transcript__inner" style={{ height: `${virt.getTotalSize()}px` }}>
@@ -351,7 +413,7 @@ export function Transcript(props: { agentId: string; view: AgentView; readOnly?:
                     {(row) => (
                       <div class="transcript__row" data-index={index()} ref={(el) => queueMicrotask(() => virt.measureElement(el))} style={{ transform: `translateY(${startOf(index())}px)` }}>
                         <div class="transcript__col">
-                          <RowView agentId={props.agentId} row={row()} prev={rows()[index() - 1]} speaker={speaker()} lastErrorKey={lastError()} lastTurnKey={lastRowKey()} canRetry={idle() && !props.readOnly} retryText={retryText()} readOnly={props.readOnly} who={props.who} />
+                          <RowView agentId={props.agentId} row={row()} prev={rows()[index() - 1]} open={openState} live={props.view.turnActive && row().key === lastRowKey()} speaker={speaker()} lastErrorKey={lastError()} lastTurnKey={lastRowKey()} canRetry={idle() && !props.readOnly} retryText={retryText()} readOnly={props.readOnly} who={props.who} />
                         </div>
                       </div>
                     )}
