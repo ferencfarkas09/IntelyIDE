@@ -2,7 +2,7 @@
 
 Status: Phase 1 design, no policy code. Base: `main` at 7ac4e62 (1.15.0). This note is the review copy of the draft pull request; it is replaced by the updated `docs/safety.md` tables in Phase 2.
 
-The owner's request (after 1.15.0, often in Bypass): when the agent wants something that is not clearly safe, **ask** instead of refusing; answers **allow once**, **allow like this for the session**, **allow everything for the session**; and in Bypass, far less ends in a hard stop. The hard limits ("agents can edit but never commit or push") do not move.
+The owner's request (after 1.15.0, often in Bypass): when the agent wants something that is not clearly safe, **ask** instead of refusing; answers **allow once**, **allow like this for the session**, **allow everything for the session**; and in Bypass, far less ends in a hard stop. The hard limits ("recognisable git writes are blocked in advance") do not move.
 
 ## 1. Evidence: what refuses today
 
@@ -110,7 +110,7 @@ Columns: Plan / Ask / Accept edits / Automatic / Bypass. `D` refusal, `Q` asks (
 
 **"Like this", exactly.** A pattern is derived by Rust from the analysed call, shown on the card in words and as the exact pattern (`npm run test` in `~/code/app`), and matched by exact word equality on the analyser's unquoted words:
 
-* Shell: only when the command parses with no issue (no `$( )`, backticks, `eval`, unknown variable), every program word is a literal bare name (no `/`, ASCII only), and no simple command is a shell, `env`, `sudo`, `xargs`, `nohup`, `time`, `timeout`, `exec`, `command`, `builtin`, `source`/`.`, or an interpreter with inline or piped code. Head = program plus its first non-option word for programs with subcommands (`git restore`, `docker compose`, `cargo test`, `xcrun simctl`, `npm run <script>` = 3 words); for an interpreter, program plus the exact canonical script path (`node scripts/gen.mjs`), never a wildcard. A trailing pipe into plain filters (`grep head tail wc sort uniq cut tr`) is allowed; `&&`, `;`, `||` chains match only when every part matches a pattern of the session. `dir` = the canonical folder the command runs in (after a literal `cd`), and every path operand must resolve (symlinks followed, `..` folded) inside `dir`'s subtree, or for an outside-folder card inside the refused folder's subtree.
+* Shell: only when the command parses with no issue (no `$( )`, backticks, `eval`, unknown variable), every program word is a literal bare name (no `/`, ASCII only), and no simple command is a shell, `env`, `sudo`, `xargs`, `nohup`, `time`, `timeout`, `exec`, `command`, `builtin`, `source`/`.`, or an interpreter with inline or piped code. Head = program plus its first non-option word for programs with subcommands (`git restore`, `docker compose`, `cargo test`, `xcrun simctl`, `npm run <script>` = 3 words); for an interpreter, program plus the exact canonical script path (`node <script>`), never a wildcard. A trailing pipe into plain filters (`grep head tail wc sort uniq cut tr`) is allowed; `&&`, `;`, `||` chains match only when every part matches a pattern of the session. `dir` = the canonical folder the command runs in (after a literal `cd`), and every path operand must resolve (symlinks followed, `..` folded) inside `dir`'s subtree, or for an outside-folder card inside the refused folder's subtree.
 * Network: the program head plus exact scheme, host and port; never for an upload or an exfil-shape URL.
 * Env override: the variable name and its exact value plus the head.
 * File tools: read family (Read, Glob, Grep) or write family (Edit, Write, MultiEdit, NotebookEdit) plus the folder subtree; never `/`, the home folder itself, a system folder or an ancestor of a run folder.
@@ -130,13 +130,13 @@ Columns: Plan / Ask / Accept edits / Automatic / Bypass. `D` refusal, `Q` asks (
 | Attack | Expected |
 |---|---|
 | Grant `npm run test`, then `npm run test; git push`, `npm run test && rm -rf ~`, `npm run test > ~/.zshrc` | tier 1 first: refused |
-| `npm run test-evil`, `npm run t*`, `npm run "$X"`, `env A=1 npm run test`, `\npm`, `command npm`, `/usr/bin/npm`, `NPM run test`, Cyrillic `npм` | no match: card again |
-| `npm run 'test'`, `npm run te""st` | same words: match (no widening) |
+| the script name with a suffix, a glob, a variable or a Cyrillic letter in it; an `env A=1` prefix; `\npm`, `command npm`, `/usr/bin/npm`; `NPM` in capitals | no match: card again |
+| the same script name quoted, or with empty quotes inside the word | same words: match (no widening) |
 | `npm run test \| sh`, `npm run test \| node` | no match (pipe into a shell or interpreter) |
 | `cd ~/other && npm run test`, a symlink `src/l -> ~` then `cat src/l/x` | folder mismatch: card again |
 | Grant `~/Downloads`, then `~/Downloads/../.ssh/x`, `~/Downloads/l -> ~/.ssh` | resolved first: tier 1 |
 | Grant `curl localhost:3000`, then `:3001`, `-d @.env`, the same URL with a user-info part that names another host, `-T f` | no match / tier 1 |
-| Grant `node scripts/a.js`, then the agent edits `a.js` to push | the script is scanned on every call: `script.git-write` |
+| Grant `node <script>`, then the agent edits that script to push | the script is scanned on every call: `script.git-write` |
 | `sh -c 'npm run test'`, `bash -lc …` | no pattern is ever derived for a shell body |
 | `Everything`, then `git push`, `cat ~/.ssh/x`, Write `.claude/settings.json`, `LD_PRELOAD=…` | tier 1: refused |
 | `Everything`, then Read `.env` | tier 2 card (Q1) |
