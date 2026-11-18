@@ -156,14 +156,30 @@
 
 /* The person's messages: bubbles on the right, 16 px round with one 4 px corner. */
 .msg--user { align-items: flex-end; margin-top: 4px; gap: 0; }
-.msg--user .msg__bubble { max-width: min(78%, 624px); padding: 10px 14px; border: 1px solid var(--accent-border); border-radius: 16px; border-end-end-radius: 4px; background: var(--accent-subtle); }
+/* quiet: a neutral fill, no accent frame (the agent's prose is the main voice of the conversation) */
+.msg--user .msg__bubble { max-width: min(78%, 624px); padding: 10px 14px; border: 1px solid var(--border-subtle); border-radius: 18px; border-end-end-radius: 6px; background: var(--surface-3); }
 /* time and author sit under the bubble; your own name is for screen readers only, and the time shows when you point at the message */
 .msg--user .msg__meta { order: 2; min-height: 16px; margin-top: 2px; }
 .msg--user[data-self] .msg__meta { opacity: 0; transition: opacity var(--dur-fast) var(--ease); }
 .msg--user[data-self]:hover .msg__meta, .msg--user[data-self]:focus-within .msg__meta { opacity: 1; }
 .msg--user[data-self] .msg__who { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
-.msg--agent .msg__bubble { max-width: 100%; }
+/* The agent's prose: no bubble, no frame; a reading column of about 760 px with 15 px / 1.6 type (it follows the UI text size). */
+.msg--agent .msg__bubble { max-width: 760px; }
+.msg--agent .md { font-size: calc(var(--text-base) + 2px); line-height: 1.6; }
+.msg--agent .md p, .msg--agent .md ul, .msg--agent .md ol, .msg--agent .md blockquote, .msg--agent .md table, .msg--agent .md pre.md-code { margin-bottom: 0.85em; }
+.msg--agent .md li { margin: 0.25em 0; }
+.msg--agent .md li > :is(ul, ol) { margin: 0.25em 0 0; }
+.msg--agent .md :is(h1, h2, h3, h4) { margin: 1.25em 0 0.45em; line-height: 1.3; font-weight: var(--weight-semibold); }
+.msg--agent .md h1 { font-size: 1.35em; }
+.msg--agent .md h2 { font-size: 1.2em; }
+.msg--agent .md h3 { font-size: 1.07em; }
+.msg--agent .md h4 { font-size: 1em; color: var(--text-2); }
+.msg--agent .md code { font-size: 0.86em; }
+.msg--agent .md pre.md-code code { font-size: var(--code-font-size, var(--text-sm)); line-height: 1.55; }
+.msg--agent .md table { display: block; max-width: 100%; overflow-x: auto; font-size: 0.93em; }
+.msg--agent .md th, .msg--agent .md td { padding: 6px 12px; }
+.msg--agent .md th { background: var(--surface-2); color: var(--text-1); font-weight: var(--weight-semibold); }
 /* the copy button hangs over the top edge of the bubble (like the hover toolbar of a chat app), so it never covers the text */
 .msg__copy { position: absolute; z-index: 1; top: -12px; inset-inline-end: 0; opacity: 0; background: var(--surface-3); box-shadow: var(--shadow-sm); transition: opacity var(--dur-fast) var(--ease); }
 .msg__bubble:hover .msg__copy, .msg__bubble:focus-within .msg__copy, .msg__copy:focus-visible { opacity: 1; }
@@ -198,12 +214,19 @@
 .md hr { border: 0; height: 1px; background: var(--border); margin: var(--space-2) 0; }
 .md code { padding: 1px 5px; background: var(--surface-4); border-radius: 5px; font-family: var(--font-mono); font-size: 12.5px; }
 .md pre.md-code { position: relative; margin: 0 0 var(--space-2); padding: 10px 12px; overflow-x: auto; background: var(--surface-inset); border-radius: var(--radius-ctl); box-shadow: inset 0 0 0 1px var(--border-subtle); }
-.md pre.md-code[data-lang] { padding-top: 24px; }
-.md pre.md-code[data-lang]::before { content: attr(data-lang); position: absolute; top: 5px; inset-inline-end: 10px; color: var(--text-3); font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; }
+.md pre.md-code[data-lang] { padding-top: 28px; }
+.md pre.md-code[data-lang]::before { content: attr(data-lang); position: absolute; top: 7px; inset-inline-start: 12px; color: var(--text-3); font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; }
 .md pre.md-code code { display: block; padding: 0; background: none; font-size: var(--text-sm); line-height: 1.5; white-space: pre; }
 .md .md-link { color: var(--accent-text); text-decoration: underline dotted; text-underline-offset: 2px; cursor: default; }
 .md table { border-collapse: collapse; margin: 0 0 var(--space-1); font-size: var(--text-sm); }
-.md th, .md td { padding: 3px 8px; box-shadow: inset 0 0 0 1px var(--border-subtle); text-align: left; }
+.md th, .md td { padding: 3px 8px; box-shadow: inset 0 0 0 1px var(--border-subtle); text-align: start; }
+/* The copy button of a code block (added by Markdown.tsx): in the corner, shown on hover or focus, always on a touch screen. */
+.md pre.md-code { padding-inline-end: 40px; }
+.md-copy { position: absolute; top: 4px; inset-inline-end: 4px; display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 0; border: 0; border-radius: var(--radius-1); background: var(--surface-3); color: var(--text-2); cursor: pointer; opacity: 0; transition: opacity var(--dur-fast) var(--ease); }
+.md pre.md-code:hover .md-copy, .md-copy:focus-visible, .md-copy[data-copied] { opacity: 1; }
+.md-copy:hover { color: var(--text-1); background: var(--surface-hover); }
+.md-copy[data-copied] { color: var(--ok); }
+@media (hover: none) { .md-copy { opacity: 0.75; } }
 .tok-k { color: var(--accent-text); }
 .tok-s { color: var(--ok); }
 .tok-n { color: var(--warn); }
@@ -424,3 +447,63 @@
 .starting__repos { display: flex; flex-wrap: wrap; gap: 6px var(--space-3); margin: 0; padding: 0; list-style: none; color: var(--text-2); font-size: var(--text-sm); }
 .starting__repos li { display: inline-flex; align-items: center; gap: 6px; }
 .perm__stop-ask { font-weight: 600; }
+
+/* Compact tool activity (Settings > Appearance > Tool activity): the calls between two messages are one quiet row; opened, a line
+   per call, and each line opens on its own to the command, the output or the diff in an inset block. No frames: the activity sits
+   in the reading column like a footnote. A failure, a blocked call or a call that waits keeps its colour and words on the row. */
+.act { min-width: 0; max-width: 760px; color: var(--text-2); font-size: var(--text-sm); line-height: 1.45; }
+.act__head { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; min-height: 28px; margin-inline-start: -6px; padding: 3px 10px 3px 6px; border: 0; border-radius: var(--radius-ctl); background: none; color: var(--text-2); font: inherit; text-align: start; cursor: pointer; }
+.act__head:hover { background: var(--surface-hover); color: var(--text-1); }
+.act__head:focus-visible { outline-offset: -2px; }
+.act__chev, .act-call__chev { display: inline-flex; flex: none; color: var(--text-3); transition: transform var(--dur-fast) var(--ease); }
+.act__chev[data-open], .act-call__chev[data-open] { transform: rotate(90deg); }
+.act-call__chev[data-hidden] { display: none; }
+.act__head:hover .act__chev, .act-call__head:not(:disabled):hover .act-call__chev { color: var(--text-2); }
+.act__summary { min-width: 0; overflow-wrap: anywhere; }
+.act__live { display: inline-flex; align-items: center; gap: 6px; min-width: 0; color: var(--text-2); }
+.act__live .ui-spinner { color: var(--accent-text); }
+.act__live-verb { flex: none; }
+.act__live-target { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-1); font-size: 0.95em; }
+.act__count { flex: none; color: var(--text-3); }
+.act__head:hover .act__count { color: var(--text-2); }
+.act__flag { display: inline-flex; flex: none; align-items: center; gap: 5px; font-weight: var(--weight-medium); white-space: nowrap; }
+.act__flag[data-tone="danger"] { color: var(--danger); }
+.act__flag[data-tone="warn"] { color: var(--warn); }
+.act__dot { width: 7px; height: 7px; border-radius: var(--radius-full); background: currentColor; }
+.act__list { display: flex; flex-direction: column; min-width: 0; margin: 2px 0 4px 5px; padding-inline-start: 10px; box-shadow: inset 1px 0 0 var(--border); }
+.act__more { align-self: flex-start; margin: 2px 0; padding: 2px 6px; border: 0; border-radius: var(--radius-1); background: none; color: var(--accent-text); font: inherit; cursor: pointer; }
+.act__more:hover { background: var(--surface-hover); }
+.act__member { min-width: 0; padding: 2px 0; }
+.act__member .perm--done { padding: 4px 6px; border: 0; }
+.act-call { min-width: 0; }
+.act-call__head { display: flex; align-items: center; gap: 6px; width: 100%; min-height: 26px; padding: 2px 6px; border: 0; border-radius: var(--radius-1); background: none; color: var(--text-2); font: inherit; text-align: start; cursor: pointer; }
+.act-call__head:disabled { cursor: default; }
+.act-call__head:not(:disabled):hover { background: var(--surface-hover); }
+.act-call__head:focus-visible { outline-offset: -2px; }
+.act-call__icon { display: inline-flex; flex: none; color: var(--text-3); }
+.act-call__head:not(:disabled):hover .act-call__icon { color: var(--text-2); }
+.act-call__verb { flex: none; }
+/* the target: one line, never wider than the column; of a path the directory gives way first, the file name last */
+.act-call__target { display: flex; flex: 0 1 auto; min-width: 0; color: var(--text-1); font-size: 0.95em; }
+.act-call__dir { flex: 0 100 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-2); }
+.act-call__base { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.act-call__delta { display: inline-flex; flex: none; gap: 5px; font-family: var(--font-mono); font-size: 0.95em; }
+.act-call__add { color: var(--ok); }
+.act-call__del { color: var(--danger); }
+.act-call__time { flex: none; color: var(--text-3); }
+.act-call__head:not(:disabled):hover .act-call__time { color: var(--text-2); }
+.act-call__status { display: inline-flex; flex: none; align-items: center; color: var(--text-3); }
+.act-call__status[data-status="running"] { color: var(--accent-text); }
+.act-call__status[data-status="error"] { color: var(--danger); }
+.act-call__status[data-status="denied"] { color: var(--warn); }
+.act-call__body { display: flex; flex-direction: column; gap: 6px; min-width: 0; margin: 2px 0 8px 26px; }
+.act-block { position: relative; min-width: 0; }
+.act-block__pre { margin: 0; max-height: 240px; overflow: auto; padding: 8px 12px; background: var(--surface-inset); border-radius: var(--radius-ctl); box-shadow: inset 0 0 0 1px var(--border-subtle); color: var(--text-2); font-family: var(--font-mono); font-size: var(--text-sm); line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+.act-block__pre--cmd { padding-inline-end: 40px; color: var(--text-1); }
+.act-block__pre[data-error] { color: var(--danger); }
+.act-block .msg__copy { top: 4px; inset-inline-end: 4px; }
+.act-block:hover .msg__copy, .act-block:focus-within .msg__copy { opacity: 1; }
+.act-call__body .dpv { min-width: 0; }
+@media (prefers-reduced-motion: reduce) { .act .ui-spinner { animation: none !important; } .act__chev, .act-call__chev { transition: none; } }
+/* Compact view: a delegation keeps its card, one step quieter (a thin line, no fill). */
+.transcript[data-activity="compact"] .tool-card:not([data-nested]) { border-color: var(--border-subtle); background: transparent; }
