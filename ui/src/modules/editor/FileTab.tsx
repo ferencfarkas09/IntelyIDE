@@ -8,7 +8,7 @@ import { closeTab, type TabInstance } from "../../platform/tabs";
 import { repoConfig } from "../../store/workspace";
 import { Button, ChevronRight, EmptyState, FileLock, FileText, IconButton, LocateFixed, Menu, RepoBadge, resolvedTheme, Save, Skeleton, TriangleAlert, WrapText, Binary, Info, appearanceLook } from "../../ui-kit";
 import { revealInProject } from "./actions";
-import { attachView, buffers, currentDoc, detachView, ensureBuffer, keepMine, noteEdited, overwrite, reloadFromDisk, reopenWithEncoding, revealSecret, saveBuffer, savedDoc, setIndent, stashedState, useDiskVersion } from "./buffers";
+import { attachView, buffers, currentDoc, detachView, ensureBuffer, failBuffer, keepMine, noteEdited, overwrite, reloadFromDisk, reopenWithEncoding, revealSecret, saveBuffer, savedDoc, setIndent, stashedState, useDiskVersion } from "./buffers";
 import { createEditorState, setIndentEffect, setListenerEffect, setReadOnlyEffect, setThemeEffect, setWrapEffect } from "./cm";
 import { toggleWrap, wrap } from "./prefs";
 import { ENCODING_LABEL, ENCODINGS, EOL_LABEL, TABS, baseName, indentLabel, type Indent } from "./logic";
@@ -122,7 +122,16 @@ function EditorPane(props: { tab: TabInstance; tabId: string; repoId: string; pa
 
   onMount(async () => {
     const stashed = stashedState(props.tabId);
-    const state = stashed ?? (await createEditorState({ repoId: props.repoId, path: props.path, doc: savedDoc(props.tabId)!, indent: b().indent, dark: dark(), wrap: wrap(), readOnly: b().partial }));
+    const doc = savedDoc(props.tabId);
+    let state: EditorState;
+    try {
+      if (!stashed && !doc) throw new Error(t("editor.state.noDoc"));
+      state = stashed ?? (await createEditorState({ repoId: props.repoId, path: props.path, doc: doc!, indent: b().indent, dark: dark(), wrap: wrap(), readOnly: b().partial }));
+    } catch (e) {
+      // An empty editor would read as an empty file: say what went wrong and offer Retry instead.
+      if (!gone) failBuffer(props.tabId, e instanceof Error ? e.message : String(e));
+      return;
+    }
     if (gone) return;
     view = new EditorView({ state, parent: host });
     attachView(props.tabId, view);

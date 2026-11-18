@@ -82,4 +82,33 @@ impl Files {
         self.index.repos.lock().expect("index lock").insert(root.id.clone(), Entry { files: files.clone(), dirty, _watcher: watcher });
         Ok(files)
     }
+
+    /// The ignored files quick open adds when the person asks for them ("Include ignored files"): files matched by
+    /// `.gitignore` that are not inside an ignored folder (an ignored `node_modules/` or `dist/` is one entry for git and is
+    /// left out; its files stay reachable in the Project tree). Secret files are kept: the editor still asks before it shows
+    /// one, and this list only ever reaches the person's own quick-open dialog. Not cached; at most `IGNORED_MAX` paths.
+    pub async fn quick_open_ignored(&self, root: &RepoRoot) -> Result<Vec<String>, EngineError> {
+        let out = self.git_read(&root.path, &["ls-files", "-z", "--others", "--ignored", "--exclude-standard", "--directory"]).await?;
+        if !out.success() {
+            return Err(git_failure("git ls-files", &out));
+        }
+        let base = root.path.clone();
+        let stdout = out.stdout;
+        tokio::task::spawn_blocking(move || {
+            let mut files: Vec<String> = stdout
+                .split(|b| *b == 0)
+                .filter(|p| !p.is_empty() && !p.ends_with(b"/"))
+                .map(|p| nfc(&String::from_utf8_lossy(p)))
+                .filter(|p| std::fs::symlink_metadata(base.join(p)).is_ok_and(|m| !m.is_dir()))
+                .take(IGNORED_MAX)
+                .collect();
+            files.sort();
+            files
+        })
+        .await
+        .map_err(|e| crate::io_err("index", e))
+    }
 }
+
+/// Upper bound of [`Files::quick_open_ignored`].
+pub const IGNORED_MAX: usize = 5000;

@@ -85,7 +85,7 @@ export function defaultTree(): MockNode {
           api: repo({ src: dir({ "index.ts": file() }), "package.json": file(300) }, { remotes: [{ name: "origin", host: "github.com" }] }),
           "shop-frontend": repo({ src: dir() }, { branch: "develop", remotes: [{ name: "origin", host: "gitlab.example.com" }] }),
           "client-x": repo({}, { risks: ["core.fsmonitor", "hook:pre-commit"], branch: "main" }),
-          docs: dir({ guides: dir(), "README.md": file() }),
+          docs: dir({ guides: dir(), "README.md": file(), ".gitignore": file(40), ".env": file(30), ".eslintrc": file(200), ".github": dir({ workflows: dir({ "ci.yml": file(300) }) }) }),
           "feature-wt": repo({}, { shape: "worktree", branch: "feature/login", main: "/Users/example/Projects/api/.git" }),
           "vendor-sub": repo({}, { shape: "submodule" }),
           "legacy.git": repo({}, { shape: "bare" }),

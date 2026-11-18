@@ -18,6 +18,38 @@ function failed(title: string, e: unknown): void {
   else toast.show({ tone: "danger", title, description: message });
 }
 
+/**
+ * The repository that holds an absolute path, and the path inside it ("/"-separated). The deepest repository wins, so a
+ * nested repository (a submodule added on its own) gets its own files. Undefined for a path outside every repository.
+ */
+export function repoOfPath(abs: string, list: readonly { id: string; path: string }[]): { repoId: string; path: string } | undefined {
+  const norm = (p: string) => p.replace(/\\/g, "/").replace(/\/+$/, "");
+  const file = norm(abs);
+  const hit = list
+    .map((r) => ({ id: r.id, root: norm(r.path) }))
+    .filter((r) => r.root && file.startsWith(`${r.root}/`))
+    .sort((a, b) => b.root.length - a.root.length)[0];
+  return hit ? { repoId: hit.id, path: file.slice(hit.root.length + 1) } : undefined;
+}
+
+/**
+ * "Open File…": the in-app file picker (hidden files shown until the person turns them off), then the file opens in the
+ * editor. The editor edits the files of the workspace's repositories only; a file elsewhere gets an explanation and the
+ * way to add its folder, never a blank tab.
+ */
+export async function openFromDisk(): Promise<void> {
+  const { openPathPicker } = await import("../../platform/pathpicker");
+  const picked = (await openPathPicker({ kind: "file", purpose: "file:editorOpen", title: t("editor.open.title") }))?.[0];
+  if (!picked) return;
+  const hit = repoOfPath(picked.path, repos());
+  if (!hit) {
+    toast.show({ tone: "info", title: t("editor.open.outsideTitle", { name: picked.name }), description: t("editor.open.outsideDesc") });
+    return;
+  }
+  showProject();
+  openFile(hit.repoId, hit.path);
+}
+
 export function showProject(): void {
   setToolWindow("left", "project");
   setPanelOpen(true);

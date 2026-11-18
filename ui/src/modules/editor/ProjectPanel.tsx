@@ -7,7 +7,7 @@ import {
   ChevronsDownUp, EmptyState, File, FileLock, FilePlus, Folder, FolderGit2, FolderOpen, FolderPlus, Icon, IconButton, Lock, Menu, RefreshCw, RepoBadge, ScrollArea, Spinner, StatusLetter, Tooltip, Tree, TreeRow,
   type MenuEntry,
 } from "../../ui-kit";
-import { copyPath, currentRepoId, newEntry, renameEntry, revealInFinder, trashEntry } from "./actions";
+import { copyPath, currentRepoId, newEntry, openFromDisk, renameEntry, revealInFinder, trashEntry } from "./actions";
 import { openFile } from "./buffers";
 import { nodeKey, parentDir, type TreeNode } from "./logic";
 import { collapseAll, cursorKey, decorationOf, isOpen, loadDir, refreshTree, scrollRequest, setCursorKey, setOpen, createTreeRows } from "./tree";
@@ -229,6 +229,7 @@ export default function ProjectPanel() {
       <header class="proj__head">
         <span class="proj__title">{t("editor.proj.title")}</span>
         <span class="proj__actions">
+          <IconButton icon={FolderOpen} label={t("editor.proj.openFile")} size="sm" onClick={() => void openFromDisk()} />
           <IconButton icon={FilePlus} label={t("editor.proj.newFile")} size="sm" onClick={() => { const at = target(); at.repoId && void newEntry(at.repoId, at.dir, "file"); }} />
           <IconButton icon={RefreshCw} label={t("editor.proj.refresh")} size="sm" onClick={refreshTree} />
           <IconButton icon={ChevronsDownUp} label={t("editor.proj.collapse")} size="sm" onClick={collapseAll} />

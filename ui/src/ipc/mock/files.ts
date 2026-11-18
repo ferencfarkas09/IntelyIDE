@@ -11,6 +11,10 @@ const SEED: [string, string][] = [
   ["package.json", '{\n  "name": "fixture",\n  "version": "1.0.0"\n}\n'],
   [".gitignore", "node_modules/\ndist/\n.env\n"],
   [".env", "SECRET=1\n"],
+  [".eslintrc", '{\n  "root": true\n}\n'],
+  [".github/workflows/ci.yml", "name: ci\non: [push]\njobs:\n  test:\n    runs-on: ubuntu-latest\n"],
+  [".vscode/settings.json", '{\n  "editor.tabSize": 2\n}\n'],
+  ["debug.log", "2026-10-03 boot\n"],
   ["src/index.ts", 'export const answer = 42;\nconsole.log("hello");\n'],
   ["src/util/format.ts", 'export const pad = (n: number) => String(n).padStart(2, "0");\n'],
   ["src/api/routes/index.js", "const router = require('express').Router();\n\nrouter.get('/orders', require('../controllers/orderController').list);\n\nmodule.exports = router;\n"],
@@ -43,7 +47,7 @@ const PARTIAL = new Map([["data/huge.log", 12_800_000]]);
 const LATIN2 = new Set(["docs/hu-latin2.txt"]);
 const MOJIBAKE: Record<string, string> = { "ő": "õ", "ű": "û", "Ő": "Õ", "Ű": "Û" };
 const CRLF = new Set(["docs/windows.txt"]);
-const IGNORED = ["node_modules", "dist", ".env"];
+const IGNORED = ["node_modules", "dist", ".env", "debug.log"];
 
 const isNeverRead = (path: string) => path.split("/").pop()!.startsWith(".env");
 const isIgnored = (path: string) => IGNORED.some((p) => path === p || path.startsWith(`${p}/`));
@@ -104,8 +108,11 @@ export function createMockFiles(): { api: FilesIpc; tree: MockTree } {
       emit({ repoId, path: relPath, kind: created ? "created" : "changed" });
       return { mtimeMs: next };
     },
-    async quickOpenIndex() {
-      return [...tree.keys()].filter((p) => !p.endsWith("/") && !isNeverRead(p) && !isIgnored(p)).sort();
+    async quickOpenIndex(_repoId, opts) {
+      const files = [...tree.keys()].filter((p) => !p.endsWith("/"));
+      // like git ls-files --ignored --directory: an ignored folder is one entry and its files are left out
+      if (opts?.includeIgnored) return files.filter((p) => IGNORED.includes(p) || (isIgnored(p) && !IGNORED.some((d) => p.startsWith(`${d}/`)))).sort();
+      return files.filter((p) => !isNeverRead(p) && !isIgnored(p)).sort();
     },
     async createEntry(repoId, relPath, kind) {
       if (under(relPath).length) throw fail("exists", `${relPath} already exists`);

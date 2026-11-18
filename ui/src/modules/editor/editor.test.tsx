@@ -1,18 +1,27 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { installLayoutStubs } from "../../app/testLayout";
+import { ipc } from "../../ipc";
 import { createMockIpc } from "../../ipc/mock";
 import { availableCommands, execute, getCommand, resetCommands } from "../../platform/commands";
 import { resetKeymap, shortcutConflicts } from "../../platform/keymap";
 import { getRailItem, resetRail } from "../../platform/rail";
 import { activeTab, getTabType, openTab, resetTabs, tabs } from "../../platform/tabs";
 import { loadWorkspace } from "../../store/workspace";
+import { toast } from "../../ui-kit";
+import { openFromDisk, repoOfPath } from "./actions";
 import { resetBuffers } from "./buffers";
 import FileTab from "./FileTab";
 import { resetQuickOpen } from "./quickOpen";
 import { register } from "./index";
 import ProjectPanel from "./ProjectPanel";
 import { resetTree } from "./tree";
+
+const pick = vi.hoisted(() => ({ next: null as null | { path: string; name: string } }));
+vi.mock("../../platform/pathpicker", async (actual) => ({
+  ...(await actual<typeof import("../../platform/pathpicker")>()),
+  openPathPicker: vi.fn(async () => (pick.next ? [{ ...pick.next, kind: "file", token: "t", identity: "1:1", warnings: [], configRisks: [] }] : null)),
+}));
 
 beforeAll(installLayoutStubs);
 beforeEach(() => register());
@@ -97,7 +106,43 @@ describe("<FileTab>", () => {
     const reveal = await screen.findByRole("button", { name: "Reveal" });
     expect(screen.queryByText("SECRET=1")).toBeNull();
     fireEvent.click(reveal);
-    await waitFor(() => expect(document.querySelector(".file-tab__cm")).not.toBeNull());
+    // the revealed text itself, not only an editor: the editor used to mount before the document was stored and stayed empty
+    await waitFor(() => expect(document.querySelector(".cm-content")?.textContent).toBe("SECRET=1"));
+  });
+
+  // Regression (1.15.0, "the file opens but its content is not visible"): when the tab is already on screen while the read is
+  // still under way (a real disk and IPC are slower than the lazy tab), the editor mounted on the status change, before the
+  // document was stored, and showed an empty buffer.
+  it("shows the content of a file whose read finishes after the tab is on screen", async () => {
+    const read = ipc.files.readFile.bind(ipc.files);
+    const spy = vi.spyOn(ipc.files, "readFile").mockImplementation(async (...args) => {
+      await new Promise((r) => setTimeout(r, 30));
+      return read(...args);
+    });
+    try {
+      render(() => <FileTab tab={tab("src/index.ts")} />);
+      expect(document.querySelector(".file-tab__loading")).not.toBeNull();
+      await waitFor(() => expect(document.querySelector(".cm-content")?.textContent).toContain("export const answer = 42;"));
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("lists ignored files in the quick finder only with \"Include ignored files\", and remembers the choice", async () => {
+    await loadWorkspace(createMockIpc("normal", { delayScale: 0 }));
+    await execute("editor.openFile");
+    const input = await screen.findByRole("combobox", { name: "File name" });
+    fireEvent.input(input, { target: { value: "debug.log" } });
+    expect(await screen.findByText("No matching files")).toBeTruthy();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Include ignored files" }));
+    await waitFor(() => expect(screen.getAllByRole("option")[0].textContent).toContain("debug.log"));
+    expect(screen.getAllByRole("option")[0].hasAttribute("data-ignored")).toBe(true);
+    // the files of an ignored folder stay out (they are in the Project tree)
+    fireEvent.input(input, { target: { value: "left-pad" } });
+    await waitFor(() => expect(screen.queryAllByRole("option")).toHaveLength(0));
+    expect(localStorage.getItem("intely.editor.quickOpen.ignored")).toBe("1");
+    fireEvent.keyDown(input, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("combobox", { name: "File name" })).toBeNull());
   });
 
   it("opens the quick finder with the file command and opens the chosen file", async () => {
@@ -109,5 +154,30 @@ describe("<FileTab>", () => {
     fireEvent.keyDown(input, { key: "Enter" });
     await waitFor(() => expect(tabs().some((t) => t.params?.path === "src/api/controllers/orderController.js")).toBe(true));
     expect(activeTab()?.params?.line).toBe(3);
+  });
+});
+
+describe("Open File… (a file picked on disk)", () => {
+  it("finds the repository that holds a path, the deepest one first", () => {
+    const list = [{ id: "a", path: "/w/app" }, { id: "b", path: "/w/app/vendor/lib/" }, { id: "c", path: "/w/application" }];
+    expect(repoOfPath("/w/app/.github/workflows/ci.yml", list)).toEqual({ repoId: "a", path: ".github/workflows/ci.yml" });
+    expect(repoOfPath("/w/app/vendor/lib/.env", list)).toEqual({ repoId: "b", path: ".env" });
+    expect(repoOfPath("/w/application/x", list)).toEqual({ repoId: "c", path: "x" });
+    expect(repoOfPath("/w/other/x", list)).toBeUndefined();
+    expect(repoOfPath("/w/app", list)).toBeUndefined();
+  });
+
+  it("opens a dotfile of a workspace repository in a tab, and explains a file outside the workspace", async () => {
+    await loadWorkspace(createMockIpc("normal", { delayScale: 0 }));
+    pick.next = { path: "/Users/example/Projects/shop-backend/.gitignore", name: ".gitignore" };
+    await openFromDisk();
+    expect(activeTab()?.id).toBe("file:backend:.gitignore");
+    const show = vi.spyOn(toast, "show");
+    pick.next = { path: "/Users/example/Desktop/todo.txt", name: "todo.txt" };
+    await openFromDisk();
+    expect(show).toHaveBeenCalledWith(expect.objectContaining({ title: "todo.txt is not in this workspace" }));
+    expect(tabs().some((t) => t.params?.path === "todo.txt")).toBe(false);
+    show.mockRestore();
+    pick.next = null;
   });
 });

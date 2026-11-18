@@ -96,6 +96,24 @@ pnpm 11 only runs dependency build scripts that are approved. The repository app
 
 The folder was moved, renamed or sits on an unmounted volume. On Welcome or in the banner choose Locate and pick the new folder; the app asks you to type the folder name when it looks like a different repository. Choose Remove to drop it from the workspace, or Retry after mounting the volume.
 
+## Editing files
+
+### A file opens but the editor is empty
+
+That was a bug in 1.15.0: when the file took a moment to read (always after "Reveal" on a secret file, and often on a real disk), the editor appeared before the text had arrived and stayed empty. It is fixed: the editor shows the file's text, or, when it cannot, a message that says why ("Binary file", "File is too large", "This file looks like a secret", "Could not open the file") with what to do next. An empty editor now means an empty file.
+
+### Where are hidden files such as `.gitignore`, `.env` or `.github/`?
+
+In the Project tree, like every other file. Only the `.git` folder is left out. Files matched by `.gitignore` and secret-looking files are shown in a dimmer colour; secret-looking ones also carry a lock. In the "Open File..." dialog (Project panel header, or the command palette) and in every other file picker, hidden files and folders are shown until you clear "Show hidden files and folders"; the folder pickers (Add repository, New workspace) keep hidden folders out until you tick "Show hidden folders". Each choice is remembered by the app, separately for file pickers and folder pickers. "Open File..." opens files of the workspace's repositories; a file elsewhere gets a message that tells you to add its repository to the workspace first.
+
+### Go to file (Cmd+P) does not find a file
+
+Go to file lists the files git knows about (committed or new, not ignored), without secret-looking files. Tick "Include ignored files" in the dialog to add the files your `.gitignore` matches, `.env` and log files for example; the app remembers the tick. The files inside an ignored folder (`node_modules/`, `dist/`) are not listed even then, because there can be hundreds of thousands of them: open them from the Project tree.
+
+### Why does the editor ask before it shows `.env`?
+
+So that a secret does not appear on screen by surprise (screen sharing, a recording, someone looking over your shoulder). One click on "Reveal" shows it, and you can edit and save it. The file stays on your computer: revealing it in the editor sends it nowhere, and it does not let agents read it. What agents may do with secret files is described in [safety.md](safety.md).
+
 ## Your data
 
 ### Where does the app keep its state?

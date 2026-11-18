@@ -45,6 +45,28 @@ async fn list_dir_flags_ignored_never_read_status_and_symlinks() {
 }
 
 #[tokio::test]
+async fn list_dir_shows_dotfiles_and_dot_folders_but_not_dot_git() {
+    let sb = Sandbox::new();
+    let repo = sb.repo("r1");
+    repo.write(".github/workflows/ci.yml", "on: push\n");
+    repo.write(".eslintrc", "{}\n");
+    repo.write(".vscode/settings.json", "{}\n");
+    repo.commit_all("dotfiles");
+    let (files, _) = files();
+
+    let root = files.list_dir(&repo.root(), "").await.unwrap();
+    let names: Vec<_> = root.iter().map(|e| e.name.as_str()).collect();
+    for n in [".github", ".vscode", ".eslintrc"] {
+        assert!(names.contains(&n), "{n} missing from {names:?}");
+    }
+    assert!(!names.contains(&".git"), "the .git folder is never listed: {names:?}");
+    let ci = files.list_dir(&repo.root(), ".github/workflows").await.unwrap();
+    assert_eq!(ci[0].name, "ci.yml");
+    let read = files.read_file(&repo.root(), ".github/workflows/ci.yml", false).await.unwrap();
+    assert_eq!(read.text.as_deref(), Some("on: push\n"));
+}
+
+#[tokio::test]
 async fn list_dir_refuses_paths_that_leave_the_repo() {
     let sb = Sandbox::new();
     let repo = sb.repo("r1");
@@ -235,6 +257,28 @@ async fn quick_open_index_lists_visible_files_and_follows_changes() {
     // Our own writes invalidate immediately.
     files.write_file(&root, "mine.txt", "m\n", 0.0, false, None).await.unwrap();
     assert!(files.quick_open_index(&root).await.unwrap().contains(&"mine.txt".to_owned()));
+}
+
+#[tokio::test]
+async fn quick_open_ignored_lists_ignored_files_outside_ignored_folders() {
+    let sb = Sandbox::new();
+    let repo = sb.repo("r1");
+    repo.write(".gitignore", "build/\n*.log\n.env\n");
+    repo.write("src/a.ts", "a\n");
+    repo.commit_all("files");
+    repo.write("build/out.js", "x\n");
+    repo.write("debug.log", "x\n");
+    repo.write("src/trace.log", "x\n");
+    repo.write(".env", "S=1\n");
+    let (files, _) = files();
+    let root = repo.root();
+
+    // The normal index leaves ignored and secret files out ...
+    let index = files.quick_open_index(&root).await.unwrap();
+    assert!(!index.iter().any(|p| p.ends_with(".log") || p == ".env"), "{index:?}");
+    // ... the ignored list has them, but not the files of an ignored folder.
+    let ignored = files.quick_open_ignored(&root).await.unwrap();
+    assert_eq!(ignored, [".env", "debug.log", "src/trace.log"]);
 }
 
 #[tokio::test]

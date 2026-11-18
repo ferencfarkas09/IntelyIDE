@@ -1,6 +1,7 @@
 // Screenshots and layout checks of the 1.15 refresh against the MOCK UI in headless Chromium (no app binary, no WKWebView):
 // the Agent run with a permission request, a question, a plan to approve, two requests at once, a request with a 200-character
-// path and one with a long command, a finished and a throttled run, the Dashboard and the New run dialog in Standard and Glass,
+// path and one with a long command, a finished and a throttled run, the Dashboard, the New run dialog and the editor (a file
+// opened from the Project tree, a secret file after Reveal: its text must be on screen) in Standard and Glass,
 // light and dark, at 1440x900, 1100x700 and 960x600, and two stacked panes at 1440x900.
 // Every shot is audited in the page: text contrast below 4.5:1 (3:1 for large text, badges included), controls that are covered
 // or off screen, a focused control that is not fully on screen, a request card whose title, target line or buttons are not
@@ -369,6 +370,35 @@ async function stopSecondStep(page) {
   await page.waitForTimeout(100);
 }
 
+/** Editor mode: the Project panel (Cmd+1 when another tool window is open), then a click on the row of `name`. */
+const openFromTree = async (page, name) => {
+  if (!(await page.locator(".proj").count())) await page.keyboard.press("Meta+1");
+  const row = page.locator(".proj-row", { has: page.locator(".ui-tree-row__main", { hasText: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`) }) }).first();
+  await row.click();
+};
+
+/**
+ * The open editor shows `expected`: its text is in the document, at least one line is on screen with a real size, and the
+ * text colour stands out from the editor's background. (1.15.0 opened some files with an empty editor; see FileTab.)
+ */
+const editorShows = (expected) => async (page) => {
+  const s = await page.evaluate(() => {
+    const tab = [...document.querySelectorAll(".file-tab")].find((e) => e.getClientRects().length);
+    const cm = tab?.querySelector(".cm-editor");
+    if (!cm) return { cm: false, message: tab?.querySelector(".ui-empty")?.textContent ?? "" };
+    const line = [...cm.querySelectorAll(".cm-line")].find((l) => l.textContent && l.getBoundingClientRect().height > 0);
+    const r = cm.getBoundingClientRect();
+    return { cm: true, text: cm.querySelector(".cm-content")?.textContent ?? "", h: r.height, w: r.width, line: !!line, color: line ? getComputedStyle(line).color : "", bg: getComputedStyle(cm).backgroundColor };
+  });
+  if (!s.cm) return [`editor: no editor on screen${s.message ? ` (it says: ${s.message})` : ""}`];
+  const out = [];
+  if (!s.text.includes(expected)) out.push(`editor: the document does not contain "${expected}" (it has ${JSON.stringify(s.text.slice(0, 40))})`);
+  if (s.h < 120 || s.w < 200) out.push(`editor: the editor is ${Math.round(s.w)}x${Math.round(s.h)} px`);
+  if (!s.line) out.push("editor: no line with text is on screen");
+  if (s.color && s.color === s.bg) out.push(`editor: text colour equals the background (${s.color})`);
+  return out;
+};
+
 const openRun = async (page, which = "first") => {
   await page.locator(".run-card, .run-row__main")[which]().click();
   await page.locator('[data-testid="composer"]').first().waitFor();
@@ -391,6 +421,24 @@ const VIEWS = {
       await page.locator(".run-card, .run-row__main").first().click();
       await page.locator(".perm.q").waitFor();
     },
+  },
+  // Editor mode: a file opened from the Project tree shows its text, and a secret file shows it after one click on Reveal.
+  "editor-file": {
+    url: "/?scenario=agent-normal&mode=editor",
+    steps: async (page) => {
+      await openFromTree(page, ".gitignore");
+      await page.locator(".file-tab .cm-editor").first().waitFor();
+    },
+    check: editorShows("node_modules/"),
+  },
+  "editor-secret": {
+    url: "/?scenario=agent-normal&mode=editor",
+    steps: async (page) => {
+      await openFromTree(page, ".env");
+      await page.locator(".file-tab .ui-empty button").first().click();
+      await page.locator(".file-tab .cm-editor").first().waitFor();
+    },
+    check: editorShows("SECRET=1"),
   },
   dashboard: {
     url: "/?scenario=agent-normal&mode=editor",

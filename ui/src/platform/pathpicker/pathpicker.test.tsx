@@ -37,6 +37,15 @@ const listbox = () => screen.findByRole("listbox");
 const option = async (name: string) => within(await listbox()).findByRole("option", { name: new RegExp(`^${name}`) });
 const key = (el: Element, k: string, init: KeyboardEventInit = {}) => fireEvent.keyDown(el, { key: k, ...init });
 
+/** Opens folders one after the other from where the dialog is: select the row, then Enter. */
+async function into(...names: string[]) {
+  for (const name of names) {
+    fireEvent.click(await option(name));
+    key(await listbox(), "Enter");
+    await waitFor(() => expect(screen.getByRole("navigation", { name: "Path" }).textContent).toContain(name));
+  }
+}
+
 async function goTo(path: string) {
   const input = await screen.findByRole("textbox", { name: "Go to path" });
   fireEvent.input(input, { target: { value: path } });
@@ -292,6 +301,39 @@ describe("path picker: multi select and files", () => {
     fireEvent.click(screen.getByRole("button", { name: "Choose (2)" }));
     const got = (await result)!;
     expect(got.map((g: Picked) => g.name).sort()).toEqual(["api", "shop-frontend"]);
+  });
+
+  it("shows hidden files and folders in a file picker by default, picks a dotfile, and remembers the choice", async () => {
+    localStorage.clear();
+    setup();
+    const result = openPathPicker({ kind: "file", purpose: "file:mcpImport" });
+    await into("Projects", "docs");
+    const toggle = screen.getByRole("checkbox", { name: "Show hidden files and folders" }) as HTMLInputElement;
+    expect(toggle.checked).toBe(true);
+    for (const name of [".github", ".gitignore", ".env", ".eslintrc"]) expect(await option(name.replace(".", "\\."))).toBeTruthy();
+    fireEvent.click(await option("\\.gitignore"));
+    key(await listbox(), "Enter");
+    expect((await result)![0]).toMatchObject({ kind: "file", path: `${P}/docs/.gitignore` });
+    // turned off once: the next file picker opens with hidden entries off; a folder picker was never affected
+    void openPathPicker({ kind: "file", purpose: "file:mcpImport" });
+    await option("\\.gitignore"); // it starts in the folder of the last pick
+    expect((screen.getByRole("checkbox", { name: "Show hidden files and folders" }) as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Show hidden files and folders" }));
+    await waitFor(() => expect(screen.queryByRole("option", { name: /^\.gitignore/ })).toBeNull());
+    expect(localStorage.getItem("intely.picker.hidden.files")).toBe("0");
+    expect(localStorage.getItem("intely.picker.hidden.folders")).toBeNull();
+  });
+
+  it("keeps hidden folders out of a folder picker until asked", async () => {
+    localStorage.clear();
+    setup();
+    void openPathPicker({ kind: "folder", purpose: "workspaceRoot" });
+    await into("Projects", "docs");
+    expect((screen.getByRole("checkbox", { name: "Show hidden folders" }) as HTMLInputElement).checked).toBe(false);
+    expect(screen.queryByRole("option", { name: /^\.github/ })).toBeNull();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Show hidden folders" }));
+    expect(await option("\\.github")).toBeTruthy();
+    expect(localStorage.getItem("intely.picker.hidden.folders")).toBe("1");
   });
 
   it("picks a file with the extension filter and returns it without a review step", async () => {

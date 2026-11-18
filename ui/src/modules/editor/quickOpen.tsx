@@ -3,7 +3,7 @@ import { createMemo, createResource, createSignal, For, Show } from "solid-js";
 import { t } from "../../i18n";
 import { ipc } from "../../ipc";
 import { repos } from "../../store/workspace";
-import { Dialog, EmptyState, FileSearch, Icon, Input, RepoBadge, Search, File, Spinner } from "../../ui-kit";
+import { Checkbox, Dialog, EmptyState, FileSearch, Icon, Input, RepoBadge, Search, File, Spinner } from "../../ui-kit";
 import { openFile, recentFiles } from "./buffers";
 import { showDialog } from "./dialogs";
 import { baseName, parentDir, rankFiles } from "./logic";
@@ -11,26 +11,47 @@ import { baseName, parentDir, rankFiles } from "./logic";
 export interface Candidate {
   repoId: string;
   path: string;
+  /** Matched by .gitignore: listed only with "Include ignored files", and dimmed. */
+  ignored?: boolean;
 }
 
 const MAX_RESULTS = 60;
 
 const indexes = new Map<string, Promise<string[]>>();
 let watching = false;
-function index(repoId: string): Promise<string[]> {
+/** The quick-open list of a repo; `ignored` asks for the ignored files instead (see `quickOpenIndex`). */
+function index(repoId: string, ignored = false): Promise<string[]> {
   if (!watching) {
     watching = true;
     // A created or deleted file changes the index; edits do not.
-    ipc.files.onFileChanged((e) => e.kind !== "changed" && indexes.delete(e.repoId));
+    ipc.files.onFileChanged((e) => e.kind !== "changed" && (indexes.delete(e.repoId), indexes.delete(`${e.repoId}\u0000ignored`)));
   }
-  let cached = indexes.get(repoId);
+  const key = ignored ? `${repoId}\u0000ignored` : repoId;
+  let cached = indexes.get(key);
   if (!cached) {
-    cached = ipc.files.quickOpenIndex(repoId);
-    indexes.set(repoId, cached);
-    cached.catch(() => indexes.delete(repoId));
+    cached = ignored ? ipc.files.quickOpenIndex(repoId, { includeIgnored: true }) : ipc.files.quickOpenIndex(repoId);
+    indexes.set(key, cached);
+    cached.catch(() => indexes.delete(key));
   }
   return cached;
 }
+
+/** "Include ignored files" is remembered per app; off by default (ignored files are mostly build output and logs). */
+const IGNORED_KEY = "intely.editor.quickOpen.ignored";
+const readIgnored = (): boolean => {
+  try {
+    return localStorage.getItem(IGNORED_KEY) === "1";
+  } catch {
+    return false;
+  }
+};
+const writeIgnored = (on: boolean): void => {
+  try {
+    localStorage.setItem(IGNORED_KEY, on ? "1" : "0");
+  } catch {
+    /* blocked storage: the choice lasts as long as the dialog */
+  }
+};
 
 export const resetQuickOpen = (): void => indexes.clear();
 
@@ -43,10 +64,18 @@ export function parseQuery(raw: string): { text: string; line?: number } {
 function QuickOpen(props: { open: () => boolean; close: () => void }) {
   const [query, setQuery] = createSignal("");
   const [cursor, setCursor] = createSignal(0);
-  const [all] = createResource(async (): Promise<Candidate[]> => {
-    const lists = await Promise.all(repos().map(async (r) => (await index(r.id).catch(() => [])).map((path) => ({ repoId: r.id, path }))));
+  const [withIgnored, setWithIgnored] = createSignal(readIgnored());
+  // (an object source: a resource whose source is `false` never fetches)
+  const [all] = createResource(() => ({ ignored: withIgnored() }), async ({ ignored }): Promise<Candidate[]> => {
+    const listOf = async (repoId: string, which: boolean): Promise<Candidate[]> => (await index(repoId, which).catch(() => [])).map((path) => ({ repoId, path, ignored: which || undefined }));
+    const lists = await Promise.all(repos().flatMap((r) => (ignored ? [listOf(r.id, false), listOf(r.id, true)] : [listOf(r.id, false)])));
     return lists.flat();
   });
+  const toggleIgnored = () => {
+    setWithIgnored(!withIgnored());
+    writeIgnored(withIgnored());
+    setCursor(0);
+  };
   const known = createMemo(() => new Set((all() ?? []).map((c) => `${c.repoId}:${c.path}`)));
   const parsed = () => parseQuery(query());
   const results = createMemo((): { items: Candidate[]; recent: number } => {
@@ -92,9 +121,10 @@ function QuickOpen(props: { open: () => boolean; close: () => void }) {
           onInput={(e) => (setQuery(e.currentTarget.value), setCursor(0))}
           onKeyDown={onKeyDown}
         />
+        <Checkbox size="sm" checked={withIgnored()} onChange={toggleIgnored} label={t("editor.qo.includeIgnored")} />
         <div class="qo__list" id="qo-list" role="listbox" aria-label={t("editor.qo.files")}>
           <Show when={!all.loading} fallback={<div class="qo__state"><Spinner /></div>}>
-            <For each={results().items} fallback={<EmptyState size="sm" icon={FileSearch} title={t("editor.qo.none")} description={t("editor.qo.noneDesc")} />}>
+            <For each={results().items} fallback={<EmptyState size="sm" icon={FileSearch} title={t("editor.qo.none")} description={withIgnored() ? t("editor.qo.noneDescAll") : t("editor.qo.noneDesc")} />}>
               {(c, i) => (
                 <>
                   <Show when={i() === 0 && results().recent > 0}><div class="qo__heading">{t("editor.qo.recent")}</div></Show>
@@ -102,6 +132,7 @@ function QuickOpen(props: { open: () => boolean; close: () => void }) {
                   <div
                     id={`qo-${i()}`}
                     class="qo__item"
+                    data-ignored={c.ignored ? "" : undefined}
                     role="option"
                     aria-selected={i() === cursor()}
                     onPointerMove={() => cursor() !== i() && setCursor(i())}
