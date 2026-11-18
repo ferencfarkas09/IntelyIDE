@@ -373,7 +373,7 @@ async function stopSecondStep(page) {
 /** Editor mode: the Project panel (Cmd+1 when another tool window is open), then a click on the row of `name`. */
 const openFromTree = async (page, name) => {
   if (!(await page.locator(".proj").count())) await page.keyboard.press("Meta+1");
-  const row = page.locator(".proj-row", { has: page.locator(".ui-tree-row__main", { hasText: new RegExp(`^${name.replace(/\./g, "\\.")}$`) }) }).first();
+  const row = page.locator(".proj-row", { has: page.locator(".ui-tree-row__main", { hasText: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`) }) }).first();
   await row.click();
 };
 
