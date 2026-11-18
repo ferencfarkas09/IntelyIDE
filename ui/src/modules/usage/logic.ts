@@ -1,7 +1,7 @@
 // The Usage view's arithmetic: periods, series, the contribution grid, the busiest days. Pure: every day is a local
 // `YYYY-MM-DD` string from the report and all date arithmetic goes through day numbers in UTC, so nothing here depends on the
 // reader's own time zone or clock.
-import type { DayUsage, Metric, ModelUsage, PlanLimits, UsageReport, UsageTotals } from "./types";
+import type { DayUsage, Metric, ModelUsage, PlanLimits, ScopedWindow, UsageReport, UsageTotals } from "./types";
 
 export const ZERO: UsageTotals = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, costUsd: 0, turns: 0 };
 
@@ -148,10 +148,18 @@ export function modelShares(models: readonly ModelUsage[], metric: Metric): { mo
   return models.map((model) => ({ model, share: total > 0 ? metricOf(model, metric) / total : 0 })).sort((a, b) => b.share - a.share || a.model.model.localeCompare(b.model.model));
 }
 
-/** A plan window's colour: calm below 70 percent, warning below 90, then danger. */
-export function limitTone(utilization: number): "ok" | "warn" | "danger" {
-  return utilization >= 90 ? "danger" : utilization >= 70 ? "warn" : "ok";
+/** Warning colour from this whole percent, danger from the next. One rule for the context ring, its popover and the plan bar. */
+export const WARN_FROM = 70;
+export const DANGER_FROM = 90;
+
+/** The colour of a percent as it is shown: the ROUNDED whole number is graded, so "70%" is always the same colour. */
+export function percentTone(shown: number): "ok" | "warn" | "danger" {
+  const p = Number.isFinite(shown) ? Math.round(shown) : 0;
+  return p >= DANGER_FROM ? "danger" : p >= WARN_FROM ? "warn" : "ok";
 }
+
+/** A plan window's colour: its percent rounded the way it is shown, then graded by `percentTone`. */
+export const limitTone = (utilization: number): "ok" | "warn" | "danger" => percentTone(Math.round(percent(utilization)));
 
 /** Milliseconds until a window resets (0 once it has), or undefined for a time that is not one. */
 export function untilReset(resetsAt: string, now: number): number | undefined {
@@ -171,4 +179,25 @@ export function windows(limits: PlanLimits): { key: "fiveHour" | "sevenDay" | "s
     if (w) out.push({ key, utilization: percent(w.utilization), resetsAt: w.resetsAt });
   }
   return out;
+}
+
+/**
+ * The weekly windows of single model classes, under the name the plan data gives them: the rows of `modelScoped` in the
+ * server's order, then the older fixed fields (`sevenDayOpus`, `sevenDaySonnet`) unless a row of that name is already there.
+ */
+export function scopedWindows(limits: PlanLimits | undefined): ScopedWindow[] {
+  if (!limits?.available) return [];
+  const out: ScopedWindow[] = (limits.modelScoped ?? []).map((w) => ({ name: w.name, utilization: percent(w.utilization), resetsAt: w.resetsAt }));
+  for (const [key, name] of [["sevenDayOpus", "Opus"], ["sevenDaySonnet", "Sonnet"]] as const) {
+    const w = limits[key];
+    if (w && !out.some((o) => o.name.toLowerCase() === name.toLowerCase())) out.push({ name, utilization: percent(w.utilization), resetsAt: w.resetsAt });
+  }
+  return out;
+}
+
+/** The rows of `modelScoped` the fixed fields do not already show (the Usage view lists those itself). */
+export function extraScoped(limits: PlanLimits | undefined): ScopedWindow[] {
+  if (!limits?.available) return [];
+  const fixed = [limits.sevenDayOpus ? "opus" : "", limits.sevenDaySonnet ? "sonnet" : ""];
+  return (limits.modelScoped ?? []).filter((w) => !fixed.includes(w.name.toLowerCase())).map((w) => ({ name: w.name, utilization: percent(w.utilization), resetsAt: w.resetsAt }));
 }

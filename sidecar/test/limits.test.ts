@@ -1,6 +1,6 @@
 // Plan limits for the Usage view: the SDK's usage answer in the view's shape, the CLI start around it, and the service that shares it.
 import { describe, expect, it, vi } from 'vitest';
-import { LimitsService, queryLimits, replyOf, type LimitsReply, type LimitsSdk, type RawUsage } from '../src/limits.js';
+import { cutLabel, LimitsService, MAX_SCOPED, MAX_SCOPED_NAME, queryLimits, replyOf, scopedOf, type LimitsReply, type LimitsSdk, type RawUsage } from '../src/limits.js';
 import { ProtocolClient } from '../src/protocol.js';
 
 const RAW: RawUsage = {
@@ -42,6 +42,46 @@ describe('replyOf', () => {
   it('keeps the per-model weeks when they exist', () => {
     const r = replyOf({ rate_limits: { seven_day_opus: { utilization: 3, resets_at: 'a' }, seven_day_sonnet: { utilization: 4, resets_at: 'b' } } });
     expect(r).toMatchObject({ available: true, sevenDayOpus: { utilization: 3 }, sevenDaySonnet: { utilization: 4 } });
+  });
+
+  it('passes the per-model weekly windows on under the label the server gave them', () => {
+    const r = replyOf({ subscription_type: 'max', rate_limits_available: true, rate_limits: { seven_day: { utilization: 42, resets_at: 'w' }, model_scoped: [{ display_name: 'Fable', utilization: 18, resets_at: 'f' }, { display_name: 'Sonnet', utilization: 7.5, resets_at: 's' }] } });
+    expect(r).toEqual({ ok: true, plan: 'max', available: true, sevenDay: { utilization: 42, resetsAt: 'w' }, modelScoped: [{ name: 'Fable', utilization: 18, resetsAt: 'f' }, { name: 'Sonnet', utilization: 7.5, resetsAt: 's' }] });
+    // an answer with only such rows is still an answer
+    expect(replyOf({ rate_limits: { model_scoped: [{ display_name: 'Fable', utilization: 1, resets_at: 'f' }] } })).toMatchObject({ available: true, modelScoped: [{ name: 'Fable' }] });
+    // an empty list is passed on as empty (the rows are gone); no field (an answer from cached data) as no field (the IDE keeps its rows)
+    expect(replyOf({ rate_limits: { seven_day: { utilization: 1, resets_at: 'w' }, model_scoped: [] } })).toMatchObject({ modelScoped: [] });
+    expect(replyOf(RAW)).not.toHaveProperty('modelScoped');
+    expect(replyOf({ rate_limits: { seven_day: { utilization: 1, resets_at: 'w' }, model_scoped: null } })).not.toHaveProperty('modelScoped');
+  });
+
+  it('drops a per-model row without a label, a number or a reset time, cleans the label and caps the list', () => {
+    expect(scopedOf([
+      { display_name: '  Fa\u202eble\n ', utilization: 5, resets_at: 'a' },
+      { display_name: 'Fable', utilization: 6, resets_at: 'b' },
+      { display_name: '', utilization: 5, resets_at: 'a' },
+      { utilization: 5, resets_at: 'a' },
+      { display_name: 'Opus', utilization: null, resets_at: 'a' },
+      { display_name: 'Haiku', utilization: 5, resets_at: null },
+      null,
+      'x',
+      { display_name: 'N'.repeat(MAX_SCOPED_NAME + 20), utilization: 5, resets_at: 'a' },
+    ])).toEqual([{ name: 'Fable', utilization: 5, resetsAt: 'a' }, { name: `${'N'.repeat(MAX_SCOPED_NAME)}…`, utilization: 5, resetsAt: 'a' }]);
+    expect(scopedOf(Array.from({ length: 20 }, (_, i) => ({ display_name: `M${i}`, utilization: i, resets_at: 'a' })))).toHaveLength(MAX_SCOPED);
+    expect(scopedOf(undefined)).toEqual([]);
+    expect(scopedOf({})).toEqual([]);
+  });
+
+  it('cuts a label by code point, never inside a surrogate pair, and keeps two labels that only share their start', () => {
+    const emoji = `${'A'.repeat(MAX_SCOPED_NAME - 1)}\u{1F600}tail`;
+    const [one] = scopedOf([{ display_name: emoji, utilization: 1, resets_at: 'a' }]);
+    expect(one.name).toBe(`${'A'.repeat(MAX_SCOPED_NAME - 1)}\u{1F600}…`);
+    expect(JSON.parse(JSON.stringify(one.name))).toBe(one.name);
+    expect(/[\ud800-\udbff](?![\udc00-\udfff])/.test(one.name)).toBe(false);
+    const long = 'Model class with a very long name, part ';
+    const rows = scopedOf([{ display_name: `${long}one`, utilization: 1, resets_at: 'a' }, { display_name: `${long}two`, utilization: 2, resets_at: 'a' }]);
+    expect(rows.map((r) => r.utilization)).toEqual([1, 2]);
+    expect(cutLabel('short')).toBe('short');
   });
 });
 

@@ -136,6 +136,22 @@ fn the_user_memory_switch_reaches_the_session_start_only_when_it_is_off() {
 }
 
 #[test]
+fn the_token_habits_switch_reaches_the_session_start_only_when_it_is_on() {
+    for (on, expected) in [(false, None), (true, Some(true))] {
+        let dir = tempfile::tempdir().unwrap();
+        let repo = fixture_repo(dir.path());
+        let out = dir.path().join("out.json");
+        let r = rig(&dir.path().join("data"));
+        r.defaults.lock().unwrap().token_habits = on;
+        let (host, _sink) = host_with(r.cfg);
+        start(&host, "developer", &repo, job(&out, vec![], vec![]));
+        let body = &wait_file(&out, 20)["starts"][0];
+        assert_eq!(body.get("tokenHabits").and_then(Value::as_bool), expected, "switch {on}: {body}");
+        host.shutdown();
+    }
+}
+
+#[test]
 fn the_auto_session_carries_the_delegates_the_lead_model_from_the_settings_and_the_writer_lease() {
     let dir = tempfile::tempdir().unwrap();
     let repo = fixture_repo(dir.path());

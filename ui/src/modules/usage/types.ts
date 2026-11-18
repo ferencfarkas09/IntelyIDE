@@ -50,9 +50,14 @@ export interface LimitWindow {
   resetsAt: string;
 }
 
+/** A weekly window of one model class, under the label the plan data gives it (for example "Fable"). */
+export interface ScopedWindow extends LimitWindow {
+  name: string;
+}
+
 /** What the plan allows, from the signed-in Claude account; `available: false` says why there is nothing to show. */
 export type PlanLimits =
-  | { available: true; plan: string | null; fiveHour?: LimitWindow; sevenDay?: LimitWindow; sevenDayOpus?: LimitWindow; sevenDaySonnet?: LimitWindow }
+  | { available: true; plan: string | null; fiveHour?: LimitWindow; sevenDay?: LimitWindow; sevenDayOpus?: LimitWindow; sevenDaySonnet?: LimitWindow; modelScoped?: ScopedWindow[] }
   | { available: false; reason: "noClaude" | "notSignedIn" | "failed"; detail?: string };
 
 /** What the charts count: fresh tokens (input + output) or the API-equivalent cost. */

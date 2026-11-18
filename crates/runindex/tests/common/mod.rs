@@ -50,7 +50,7 @@ impl Log {
 
     pub fn usage(&mut self, cost: Option<f64>, input: u32, output: u32) -> &mut Self {
         let counts = TokenCounts { input_tokens: input, output_tokens: output, cache_read: 0, cache_write: 0, reasoning_tokens: 0, cost_usd: cost };
-        self.push(EventKind::Usage { usage: UsageRecord { model: "claude-haiku-4-5-20251001".into(), cost_basis: CostBasis::Estimated, per_turn: counts.clone(), cumulative: counts, premium_requests: None, context_used: Some(input), context_size: Some(200_000), per_model: Vec::new() } })
+        self.push(EventKind::Usage { usage: UsageRecord { model: "claude-haiku-4-5-20251001".into(), cost_basis: CostBasis::Estimated, per_turn: counts.clone(), cumulative: counts, premium_requests: None, context_used: Some(input), context_size: Some(200_000), per_model: Vec::new(), mid_turn: None } })
     }
 
     pub fn end(&mut self, reason: StopReason) -> &mut Self {

@@ -129,6 +129,8 @@ export interface SessionSpec {
   includeUserMemory?: boolean;
   /** `true` = offer the two peer tools (`peer_list`, `peer_send`) to the lead (Claude only). Absent = none. */
   peerTools?: boolean;
+  /** `true` = append the token-saving habits (`agents.tokenHabits`) to the system prompt (Claude only). Absent = off. */
+  tokenHabits?: boolean;
 }
 
 /** An attachment as the Rust host resolves it for a prompt: metadata plus the absolute path of the stored copy. */

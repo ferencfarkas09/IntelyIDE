@@ -174,6 +174,11 @@ export function buildCockpit(events: readonly AgentEvent[], model?: string): Coc
       }
       case "usage": {
         const u = e.usage;
+        // a context update during the turn is not a turn: it carries no counts of its own, only the new size
+        if (u.midTurn) {
+          reported = { used: u.contextUsed ?? undefined, size: u.contextSize ?? reported.size };
+          break;
+        }
         usedModel = u.model || usedModel;
         const turn: TurnStat = {
           index: turns.length + 1,

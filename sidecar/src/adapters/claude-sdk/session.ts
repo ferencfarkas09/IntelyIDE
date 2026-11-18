@@ -17,7 +17,7 @@ import { effortOf, NoteError } from '../../abstract.js';
 import { assertInit, checkCredential, type CliModel, expectedMcpServers, findModel, initSessionInfo, isolationLeak, isWriterMode, mcpState, permissionModeFor } from './facts.js';
 import { CANARY_MARK, ToolGate } from './gate.js';
 import { mapRaw, type MapState, newMapState, type Raw } from './map.js';
-import { IDE_MCP_NOTE, IDE_PEER_NOTE, IDE_PLAN_NOTE, IDE_SESSION_NOTE } from './notes.js';
+import { IDE_MCP_NOTE, IDE_PEER_NOTE, IDE_PLAN_NOTE, IDE_SESSION_NOTE, systemAppend } from './notes.js';
 import { PEER_LIST_DESCRIPTION, PEER_LIST_TOOL, PEER_SEND_DESCRIPTION, PEER_SEND_TOOL, PEER_SERVER, peerHandlers, peerShapes } from './peer-tools.js';
 import { projectInstructions } from './project-notes.js';
 import { Pushable } from './pushable.js';
@@ -207,8 +207,9 @@ export class ClaudeSession implements AgentSession {
       disallowedTools: [...new Set([...(role.disallowedTools ?? []), ...ALWAYS_HIDDEN_TOOLS, ...(delegating ? LEAD_HIDDEN_AGENT_TYPES : [])])],
       ...(role.maxTurns ? { maxTurns: role.maxTurns } : {}),
       ...(role.maxBudgetUsd ? { maxBudgetUsd: role.maxBudgetUsd } : {}),
-      // the D12 note rides on EVERY session, also when the role has no prompt; the plan note too (a session can enter Plan live)
-      systemPrompt: { type: 'preset', preset: 'claude_code', append: [role.systemPrompt, IDE_SESSION_NOTE, IDE_PLAN_NOTE, Object.keys(spec.mcp ?? {}).length > 0 ? IDE_MCP_NOTE : '', peer ? IDE_PEER_NOTE : '', projectInstructions([spec.cwd, ...spec.addDirs], { includeUserMemory: spec.includeUserMemory !== false, env: spec.env.vars })].filter(Boolean).join('\n\n') },
+      // the D12 note rides on EVERY session, also when the role has no prompt; the plan note too (a session can enter Plan live);
+      // the token habits (`agents.tokenHabits`, off unless switched on) come last, after the project instructions, at most once
+      systemPrompt: { type: 'preset', preset: 'claude_code', append: systemAppend([role.systemPrompt, IDE_SESSION_NOTE, IDE_PLAN_NOTE, Object.keys(spec.mcp ?? {}).length > 0 ? IDE_MCP_NOTE : '', peer ? IDE_PEER_NOTE : '', projectInstructions([spec.cwd, ...spec.addDirs], { includeUserMemory: spec.includeUserMemory !== false, env: spec.env.vars })], spec.tokenHabits === true) },
       // The extra directories, the settings and MCP are re-passed on every open, including resume (they do not restore by themselves).
       // The directories travel inside `settings` (see settingsOverlay): the `--add-dir` flag would load the user's plugins and hooks.
       ...(spec.resume ? { resume: spec.resume.nativeId } : { sessionId: this.nativeId }),

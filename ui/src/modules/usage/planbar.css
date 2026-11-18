@@ -1,0 +1,43 @@
+/* Plan usage in the bottom bar and its popover (design/1.15-refresh/ContextMeter.dc.html and Main.dc.html). Tokens only. */
+.pb-group { display: inline-flex; align-items: center; gap: 2px; min-width: 0; max-width: 100%; overflow: hidden; }
+.pb { --pb: var(--accent-text); display: inline-flex; align-items: center; flex: 0 1 auto; min-width: 0; gap: 8px; height: 24px; padding: 0 8px; border: 1px solid transparent; border-radius: var(--radius-full); background: transparent; color: var(--text-2); font: inherit; white-space: nowrap; cursor: pointer; transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease); }
+.pb:hover { background: var(--surface-hover); }
+.pb[aria-expanded="true"] { border-color: var(--accent-border); background: var(--accent-subtle); }
+.pb:focus-visible { outline: var(--focus-width) solid var(--focus-color); outline-offset: var(--focus-offset); }
+.pb[data-tone="warn"] { --pb: var(--warn); }
+.pb[data-tone="danger"] { --pb: var(--danger); }
+/* a long model-class label is cut with an ellipsis (the full name is the item's tooltip), so the group keeps to its box */
+.pb__label { display: block; flex: 0 1 auto; min-width: 0; max-width: 96px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pb__track, .pb__pct { flex: none; }
+/* the built-in week keeps its whole label; only the model classes give way */
+.pb[data-kind="weekly"] { flex: none; }
+.pb[data-kind="weekly"] .pb__label { flex: none; max-width: none; }
+.pb[data-current="no"] { color: var(--text-3); }
+.pb[data-current="no"] .pb__pct { color: var(--text-3); font-weight: var(--weight-regular, 400); font-style: italic; }
+.pb__track { flex: none; width: 72px; height: 5px; overflow: hidden; border-radius: var(--radius-full); background: var(--track); }
+.pb__fill { display: block; height: 100%; border-radius: inherit; background: var(--pb); transition: width var(--dur) var(--ease); }
+.pb__pct { color: var(--text-1); font-weight: var(--weight-medium); }
+.pb:is([data-tone="warn"], [data-tone="danger"]) .pb__pct { color: var(--pb); font-weight: var(--weight-semibold); }
+
+/* Capped below the window's height minus the bottom bar, so it never covers the bar; the rows scroll inside, the title and the
+   button stay put, and it opens at its top (the focus goes to the button, which is outside the scrolling box). */
+.ui-popover.pu-popover[data-kind="dialog"] { display: flex; flex-direction: column; width: min(340px, calc(100vw - 16px)); max-width: none; max-height: min(560px, calc(100vh - 64px)); padding: 18px; overflow: hidden; border-radius: 18px; }
+.pu { display: flex; flex-direction: column; gap: 14px; min-height: 0; font-size: var(--text-base); line-height: 1.45; }
+.pu__rows { display: flex; flex-direction: column; gap: 14px; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.pu__rows:focus-visible { outline: var(--focus-width) solid var(--focus-color); outline-offset: 2px; border-radius: var(--radius-2); }
+.pu__title { margin: 0; color: var(--text-1); font-size: var(--text-lg); font-weight: var(--weight-semibold); }
+.pu__row { --pu: var(--accent-text); display: flex; flex-direction: column; gap: 6px; }
+.pu__row[data-tone="warn"] { --pu: var(--warn); }
+.pu__row[data-tone="danger"] { --pu: var(--danger); }
+.pu__head { display: flex; align-items: baseline; gap: 12px; }
+.pu__name { flex: 1 1 0; min-width: 0; overflow-wrap: anywhere; color: var(--text-1); font-weight: var(--weight-medium); }
+.pu__pct { color: var(--text-1); font-size: 18px; font-weight: var(--weight-semibold); }
+.pu__bar { height: 8px; overflow: hidden; border-radius: var(--radius-full); background: var(--track); }
+.pu__bar-fill { height: 100%; border-radius: inherit; background: var(--pu); transition: width var(--dur) var(--ease); }
+.pu__hint { min-height: 1.45em; color: var(--text-3); font-size: var(--text-sm); }
+.pu__row:is([data-tone="warn"], [data-tone="danger"]):not([data-current="no"]) .pu__hint { color: var(--pu); }
+.pu__row[data-current="no"] .pu__pct { color: var(--text-3); font-size: var(--text-base); font-weight: var(--weight-medium); font-style: italic; }
+.pu .pu__open { flex: none; height: 34px; border-radius: var(--radius-ctl); font-weight: var(--weight-medium); }
+@media (prefers-reduced-motion: reduce) {
+  .pb, .pb__fill, .pu__bar-fill { transition: none; }
+}

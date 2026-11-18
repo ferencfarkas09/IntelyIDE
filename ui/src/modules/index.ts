@@ -41,6 +41,7 @@ import { register as prompts } from "./prompts";
 import { register as providers } from "./providers";
 import { register as release } from "./release";
 import { register as versions } from "./versions";
+import { register as tokenSaver } from "./tokensaver";
 import { register as runpicker } from "./runpicker";
 import { register as reactnative } from "./reactnative";
 import { register as mobilehealth } from "./mobilehealth";
@@ -106,6 +107,7 @@ export const MODULES: readonly FeatureModule[] = [
   { id: "contract", register: contract },
   { id: "pr", register: pr },
   { id: "history", register: history },
+  { id: "tokensaver", register: tokenSaver },
   { id: "brief", register: brief },
   { id: "licenses", register: licenses },
   { id: "updates", register: updates },

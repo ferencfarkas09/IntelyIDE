@@ -13,6 +13,10 @@ export interface NewRunPrefill {
   noSafetyNet?: boolean;
   /** The permission mode the dialog starts with (the person can still pick another); never Bypass. */
   permission?: Exclude<PermissionMode, "bypass">;
+  /** A role to start as ("Run as role..."); ignored when no role of that name exists, so the dialog stays on Auto. */
+  role?: string;
+  /** The model the picker starts with (the person can still pick another; the picker refuses one the provider lacks). */
+  model?: string;
 }
 
 const [pending, setPending] = createSignal<NewRunPrefill>();

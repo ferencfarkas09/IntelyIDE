@@ -111,7 +111,7 @@ pub fn rows_of(text: &str) -> Vec<UsageRow> {
         .filter_map(|l| serde_json::from_str::<AgentEvent>(l).ok())
         .filter(|e| e.provider != "mock")
         .filter_map(|e| match e.kind {
-            EventKind::Usage { usage } => Some(UsageRow {
+            EventKind::Usage { usage } if usage.mid_turn != Some(true) => Some(UsageRow {
                 ts: e.ts,
                 model: usage.model,
                 input: u64::from(usage.per_turn.input_tokens),

@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { assertInit, BUILTIN_AGENT_TYPES } from '../src/adapters/claude-sdk/facts.js';
 import { CANARY_MARK, DENY_MARK, rewriteAgentInput } from '../src/adapters/claude-sdk/gate.js';
-import { mapRaw, newMapState } from '../src/adapters/claude-sdk/map.js';
+import { leadWindow, mapRaw, newMapState } from '../src/adapters/claude-sdk/map.js';
 import { buildAgents, ClaudeSession, LEAD_HIDDEN_AGENT_TYPES } from '../src/adapters/claude-sdk/session.js';
 import { settingsOverlay } from '../src/adapters/claude-sdk/settings.js';
 import { SeqSink, TurnGuard } from '../src/turn.js';
@@ -517,5 +517,88 @@ describe('facts and usage', () => {
     })).find((e) => e.kind === 'usage') as Extract<WireEvent, { kind: 'usage' }>;
     expect(ev2.usage.perModel?.[0]?.tokens.inputTokens).toBe(150);
     expect(ev2.usage.perTurn.inputTokens).toBe(50);
+  });
+
+  it("the context fill is the lead's last prompt, and the window is the lead model's (real shapes: modelUsage keys carry [1m])", () => {
+    const state = newMapState();
+    const assistant = (model: string, usage: Record<string, unknown> | undefined, parent?: string) => ({ type: 'assistant', parent_tool_use_id: parent ?? null, message: { id: `m-${model}-${parent ?? 'lead'}`, model, content: [{ type: 'text', text: 'ok' }], ...(usage ? { usage } : {}) } });
+    // the CLI keys modelUsage by the configured id (with [1m]); the API answers with the bare model id
+    const result = { type: 'result', subtype: 'success', is_error: false, modelUsage: {
+      'claude-opus-5-5[1m]': { inputTokens: 10, outputTokens: 5, cacheReadInputTokens: 0, cacheCreationInputTokens: 0, costUSD: 0.1, contextWindow: 1_000_000 },
+      'claude-haiku-4-5-20251001': { inputTokens: 4, outputTokens: 1, cacheReadInputTokens: 0, cacheCreationInputTokens: 0, costUSD: 0.01, contextWindow: 200_000 },
+    } };
+    const usage = () => (mapRaw(state, result).find((e) => e.kind === 'usage') as Extract<WireEvent, { kind: 'usage' }>).usage;
+    // no answer with usage yet: nothing is made up
+    expect(usage().contextUsed).toBeUndefined();
+    mapRaw(state, assistant('claude-opus-5-5', { input_tokens: 1200, cache_read_input_tokens: 60_000, cache_creation_input_tokens: 800, output_tokens: 1 }));
+    // a delegate's answer and an answer without numbers do not move the lead's fill
+    mapRaw(state, assistant('claude-haiku-4-5-20251001', { input_tokens: 9, cache_read_input_tokens: 9, cache_creation_input_tokens: 9, output_tokens: 9 }, 'toolu_1'));
+    mapRaw(state, assistant('<synthetic>', { input_tokens: 0, output_tokens: 0 }));
+    mapRaw(state, assistant('claude-opus-5-5', undefined));
+    const u = usage();
+    expect(u.contextUsed, 'the prompt only: the placeholder output_tokens is not counted').toBe(62_000);
+    expect(u.contextSize, "the lead's window, matched without [1m], not the last model listed").toBe(1_000_000);
+  });
+
+  it('names no window when several models are listed and none is the lead', () => {
+    expect(leadWindow({ 'claude-opus-5-5[1m]': { contextWindow: 1_000_000 }, 'claude-haiku-4-5-20251001': { contextWindow: 200_000 } }, 'claude-sonnet-5-5')).toBeUndefined();
+    expect(leadWindow({ 'claude-opus-5-5[1m]': { contextWindow: 1_000_000 }, 'claude-haiku-4-5-20251001': { contextWindow: 200_000 } }, undefined)).toBeUndefined();
+    expect(leadWindow({ 'claude-sonnet-5-5': { contextWindow: 200_000 } }, undefined), 'one model listed: it is the lead').toBe(200_000);
+    expect(leadWindow({ 'claude-opus-5-5[1M]': { contextWindow: 1_000_000 } }, 'claude-opus-5-5')).toBe(1_000_000);
+    expect(leadWindow({ 'claude-opus-5-5': { contextWindow: 'x' } }, 'claude-opus-5-5')).toBeUndefined();
+    // the same model with and without [1m] (a switch during the session; modelUsage is cumulative): the one that grew is the lead's
+    const both = { 'claude-opus-5-5': { inputTokens: 10, contextWindow: 200_000 }, 'claude-opus-5-5[1m]': { inputTokens: 50, contextWindow: 1_000_000 } };
+    expect(leadWindow(both, 'claude-opus-5-5', new Map([['claude-opus-5-5', { inputTokens: 10 }], ['claude-opus-5-5[1m]', { inputTokens: 20 }]]))).toBe(1_000_000);
+    expect(leadWindow(both, 'claude-opus-5-5', new Map([['claude-opus-5-5', { inputTokens: 5 }], ['claude-opus-5-5[1m]', { inputTokens: 50 }]]))).toBe(200_000);
+    expect(leadWindow(both, 'claude-opus-5-5', new Map()), 'both grew: not settled, no window').toBeUndefined();
+  });
+
+  describe('context updates during a turn', () => {
+    let now = 1_000_000;
+    const lead = (id: string, input: number) => ({ type: 'assistant', parent_tool_use_id: null, message: { id, model: 'claude-opus-5-5', content: [{ type: 'text', text: 'ok' }], usage: { input_tokens: input, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, output_tokens: 1 } } });
+    const result = { type: 'result', subtype: 'success', is_error: false, modelUsage: { 'claude-opus-5-5[1m]': { inputTokens: 10, outputTokens: 5, cacheReadInputTokens: 0, cacheCreationInputTokens: 0, costUSD: 0.1, contextWindow: 1_000_000 } } };
+    const usages = (ev: WireEvent[] | ReturnType<typeof mapRaw>) => (ev as Array<{ kind: string; usage?: Record<string, any> }>).filter((e) => e.kind === 'usage').map((e) => e.usage!);
+    const started = () => {
+      now = 1_000_000;
+      const state = newMapState({ now: () => now });
+      mapRaw(state, lead('a', 181_003));
+      mapRaw(state, result);
+      return state;
+    };
+
+    it('sends a new size while the turn runs, at most every 2 seconds, with zero turn counts', () => {
+      const state = started();
+      now += 5000;
+      const [u] = usages(mapRaw(state, lead('b', 190_000)));
+      expect(u).toMatchObject({ midTurn: true, contextUsed: 190_000, contextSize: 1_000_000, perTurn: { inputTokens: 0, outputTokens: 0, cacheRead: 0, cacheWrite: 0 }, cumulative: { inputTokens: 10 } });
+      // within the throttle: held back, then sent with the next message once the time has passed
+      now += 500;
+      expect(usages(mapRaw(state, lead('c', 195_000)))).toEqual([]);
+      expect(usages(mapRaw(state, { type: 'user', message: { content: [] } }))).toEqual([]);
+      now += 2000;
+      expect(usages(mapRaw(state, { type: 'user', message: { content: [] } }))[0]).toMatchObject({ midTurn: true, contextUsed: 195_000 });
+      // the same size again is not sent twice
+      now += 5000;
+      expect(usages(mapRaw(state, lead('d', 195_000)))).toEqual([]);
+      // the turn's own record is not marked
+      expect(usages(mapRaw(state, result))[0].midTurn).toBeUndefined();
+    });
+
+    it('a compaction resets the size at once: to post_tokens, or to nothing when the CLI does not say', () => {
+      const state = started();
+      const [u] = usages(mapRaw(state, { type: 'system', subtype: 'compact_boundary', compact_metadata: { trigger: 'manual', pre_tokens: 181_003, post_tokens: 9200 } }));
+      expect(u).toMatchObject({ midTurn: true, contextUsed: 9200, contextSize: 1_000_000 });
+      expect(usages(mapRaw(state, result))[0].contextUsed, 'the next result does not bring the old size back').toBe(9200);
+      mapRaw(state, lead('e', 12_000));
+      mapRaw(state, result);
+      const [v] = usages(mapRaw(state, { type: 'system', subtype: 'compact_boundary', compact_metadata: { trigger: 'auto', pre_tokens: 12_000 } }));
+      expect(v.midTurn).toBe(true);
+      expect(v.contextUsed).toBeUndefined();
+    });
+
+    it('sends nothing before a window is known', () => {
+      const state = newMapState({ now: () => now });
+      expect(usages(mapRaw(state, lead('a', 1000)))).toEqual([]);
+    });
   });
 });
