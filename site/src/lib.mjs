@@ -173,7 +173,7 @@ export function preloadHero(root) {
       const real = WIDTHS.filter((x) => has(`shots/hero-${theme}-${x}.webp`));
       if (!real.length) return `<link rel="preload" as="image" href="${root}assets/img/placeholders/hero-${theme}.svg">`;
       const best = real[real.length - 1];
-      return `<link rel="preload" as="image" type="image/webp" href="${root}assets/img/shots/hero-${theme}-${best}.webp" imagesrcset="${real.map((x) => `${root}assets/img/shots/hero-${theme}-${x}.webp ${x}w`).join(', ')}" imagesizes="(min-width: 1000px) 1040px, 92vw">`;
+      return `<link rel="preload" as="image" type="image/webp" href="${root}assets/img/shots/hero-${theme}-${best}.webp" imagesrcset="${real.map((x) => `${root}assets/img/shots/hero-${theme}-${x}.webp ${x}w`).join(', ')}" imagesizes="(min-width: 1100px) 1060px, 92vw">`;
     })
     .join('\n');
 }

@@ -4,6 +4,10 @@ All notable changes to IntelyIDE are recorded here. The format follows [Keep a C
 
 ## [Unreleased]
 
+### Added
+
+- Website: the IntelyIDE page is redesigned in the look of the 1.15 refresh (a soft gradient page, rounded cards, pill buttons, one violet accent), in English and Hungarian, light and dark: a centred hero with the product shot, a "New in 1.15" section (the refreshed look, cards that ask instead of blocking, two fixes), a trust panel, a gallery of the refreshed windows, a section for the toolkit for building by prompting, and long lists folded behind "More details". The home page, the IntelyOpti page, the download page and the legal pages take the same colours, cards and buttons. The screenshots are retaken from the 1.15.0 app with demo data, in WebP and PNG at three widths.
+
 ## [1.15.0] - 2026-11-13
 
 ### Added

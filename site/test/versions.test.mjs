@@ -7,7 +7,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { DIMS, SHOTS } from '../scripts/shots.mjs';
+import { DEFAULT_DIMS, DIMS, SHOTS } from '../scripts/shots.mjs';
 import en from '../src/content/en.mjs';
 import hu from '../src/content/hu.mjs';
 
@@ -68,7 +68,7 @@ describe('the Versions panel on the website', () => {
     assert.match(textOf(en), /It never commits, tags or pushes, and nothing leaves your computer/);
     assert.match(textOf(hu), /Soha nem commitol, nem címkéz és nem pushol, és semmi sem hagyja el a gépedet/);
     assert.match(docs, /never commits, tags or pushes/);
-    assert.match(read('CHANGELOG.md'), /nothing is committed or tagged and nothing leaves the computer/);
+    assert.match(read('CHANGELOG.md'), /nothing is committed or tagged,? (and )?nothing leaves the computer/);
   });
 
   it('says that nothing is written before Apply and that a file changed meanwhile is refused, as the docs do', () => {
@@ -107,7 +107,7 @@ describe('the Versions panel on the website', () => {
     assert.match(capture, /SHOTS\["versions-diff"\] = /);
     for (const slot of ['versions', 'versions-diff']) {
       assert.ok(SHOTS[slot], `${slot} is not in shots.mjs`);
-      assert.deepEqual(DIMS[slot], [1440, 900]);
+      assert.deepEqual(DIMS[slot] ?? DEFAULT_DIMS, [1440, 900]);
     }
   });
 });

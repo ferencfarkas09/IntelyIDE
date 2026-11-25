@@ -90,8 +90,8 @@ write(
       description: en0.meta.homeDesc,
       start_url: './',
       display: 'browser',
-      theme_color: '#7c4dff',
-      background_color: '#0b0a14',
+      theme_color: '#7447f5',
+      background_color: '#0d1022',
       icons: [
         { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
         { src: 'icon-512.png', sizes: '512x512', type: 'image/png' },
