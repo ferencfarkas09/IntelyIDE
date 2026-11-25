@@ -362,7 +362,7 @@ function tickList(t, list, open = 3) {
 <details class="more-ticks"><summary>${t.ui.moreDetails}</summary>${ul(list.slice(open))}</details>`;
 }
 
-/** "New in ...": three cards, the two changes that need words under them, and the fixes worth a line. */
+/** "New in ...": its cards, the changes that need words under them, and the fixes worth a line. */
 function whatsNew(ctx) {
   const n = ctx.t.whatsNew;
   const cards = n.cards.map((c) => `<li class="card ncard">${iconTile(c.icon)}<h3>${c.h}</h3><p>${c.p}</p><a href="#${c.to}"${ga('cta', `new-${c.to}`)}>${c.more}<span class="sr"> ${c.h}</span></a></li>`).join('');

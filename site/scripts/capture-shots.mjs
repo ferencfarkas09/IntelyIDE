@@ -129,6 +129,7 @@ const SHOTS = {
     await sleep(900);
     await dismissToasts(c);
   },
+  // Not on the site yet: the context meter (#100) did not ship in 1.15.0. Needs a build with #100.
   // The ring of the run header and its popover, with the plan usage in the bottom bar (the mock's demo numbers). The run that is
   // past the warning colour has enough turns for the "At this pace" row.
   async "context-meter"(c) {

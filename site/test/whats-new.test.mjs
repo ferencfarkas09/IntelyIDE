@@ -29,13 +29,14 @@ describe('what is new in 1.15', () => {
   after(() => rmSync(dist, { recursive: true, force: true }));
 
   for (const [lang, t] of [['en', en], ['hu', hu]]) {
-    it(`${lang}: has the sections, three cards that lead to them, and the two fixes`, () => {
+    it(`${lang}: has the sections, two cards that lead to them, and the two fixes`, () => {
       const html = pages[lang];
-      for (const id of ['new', 'ask', 'context', 'gallery', 'trust', 'toolkit']) assert.match(html, new RegExp(`<(section|article)[^>]* id="${id}"`), id);
-      assert.equal(t.whatsNew.cards.length, 3);
+      for (const id of ['new', 'ask', 'gallery', 'trust', 'toolkit']) assert.match(html, new RegExp(`<(section|article)[^>]* id="${id}"`), id);
+      assert.equal(t.whatsNew.cards.length, 2);
+      assert.doesNotMatch(html, /id="context"/);
       for (const c of t.whatsNew.cards) assert.ok(html.includes(`href="#${c.to}"`), c.to);
       assert.equal(t.whatsNew.fixes.length, 2);
-      assert.equal((html.match(/class="card ncard"/g) ?? []).length, 3);
+      assert.equal((html.match(/class="card ncard"/g) ?? []).length, 2);
       assert.doesNotMatch(html, /<[a-z][^>]* style="/, 'the CSP forbids inline styles');
     });
 
@@ -45,9 +46,9 @@ describe('what is new in 1.15', () => {
       for (const f of [...t.whatsNew.items, ...t.features.items]) for (const x of f.list) assert.ok(html.includes(`<li>${x}</li>`), x.slice(0, 40));
     });
 
-    it(`${lang}: shows the gallery and the context meter in both themes`, () => {
+    it(`${lang}: shows the gallery and the asking card in both themes`, () => {
       const slots = [...t.gallery.items.map((i) => i.slot), ...t.whatsNew.items.filter((f) => f.shot.length).map((f) => f.shot[0])];
-      assert.ok(slots.includes('dashboard') && slots.includes('new-run') && slots.includes('context-meter'));
+      assert.ok(slots.includes('dashboard') && slots.includes('new-run') && slots.includes('ask-card') && !slots.includes('context-meter'));
       // every width as WebP; the PNG fallback may lack 2880 px where that file would be over the 1 MiB limit of the public tree
       for (const slot of slots) for (const theme of ['light', 'dark']) for (const [w, ext] of [[2880, 'webp'], [1440, 'webp'], [720, 'webp'], [1440, 'png'], [720, 'png']]) assert.ok(existsSync(join(SHOTS, `${slot}-${theme}-${w}.${ext}`)), `${slot}-${theme}-${w}.${ext}`);
       for (const i of t.gallery.items) assert.ok(i.alt.length > 60 && i.cap.length > 20);
@@ -79,11 +80,7 @@ describe('what is new in 1.15', () => {
     for (const t of [en, hu]) assert.doesNotMatch(textOf(t.whatsNew), /shell command[^.]*allow(ed)? (once|for)|parancs[^.]*engedélyezhető/i);
   });
 
-  it('says that the meter does not estimate and that a nudge is a request, in both languages', () => {
-    const ctx = (t) => textOf(t.whatsNew.items.find((f) => f.id === 'context'));
-    assert.match(ctx(en), /it does not estimate/);
-    assert.match(ctx(en), /A nudge is a request to the agent, not a rule/);
-    assert.match(ctx(hu), /nem becsül/);
-    assert.match(ctx(hu), /kérés az ügynökhöz, nem szabály/);
+  it('does not describe the context meter or the plan usage of #100, which did not ship in 1.15.0', () => {
+    for (const t of [en, hu]) assert.doesNotMatch(textOf({ hero: t.hero, n: t.whatsNew, g: t.gallery, tr: t.trust }), /context meter|kontextusmérő|token saver|tokenspór/i);
   });
 });
