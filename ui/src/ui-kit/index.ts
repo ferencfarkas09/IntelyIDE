@@ -8,6 +8,8 @@ export { IconButton, type IconButtonProps } from "./IconButton";
 export { Checkbox, type CheckboxProps } from "./Checkbox";
 export { ariaChecked, deriveCheckState, nextCheckState, type CheckState } from "./checkbox-logic";
 export { Switch, type SwitchProps } from "./Switch";
+export { Chip, type ChipProps } from "./Chip";
+export { ChoiceCard, type ChoiceCardProps } from "./ChoiceCard";
 export { SegmentedControl, type SegmentedControlProps, type SegmentedOption } from "./SegmentedControl";
 export { Badge, Pill, StatusDot, StatusLetter, type BadgeProps, type ChangeKindName, type PillProps, type StatusDotProps, type Tone } from "./Badge";
 export { AheadBehind, BranchPill, MiddleEllipsis, RepoBadge, type AheadBehindProps, type BranchPillProps, type RepoBadgeProps } from "./repo";

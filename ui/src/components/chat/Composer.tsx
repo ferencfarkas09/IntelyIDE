@@ -1,4 +1,5 @@
-import { createEffect, createSignal, createUniqueId, For, on, onCleanup, Show } from "solid-js";
+import { createEffect, createSignal, createUniqueId, For, on, onCleanup, onMount, Show } from "solid-js";
+import { execute, getCommand } from "../../platform/commands";
 import { openSettings } from "../../platform/settings";
 import { agentDraft, agentRow, searchRepoFiles, setAgentDraft } from "../../store/agents";
 import { requestChip } from "../../store/chatCommands";
@@ -6,6 +7,7 @@ import { repoConfig } from "../../store/workspace";
 import type { AgentAttachment } from "../../store/agent-types";
 import { Button, Kbd, MessageSquareReply, RepoBadge, SendHorizontal, Square, TextArea, Tooltip } from "../../ui-kit";
 import { activeMention, applyMention, liveAttachments } from "./mentions";
+import { trackTyping } from "./Cards";
 import { AttachButton, AttachmentChips } from "../../modules/attachments/Chips";
 import { createComposerAttachments, type AttachmentsCap } from "../../modules/attachments/composer";
 import type { FileSelection } from "../../modules/attachments/types";
@@ -47,6 +49,19 @@ export function Composer(props: ComposerProps) {
   const [attachments, setAttachments] = createSignal<AgentAttachment[]>([]);
   const text = () => agentDraft(props.agentId);
   let rootEl: HTMLDivElement | undefined;
+  // A draft that is being typed keeps the focus: no request card takes it, and a blur nobody asked for is undone (see `trackTyping`).
+  onMount(() => onCleanup(trackTyping(area)));
+  // A narrow or short pane (`data-compact` on the `.chat` box, see `watchCompact`): the field starts at one line.
+  const [compact, setCompact] = createSignal(false);
+  onMount(() => {
+    const chat = rootEl?.closest<HTMLElement>(".chat");
+    if (!chat || typeof MutationObserver === "undefined") return;
+    const read = () => setCompact(chat.hasAttribute("data-compact"));
+    read();
+    const mo = new MutationObserver(read);
+    mo.observe(chat, { attributes: true, attributeFilter: ["data-compact"] });
+    onCleanup(() => mo.disconnect());
+  });
   const att = createComposerAttachments({ key: `agent:${props.agentId}`, get label() { return t("attach.composerLabel"); }, provider: () => props.provider, caps: () => props.attachmentsCap, root: () => rootEl });
 
   const mention = () => (dismissed() ? null : activeMention(text(), caret()));
@@ -265,8 +280,9 @@ export function Composer(props: ComposerProps) {
           aria-controls={slashOpen() ? `${listId}-slash` : popupOpen() ? listId : undefined}
           aria-activedescendant={slashOpen() ? `${listId}-s${slashCursor()}` : popupOpen() ? `${listId}-${cursor()}` : undefined}
           placeholder={props.blockedReason ?? (props.running ? (noteMode() ? t("notes.placeholder") : t("chat.placeholderBusy")) : t("chat.placeholder"))}
-          minRows={2}
-          maxRows={8}
+          rows={compact() ? 1 : undefined}
+          minRows={compact() ? 1 : 2}
+          maxRows={compact() ? 5 : 8}
           value={text()}
           disabled={false}
           onInput={(e) => {
@@ -282,17 +298,23 @@ export function Composer(props: ComposerProps) {
         />
         <div class="composer__bar">
           <AttachButton onFiles={att.pick} disabled={props.attachmentsCap === "none"} reason={props.attachmentsCap === "none" ? t("chat.noAttachments", { provider: att.provider() }) : undefined} />
+          {/* The prompt library registers `prompts.open` while it is switched on: the button is the way to it from a run. */}
+          <Show when={getCommand("prompts.open")}>
+            <Button size="lg" variant="secondary" class="composer__prompts" onClick={() => void execute("prompts.open")} data-testid="composer-prompts">
+              {t("prompts.picker")}
+            </Button>
+          </Show>
+          <span class="composer__grow" />
           <span class="composer__hint" role={notice() ? "status" : undefined}>
             <Show when={notice()} fallback={<><Kbd keys={["⌘", "⏎"]} /> {noteMode() ? t("notes.hint") : t("chat.sendHint")}</>}>
               {(n) => n()}
             </Show>
           </span>
-          <span class="composer__grow" />
           <Show
             when={props.running}
             fallback={
               <Tooltip label={props.blockedReason ?? t("chat.sendMessage")} shortcut={["⌘", "⏎"]}>
-                <Button size="sm" variant="primary" icon={SendHorizontal} aria-disabled={!canSend()} onClick={send}>
+                <Button size="lg" variant="primary" icon={SendHorizontal} aria-disabled={!canSend()} onClick={send}>
                   {t("chat.send")}
                 </Button>
               </Tooltip>
@@ -300,13 +322,13 @@ export function Composer(props: ComposerProps) {
           >
             <Show when={noteMode()}>
               <Tooltip label={t("notes.addTip")} shortcut={["⌘", "⏎"]}>
-                <Button size="sm" variant="secondary" icon={MessageSquareReply} aria-disabled={!canNote()} onClick={() => void addNote()}>
+                <Button size="lg" variant="secondary" icon={MessageSquareReply} aria-disabled={!canNote()} onClick={() => void addNote()}>
                   {t("notes.add")}
                 </Button>
               </Tooltip>
             </Show>
             <Tooltip label={t("chat.stopTheRun")} shortcut={["⌘", "."]}>
-              <Button size="sm" variant="danger" icon={Square} loading={props.stopping} onClick={props.onStop}>
+              <Button size="lg" variant="danger" icon={Square} loading={props.stopping} onClick={props.onStop}>
                 {t("chat.stop")}
               </Button>
             </Tooltip>

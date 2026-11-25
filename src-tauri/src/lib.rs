@@ -663,7 +663,7 @@ pub fn run() {
                 perf::line("engine_created");
                 #[cfg(target_os = "macos")]
                 {
-                    window = window.traffic_light_position(LogicalPosition::new(16.0, 18.0));
+                    window = window.traffic_light_position(LogicalPosition::new(16.0, 22.0));
                 }
                 slot
             } else {

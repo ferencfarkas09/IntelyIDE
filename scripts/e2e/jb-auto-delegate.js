@@ -15,10 +15,7 @@ await clickButton("New run", agentsPanel());
 const pop = await waitFor(() => q(".newrun"), { what: "the New run popover" });
 await waitFor(() => qa(".mode-card", pop).length > 0, { what: "the mode cards of New run", timeout: 30000 });
 check("New run opens in Auto with Automatic checked", !q(".newrun__role", pop) && checkedMode(pop) === "automatic", `${q(".newrun__role", pop) ? "role list" : "auto"} / ${checkedMode(pop)}`);
-for (const b of qa('[aria-label="Repositories"] button', pop)) {
-  const want = text(b).includes(POS);
-  if ((b.getAttribute("aria-pressed") === "true") !== want) b.click();
-}
+pickRepos(pop, (name) => name.includes(POS));
 await sleep(100);
 await typeInto(q('textarea[aria-label="Prompt"]', pop), PROMPT);
 await clickButton("Start run", pop);

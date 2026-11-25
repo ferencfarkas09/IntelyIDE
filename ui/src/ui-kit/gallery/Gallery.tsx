@@ -3,7 +3,7 @@ import {
   Announcer, Badge, BrandMark, BranchPill, Button, Checkbox, Copy, Dialog, EmptyState, Eye, GitBranch, IconButton, Inbox, Input, Kbd, Keyboard, Menu, Moon, Monitor, Pencil, Plus, Popover,
   ProgressBar, REPO_PALETTE, RefreshCw, RepoBadge, ScrollArea, Search, SegmentedControl, ShieldAlert, Skeleton, Spinner, SplitButton, Splitter, StatusDot, StatusLetter, Sun,
   TextArea, Toaster, Tooltip, Tree, TreeRow, Trash2, TriangleAlert, Upload, createToaster, deriveCheckState, initTheme, setThemePreference, themePreference, AheadBehind, Pill, Switch, Download, Icon,
-  type ChangeKindName, type ThemePreference, Card, KpiTile, Sparkline, Tabs, activeSkin, applySkin, transparencyReduced, type Skin,
+  type ChangeKindName, type ThemePreference, Card, Chip, ChoiceCard, KpiTile, Sparkline, Tabs, activeSkin, applySkin, transparencyReduced, type Skin,
 } from "..";
 import { Composite } from "./Composite";
 import "./gallery.css";
@@ -71,6 +71,11 @@ function Selection() {
   const parent = () => deriveCheckState(kids().filter(Boolean).length, kids().length);
   const [sw, setSw] = createSignal(true);
   const [seg, setSeg] = createSignal<ThemePreference>("dark");
+  const [mode, setMode] = createSignal("agent");
+  const [effort, setEffort] = createSignal("medium");
+  const [pill, setPill] = createSignal("all");
+  const [tick, setTick] = createSignal(true);
+  const [preset, setPreset] = createSignal("balanced");
   const [one, setOne] = createSignal(true);
   return (
     <>
@@ -101,6 +106,28 @@ function Selection() {
       <Row label="Segmented">
         <SegmentedControl aria-label="Theme" value={seg()} onChange={setSeg} options={[{ value: "system", label: "System", icon: Monitor }, { value: "dark", label: "Dark", icon: Moon }, { value: "light", label: "Light", icon: Sun }]} />
         <SegmentedControl size="sm" aria-label="Push tags" value="follow" onChange={() => {}} options={[{ value: "none", label: "None" }, { value: "follow", label: "Current branch" }, { value: "all", label: "All" }]} />
+      </Row>
+      <Row label="Segmented, large and accent">
+        <SegmentedControl size="lg" variant="accent" aria-label="Mode" value={mode()} onChange={setMode} options={[{ value: "agent", label: <>Agent <Badge tone="warn" numeric size="sm">1</Badge></> }, { value: "editor", label: "Editor" }]} />
+        <SegmentedControl size="lg" aria-label="Effort" value={effort()} onChange={setEffort} options={["low", "medium", "high", "xhigh", "max"].map((v) => ({ value: v, label: v }))} />
+      </Row>
+      <Row label="Chips">
+        <div role="group" aria-label="Filter runs" style={{ display: "flex", gap: "6px", "flex-wrap": "wrap" }}>
+          <Chip size="sm" pressed={pill() === "all"} count={3} onClick={() => setPill("all")}>All</Chip>
+          <Chip size="sm" pressed={pill() === "needs"} count={1} onClick={() => setPill("needs")}>Needs you</Chip>
+          <Chip size="sm" pressed={pill() === "review"} count={2} onClick={() => setPill("review")}>To review</Chip>
+        </div>
+        <Chip>Add tests for my changes</Chip>
+        <Chip dashed>All prompts</Chip>
+      </Row>
+      <Row label="Choice cards">
+        <div style={{ display: "grid", "grid-template-columns": "repeat(2, minmax(0, 220px))", gap: "8px" }}>
+          <ChoiceCard type="checkbox" checked={tick()} onChange={setTick} title="storefront-admin" description="feat/dark-dashboard" mono />
+          <ChoiceCard type="checkbox" checked={false} onChange={() => {}} title="orders-api" description="feature/loyalty-points" mono />
+          <ChoiceCard type="radio" name="kit-preset" checked={preset() === "careful"} onChange={() => setPreset("careful")} title="Careful" description="Asks before every change and command" />
+          <ChoiceCard type="radio" name="kit-preset" checked={preset() === "balanced"} onChange={() => setPreset("balanced")} title="Balanced" description="Edits files by itself, asks before commands" />
+          <ChoiceCard type="switch" checked={tick()} onChange={setTick} title="Ultracode" description="Starts helper agents. Uses more of your plan." />
+        </div>
       </Row>
     </>
   );
@@ -318,6 +345,8 @@ function Cards() {
         <div class="kit-kpis">
           <KpiTile label="Tokens today" value="23.4k" delta={{ value: "+18%", direction: "up" }} hint="18.8k in · 4.6k out" sparkline={<Sparkline values={TOKENS_IN} format={(n) => `${n}k`} />} />
           <KpiTile label="API-equivalent cost" value="$2.71" delta={{ value: "−12%", direction: "down", upIsGood: false }} sparkline={<Sparkline values={SPEND} tone="ok" format={(n) => `$${n}`} />} />
+          <KpiTile label="Needs you" value="1" tone="warn" hint="Asks to read .env" hintTone="warn" />
+          <KpiTile label="Weekly plan used" value="42%" meter={42} meterLabel="42 percent used" />
           <KpiTile label="Build time" value="4.2" unit="min" delta={{ value: "0", direction: "flat" }} sparkline={<Sparkline values={BUILDS} tone="neutral" area={false} />} />
         </div>
       </Row>

@@ -8,9 +8,11 @@ It is a lazy extra that starts switched on. It opens as the first tab when a wor
 
 Every card has a loading, an empty and an error state, and an empty card always says why it is empty. A card whose source is not set up is absent, not empty.
 
+Above the cards the page has a heading with the workspace name, one sentence built from the run counts, and a row of number tiles that are not part of the layout you edit: Needs you and Ready for review (from the Agents list), Weekly plan used (the weekly limit the Burn-down card reads; absent until that is known) and Unit tests after runs (only while the Auto-test extra is on and a test has finished).
+
 | Card | What it shows | Where it comes from | Shown when |
 |---|---|---|---|
-| Run pulse | Running, needs-you, ready-for-review and failed runs; tokens and cost of today's runs; Start run | The agent store (the same rows as the Agents list) | Always |
+| Run pulse | One row per run that needs you, is ready for review, is working or failed, each with a button (Answer, Review or Open) that opens the run; tokens and cost of today's runs; Start run when there is no run | The agent store (the same rows as the Agents list) | Always |
 | Burn-down | The 5-hour and weekly plan limits as bars with their reset time, today's spend and a 14-day trend | The Usage view's data (run logs and the plan limits) | Always; the limits only when the Claude CLI is installed and signed in |
 | Repo heartbeat | Per repository: branch, ahead/behind, uncommitted changes and the last commit; a click opens its first change (or the Commit panel) | The repository snapshots and the last commit message | Always |
 | Stack tips | The detected stack (React, React Native, Expo, Next.js, Express, Node.js, Sass, iOS, Android) and three starter prompts | `package.json` dependency names and the `ios/` and `android/` folders of up to six repositories | Always |

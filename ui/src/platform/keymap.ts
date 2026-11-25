@@ -101,6 +101,17 @@ export function formatChord(text: string, mac: boolean = isMac()): string[] {
   return out;
 }
 
+/**
+ * A chord as one short label for a hint inside a button: the macOS symbols ("⌘↵") on a Mac, words elsewhere ("Ctrl+Enter"),
+ * where the ⌃ symbol is not read as the Ctrl key.
+ */
+export function chordLabel(text: string, mac: boolean = isMac()): string {
+  if (mac) return formatChord(text, true).join("");
+  const c = parseChord(text, false);
+  const key = c.key.length === 1 ? c.key.toUpperCase() : c.key.charAt(0).toUpperCase() + c.key.slice(1);
+  return [...(c.ctrl ? ["Ctrl"] : []), ...(c.alt ? ["Alt"] : []), ...(c.shift ? ["Shift"] : []), ...(c.cmd ? ["Win"] : []), key].join("+");
+}
+
 const registry = createRegistry<Shortcut & { chord: Chord }>(() => 0, "shortcut");
 const [conflicts, setConflicts] = createSignal<string[]>([]);
 

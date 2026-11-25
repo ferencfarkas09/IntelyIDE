@@ -1,12 +1,12 @@
 import { createEffect, createMemo, createSignal, For, on, onCleanup, onMount, Show } from "solid-js";
 import { fmt, t } from "../../../i18n";
 import type { WidgetProps } from "../../../platform/widgets";
-import { Button, Gauge, ProgressBar, Sparkline } from "../../../ui-kit";
+import { Button, Gauge, ProgressBar } from "../../../ui-kit";
 import { formatUsd } from "../../usage/format";
 import { periods, untilReset, windows } from "../../usage/logic";
 import { openUsage } from "../../usage/open";
 import { error, limits, loading, refreshUsage, report } from "../../usage/store";
-import { lastDays, limitTone } from "../logic";
+import { barHeights, lastDays, limitTone } from "../logic";
 import { CardEmpty, CardError, CardLoading } from "../parts";
 
 /** Reading the plan limits starts the Claude CLI for a moment: never more often than the Usage tab does (every two minutes). */
@@ -36,6 +36,19 @@ export default function BurnDown(props: WidgetProps) {
     const r = report();
     return r ? lastDays(r.days.map((d) => ({ date: d.date, value: d.costUsd })), r.today, 14) : [];
   });
+  const bars = createMemo(() => barHeights(spark()));
+  /** The chart in words: the trend is never only a picture. */
+  const chartText = () => {
+    const values = spark();
+    const max = Math.max(0, ...values);
+    const back = values.length - 1 - values.lastIndexOf(max);
+    return t("dash.burn.chartAria", { max: formatUsd(max), back, today: formatUsd(values[values.length - 1] ?? 0) });
+  };
+  /** A calm window is the accent; the tone only changes when the limit is getting close. */
+  const barTone = (pct: number) => {
+    const tone = limitTone(pct);
+    return tone === "ok" ? "accent" : tone;
+  };
   const shown = createMemo(() => {
     const l = limits();
     return l && l.available ? windows(l).filter((w) => w.key === "fiveHour" || w.key === "sevenDay" || props.size === "l") : [];
@@ -43,8 +56,9 @@ export default function BurnDown(props: WidgetProps) {
   const resetIn = (iso: string) => {
     const ms = untilReset(iso, now());
     if (ms === undefined) return "";
-    const h = Math.floor(ms / 3_600_000);
-    const m = Math.round((ms % 3_600_000) / 60_000);
+    const total = Math.round(ms / 60_000);
+    const h = Math.floor(total / 60);
+    const m = total % 60;
     return h > 0 ? t("dash.burn.resetsHours", { h, m }) : t("dash.burn.resetsMinutes", { m });
   };
   const noPlan = () => {
@@ -54,16 +68,29 @@ export default function BurnDown(props: WidgetProps) {
   return (
     <Show when={report() || error()} fallback={<CardLoading />}>
       <Show when={!error() || report()} fallback={<CardError message={error()} onRetry={() => refresh(true)} />}>
+        <Show
+          when={report() && report()!.total.turns > 0}
+          fallback={<CardEmpty icon={Gauge} title={t("dash.burn.empty")} why={t("dash.burn.emptyWhy")} />}
+        >
+          <div class="dash-burn__spend">
+            <span class="dash-label">{t("dash.burn.today")}</span>
+            <span class="dash-big ui-tnum">{formatUsd(today()?.costUsd ?? 0)}</span>
+            <span class="dash-burn__caption">{t("dash.burn.sparkTitle")}</span>
+          </div>
+          <div class="dash-chart" role="img" aria-label={chartText()} data-size={props.size}>
+            <For each={bars()}>{(h, i) => <span class="dash-chart__bar" data-now={i() === bars().length - 1 ? "" : undefined} style={{ height: `${h}%` }} />}</For>
+          </div>
+        </Show>
         <Show when={shown().length > 0}>
           <ul class="dash-bars">
             <For each={shown()}>
               {(w) => (
                 <li class="dash-bar">
                   <div class="dash-bar__head">
-                    <span>{t(WINDOW_KEY[w.key])}</span>
-                    <span class="ui-tnum">{fmt.number(Math.round(w.utilization))}%</span>
+                    <span class="dash-bar__name">{t(WINDOW_KEY[w.key])}</span>
+                    <span class="dash-bar__pct ui-tnum">{fmt.number(Math.round(w.utilization))}%</span>
                   </div>
-                  <ProgressBar size="sm" value={w.utilization} tone={limitTone(w.utilization)} aria-label={t(WINDOW_KEY[w.key])} />
+                  <ProgressBar value={w.utilization} tone={barTone(w.utilization)} aria-label={t(WINDOW_KEY[w.key])} />
                   <span class="dash-bar__hint">{resetIn(w.resetsAt)}</span>
                 </li>
               )}
@@ -76,17 +103,7 @@ export default function BurnDown(props: WidgetProps) {
         <Show when={!limits() && loading()}>
           <p class="dash-hint">{t("dash.burn.limitsLoading")}</p>
         </Show>
-        <Show
-          when={report() && report()!.total.turns > 0}
-          fallback={<CardEmpty icon={Gauge} title={t("dash.burn.empty")} why={t("dash.burn.emptyWhy")} />}
-        >
-          <div class="dash-burn__spend">
-            <div>
-              <div class="dash-label">{t("dash.burn.today")}</div>
-              <div class="dash-big ui-tnum">{formatUsd(today()?.costUsd ?? 0)}</div>
-            </div>
-            <Sparkline values={spark()} width={160} height={36} tone="accent" title={t("dash.burn.sparkTitle")} class="dash-burn__spark" />
-          </div>
+        <Show when={report() && report()!.total.turns > 0}>
           <p class="dash-hint">{t("dash.burn.estimate")}</p>
         </Show>
         <div class="dash-actions">

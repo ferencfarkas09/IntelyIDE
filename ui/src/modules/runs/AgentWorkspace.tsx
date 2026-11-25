@@ -110,7 +110,14 @@ export default function AgentWorkspace() {
       <Splitter
         first={
           <Splitter
-            first={<SessionsSidebar />}
+            // Its own boundary: a run card that is created again (a run that moves between "Running" and "Needs you") mounts its lazy
+            // chips again, and their suspension must stay in the list. At the boundary around the whole workspace it took the run view
+            // out of the document for a moment, which blurred a draft that was being typed.
+            first={
+              <Suspense>
+                <SessionsSidebar />
+              </Suspense>
+            }
             second={
               <Splitter first={<Centre />} second={<InspectorSlot />} primary="second" defaultSize={320} min={260} max={560} minOther={420} storageKey="agent.inspector" label={t("runs.agent.resizeInspector")} />
             }

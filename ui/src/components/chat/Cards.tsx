@@ -1,4 +1,4 @@
-import { createSignal, For, Match, Show, Switch } from "solid-js";
+import { createSignal, For, Match, onCleanup, Show, Switch } from "solid-js";
 import type { ConfirmOffer } from "../../store/agent-types";
 import type { ErrorItem, PermissionItem, PlanCardItem, QuestionItem, ThinkingItem, TurnItem } from "../../store/agent-reducer";
 import type { DelegateInfo, PermissionDecision, QuestionAnswer, SessionAllowKind, SessionAllowOffer, StopReason } from "../../store/agent-types";
@@ -9,41 +9,448 @@ import { isRoleRule, refusalHeadline } from "./refusal";
 import { MODE_META, modeErrorText } from "./modes";
 import "./modes.css";
 
+/** In the order of the buttons: Deny comes first, so the choice that changes nothing is the nearest one; Allow once is the filled button. */
 const DECISIONS: { id: PermissionDecision; label: MessageKey; variant: "primary" | "secondary"; title: MessageKey }[] = [
+  { id: "deny", label: "chat.decision.deny", variant: "secondary", title: "chat.decision.denyTip" },
   { id: "allowOnce", label: "chat.decision.allowOnce", variant: "primary", title: "chat.decision.allowOnceTip" },
-  // The session allow: what exactly it allows is the sentence under the buttons (`scopeSentence`), which is also this button's tooltip.
+  // The session allow: what exactly it allows is the sentence above the buttons (`scopeSentence`), which is also this button's tooltip.
   { id: "allowRun", label: "modes.allowSession", variant: "secondary", title: "modes.allowSession" },
   { id: "allowAlways", label: "chat.decision.allowAlways", variant: "secondary", title: "chat.decision.allowAlwaysTip" },
-  { id: "deny", label: "chat.decision.deny", variant: "secondary", title: "chat.decision.denyTip" },
 ];
 
 const focused = new Set<string>();
 const isTextField = (el: Element | null): el is HTMLInputElement | HTMLTextAreaElement => el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement;
 
+/* ---- Typing guard -------------------------------------------------------------------------------------------------------------
+ * A person in the composer must never lose the focus to a card, empty field or not: the next space or Enter would answer a
+ * request. Looking at `document.activeElement` when the card arrives is not enough, because the composer can lose the focus
+ * without the person doing anything: a `<Suspense>` above the run view that falls back for a moment takes its content out of the
+ * document and puts it back, and a field that leaves the document is blurred. So the composer reports its focus here, and a blur
+ * nobody asked for is undone, caret included.
+ * A second guard does not depend on the focus at all: Enter, Space or a printable key that lands on a card's control within
+ * `TYPING_GUARD_MS` of the last key typed in the composer was meant for the composer. It is put there (the character inserted
+ * at the caret) and the control is not activated. Pointer clicks are never touched. */
+let typing: { field: HTMLTextAreaElement; start: number; end: number; lost: boolean } | undefined;
+let lastPointerDown = 0;
+let pointerWatched = false;
+const RESTORE_MS = [0, 16, 50, 120, 250, 500];
+/** For this long after a key typed in the composer, keys that land on a card go back to the composer. */
+export const TYPING_GUARD_MS = 1500;
+let lastComposerKey: { field: HTMLTextAreaElement; at: number } | undefined;
+
+/** True while the composer holds the focus (or just lost it without the person's doing), or another text field with text in it does. */
+export function personIsTyping(): boolean {
+  if (typing) return true;
+  const active = document.activeElement;
+  if (active instanceof HTMLElement && active.closest(".composer")) return true;
+  return isTextField(active) && active.value.trim() !== "";
+}
+
+/** The composer field a key that lands on a card was meant for: the one typed in within `TYPING_GUARD_MS`. */
+export function composerKeyRecent(): HTMLTextAreaElement | undefined {
+  const k = lastComposerKey;
+  // a click since that key means the person moved on to something else
+  return k && k.field.isConnected && lastPointerDown <= k.at && Date.now() - k.at < TYPING_GUARD_MS ? k.field : undefined;
+}
+
+/** Puts a character typed at a card back into the composer: focus, caret, then the text as typed (an `input` event follows). */
+export function redirectToComposer(field: HTMLTextAreaElement, text: string): void {
+  const start = typing?.field === field ? typing.start : field.value.length;
+  const end = typing?.field === field ? typing.end : field.value.length;
+  field.focus({ preventScroll: true });
+  if (document.activeElement === field && (field.selectionStart !== start || field.selectionEnd !== end)) field.setSelectionRange(start, end);
+  if (!text) return;
+  let done = false;
+  try {
+    done = typeof document.execCommand === "function" && document.execCommand("insertText", false, text);
+  } catch {
+    done = false;
+  }
+  if (!done) {
+    field.setRangeText(text, field.selectionStart, field.selectionEnd, "end");
+    field.dispatchEvent(new InputEvent("input", { bubbles: true, data: text, inputType: "insertText" }));
+  }
+  lastComposerKey = { field, at: Date.now() };
+}
+
 /**
- * A new request takes focus once (rows are virtualised and remount while scrolling), unless you are typing: then it waits.
- * Focus on the page body or anywhere in the chat panel without a draft counts as "not typing".
+ * WebKit does not send `blur` when the focused field leaves the document, so the loss can go unseen: before a card looks at the
+ * focus, and before a key lands on the page body, the composer that had the focus gets it and its caret back.
+ */
+function reclaimTyping(): void {
+  const mine = typing;
+  if (!mine || !mine.field.isConnected) return;
+  const active = document.activeElement;
+  if (active && active !== document.body) return;
+  if (!mine.lost) {
+    mine.start = mine.field.selectionStart;
+    mine.end = mine.field.selectionEnd;
+  }
+  mine.field.focus({ preventScroll: true });
+  if (document.activeElement !== mine.field) return;
+  mine.field.setSelectionRange(mine.start, mine.end);
+  mine.lost = false;
+}
+
+/**
+ * The composer hands its field over: from then on a card never takes the focus while the field has it, and a blur that came from
+ * the field leaving the document (not from a click, a Tab or a control taking the focus) is undone, caret included. Returns the
+ * cleanup.
+ */
+export function trackTyping(field: HTMLTextAreaElement): () => void {
+  if (!pointerWatched) {
+    pointerWatched = true;
+    document.addEventListener("pointerdown", () => (lastPointerDown = Date.now()), true);
+    document.addEventListener("keydown", reclaimTyping, true);
+  }
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const mark = () => {
+    clearTimeout(timer);
+    typing = { field, start: field.selectionStart, end: field.selectionEnd, lost: false };
+  };
+  const onKey = (e: KeyboardEvent) => {
+    if (!e.metaKey && !e.ctrlKey && !e.altKey) lastComposerKey = { field, at: Date.now() };
+  };
+  const onSelect = () => {
+    if (typing?.field === field && !typing.lost) {
+      typing.start = field.selectionStart;
+      typing.end = field.selectionEnd;
+    }
+  };
+  const restore = (i: number) => {
+    const mine = typing;
+    if (!mine || mine.field !== field || !mine.lost) return;
+    const active = document.activeElement;
+    // someone took the focus on purpose meanwhile (a dialog, another field): the composer is no longer where the person is
+    if (active && active !== document.body && active !== field) return void (typing = undefined);
+    if (field.isConnected) {
+      field.focus({ preventScroll: true });
+      if (document.activeElement === field) {
+        field.setSelectionRange(mine.start, mine.end);
+        mine.lost = false;
+        return;
+      }
+    }
+    if (i + 1 < RESTORE_MS.length) timer = setTimeout(() => restore(i + 1), RESTORE_MS[i + 1] - RESTORE_MS[i]);
+    else typing = undefined; // the composer is gone for good (another run, a closed pane)
+  };
+  const onBlur = (e: FocusEvent) => {
+    if (typing?.field !== field) return;
+    // The window lost the focus: the field is still the active element and gets the keys back with the window.
+    if (document.activeElement === field) return;
+    const meant = e.relatedTarget instanceof Element || Date.now() - lastPointerDown < 250;
+    if (meant) return void (typing = undefined);
+    typing = { field, start: field.selectionStart, end: field.selectionEnd, lost: true };
+    clearTimeout(timer);
+    timer = setTimeout(() => restore(0), 0);
+  };
+  field.addEventListener("focus", mark);
+  field.addEventListener("input", mark);
+  field.addEventListener("keydown", onKey);
+  field.addEventListener("keyup", onSelect);
+  field.addEventListener("select", onSelect);
+  field.addEventListener("blur", onBlur);
+  if (document.activeElement === field) mark();
+  return () => {
+    clearTimeout(timer);
+    field.removeEventListener("focus", mark);
+    field.removeEventListener("input", mark);
+    field.removeEventListener("keydown", onKey);
+    field.removeEventListener("keyup", onSelect);
+    field.removeEventListener("select", onSelect);
+    field.removeEventListener("blur", onBlur);
+    if (typing?.field === field && !typing.lost) typing = undefined;
+    if (lastComposerKey?.field === field) lastComposerKey = undefined;
+  };
+}
+
+/* ---- Geometry: what "on screen" means for a request ------------------------------------------------------------------------------ */
+const EDGE = 1;
+/** The margin a revealed card keeps from the edges of the transcript's viewport. The card itself is at most the viewport minus 16 px (`--perm-max`). */
+const REVEAL_MARGIN = 6;
+
+interface View {
+  top: number;
+  bottom: number;
+  scroller?: HTMLElement;
+}
+/** The visible rectangle a card lives in: the client box of the transcript's scroller (the window where there is none). */
+function viewOf(card: HTMLElement): View {
+  const scroller = card.closest<HTMLElement>(".ui-scroll__viewport") ?? undefined;
+  const windowBottom = window.innerHeight || document.documentElement.clientHeight;
+  if (!scroller) return { top: 0, bottom: windowBottom };
+  const top = scroller.getBoundingClientRect().top + scroller.clientTop;
+  return { top: Math.max(top, 0), bottom: Math.min(top + scroller.clientHeight, windowBottom), scroller };
+}
+const within = (el: Element, top: number, bottom: number) => {
+  const r = el.getBoundingClientRect();
+  return r.top >= top - EDGE && r.bottom <= bottom + EDGE;
+};
+
+/**
+ * Real geometry, not scroll arithmetic: the card, its top block (title and what is asked) and its row of actions are all fully
+ * inside the visible rectangle of the transcript, and so is the control that would take the focus (inside the card's own
+ * scrolling middle too, when it sits there). A transcript with no height (a hidden pane) shows nothing.
+ */
+export function requestVisible(card: HTMLElement, target?: HTMLElement | null): boolean {
+  if (!card.isConnected) return false;
+  const view = viewOf(card);
+  if (view.scroller && view.scroller.clientHeight <= 0) return false;
+  const top = card.querySelector<HTMLElement>(".perm__top");
+  const foot = card.querySelector<HTMLElement>(".perm__foot");
+  if (!top || !foot) return false;
+  const box = card.getBoundingClientRect();
+  // the whole card, edges included (it is never taller than the viewport, see `--perm-max`) ...
+  if (!within(card, view.top, view.bottom)) return false;
+  // ... and, measured on their own, the two parts that must never be out of sight
+  for (const el of [top, foot]) {
+    // laid out at all (a real transcript never has a card without a height) ...
+    if (view.scroller && el.getBoundingClientRect().height <= 0) return false;
+    // ... inside the transcript's viewport, and not scrolled out of a card that had to scroll as a whole
+    if (!within(el, view.top, view.bottom) || !within(el, box.top, box.bottom)) return false;
+  }
+  if (target) {
+    if (!card.contains(target) || !within(target, view.top, view.bottom)) return false;
+    const body = target.closest<HTMLElement>(".perm__body");
+    if (body && card.contains(body)) {
+      const b = body.getBoundingClientRect();
+      if (!within(target, b.top, b.bottom)) return false;
+    }
+  }
+  return true;
+}
+
+/** Tells the transcript that a request was scrolled into view, so that it stops pinning the end of the list over it. */
+export const REVEAL_EVENT = "transcript:reveal";
+
+/**
+ * Brings a request into view: the WHOLE card inside the viewport of the transcript (a card is never taller than that, see
+ * `--perm-max`), and the control that takes the focus inside the card's own scrolling middle. It only scrolls; whether the
+ * card really is on screen afterwards is `requestVisible`'s business.
+ */
+export function revealRequest(card: HTMLElement, target?: HTMLElement | null): void {
+  const view = viewOf(card);
+  if (view.scroller) {
+    const r = card.getBoundingClientRect();
+    // nothing to bring into view in a pane that is hidden or a row that has no layout yet
+    if (view.scroller.clientHeight <= 0 || r.height <= 0) return;
+    let delta = 0;
+    if (r.top < view.top + REVEAL_MARGIN) delta = r.top - view.top - REVEAL_MARGIN;
+    else if (r.bottom > view.bottom - REVEAL_MARGIN) delta = Math.min(r.bottom - view.bottom + REVEAL_MARGIN, r.top - view.top - REVEAL_MARGIN);
+    if (Math.abs(delta) >= 1) {
+      view.scroller.scrollTop += delta;
+      view.scroller.dispatchEvent(new CustomEvent(REVEAL_EVENT));
+    }
+  } else card.scrollIntoView?.({ block: "nearest" });
+  const body = target?.closest<HTMLElement>(".perm__body");
+  if (target && body && card.contains(body)) {
+    const b = body.getBoundingClientRect();
+    const t = target.getBoundingClientRect();
+    if (t.top < b.top) body.scrollTop += t.top - b.top;
+    else if (t.bottom > b.bottom) body.scrollTop += Math.min(t.bottom - b.bottom, t.top - b.top);
+  }
+}
+
+/* ---- Focus: only on a request that is on screen, and never straight under a key that is already on its way ---------------------- */
+/** For this long after a card's control got the focus from the program, Enter and Space on the card's buttons do nothing. */
+export const KEY_GUARD_MS = 600;
+const guardedUntil = new WeakMap<HTMLElement, number>();
+export const keyGuarded = (card: HTMLElement | undefined): boolean => !!card && Date.now() < (guardedUntil.get(card) ?? 0);
+/** A click that a key made (Enter or Space on the button) while the card is still guarded; a pointer click always counts. */
+export const keyClickTooSoon = (card: HTMLElement | undefined, e?: { detail?: number }): boolean => !!e && e.detail === 0 && (keyGuarded(card) || !!composerKeyRecent());
+
+const isActivation = (e: KeyboardEvent) => e.key === "Enter" || e.key === " " || e.key === "Spacebar";
+const onButton = (e: KeyboardEvent) => e.target instanceof Element && !!e.target.closest("button, [role='button'], [role='radio']");
+/**
+ * The key handlers of a request card. Enter and Space that arrive within `KEY_GUARD_MS` of the card taking the focus were
+ * pressed for something else (the previous card, the composer): they are swallowed, key-up included, and so is a key that is
+ * held down and repeats. Pointer clicks are not touched.
+ */
+export function guardKeys(card: () => HTMLElement | undefined): { down: (e: KeyboardEvent) => boolean; up: (e: KeyboardEvent) => void } {
+  const swallowed = new Set<string>();
+  const stop = (e: KeyboardEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+  return {
+    /** True when the key was swallowed. */
+    down: (e) => {
+      // typed for the composer a moment ago: the key goes back there, whatever has the focus now
+      const field = composerKeyRecent();
+      const printable = e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey;
+      if (field && (printable || e.key === "Enter") && e.target instanceof Element && !field.contains(e.target)) {
+        swallowed.add(e.key);
+        stop(e);
+        if (!e.repeat || printable) redirectToComposer(field, printable ? e.key : "");
+        return true;
+      }
+      if (!isActivation(e) || !onButton(e)) return false;
+      if (!e.repeat && !keyGuarded(card())) return false;
+      swallowed.add(e.key);
+      stop(e);
+      return true;
+    },
+    up: (e) => {
+      if (swallowed.delete(e.key) || (isActivation(e) && onButton(e) && keyGuarded(card()))) stop(e);
+    },
+  };
+}
+
+/** A control of a card the person is already working in (the second step of a stop and back): brought into view, then focused. */
+export function focusInCard(card: HTMLElement | undefined, el: HTMLElement | null | undefined): void {
+  if (!card?.isConnected || !el) return;
+  revealRequest(card, el);
+  el.focus({ preventScroll: true });
+}
+
+/** When the checks run after the first reveal: the transcript measures its rows and pins its end during the first few frames. */
+const SETTLE_MS = [100, 250, 500, 900];
+/** After the focus moved: the control that has it is looked at again, in case the list still moved under it. */
+const RECHECK_MS = [250, 700];
+let flight: { card: HTMLElement; cancel: () => void } | undefined;
+
+/** May a card take the focus now? Not from a draft that is being typed, not from another open request, not from the rest of the app. */
+function focusIsFree(card: HTMLElement): boolean {
+  if (personIsTyping()) return false;
+  const active = document.activeElement;
+  if (!active || active === document.body || card.contains(active)) return true;
+  const other = active.closest("section.perm");
+  if (other && other !== card) return false;
+  return !!active.closest(".chat");
+}
+
+/**
+ * The one way a card's control gets the focus, for a new request and for the next one after an answer alike: reveal the whole
+ * card, wait until the transcript has settled, check with real geometry that the top block, the actions and the control are on
+ * screen, and only then focus (which starts the key guard). When that cannot be had (a pane that is too short, a card that is not
+ * rendered), no button is focused: `otherwise` runs instead, and without it the focus stays where it is.
+ */
+function approach(card: HTMLElement, otherwise?: () => void): void {
+  flight?.cancel();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let cancelled = false;
+  const mine = { card, cancel: () => ((cancelled = true), clearTimeout(timer)) };
+  flight = mine;
+  const done = () => {
+    if (flight === mine) flight = undefined;
+  };
+  const giveUp = () => (done(), otherwise?.());
+  const target = () => card.querySelector<HTMLElement>("[data-primary]");
+  const watch = (i: number, el: HTMLElement) => {
+    if (i >= RECHECK_MS.length) return done();
+    timer = setTimeout(() => {
+      if (cancelled || document.activeElement !== el) return done();
+      if (!requestVisible(card, el)) {
+        revealRequest(card, el);
+        // still not on screen: a focused button nobody can see must not exist
+        if (!requestVisible(card, el)) return done(), otherwise ? otherwise() : el.blur();
+      }
+      watch(i + 1, el);
+    }, RECHECK_MS[i] - (RECHECK_MS[i - 1] ?? 0));
+  };
+  let seen = false;
+  const step = (i: number) => {
+    if (cancelled) return;
+    const el = target();
+    if (!card.isConnected || !el) return giveUp();
+    if (!focusIsFree(card)) return done();
+    if (requestVisible(card, el)) {
+      // on screen twice in a row with nothing scrolled in between: settled
+      if (seen) {
+        guardedUntil.set(card, Date.now() + KEY_GUARD_MS);
+        el.focus({ preventScroll: true });
+        return watch(0, el);
+      }
+      seen = true;
+    } else {
+      seen = false;
+      revealRequest(card, el);
+      seen = requestVisible(card, el);
+    }
+    if (i >= SETTLE_MS.length) return giveUp();
+    timer = setTimeout(() => step(i + 1), SETTLE_MS[i] - (SETTLE_MS[i - 1] ?? 0));
+  };
+  step(0);
+}
+
+/**
+ * A new request takes focus once (rows are virtualised and remount while scrolling), unless you are typing or another request
+ * already has the focus: then it waits. Focus on the page body or anywhere in the chat panel without a draft counts as "not typing".
  */
 export function focusRequest(reqId: string, card: HTMLElement | undefined): void {
   if (!card?.isConnected || focused.has(reqId)) return;
-  const active = document.activeElement;
-  const typing = isTextField(active) && active.value.trim() !== "";
-  const free = !active || active === document.body || (!typing && !!active.closest(".chat"));
-  if (!free) return;
+  reclaimTyping();
+  if (!focusIsFree(card)) return;
+  // one request at a time: the first one that asked is being brought into view
+  if (flight && flight.card !== card && flight.card.isConnected) return;
   focused.add(reqId);
-  card.querySelector<HTMLElement>("[data-primary]")?.focus({ preventScroll: true });
-  card.scrollIntoView?.({ block: "nearest" });
+  approach(card);
 }
 
-/** After an answer, focus goes to the next open request, else back to the composer, so the next Tab does not restart at the top of the app. */
-export function refocusAfterAnswer(card: HTMLElement | undefined): void {
+/** Runs `fn` once `el` is in the document (a `<Suspense>` above the run can take the whole view out for a moment). */
+function whenAttached(el: HTMLElement, fn: () => void, i = 0): void {
+  if (el.isConnected) return fn();
+  if (i + 1 < RESTORE_MS.length) setTimeout(() => whenAttached(el, fn, i + 1), RESTORE_MS[i + 1] - RESTORE_MS[i]);
+}
+
+/**
+ * After an answer, focus goes to the next open request (the same way a new one gets it: revealed, checked, then focused), else
+ * back to the composer, so the next Tab does not restart at the top of the app. `toComposer` (Escape) skips the other requests.
+ */
+export function refocusAfterAnswer(card: HTMLElement | undefined, toComposer = false): void {
   if (!card?.contains(document.activeElement)) return;
-  const root = card.closest(".chat");
+  const root = card.closest<HTMLElement>(".chat");
+  if (!root) return;
+  flight?.cancel();
+  const composer = () => root.querySelector<HTMLElement>(".composer textarea")?.focus({ preventScroll: true });
   // A timer, not a frame: a covered window gets no animation frames, and the focus must not wait for one.
-  setTimeout(() => {
-    const next = [...(root?.querySelectorAll<HTMLElement>(".perm [data-primary]") ?? [])].find((el) => !card.contains(el));
-    (next ?? root?.querySelector<HTMLElement>(".composer textarea"))?.focus({ preventScroll: true });
-  }, 0);
+  setTimeout(
+    () =>
+      whenAttached(root, () => {
+        const next = toComposer ? undefined : [...root.querySelectorAll<HTMLElement>("section.perm")].find((c) => c !== card && !card.contains(c) && c.querySelector("[data-primary]"));
+        if (next) approach(next, composer);
+        else composer();
+      }),
+    0,
+  );
+}
+
+/** True when the element's content is taller than its box (a clamped target line, a middle that scrolls). */
+function watchOverflow(el: HTMLElement, set: (over: boolean) => void): void {
+  if (typeof ResizeObserver === "undefined") return;
+  const ro = new ResizeObserver(() => set(el.scrollHeight > el.clientHeight + 1));
+  ro.observe(el);
+  for (const child of el.children) ro.observe(child);
+  onCleanup(() => ro.disconnect());
+}
+let cueSeq = 0;
+/**
+ * The pieces every request card shares: whether its target line is cut, whether its middle scrolls, and whether there is more
+ * of the middle below what shows (the "Scroll for more" cue, which the middle's region names as its description).
+ */
+export function createCardState() {
+  const [clipped, setClipped] = createSignal(false);
+  const [scrolls, setScrolls] = createSignal(false);
+  const [atEnd, setAtEnd] = createSignal(true);
+  const cueId = `perm-more-${++cueSeq}`;
+  const body = (el: HTMLElement) => {
+    const check = () => setAtEnd(el.scrollTop + el.clientHeight >= el.scrollHeight - 2);
+    watchOverflow(el, (over) => (setScrolls(over), check()));
+    el.addEventListener("scroll", check, { passive: true });
+  };
+  const more = () => scrolls() && !atEnd();
+  return { clipped, scrolls, more, cueId, target: (el: HTMLElement) => watchOverflow(el, setClipped), body };
+}
+
+/** The cue under a scrolling middle that has more below: a fade on the middle (CSS, `data-more`) and these words. */
+export function MoreBelow(props: { state: ReturnType<typeof createCardState> }) {
+  return (
+    <Show when={props.state.more()}>
+      <p class="perm__more" id={props.state.cueId} data-testid="perm-more">
+        {t("chat.perm.more")}
+      </p>
+    </Show>
+  );
 }
 
 /** The last folder name of a path (the file a secret card is about, the repository it belongs to). */
@@ -135,12 +542,13 @@ export function PermissionCard(props: { item: PermissionItem; onAnswer: (decisio
     return id ? (props.runTitle?.(id) ?? id) : "?";
   };
   const paths = () => (props.item.intent.paths ?? []).filter((p) => !props.item.intent.summary.includes(p));
-  const answer = (d: PermissionDecision, extra?: { feedback?: string; confirmBroad?: boolean }) => {
-    refocusAfterAnswer(card); // before the answer: the card can leave the DOM as soon as it is sent
+  const keys = guardKeys(() => card);
+  const state = createCardState();
+  const answer = (d: PermissionDecision, extra?: { feedback?: string; confirmBroad?: boolean }, toComposer = false) => {
+    refocusAfterAnswer(card, toComposer); // before the answer: the card can leave the DOM as soon as it is sent
     if (extra) props.onAnswer(d, extra);
     else props.onAnswer(d);
   };
-  const primary = () => offered()[0]?.id;
   // ---- tier 2: a stop the person may lift (secret file of the project, Claude CLI prompt) ----
   const stop = () => props.item.confirm;
   const [confirming, setConfirming] = createSignal(false);
@@ -148,13 +556,28 @@ export function PermissionCard(props: { item: PermissionItem; onAnswer: (decisio
   const stopOffers = (id: PermissionDecision) => props.item.options.includes(id);
   /** A secret needs a second click for the run-wide choice (it covers every secret file of the run); a CLI reason does not. */
   const runIsBroad = () => stop()?.kind === "secretFile" || stop()?.kind === "secretEdit";
-  const askRun = () => {
-    if (runIsBroad()) {
-      setConfirming(true);
-      queueMicrotask(() => card?.querySelector<HTMLElement>("[data-stop-cancel]")?.focus());
-    } else answer("allowRun");
+  /** The buttons of a stop, in the order of the row: Deny (the filled, focused default), Allow once, the run-wide choice. */
+  const stopDecisions = () => (["deny", "allowOnce", "allowRun"] as const).filter(stopOffers);
+  /** Into the second step and back: the focus goes to Cancel, and back to Deny; never to a button that allows. */
+  const toStep = (on: boolean) => {
+    setConfirming(on);
+    queueMicrotask(() => focusInCard(card, card?.querySelector<HTMLElement>(on ? "[data-stop-cancel]" : "[data-primary]")));
   };
-  const denyStop = () => answer("deny", note().trim() ? { feedback: note().trim() } : undefined);
+  const askRun = () => (runIsBroad() ? toStep(true) : answer("allowRun"));
+  const denyStop = (toComposer = false) => answer("deny", note().trim() ? { feedback: note().trim() } : undefined, toComposer);
+  /** The button a new request puts the focus on: Deny on a stop; else the first allow that is offered (Deny when nothing else is). */
+  const primary = () => (stop() ? "deny" : (offered().find((d) => d.id !== "deny") ?? offered()[0])?.id);
+  /** What is asked, in one piece: the line under the title shows its start, and all of it when it fits. */
+  const summary = () => (actor() ? t("runs.actorAsks", { role: actor()!.role, summary: plain(props.item.intent.summary) }) : plain(props.item.intent.summary));
+  const stopAsk = (c: ConfirmOffer) => t(`stops.ask.${c.kind}` as MessageKey, { what: stopWhat(c) });
+  const asked = () => {
+    const c = stop();
+    if (c) return (actor() ? `${t("stops.who", { role: actor()!.role })}: ` : "") + stopAsk(c);
+    const run = peerTarget();
+    return command() ?? (run ? t("peer.card.ask", { run }) : summary());
+  };
+  const stopLabel = (d: "deny" | "allowOnce" | "allowRun", c: ConfirmOffer) => (d === "deny" ? t("stops.deny") : d === "allowOnce" ? t("stops.once") : t(`stops.run.${c.kind}` as MessageKey));
+  const confirmId = () => `perm-confirm-${props.item.reqId}`;
   return (
     <Show
       when={!props.item.outcome}
@@ -185,6 +608,8 @@ export function PermissionCard(props: { item: PermissionItem; onAnswer: (decisio
         </div>
       }
     >
+      {/* Three parts: the top (title and what is asked) and the foot (the buttons) never scroll, the middle does; the card is never
+          taller than the transcript's viewport (`--perm-max`), so whenever the card is on screen all three are. */}
       <section
         ref={(el) => {
           card = el;
@@ -196,133 +621,189 @@ export function PermissionCard(props: { item: PermissionItem; onAnswer: (decisio
         data-class={props.item.intent.class}
         data-stop={stop()?.kind}
         onKeyDown={(e) => {
-          if (e.key === "Escape" && confirming()) {
+          if (keys.down(e)) return;
+          if (e.key !== "Escape") return;
+          if (confirming()) {
             // Escape on the second confirmation backs out of it; it never allows anything
             e.preventDefault();
             e.stopPropagation();
-            setConfirming(false);
-            queueMicrotask(() => card?.querySelector<HTMLElement>("[data-primary]")?.focus());
-          } else if (e.key === "Escape" && offered().some((d) => d.id === "deny")) {
+            toStep(false);
+          } else if (offered().some((d) => d.id === "deny")) {
             e.preventDefault();
             e.stopPropagation();
-            if (stop()) denyStop();
-            else answer("deny");
+            if (stop()) denyStop(true);
+            else answer("deny", undefined, true);
           }
         }}
+        onKeyUp={keys.up}
       >
-        <header class="perm__head">
-          <Icon icon={ShieldAlert} size={14} />
-          <span class="perm__title">{stop() ? t("stops.title") : t("chat.perm.title")}</span>
-          <Show when={actor()}>
-            {(a) => (
-              <Badge size="sm" tone={fromRepo() ? "warn" : "neutral"} title={fromRepo() ? t("roles.trust.fromRepo") : undefined}>
-                {a().role}
-                <Show when={fromRepo()}> · {t("roles.trust.fromRepoShort")}</Show>
-              </Badge>
-            )}
-          </Show>
-          <Badge tone={risk().tone} size="sm">
-            {risk().label}
-          </Badge>
-        </header>
-        <Show when={stop()}>
-          {(c) => (
-            <>
-              <p class="perm__summary perm__stop-ask" data-testid="stop-ask">
-                <Show when={actor()}>{(a) => <strong class="perm__actor">{t("stops.who", { role: a().role })}: </strong>}</Show>
-                {t(`stops.ask.${c().kind}` as MessageKey, { what: stopWhat(c()) })}
-              </p>
-              <p class="perm__note" data-testid="stop-why">{t(`stops.why.${c().kind}` as MessageKey)}</p>
-              <Show when={c().kind !== "cliPrompt"}>
-                <p class="perm__note ui-mono ui-truncate" title={c().scope} data-testid="stop-path">{c().scope}</p>
-              </Show>
-              <Show when={c().kind !== "cliPrompt" && stopOffers("allowRun")}>
-                <p class="perm__note" data-testid="stop-reach">{t(`stops.reach.${c().kind}` as MessageKey)}</p>
-              </Show>
-            </>
-          )}
-        </Show>
-        <Show when={peerTarget()}>{(run) => <p class="perm__summary" data-testid="peer-ask">{t("peer.card.ask", { run: run() })}</p>}</Show>
-        <Show when={props.item.peer}>
-          {(pc) => (
-            <div class="perm__peer" data-testid="peer-card" data-riskier={pc().riskier ? "" : undefined}>
-              <p class="perm__peer-who">{t("peer.card.target", { title: pc().title, where: pc().location, mode: t(MODE_META[pc().mode].label) })}</p>
-              <Show when={pc().riskier}>
-                <p class="perm__peer-warn" role="note">{t("peer.card.riskier")}</p>
-              </Show>
-              <pre class="perm__code ui-mono ui-selectable" aria-label={t("peer.card.text")}>{pc().text}</pre>
-            </div>
-          )}
-        </Show>
-        <Show when={command()} fallback={<Show when={!peerTarget() && !stop()}><p class="perm__summary">{actor() ? t("runs.actorAsks", { role: actor()!.role, summary: plain(props.item.intent.summary) }) : plain(props.item.intent.summary)}</p></Show>}>
-          {(c) => <pre class="perm__code perm__code--cmd ui-mono ui-selectable" aria-label={t("chat.perm.command")}>{c()}</pre>}
-        </Show>
-        <Show when={!peerTarget() && said()}>{(text) => <p class="perm__said">{t("chat.perm.said", { text: text() })}</p>}</Show>
-        <Show when={paths().length}>
-          <ul class="perm__paths ui-mono">
-            <For each={paths()}>{(p) => <li class="ui-truncate">{p}</li>}</For>
-          </ul>
-        </Show>
-        <Show when={props.item.intent.url}>{(url) => <pre class="perm__code ui-mono ui-selectable">{url()}</pre>}</Show>
-        <Show when={stop()}>
-          {(c) => (
-            <>
-              <Show when={!stopOffers("allowOnce") && stopOffers("deny")}>
-                <p class="perm__note" role="note" data-testid="stop-phone">{t("stops.phone")}</p>
-              </Show>
-              <Show when={!confirming()} fallback={
-                <div class="perm__confirm" role="alertdialog" aria-label={t(`stops.confirm.q.${c().kind}` as MessageKey)}>
-                  <p class="perm__note" data-testid="stop-confirm">{t(`stops.confirm.q.${c().kind}` as MessageKey)}</p>
-                  <div class="perm__actions">
-                    <Button size="sm" variant="secondary" data-stop-cancel="" onClick={() => { setConfirming(false); queueMicrotask(() => card?.querySelector<HTMLElement>("[data-primary]")?.focus()); }}>{t("stops.confirm.cancel")}</Button>
-                    <Button size="sm" variant="secondary" data-testid="stop-confirm-yes" onClick={() => answer("allowRun", { confirmBroad: true })}>{t("stops.confirm.yes")}</Button>
-                  </div>
-                </div>
-              }>
-                <Show when={stopOffers("deny")}>
-                  <Input size="sm" aria-label={t("stops.note")} placeholder={t("stops.note")} value={note()} onInput={(e) => setNote(e.currentTarget.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); denyStop(); } }} />
-                </Show>
-                <div class="perm__actions" data-testid="stop-actions">
-                  <Show when={stopOffers("allowOnce")}><Button size="sm" variant="secondary" onClick={() => answer("allowOnce")}>{t("stops.once")}</Button></Show>
-                  <Show when={stopOffers("allowRun")}><Button size="sm" variant="secondary" data-testid="stop-run" onClick={askRun}>{t(`stops.run.${c().kind}` as MessageKey)}</Button></Show>
-                  <Show when={stopOffers("deny")}><Button size="sm" variant="primary" class="perm__deny" data-primary="" title={t("stops.denyTip")} onClick={denyStop}>{t("stops.deny")}</Button></Show>
-                </div>
-              </Show>
-            </>
-          )}
-        </Show>
-        <div class="perm__actions" hidden={!!stop()}>
-          <For each={stop() ? [] : offered()}>
-            {(d) => (
-              <Button
-                size="sm"
-                variant={d.variant}
-                class={d.id === "deny" ? "perm__deny" : undefined}
-                data-primary={d.id === primary() ? "" : undefined}
-                title={d.id === "deny" ? t("chat.withEsc", { tip: t(d.title) }) : d.id === "allowRun" && scope() ? scope()!.text : t(d.title)}
-                aria-describedby={d.id === "allowRun" && scope() ? scopeId() : undefined}
-                onClick={() => answer(d.id)}
-              >
-                {t(d.label)}
-              </Button>
-            )}
-          </For>
+        <div class="perm__top">
+          <header class="perm__head">
+            <span class="perm__tile" aria-hidden="true">
+              <Icon icon={ShieldAlert} size={16} />
+            </span>
+            <span class="perm__titles">
+              <span class="perm__title">{stop() ? t("stops.title") : t("chat.perm.title")}</span>
+              <span class="perm__explain">{risk().label}</span>
+            </span>
+            <Show when={actor()}>
+              {(a) => (
+                <Badge size="sm" tone={fromRepo() ? "warn" : "neutral"} title={fromRepo() ? t("roles.trust.fromRepo") : undefined}>
+                  {a().role}
+                  <Show when={fromRepo()}> · {t("roles.trust.fromRepoShort")}</Show>
+                </Badge>
+              )}
+            </Show>
+          </header>
+          <Switch>
+            <Match when={stop()}>
+              {(c) => (
+                <p class="perm__summary perm__stop-ask perm__target">
+                  <span class="perm__clamp" ref={state.target} data-testid="stop-ask">
+                    <Show when={actor()}>{(a) => <strong class="perm__actor">{t("stops.who", { role: a().role })}: </strong>}</Show>
+                    {stopAsk(c())}
+                  </span>
+                </p>
+              )}
+            </Match>
+            <Match when={command()}>
+              {(c) => <pre class="perm__code perm__code--cmd perm__target ui-mono ui-selectable" aria-label={t("chat.perm.command")}><span class="perm__clamp" ref={state.target}>{c()}</span></pre>}
+            </Match>
+            <Match when={peerTarget()}>{(run) => <p class="perm__summary perm__target" data-testid="peer-ask"><span class="perm__clamp" ref={state.target}>{t("peer.card.ask", { run: run() })}</span></p>}</Match>
+            <Match when={true}>
+              <p class="perm__summary perm__target"><span class="perm__clamp" ref={state.target}>{summary()}</span></p>
+            </Match>
+          </Switch>
         </div>
-        <Show when={scope()}>
-          {(sc) => (
-            <p class="perm__scope" id={scopeId()}>
-              {sc().before}
-              <Show when={sc().after !== undefined}>
-                <code>{sc().scope}</code>
-                {sc().after}
+        <div class="perm__body" ref={state.body} data-more={state.more() ? "" : undefined} tabindex={state.scrolls() ? 0 : undefined} role={state.scrolls() ? "region" : undefined} aria-label={state.scrolls() ? t("chat.perm.details") : undefined} aria-describedby={state.more() ? state.cueId : undefined}>
+          <Show
+            when={!confirming()}
+            fallback={
+              <Show when={stop()}>
+                {(c) => (
+                  <p class="perm__note perm__confirm-q" id={confirmId()} data-testid="stop-confirm">
+                    {t(`stops.confirm.q.${c().kind}` as MessageKey)}
+                  </p>
+                )}
               </Show>
-            </p>
-          )}
-        </Show>
-        <Show when={onceOnly()}>
-          <p class="perm__note">{t("modes.perm.onceOnly")}</p>
-        </Show>
-        <Show when={props.item.error}>{(e) => <p class="perm__error" role="alert">{modeErrorText(e().code, e().message)}</p>}</Show>
+            }
+          >
+            {/* the line in the top was cut (a long path, a long command): all of it is here, where it can be scrolled and selected */}
+            <Show when={state.clipped()}>
+              <Show when={!stop()} fallback={<p class="perm__summary perm__full ui-selectable" aria-label={t("chat.perm.full")}>{asked()}</p>}>
+                <pre class="perm__code perm__full ui-mono ui-selectable" aria-label={t("chat.perm.full")}>{asked()}</pre>
+              </Show>
+            </Show>
+            <Show when={stop()}>
+              {(c) => (
+                <>
+                  <p class="perm__note" data-testid="stop-why">{t(`stops.why.${c().kind}` as MessageKey)}</p>
+                  <Show when={c().kind !== "cliPrompt"}>
+                    <p class="perm__code perm__stop-path ui-mono ui-selectable" title={c().scope} data-testid="stop-path">{c().scope}</p>
+                  </Show>
+                  <Show when={c().kind === "cliPrompt" && command()}>
+                    {(cmd) => <pre class="perm__code perm__code--cmd ui-mono ui-selectable" aria-label={t("chat.perm.command")}>{cmd()}</pre>}
+                  </Show>
+                  <Show when={c().kind !== "cliPrompt" && stopOffers("allowRun")}>
+                    <p class="perm__note" data-testid="stop-reach">{t(`stops.reach.${c().kind}` as MessageKey)}</p>
+                  </Show>
+                  <Show when={!stopOffers("allowOnce") && stopOffers("deny")}>
+                    <p class="perm__note" role="note" data-testid="stop-phone">{t("stops.phone")}</p>
+                  </Show>
+                </>
+              )}
+            </Show>
+            <Show when={!stop()}>
+              <Show when={props.item.peer}>
+                {(pc) => (
+                  <div class="perm__peer" data-testid="peer-card" data-riskier={pc().riskier ? "" : undefined}>
+                    <p class="perm__peer-who">{t("peer.card.target", { title: pc().title, where: pc().location, mode: t(MODE_META[pc().mode].label) })}</p>
+                    <Show when={pc().riskier}>
+                      <p class="perm__peer-warn" role="note">{t("peer.card.riskier")}</p>
+                    </Show>
+                    <pre class="perm__code ui-mono ui-selectable" aria-label={t("peer.card.text")}>{pc().text}</pre>
+                  </div>
+                )}
+              </Show>
+              <Show when={!peerTarget() && said()}>{(text) => <p class="perm__said">{t("chat.perm.said", { text: text() })}</p>}</Show>
+              <Show when={paths().length}>
+                <ul class="perm__paths ui-mono">
+                  <For each={paths()}>{(p) => <li title={p}>{p}</li>}</For>
+                </ul>
+              </Show>
+              <Show when={props.item.intent.url}>{(url) => <pre class="perm__code ui-mono ui-selectable">{url()}</pre>}</Show>
+              <Show when={scope()}>
+                {(sc) => (
+                  <p class="perm__scope" id={scopeId()}>
+                    {sc().before}
+                    <Show when={sc().after !== undefined}>
+                      <code>{sc().scope}</code>
+                      {sc().after}
+                    </Show>
+                  </p>
+                )}
+              </Show>
+              <Show when={onceOnly()}>
+                <p class="perm__note">{t("modes.perm.onceOnly")}</p>
+              </Show>
+            </Show>
+            <Show when={stop() && stopOffers("deny")}>
+              <Input size="sm" aria-label={t("stops.note")} placeholder={t("stops.note")} value={note()} onInput={(e) => setNote(e.currentTarget.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); denyStop(); } }} />
+            </Show>
+          </Show>
+        </div>
+        <div class="perm__foot">
+          <MoreBelow state={state} />
+          <Switch>
+            <Match when={stop() && confirming() ? stop() : undefined}>
+              <div class="perm__actions" role="alertdialog" aria-labelledby={confirmId()}>
+                <Button size="xl" variant="secondary" data-stop-cancel="" onClick={(e: MouseEvent) => keyClickTooSoon(card, e) || toStep(false)}>{t("stops.confirm.cancel")}</Button>
+                <Button size="xl" variant="secondary" data-testid="stop-confirm-yes" aria-describedby={confirmId()} onClick={(e: MouseEvent) => keyClickTooSoon(card, e) || answer("allowRun", { confirmBroad: true })}>{t("stops.confirm.yes")}</Button>
+              </div>
+            </Match>
+            <Match when={stop()}>
+              {(c) => (
+                <div class="perm__actions" data-testid="stop-actions">
+                  <For each={stopDecisions()}>
+                    {(d) => (
+                      <Button
+                        size="xl"
+                        variant={d === "deny" ? "primary" : "secondary"}
+                        class={d === "deny" ? "perm__deny" : undefined}
+                        data-primary={d === "deny" ? "" : undefined}
+                        data-testid={d === "allowRun" ? "stop-run" : undefined}
+                        title={d === "deny" ? t("stops.denyTip") : undefined}
+                        onClick={(e: MouseEvent) => keyClickTooSoon(card, e) || (d === "deny" ? denyStop() : d === "allowOnce" ? answer("allowOnce") : askRun())}
+                      >
+                        {stopLabel(d, c())}
+                      </Button>
+                    )}
+                  </For>
+                </div>
+              )}
+            </Match>
+            <Match when={true}>
+              <div class="perm__actions">
+                <For each={offered()}>
+                  {(d) => (
+                    <Button
+                      size="xl"
+                      variant={d.variant}
+                      class={d.id === "deny" ? "perm__deny" : undefined}
+                      data-primary={d.id === primary() ? "" : undefined}
+                      title={d.id === "deny" ? t("chat.withEsc", { tip: t(d.title) }) : d.id === "allowRun" && scope() ? scope()!.text : t(d.title)}
+                      aria-describedby={d.id === "allowRun" && scope() ? scopeId() : undefined}
+                      onClick={(e: MouseEvent) => keyClickTooSoon(card, e) || answer(d.id)}
+                    >
+                      {t(d.label)}
+                    </Button>
+                  )}
+                </For>
+              </div>
+            </Match>
+          </Switch>
+          <Show when={props.item.error}>{(e) => <p class="perm__error" role="alert">{modeErrorText(e().code, e().message)}</p>}</Show>
+        </div>
       </section>
     </Show>
   );
@@ -334,8 +815,10 @@ export function QuestionCard(props: { item: QuestionItem; onAnswer: (answer: Que
   const [text, setText] = createSignal("");
   const toggle = (id: string) => setPicked((cur) => (props.item.multi ? (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]) : [id]));
   const canSend = () => picked().length > 0 || text().trim() !== "";
-  const submit = () => {
-    if (!canSend()) return;
+  const keys = guardKeys(() => card);
+  const state = createCardState();
+  const submit = (e?: MouseEvent) => {
+    if (!canSend() || keyClickTooSoon(card, e)) return;
     refocusAfterAnswer(card);
     props.onAnswer({ optionIds: picked(), text: text().trim() || undefined });
   };
@@ -378,41 +861,57 @@ export function QuestionCard(props: { item: QuestionItem; onAnswer: (answer: Que
         class="perm q"
         role="group"
         aria-label={t("chat.q.aria")}
+        onKeyDown={keys.down}
+        onKeyUp={keys.up}
       >
-        <header class="perm__head">
-          <Icon icon={CircleQuestionMark} size={14} />
-          <span class="perm__title">{t("chat.q.title")}</span>
-        </header>
-        <p class="perm__summary">{props.item.prompt}</p>
-        <div class="q__options" role={props.item.multi ? "group" : "radiogroup"} aria-label={t("chat.q.options")}>
-          <For each={props.item.options}>
-            {(o, i) => (
-              <Button
-                class="q__option"
-                variant="secondary"
-                size="md"
-                role={props.item.multi ? undefined : "radio"}
-                aria-checked={props.item.multi ? undefined : picked().includes(o.id)}
-                aria-pressed={props.item.multi ? picked().includes(o.id) : undefined}
-                tabIndex={tabbable(o.id, i()) ? 0 : -1}
-                data-primary={i() === 0 ? "" : undefined}
-                data-picked={picked().includes(o.id) ? "" : undefined}
-                onClick={() => toggle(o.id)}
-                onKeyDown={(e: KeyboardEvent) => onOptionKey(e, i())}
-              >
-                <span class="q__label">{o.label}</span>
-                <Show when={o.description}>
-                  <span class="q__desc">{o.description}</span>
-                </Show>
-              </Button>
-            )}
-          </For>
+        <div class="perm__top">
+          <header class="perm__head">
+            <span class="perm__tile" aria-hidden="true">
+              <Icon icon={CircleQuestionMark} size={16} />
+            </span>
+            <span class="perm__titles">
+              <span class="perm__title">{t("chat.q.title")}</span>
+            </span>
+          </header>
+          <p class="perm__summary perm__target"><span class="perm__clamp" ref={state.target}>{props.item.prompt}</span></p>
         </div>
-        <Input size="sm" aria-label={t("chat.q.own")} placeholder={t("chat.q.own")} value={text()} onInput={(e) => setText(e.currentTarget.value)} onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), submit())} />
-        <div class="perm__actions">
-          <Button size="sm" variant="primary" disabled={!canSend()} onClick={submit}>
-            {t("chat.q.send")}
-          </Button>
+        <div class="perm__body" ref={state.body} data-more={state.more() ? "" : undefined} aria-describedby={state.more() ? state.cueId : undefined}>
+          <Show when={state.clipped()}>
+            <p class="perm__summary perm__full ui-selectable" aria-label={t("chat.perm.full")}>{props.item.prompt}</p>
+          </Show>
+          <div class="q__options" role={props.item.multi ? "group" : "radiogroup"} aria-label={t("chat.q.options")}>
+            <For each={props.item.options}>
+              {(o, i) => (
+                <Button
+                  class="q__option"
+                  variant="secondary"
+                  size="md"
+                  role={props.item.multi ? undefined : "radio"}
+                  aria-checked={props.item.multi ? undefined : picked().includes(o.id)}
+                  aria-pressed={props.item.multi ? picked().includes(o.id) : undefined}
+                  tabIndex={tabbable(o.id, i()) ? 0 : -1}
+                  data-primary={i() === 0 ? "" : undefined}
+                  data-picked={picked().includes(o.id) ? "" : undefined}
+                  onClick={(e: MouseEvent) => keyClickTooSoon(card, e) || toggle(o.id)}
+                  onKeyDown={(e: KeyboardEvent) => onOptionKey(e, i())}
+                >
+                  <span class="q__label">{o.label}</span>
+                  <Show when={o.description}>
+                    <span class="q__desc">{o.description}</span>
+                  </Show>
+                </Button>
+              )}
+            </For>
+          </div>
+          <Input size="sm" aria-label={t("chat.q.own")} placeholder={t("chat.q.own")} value={text()} onInput={(e) => setText(e.currentTarget.value)} onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), submit())} />
+        </div>
+        <div class="perm__foot">
+          <MoreBelow state={state} />
+          <div class="perm__actions">
+            <Button size="xl" variant="primary" disabled={!canSend()} onClick={(e: MouseEvent) => submit(e)}>
+              {t("chat.q.send")}
+            </Button>
+          </div>
         </div>
       </section>
     </Show>

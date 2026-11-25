@@ -5,7 +5,8 @@ import { ipc } from "../../ipc";
 import { createMockIpc } from "../../ipc/mock";
 import type { ServerInfo } from "../../ipc/run";
 import type { WidgetProps, WidgetSize } from "../../platform/widgets";
-import { resetAgents, startAgentStore } from "../../store/agents";
+import { appMode, registerModeView, resetModes } from "../../platform/mode";
+import { agentRows, resetAgents, selectedAgentId, startAgentStore } from "../../store/agents";
 import { applyServerState, resetDevServers } from "../../store/devservers";
 import { resetSnapshots } from "../../store/snapshots";
 import { installDomStubs } from "../../store/testing-u2";
@@ -62,15 +63,34 @@ const never = <T,>() => new Promise<T>(() => {});
 const busy = () => document.querySelector('[aria-busy="true"]');
 
 describe("Run pulse", () => {
-  it("loads, then counts the runs, and Start run opens the New run dialog", async () => {
+  it("loads, then lists the runs that want something, and Answer opens the run in Agent mode", async () => {
     show(RunPulse);
     expect(busy()).toBeTruthy();
     startAgentStore(createMockIpc("agent-permission", { delayScale: 0 }));
-    expect(await screen.findByText("Needs you")).toBeTruthy();
-    await vi.waitFor(() => expect(screen.getByText("Needs you").closest(".ui-kpi")!.textContent).toContain("1"));
+    const answer = await screen.findByRole("button", { name: /^Answer: / });
+    expect(answer.dataset.variant).toBe("primary");
+    expect(answer.closest("li")!.textContent).toContain("Needs you");
     expect(screen.getByText(/^Today:/)).toBeTruthy();
-    fireEvent.click(screen.getAllByRole("button", { name: "Start run" })[0]);
-    expect(requestNewRun).toHaveBeenCalledWith({ prompt: "" });
+    registerModeView({ id: "agent", title: "Agent", component: () => null });
+    fireEvent.click(answer);
+    expect(appMode()).toBe("agent");
+    await vi.waitFor(() => expect(selectedAgentId()).toBe(agentRows().find((r) => r.status === "needsYou")!.agentId));
+    resetModes();
+  });
+
+  it("offers Review for a finished run nobody opened and Open for the others", async () => {
+    const client = createMockIpc("agent-normal", { delayScale: 0 });
+    const list = await client.agentList();
+    client.agentList = async () => [
+      { ...list[0], agentId: "d1", title: "Finished one", status: "done" },
+      { ...list[0], agentId: "e1", title: "Broken one", status: "error" },
+    ];
+    startAgentStore(client);
+    show(RunPulse);
+    const review = await screen.findByRole("button", { name: "Review: Finished one" });
+    expect(review.dataset.variant).toBe("secondary");
+    expect(review.textContent).toBe("Review");
+    expect(screen.getByRole("button", { name: "Open: Broken one" }).closest("li")!.textContent).toContain("Failed");
   });
 
   it("says why it is empty and shows a failed load", async () => {
@@ -79,6 +99,8 @@ describe("Run pulse", () => {
     startAgentStore(empty);
     show(RunPulse);
     expect(await screen.findByText("No runs yet")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Start run" }));
+    expect(requestNewRun).toHaveBeenCalledWith({ prompt: "" });
     cleanup();
     resetAgents();
     const broken = createMockIpc("agent-normal", { delayScale: 0 });
@@ -99,7 +121,9 @@ describe("Burn-down", () => {
     expect(screen.getByText("Week (7 days)")).toBeTruthy();
     expect(screen.getAllByRole("progressbar")).toHaveLength(2);
     expect(screen.getByText("Spent today")).toBeTruthy();
-    expect(screen.getByRole("img", { name: "Cost of the last 14 days" })).toBeTruthy();
+    const chart = screen.getByRole("img", { name: /^Cost of the last 14 days: the highest was \$[\d.,]+, .*; today \$[\d.,]+\.$/ });
+    expect(chart.querySelectorAll(".dash-chart__bar")).toHaveLength(14);
+    expect(chart.querySelectorAll("[data-now]")).toHaveLength(1);
   });
 
   it("explains a missing plan, an empty history and a failed read", async () => {

@@ -28,6 +28,13 @@ async function pickMode(pop, mode) {
   await waitFor(() => card.getAttribute("aria-checked") === "true", { what: `mode ${mode} picked` });
 }
 
+/** The repositories of the New run dialog are tick cards (a label around a checkbox): ticks exactly the ones `want(name)` accepts. */
+function pickRepos(pop, want) {
+  for (const box of qa('[aria-label="Repositories"] input[type="checkbox"]', pop)) {
+    if (box.checked !== !!want(text(box.closest("label")))) box.click();
+  }
+}
+
 /**
  * Opens "New run", picks the role and repos (by repo name), the mode, types the prompt and starts; waits for the run header.
  * The dialog now opens in Automatic, so a scenario that wants the old behaviour (a card for every call that asks) names the mode:
@@ -43,10 +50,7 @@ async function newRun(role, repoNames, prompt, { mode } = {}) {
   await sleep(150);
   const own = (await invoke("agent_roles")).find((r) => r.name === role)?.permission ?? "ask";
   await pickMode(pop, mode ?? own);
-  for (const b of qa('[aria-label="Repositories"] button', pop)) {
-    const want = repoNames.some((n) => text(b).includes(n));
-    if ((b.getAttribute("aria-pressed") === "true") !== want) b.click();
-  }
+  pickRepos(pop, (name) => repoNames.some((n) => name.includes(n)));
   await sleep(100);
   await typeInto(q('textarea[aria-label="Prompt"]', pop), prompt);
   await clickButton("Start run", pop);

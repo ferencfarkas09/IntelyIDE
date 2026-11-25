@@ -2,7 +2,7 @@
 
 Safety presets give the permission modes of an agent run three plain names, so choosing how much a run may do on its own does not need the details of each mode. Applies to version 1.14.0.
 
-It is a lazy extra that starts switched on. The presets appear above the permission cards of the New Run dialog; Settings > Agents sets the one new runs start with and switches the presets off.
+It is a lazy extra that starts switched on. The presets appear in the New Run dialog as the names of three of its permission cards (Careful on Ask, Balanced on Edit automatically, Autonomous on Automatic; the mode's own name stays beside the preset name, and Plan and Bypass stay as cards of their own); Settings > Agents sets the one new runs start with and switches the presets off.
 
 ## The three presets
 

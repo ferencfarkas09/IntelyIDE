@@ -3,6 +3,7 @@
   "prompts.cmd.run": "Mentett prompt futtatása...",
   "prompts.cmd.open": "Promptkönyvtár megnyitása",
   "prompts.picker": "Mentett promptok",
+  "prompts.all": "Összes prompt",
   "prompts.search": "Keresés a promptok között",
   "prompts.listAria": "Promptok",
   "prompts.noMatch": "Nincs ilyen prompt.",

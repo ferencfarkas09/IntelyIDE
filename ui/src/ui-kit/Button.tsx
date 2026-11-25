@@ -4,7 +4,8 @@ import { Icon } from "./Icon";
 import { Spinner } from "./Spinner";
 
 export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
-export type ButtonSize = "sm" | "md" | "lg";
+/** sm 24, md 28, lg 32, xl 36 px (dialog footers, permission cards). */
+export type ButtonSize = "sm" | "md" | "lg" | "xl";
 
 export interface ButtonProps extends Omit<JSX.ButtonHTMLAttributes<HTMLButtonElement>, "children"> {
   variant?: ButtonVariant;
@@ -19,7 +20,7 @@ export interface ButtonProps extends Omit<JSX.ButtonHTMLAttributes<HTMLButtonEle
 
 export function Button(props: ButtonProps) {
   const [local, rest] = splitProps(props, ["variant", "size", "loading", "icon", "iconRight", "fullWidth", "children", "class", "onClick", "type"]);
-  const iconSize = () => (local.size === "lg" ? 16 : 14);
+  const iconSize = () => (local.size === "xl" ? 16 : 14);
   return (
     <button
       {...rest}

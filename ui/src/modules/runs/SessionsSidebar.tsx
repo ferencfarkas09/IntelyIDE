@@ -5,13 +5,13 @@ import { agentRows, agentView, selectAgent, selectedAgentId, selectStartingRun }
 import { startingInFront, startingRuns } from "../../store/starting";
 import { hiddenCount, scopeRows, setShowOtherWorkspaces, showOtherWorkspaces } from "../../store/agentScope";
 import { repoConfig } from "../../store/workspace";
-import { Badge, Bot, Button, Checkbox, ChevronDown, ChevronRight, EmptyState, Icon, IconButton, Inbox, Plus, ScrollArea, Select, toast, X } from "../../ui-kit";
+import { Badge, Bot, Button, Checkbox, ChevronDown, ChevronRight, Chip, EmptyState, Icon, IconButton, Inbox, Plus, ScrollArea, Select, toast, X } from "../../ui-kit";
 import { execute } from "../../platform/commands";
 import { RunCard, RunRow } from "./RunCard";
 import { closedRuns, closeRuns, reopenRuns } from "./closed";
 import { reviewedRuns } from "./reviewed";
 import { closedCount, filterChoices, groupSessions, isClosed, NO_FILTER, previewRows, type SessionGroup } from "./sessionsLogic";
-import { centreView, sessionFilter, setCentreView, setSessionFilter } from "./state";
+import { centreView, sessionFilter, sessionStatus, setCentreView, setSessionFilter, setSessionStatus, type SessionStatusFilter } from "./state";
 import { inboxCount } from "./inbox";
 
 const sameIds = (a: readonly string[], b: readonly string[]): boolean => a.length === b.length && a.every((id, i) => id === b[i]);
@@ -34,10 +34,20 @@ export function SessionsSidebar() {
     if (!next.delete(id)) next.add(id);
     put(next);
   };
-  const groups = createMemo(() => groupSessions(scoped(), sessionFilter(), reviewedRuns(), Date.now(), { closed: closedRuns(), showClosed: showClosed() }));
+  const allGroups = createMemo(() => groupSessions(scoped(), sessionFilter(), reviewedRuns(), Date.now(), { closed: closedRuns(), showClosed: showClosed() }));
+  // The pills narrow the list to one group; their counts follow the role and repo filters.
+  const groups = createMemo(() => (sessionStatus() === "all" ? allGroups() : allGroups().filter((g) => g.id === sessionStatus())));
+  const countOf = (id: SessionGroup) => allGroups().find((g) => g.id === id)?.rows.length ?? 0;
+  const total = () => allGroups().reduce((n, g) => n + g.rows.length, 0);
+  const pills = (): { id: SessionStatusFilter; label: string; count: number }[] => [
+    { id: "all", label: t("runs.sessions.all"), count: total() },
+    { id: "needsYou", label: t("runs.needsYou"), count: countOf("needsYou") },
+    { id: "review", label: t("runs.sessions.toReview"), count: countOf("review") },
+  ];
   const groupIds = createMemo(() => groups().map((g) => g.id), [], { equals: sameIds });
   const closedN = createMemo(() => closedCount(scoped(), sessionFilter(), closedRuns()));
-  const filtered = () => sessionFilter().role !== "" || sessionFilter().repoId !== "";
+  const filtered = () => sessionFilter().role !== "" || sessionFilter().repoId !== "" || sessionStatus() !== "all";
+  const clearFilters = () => (setSessionFilter(NO_FILTER), setSessionStatus("all"));
   /** Closes every finished run of a group that is still open, and offers to take it back. */
   const closeGroup = (rows: readonly { agentId: string; status: "running" | "needsYou" | "done" | "error" }[]) => {
     const ids = rows.filter((r) => !isClosed(r, closedRuns())).map((r) => r.agentId);
@@ -52,19 +62,25 @@ export function SessionsSidebar() {
   return (
     <aside class="sessions" aria-label={t("runs.sessions.label")}>
       <div class="sessions__bar">
-        <span class="sessions__title">{t("runs.sessions.title")}</span>
-        <span class="sessions__grow" />
-        <Button size="sm" variant="ghost" icon={Inbox} aria-pressed={centreView() === "inbox"} onClick={() => setCentreView(centreView() === "inbox" ? "run" : "inbox")} title={t("runs.sessions.inboxTip")}>
-          {t("runs.sessions.inbox")}
+        <h2 class="sessions__title">{t("runs.sessions.title")}</h2>
+        <span class="sessions__inbox">
+          <IconButton icon={Inbox} variant="ghost" label={inboxCount() > 0 ? t("runs.sessions.inboxCount", { count: inboxCount() }) : t("runs.sessions.inbox")} tooltip={t("runs.sessions.inboxTip")} pressed={centreView() === "inbox"} onClick={() => setCentreView(centreView() === "inbox" ? "run" : "inbox")} size="lg" />
           <Show when={inboxCount() > 0}>
-            <Badge tone="warn" numeric size="sm">
-              {inboxCount()}
-            </Badge>
+            <span class="sessions__inbox-count ui-tnum" aria-hidden="true">{inboxCount()}</span>
           </Show>
-        </Button>
-        <Button size="sm" variant="primary" icon={Plus} onClick={() => void execute("runs.new")}>
+        </span>
+        <Button size="lg" variant="primary" icon={Plus} onClick={() => void execute("runs.new")}>
           {t("runs.sessions.new")}
         </Button>
+      </div>
+      <div class="sessions__pills" role="group" aria-label={t("runs.sessions.filterStatus")}>
+        <For each={pills()}>
+          {(p) => (
+            <Chip size="sm" pressed={sessionStatus() === p.id} count={p.count} onClick={() => setSessionStatus(p.id)} data-testid={`runs-pill-${p.id}`}>
+              {p.label}
+            </Chip>
+          )}
+        </For>
       </div>
       <div class="sessions__filters">
         <Select
@@ -100,7 +116,7 @@ export function SessionsSidebar() {
             description={filtered() ? (closedN() > 0 ? t("runs.closed.noMatchDesc") : t("runs.sessions.noMatchDesc")) : closedN() > 0 ? t("runs.closed.allDesc", { count: closedN() }) : t("runs.sessions.noneDesc")}
             action={
               <div class="sessions__empty-actions">
-                <Button size="sm" variant="secondary" onClick={() => (filtered() ? setSessionFilter(NO_FILTER) : closedN() > 0 ? setShowClosed(true) : void execute("runs.new"))}>
+                <Button size="sm" variant="secondary" onClick={() => (filtered() ? clearFilters() : closedN() > 0 ? setShowClosed(true) : void execute("runs.new"))}>
                   {filtered() ? t("runs.clearFilters") : closedN() > 0 ? t("runs.closed.show", { count: closedN() }) : t("runs.newRun")}
                 </Button>
                 <Show when={filtered() && closedN() > 0}>

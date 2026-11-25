@@ -3,6 +3,7 @@
   "prompts.cmd.run": "Run a saved prompt...",
   "prompts.cmd.open": "Open prompt library",
   "prompts.picker": "Saved prompts",
+  "prompts.all": "All prompts",
   "prompts.search": "Search prompts",
   "prompts.listAria": "Prompts",
   "prompts.noMatch": "No prompt matches.",

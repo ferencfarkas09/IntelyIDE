@@ -39,19 +39,19 @@ export function ToolStatusMark(props: { status: ToolStatus }) {
     <span class="tool-status" data-status={props.status} title={STATUS_LABEL[props.status]}>
       <Switch>
         <Match when={props.status === "running"}>
-          <Spinner size={12} />
+          <Spinner size={14} />
         </Match>
         <Match when={props.status === "ok"}>
-          <Icon icon={Check} size={12} />
+          <Icon icon={Check} size={14} />
         </Match>
         <Match when={props.status === "error"}>
-          <Icon icon={CircleAlert} size={12} />
+          <Icon icon={CircleAlert} size={14} />
         </Match>
         <Match when={props.status === "denied"}>
-          <Icon icon={Ban} size={12} />
+          <Icon icon={Ban} size={14} />
         </Match>
         <Match when={props.status === "cancelled"}>
-          <Icon icon={X} size={12} />
+          <Icon icon={X} size={14} />
         </Match>
       </Switch>
       <span class="ui-sr-only">{STATUS_LABEL[props.status]}</span>
@@ -131,6 +131,13 @@ export function ToolCard(props: {
   const [manual, setManual] = createSignal<boolean | undefined>(undefined);
   const open = () => manual() ?? (!!props.item.diff || props.item.status === "error");
   const expandable = () => hasBody() || subagent();
+  /** Lines added and removed by an edit: on the card's one line, so a folded card still says how big the change is. */
+  const delta = createMemo(() => {
+    const d = props.item.diff;
+    if (!d) return undefined;
+    const lines = diffLines(d.old ?? "", d.new);
+    return { added: lines.filter((l) => l.kind === "add").length, removed: lines.filter((l) => l.kind === "del").length };
+  });
   const noteable = () => !!props.onNote && (props.item.name === "Agent" || props.item.name === "Task") && props.item.status === "running";
   return (
     <div class="tool-card" data-kind={props.item.toolKind} data-status={props.item.status} data-nested={props.nested ? "" : undefined}>
@@ -139,7 +146,7 @@ export function ToolCard(props: {
           <Icon icon={ChevronRight} size={12} />
         </span>
         <span class="tool-card__icon">
-          <Icon icon={KIND_ICON[props.item.toolKind]} size={14} />
+          <Icon icon={KIND_ICON[props.item.toolKind]} size={16} />
         </span>
         <span class="tool-card__name">{subagent() ? t("chat.tool.subagent") : props.item.name}</span>
         <Show when={role()}>
@@ -161,6 +168,14 @@ export function ToolCard(props: {
             )}
           </Show>
         </span>
+        <Show when={delta()}>
+          {(d) => (
+            <span class="tool-card__delta ui-tnum" role="img" aria-label={t("chat.tool.delta", { added: d().added, removed: d().removed })}>
+              <span class="tool-card__delta-add" aria-hidden="true">+{d().added}</span>
+              <span class="tool-card__delta-del" aria-hidden="true">-{d().removed}</span>
+            </span>
+          )}
+        </Show>
         <Show when={subagent()}>
           <span class="tool-card__count ui-tnum">{t("chat.tool.calls", { n: props.children!.length })}</span>
         </Show>

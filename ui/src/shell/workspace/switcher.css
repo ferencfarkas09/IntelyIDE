@@ -5,25 +5,26 @@
   display: inline-flex;
   align-items: center;
   flex: none;
-  gap: 6px;
+  gap: var(--space-2);
   max-inline-size: 280px;
-  margin-inline-end: 6px;
-  padding: 3px 8px;
-  border: 1px solid transparent;
-  border-radius: var(--radius-2);
+  block-size: var(--control-lg);
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-ctl);
+  background: var(--surface-1);
   color: var(--text-1);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
   line-height: 16px;
   white-space: nowrap;
   cursor: pointer;
   transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
 }
-.switcher:hover, .switcher[aria-expanded="true"] { background: var(--surface-hover); border-color: var(--border); }
+.switcher:hover, .switcher[aria-expanded="true"] { border-color: var(--border-strong); }
 .switcher:focus-visible { outline: var(--focus-width) solid var(--focus-color); outline-offset: var(--focus-offset); }
 .switcher:disabled { cursor: progress; color: var(--text-3); }
 .switcher[data-empty] { color: var(--text-2); }
-.switcher__dot { flex: none; inline-size: 9px; block-size: 9px; border-radius: var(--radius-full); background: var(--wc); box-shadow: 0 0 0 2px color-mix(in srgb, var(--wc) 25%, transparent); }
+.switcher__dot { flex: none; inline-size: 8px; block-size: 8px; border-radius: var(--radius-full); background: var(--wc); }
 .switcher__name { min-width: 0; overflow: hidden; }
 .switcher .ui-icon { color: var(--text-3); flex: none; }
 @media (max-width: 720px) { .switcher { max-inline-size: 150px; } }

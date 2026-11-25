@@ -66,7 +66,7 @@ let before = new Set<string>();
 const mine = () => agentRows().filter((r) => !before.has(r.agentId));
 const started = () => mine().length;
 const ready = async (d: ReturnType<typeof within>, prompt = "Check the totals") => {
-  fireEvent.click(d.getByRole("button", { name: "admin" }));
+  fireEvent.click(d.getByRole("checkbox", { name: /^admin/ }));
   fireEvent.input(d.getByLabelText("Prompt"), { target: { value: prompt } });
   await waitFor(() => expect((d.getByRole("button", { name: "Start run" }) as HTMLButtonElement).disabled).toBe(false));
 };

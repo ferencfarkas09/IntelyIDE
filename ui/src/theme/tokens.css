@@ -47,7 +47,8 @@
   --control-lg: 32px;
   --row-compact: 22px;
   --row: 24px;
-  --titlebar-h: 40px;
+  --control-xl: 36px;
+  --titlebar-h: 48px;
   --traffic-lights-w: 78px;
 
   /* Motion: two durations, one easing */
@@ -79,6 +80,10 @@
   --surface-2: #1a1b1f;
   --surface-3: #202226;
   --surface-4: #282a2f;
+  /* Reading pane (transcript, dashboard body), inset wells (diff blocks, text areas) and the track of bars and meters. */
+  --surface-pane: #131417;
+  --surface-inset: #0e0f11;
+  --track: rgba(255, 255, 255, 0.11);
   --surface-hover: rgba(255, 255, 255, 0.045);
   --surface-active: rgba(255, 255, 255, 0.075);
   --surface-selected: rgba(140, 100, 255, 0.18);
@@ -198,6 +203,9 @@
   --surface-2: #ffffff;
   --surface-3: #ffffff;
   --surface-4: #f0f1f4;
+  --surface-pane: #ffffff;
+  --surface-inset: #f3f4f7;
+  --track: rgba(16, 20, 32, 0.12);
   --surface-hover: rgba(16, 20, 32, 0.045);
   --surface-active: rgba(16, 20, 32, 0.075);
   --surface-selected: rgba(106, 59, 240, 0.11);

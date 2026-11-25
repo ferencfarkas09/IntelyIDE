@@ -17,13 +17,6 @@ export const PRESETS: readonly { id: PresetId; mode: PermissionMode }[] = [
 export const presetOf = (mode: PermissionMode | undefined): PresetId | undefined => PRESETS.find((p) => p.mode === mode)?.id;
 export const modeOf = (id: PresetId): PermissionMode => PRESETS.find((p) => p.id === id)!.mode;
 
-/** Why a preset cannot be picked now: its mode is not offered by the provider, or its gate refuses it. */
-export function presetBlocker(id: PresetId, supported: readonly PermissionMode[], unavailable: Partial<Record<PermissionMode, string>>): string | undefined {
-  const mode = modeOf(id);
-  if (unavailable[mode]) return unavailable[mode];
-  if (supported.length && !supported.includes(mode)) return "unsupported";
-}
-
 const asMode = (v: unknown): PermissionMode | undefined => (typeof v === "string" && (MODE_ORDER as readonly string[]).includes(v) && v !== "bypass" ? (v as PermissionMode) : undefined);
 
 /**

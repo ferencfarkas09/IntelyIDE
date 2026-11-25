@@ -13,7 +13,7 @@
   "modes.picker.roleReadOnly": "This role only reads, so Plan is preselected.",
   "modes.picker.unsupported": "Not available for this provider",
   "modes.picker.bypassOpens": "Asks for your confirmation first",
-  "modes.autoLead": "Lead: {model}, effort {effort}. It works in the mode you pick below.",
+  "modes.autoLead": "Lead: {model}, effort {effort}. It works in the mode you pick for the run.",
   "modes.header.change": "Permission mode: {mode}. Change it",
   "modes.header.menu": "Permission mode",
   "modes.header.bypassChip": "BYPASS",

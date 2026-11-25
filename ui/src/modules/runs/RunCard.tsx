@@ -9,7 +9,7 @@ import { foreignReason, isForeign } from "../../store/agentScope";
 import { repoConfig } from "../../store/workspace";
 import { LocationChip } from "../servers/LocationChip";
 import { RunSlots } from "../../components/RunSlots";
-import { announce, Badge, IconButton, Icon, MessagesSquare, RepoBadge, ShieldCheck, StatusDot, Undo2, X } from "../../ui-kit";
+import { announce, Badge, IconButton, Icon, MessagesSquare, ShieldCheck, StatusDot, Undo2, X } from "../../ui-kit";
 import { focusNeighbour } from "./listFocus";
 import { startRunDrag } from "./paneDnd";
 import { roleColor } from "./roleColors";
@@ -32,9 +32,8 @@ export function RunCard(props: { row: AgentRow; view: AgentView | undefined; sel
       <span class="run-card__top">
         <StatusDot tone={status().tone} label={status().label} pulse={r().status === "running"} />
         <span class="run-card__title ui-truncate">{r().title}</span>
-        <span class="run-card__ago ui-tnum">{ago(r().startedAt)}</span>
       </span>
-      <span class="run-card__activity ui-truncate" data-attention={r().status === "needsYou" ? "" : undefined}>
+      <span class="run-card__activity ui-truncate" data-tone={status().tone} data-attention={r().status === "needsYou" ? "" : undefined}>
         {activityLine(r(), props.view)}
       </span>
       <Show when={foreign()}>
@@ -42,9 +41,29 @@ export function RunCard(props: { row: AgentRow; view: AgentView | undefined; sel
       </Show>
       <span class="run-card__meta">
         <span class="run-card__role">
-          <span class="run-card__swatch" style={{ background: roleColor(r().role) ?? "var(--text-4)" }} aria-hidden="true" />
+          <span class="run-card__swatch" style={{ background: roleColor(r().role) ?? "var(--text-3)" }} aria-hidden="true" />
           {r().role === "auto" ? t("runs.role.auto") : r().role}
         </span>
+        <span class="run-card__repos ui-truncate" role="group" aria-label={t("runs.repos")} title={r().repoIds.map((id) => repoConfig(id)?.name ?? id).join(", ")}>
+          <For each={r().repoIds.slice(0, MAX_REPOS)}>
+            {(id) => (
+              <span class="run-card__repo">
+                <span aria-hidden="true">·</span> {repoConfig(id)?.name ?? id}
+              </span>
+            )}
+          </For>
+          <Show when={r().repoIds.length > MAX_REPOS}>
+            <span class="run-card__repo ui-tnum"> +{r().repoIds.length - MAX_REPOS}</span>
+          </Show>
+        </span>
+        <span class="run-card__grow" />
+        <span class="run-card__cost ui-tnum" title={cost().title}>{cost().text}</span>
+        <span class="run-card__tier" data-tone={TIER_TONE[r().enforcement]} title={TIER_TITLE[r().enforcement]} role="img" aria-label={TIER_LABEL[r().enforcement]}>
+          <Icon icon={ShieldCheck} size={12} />
+        </span>
+        <span class="run-card__ago ui-tnum">{ago(r().startedAt)}</span>
+      </span>
+      <span class="run-card__extras">
         <Show when={r().location}>{(id) => <LocationChip id={id()} />}</Show>
         <Show when={talking()}>
           <span class="run-card__peer" title={t("peer.talking")} role="img" aria-label={t("peer.talking")} data-testid="run-talking">
@@ -54,27 +73,12 @@ export function RunCard(props: { row: AgentRow; view: AgentView | undefined; sel
         <Show when={(r().delegates?.length ?? 0) > 0}>
           <Badge size="sm" class="run-card__lead" title={t("runs.leadTip")}>{t("runs.leadChip", { model: modelLabel(r().model), count: r().delegates!.length })}</Badge>
         </Show>
-        <span class="run-card__repos" role="group" aria-label={t("runs.repos")}>
-          <For each={r().repoIds.slice(0, MAX_REPOS)}>{(id) => <Show when={repoConfig(id)} fallback={<Badge size="sm">{id}</Badge>}>{(c) => <RepoBadge color={c().color} badge={c().badge} size={16} title={c().name} />}</Show>}</For>
-          <Show when={r().repoIds.length > MAX_REPOS}>
-            <Badge size="sm" numeric title={r().repoIds.slice(MAX_REPOS).map((id) => repoConfig(id)?.name ?? id).join(", ")}>
-              +{r().repoIds.length - MAX_REPOS}
-            </Badge>
-          </Show>
-        </span>
-        <span class="run-card__grow" />
         <RunSlots place="card" agent={r()} />
         <Show when={effectiveMode(r()) === "bypass"}>
           <Badge size="sm" tone="danger" variant="solid" title={t("modes.header.bypassTip")}>
             {t("modes.header.bypassChip")}
           </Badge>
         </Show>
-        <Badge size="sm" numeric title={cost().title}>
-          {cost().text}
-        </Badge>
-        <Badge size="sm" tone={TIER_TONE[r().enforcement]} variant="outline" icon={ShieldCheck} title={TIER_TITLE[r().enforcement]}>
-          {TIER_LABEL[r().enforcement]}
-        </Badge>
       </span>
     </button>
   );
@@ -113,10 +117,6 @@ export function RunRow(props: { row: AgentRow; view: AgentView | undefined; sele
         <span class="run-row__top">
           <StatusDot tone={status().tone} label={status().label} />
           <span class="run-row__title ui-truncate">{r().title}</span>
-          <span class="run-row__ago ui-tnum">{ago(r().startedAt)}</span>
-        </span>
-        <span class="run-row__slots">
-          <RunSlots place="card" agent={r()} />
         </span>
         <Show when={props.detail}>
           <span class="run-row__activity ui-truncate">{activityLine(r(), props.view)}</span>
@@ -124,6 +124,14 @@ export function RunRow(props: { row: AgentRow; view: AgentView | undefined; sele
         <Show when={foreign()}>
           <span class="run-row__foreign">{foreignReason(r().repoIds)}</span>
         </Show>
+        <span class="run-row__meta">
+          <span class="run-row__role">{role()}</span>
+          <span class="run-row__slots">
+            <RunSlots place="card" agent={r()} />
+          </span>
+          <span class="run-row__grow" />
+          <span class="run-row__ago ui-tnum">{ago(r().startedAt)}</span>
+        </span>
       </button>
       <IconButton class="run-row__close" size="sm" icon={props.closed ? Undo2 : X} label={t(props.closed ? "runs.closed.reopenRun" : "runs.closed.closeRun", { title: r().title })} tooltip={t(props.closed ? "runs.closed.reopen" : "runs.closed.close")} tooltipPlacement="left" onClick={toggle} />
     </div>

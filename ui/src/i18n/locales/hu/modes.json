@@ -13,7 +13,7 @@
   "modes.picker.roleReadOnly": "Ez a szerep csak olvas, ezért a Terv van előre kijelölve.",
   "modes.picker.unsupported": "Ennél a szolgáltatónál nem érhető el",
   "modes.picker.bypassOpens": "Előbb megerősítést kér",
-  "modes.autoLead": "Vezető: {model}, erőfeszítés: {effort}. Az alább választott módban dolgozik.",
+  "modes.autoLead": "Vezető: {model}, erőfeszítés: {effort}. A futáshoz választott módban dolgozik.",
   "modes.header.change": "Jogosultsági mód: {mode}. Módosítás",
   "modes.header.menu": "Jogosultsági mód",
   "modes.header.bypassChip": "BYPASS",

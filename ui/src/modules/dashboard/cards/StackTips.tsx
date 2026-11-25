@@ -2,8 +2,8 @@ import { createMemo, createResource, For, Show } from "solid-js";
 import { t } from "../../../i18n";
 import type { WidgetProps } from "../../../platform/widgets";
 import { repos } from "../../../store/workspace";
-import { Badge, Button, Sparkles } from "../../../ui-kit";
-import { pickTips, readRepoStack, STACK_LABEL, STACK_ORDER, startStarter, type StackTag } from "../stack";
+import { Badge, Sparkles } from "../../../ui-kit";
+import { pickTips, readRepoStack, STACK_LABEL, STACK_ORDER, startStarter, tipStack, type StackTag } from "../stack";
 import { CardEmpty, CardLoading } from "../parts";
 
 /** At most this many repositories are looked at (one folder listing and one small file each). */
@@ -34,11 +34,11 @@ export default function StackTips(props: WidgetProps) {
         <ul class="dash-tips">
           <For each={tips()}>
             {(tip) => (
-              <li class="dash-tip">
-                <span class="dash-tip__title">{t(tip.title)}</span>
-                <Button size="sm" variant="secondary" icon={Sparkles} onClick={() => void startStarter(t(tip.prompt), reposFor())} aria-label={t("dash.tips.startAria", { title: t(tip.title) })}>
-                  {t("dash.tips.start")}
-                </Button>
+              <li class="dash-tips__item">
+                <button type="button" class="dash-tip" onClick={() => void startStarter(t(tip.prompt), reposFor())} aria-label={t("dash.tips.startAria", { title: t(tip.title) })}>
+                  <span class="dash-tip__title">{t(tip.title)}</span>
+                  <span class="dash-tip__sub">{tipStack(tip.id) ? t("dash.tips.forStack", { stack: STACK_LABEL[tipStack(tip.id)!] }) : t("dash.tips.forAny")}</span>
+                </button>
               </li>
             )}
           </For>

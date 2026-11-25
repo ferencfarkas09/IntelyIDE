@@ -9,8 +9,11 @@ vi.mock("../../ipc", async (orig) => {
 
 import { ipc } from "../../ipc";
 import { agentRows, resetAgents, startAgentStore } from "../../store/agents";
+import { resetNewRunSlots } from "../../platform/newRunSlots";
 import { installDomStubs } from "../../store/testing-u2";
+import { chordLabel, isMac } from "../../platform/keymap";
 import { loadWorkspace } from "../../store/workspace";
+import { setPresetsEnabled } from "../presets/toggle";
 import { NewRunDialog } from "./NewRunDialog";
 import { setNewRunOpen } from "./state";
 
@@ -22,12 +25,15 @@ beforeEach(async () => {
   startAgentStore();
   // The mock settings outlive a test: forget the mode a previous test used last.
   await ipc.settings.set("runs", { lastMode: null });
+  // The safety presets are on in the app; the tests here read the modes by their own names unless they say otherwise.
+  setPresetsEnabled(false);
 });
 afterEach(() => {
   vi.restoreAllMocks();
   cleanup();
   setNewRunOpen(false);
   resetAgents();
+  resetNewRunSlots();
 });
 
 /** The dialog opens in Auto; `role` (the default here, for the provider tests of single-role runs) opens "Run as role..." first. */
@@ -42,7 +48,9 @@ const open = async (mode: "role" | "auto" = "role") => {
   }
   return d;
 };
-const repo = (d: ReturnType<typeof within>, name: string) => fireEvent.click(d.getByRole("button", { name }));
+/** A repository is a tick card: its name, then its branch (one after the other in the accessible name). */
+const repoBox = (d: ReturnType<typeof within>, name: string) => d.getByRole("checkbox", { name: new RegExp(`^${name}`) }) as HTMLInputElement;
+const repo = (d: ReturnType<typeof within>, name: string) => fireEvent.click(repoBox(d, name));
 const role = (d: ReturnType<typeof within>, name: string) => fireEvent.click(d.getByRole("radio", { name: new RegExp(`^${name}`) }));
 const provider = (d: ReturnType<typeof within>, name: string) => d.getByRole("radio", { name: new RegExp(`^${name}`) });
 /** What the user does in Settings > Providers before Codex can be picked: global switch, own switch, confirmed command line. */
@@ -135,6 +143,77 @@ describe("<NewRunDialog> provider picker", () => {
     await waitFor(() => expect(spy).toHaveBeenCalledTimes(2));
     expect(spy.mock.calls[1][1]).toEqual({ runWithoutSafetyNet: true });
     spy.mockRestore();
+  });
+});
+
+describe("<NewRunDialog> layout", () => {
+  it("asks for the task first, then the repositories as tick cards with their branch, and keeps the safety and model choices in the side column", async () => {
+    const d = await open("auto");
+    const prompt = d.getByLabelText("Prompt") as HTMLTextAreaElement;
+    expect(d.getByText("What should the agent do?").getAttribute("for")).toBe(prompt.id);
+    await waitFor(() => expect(document.activeElement).toBe(prompt));
+    const main = document.querySelector(".newrun__main")!;
+    const side = document.querySelector(".newrun__side")!;
+    // the prompt is the first control of the form (keyboard order), the repositories follow it
+    expect(main.querySelector("textarea, input, button, select")).toBe(prompt);
+    const repos = within(d.getByRole("group", { name: "Repositories" })).getAllByRole("checkbox") as HTMLInputElement[];
+    expect(repos.map((r) => r.closest("label")!.querySelector(".ui-choice__title")!.textContent)).toEqual(["shop-backend", "admin", "shop-mobile", "shop-pos"]);
+    expect(repos.every((r) => main.contains(r) && !r.checked)).toBe(true);
+    await waitFor(() => expect(repoBox(d, "admin").closest("label")!.querySelector(".ui-choice__desc[data-mono]")?.textContent).toBeTruthy());
+    repo(d, "admin");
+    expect(repoBox(d, "admin").checked).toBe(true);
+    fireEvent.click(d.getByRole("button", { name: "All" }));
+    expect(repos.every((r) => r.checked)).toBe(true);
+    fireEvent.click(d.getByRole("button", { name: "None" }));
+    expect(repos.some((r) => r.checked)).toBe(false);
+    await waitFor(() => expect(side.contains(d.getByRole("radiogroup", { name: "Permission mode" }))).toBe(true));
+    await waitFor(() => expect(side.contains(d.getByRole("combobox", { name: "Model" }))).toBe(true));
+    expect(d.getByRole("radiogroup", { name: "Permission mode" }).getAttribute("data-layout")).toBe("radio");
+  });
+
+  it("sums the run up in the footer: the model and effort that apply and how many repositories, and keeps the reason Start waits", async () => {
+    const d = await open("auto");
+    const summary = () => d.getByTestId("newrun-summary").textContent;
+    await waitFor(() => expect(summary()).toBe("Sonnet 5.5 · Medium · no repository"));
+    expect(d.getByText("Pick at least one repository")).toBeTruthy();
+    repo(d, "admin");
+    await waitFor(() => expect(summary()).toBe("Sonnet 5.5 · Medium · 1 repository"));
+    repo(d, "shop-pos");
+    await waitFor(() => expect(summary()).toBe("Sonnet 5.5 · Medium · 2 repositories"));
+    await waitFor(() => expect([...(d.getByRole("combobox", { name: "Model" }) as HTMLSelectElement).options].map((o) => o.value)).toContain("claude-opus-5-5"));
+    fireEvent.change(d.getByRole("combobox", { name: "Model" }), { target: { value: "claude-opus-5-5" } });
+    fireEvent.click(within(d.getByRole("radiogroup", { name: "Effort" })).getByRole("radio", { name: "Max" }));
+    await waitFor(() => expect(summary()).toBe("Opus 5.5 · Max · 2 repositories"));
+    // the shortcut sits in the button and is not part of its name
+    const start = d.getByRole("button", { name: "Start run" });
+    expect(start.querySelector(".ui-btn__kbd")?.getAttribute("aria-hidden")).toBe("true");
+    // the platform's own modifier (Ctrl outside macOS), never a hard-coded Cmd
+    expect(chordLabel("Mod+Enter", true)).toBe("⌘↵");
+    expect(chordLabel("Mod+Enter", false)).toBe("Ctrl+Enter");
+    expect(start.querySelector(".ui-btn__kbd")?.textContent).toBe(isMac() ? "⌘↵" : "Ctrl+Enter");
+    expect(start.getAttribute("aria-keyshortcuts")).toBe("Meta+Enter Control+Enter");
+  });
+
+  it("names the mode cards after the safety presets while they are on", async () => {
+    setPresetsEnabled(true);
+    const d = await open("auto");
+    const group = () => within(d.getByRole("radiogroup", { name: "Permission mode" }));
+    await waitFor(() => expect(group().getAllByRole("radio")).toHaveLength(5));
+    expect(group().getAllByRole("radio").map((c) => c.querySelector(".mode-card__label")?.textContent)).toEqual(["Plan / read only", "Careful", "Balanced", "Autonomous", "Bypass"]);
+    expect(group().getAllByRole("radio").map((c) => c.querySelector(".mode-card__mode")?.textContent ?? "")).toEqual(["", "Ask", "Edit automatically", "Automatic", ""]);
+    expect(group().getByRole("radio", { name: /^Autonomous/ }).getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(group().getByRole("radio", { name: /^Careful/ }));
+    await waitFor(() => expect(group().getByRole("radio", { name: /^Careful/ }).getAttribute("data-mode")).toBe("ask"));
+    expect(group().getByRole("radio", { name: /^Careful/ }).getAttribute("aria-checked")).toBe("true");
+    expect(d.getByText(/Asks you before every file change/)).toBeTruthy();
+  });
+
+  it("keeps the modes' own names while the safety presets are off", async () => {
+    const d = await open("auto");
+    const group = () => within(d.getByRole("radiogroup", { name: "Permission mode" }));
+    await waitFor(() => expect(group().getAllByRole("radio")).toHaveLength(5));
+    expect(group().getAllByRole("radio").map((c) => c.querySelector(".mode-card__label")?.textContent)).toEqual(["Plan / read only", "Ask", "Edit automatically", "Automatic", "Bypass"]);
+    expect(d.queryByRole("button", { name: "Turn on Checks with the secret scan" })).toBeNull();
   });
 });
 
@@ -447,12 +526,14 @@ describe("<NewRunDialog> permission mode", () => {
 describe("<NewRunDialog> run picker", () => {
   const ready = async (d: ReturnType<typeof within>) => {
     // a role proposes its own repositories; Auto starts with none
-    if (d.getByRole("button", { name: "admin" }).getAttribute("aria-pressed") !== "true") repo(d, "admin");
+    if (!repoBox(d, "admin").checked) repo(d, "admin");
     fireEvent.input(d.getByLabelText("Prompt"), { target: { value: "Fix the total" } });
     await waitFor(() => expect((d.getByRole("button", { name: "Start run" }) as HTMLButtonElement).disabled).toBe(false));
   };
   const model = (d: ReturnType<typeof within>) => d.getByRole("combobox", { name: "Model" }) as HTMLSelectElement;
-  const effort = (d: ReturnType<typeof within>) => d.getByRole("combobox", { name: "Effort" }) as HTMLSelectElement;
+  const effortGroup = (d: ReturnType<typeof within>) => within(d.getByRole("radiogroup", { name: "Effort" }));
+  /** The effort level the segmented control shows as the run's own: the picked one, else the role's. */
+  const effort = (d: ReturnType<typeof within>) => effortGroup(d).getAllByRole("radio").find((r) => r.getAttribute("aria-checked") === "true")?.textContent;
   beforeEach(async () => {
     await ipc.settings.set("runs", { lastPicks: null });
   });
@@ -476,7 +557,7 @@ describe("<NewRunDialog> run picker", () => {
     const d = await open();
     await waitFor(() => expect([...model(d).options].map((o) => o.value)).toContain("claude-opus-5-5"));
     fireEvent.change(model(d), { target: { value: "claude-opus-5-5" } });
-    fireEvent.change(effort(d), { target: { value: "max" } });
+    fireEvent.click(effortGroup(d).getByRole("radio", { name: "Max" }));
     fireEvent.click(d.getByRole("switch", { name: /Ultracode/ }));
     await ready(d);
     fireEvent.click(d.getByRole("button", { name: "Start run" }));
@@ -499,7 +580,7 @@ describe("<NewRunDialog> run picker", () => {
     await waitFor(() => expect(model(d).value).toBe("claude-opus-5-5"));
     fireEvent.click(d.getByRole("button", { name: "Use the role's defaults" }));
     await waitFor(() => expect(model(d).value).toBe(""));
-    expect(effort(d).value).toBe("");
+    expect(effort(d)).toBe("Medium"); // the developer role's own effort again
     await ready(d);
     fireEvent.click(d.getByRole("button", { name: "Start run" }));
     await waitFor(() => expect(spy).toHaveBeenCalled());

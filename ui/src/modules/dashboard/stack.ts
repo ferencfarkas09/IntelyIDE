@@ -76,6 +76,11 @@ export function pickTips(tags: readonly StackTag[], n = 3): StackTip[] {
   return out;
 }
 
+/** The stack a tip is about; `undefined` for the general ones. */
+export function tipStack(id: string): StackTag | undefined {
+  return STACK_ORDER.find((tag) => TIPS[tag].some((x) => x.id === id));
+}
+
 export interface RepoStack {
   repoId: string;
   tags: StackTag[];

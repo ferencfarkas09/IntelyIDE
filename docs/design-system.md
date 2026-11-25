@@ -19,7 +19,7 @@ Dark is the default. Light applies on any element with `data-theme="light"` (the
 
 | Group | Tokens |
 |---|---|
-| Surfaces | `--surface-0..4`, `--surface-hover`, `--surface-active`, `--surface-selected`, `--surface-selected-inactive`, `--backdrop` (+ `--backdrop-blur`) |
+| Surfaces | `--surface-0..4`, `--surface-pane` (the opaque reading pane: transcript, dashboard body), `--surface-inset` (wells: diff blocks, code blocks, large text areas), `--track` (the track of bars and meters), `--surface-hover`, `--surface-active`, `--surface-selected`, `--surface-selected-inactive`, `--backdrop` (+ `--backdrop-blur`) |
 | Borders | `--border-subtle` (6-7 % alpha), `--border`, `--border-strong` |
 | Text | `--text-1` primary, `--text-2` secondary, `--text-3` tertiary/placeholder/meta, `--text-4` disabled only, `--text-on-accent` |
 | Accent (brand violet) | `--accent`, `--accent-hover`, `--accent-active` (fills), `--accent-text` (text/icons on surfaces), `--accent-subtle`, `--accent-subtle-hover`, `--accent-border`, `--focus-color` |
@@ -30,8 +30,8 @@ Dark is the default. Light applies on any element with `data-theme="light"` (the
 | Type | `--font-ui` (Inter Variable), `--font-mono` (JetBrains Mono Variable), `--text-xs/sm/base/md/lg/xl` = 11/12/13/14/16/20 px, `--weight-regular/medium/semibold` = 400/500/600 |
 | Logo ink | `--brand-ink`, `--brand-sub`, `--brand-ide-a`, `--brand-ide-b`, `--brand-shadow` (read by `BrandMark`; the cursor and spark flip to dark ink in the light theme) |
 | Spacing | `--space-1..12` = 4, 8, 12, 16, 20, 24, 32, 40, 48 px (`--space-half` 2 px for optical nudges) |
-| Radii | `--radius-1..4` = 4 / 6 / 8 / 12 px, `--radius-full` |
-| Sizes | `--control-sm/md/lg` = 24/28/32 px, `--row-compact` 22 px, `--row` 24 px, `--titlebar-h` 40 px, `--traffic-lights-w` 78 px |
+| Radii | `--radius-1..4` = 4 / 6 / 8 / 12 px, `--radius-full`; the shape tokens `--radius-panel` / `--radius-card` / `--radius-ctl` = 10 / 10 / 8 px in Standard and 16 / 14 / 10 px in Glass (declared in `glass.css`, see Shape and layout) |
+| Sizes | `--control-sm/md/lg/xl` = 24/28/32/36 px, `--row-compact` 22 px, `--row` 24 px, `--titlebar-h` 48 px, `--traffic-lights-w` 78 px |
 | Elevation | `--shadow-sm`, `--shadow-md`, `--shadow-popover`, `--shadow-dialog` (popover and dialog include a 1 px ring), `--highlight-top` and `--highlight-accent` (inset top highlights on buttons) |
 | Motion | `--dur-fast` 120 ms, `--dur` 180 ms, `--ease` |
 | Layers | `--z-sticky` 10, `--z-chrome` 20, `--z-dialog` 1000, `--z-popover` 1100, `--z-toast` 1200, `--z-tooltip` 1300 |
@@ -46,6 +46,22 @@ Inter Variable and JetBrains Mono Variable are self-hosted from `@fontsource-var
 ### Utility classes
 `ui-truncate`, `ui-tnum`, `ui-mono`, `ui-text-2/3/4`, `ui-sr-only`, `ui-selectable` (re-enables text selection; the app chrome is `user-select: none`), `ui-theme-scope` (themed sub-tree background), `ui-file-deleted` (dim + strike-through file name), `ui-path-hint` (dim path after a file name).
 
+## Shape and layout (1.15 refresh)
+One shape language for both skins; only the numbers differ.
+
+| Token | Standard | Glass | Used by |
+|---|---|---|---|
+| `--radius-panel` | 10 px | 16 px | The panels of the window: tool window, centre, runs list, run view, run details cards, dock |
+| `--radius-card` | 10 px | 14 px | Cards inside a panel: `Card`, `KpiTile`, run cards, tool cards, permission cards |
+| `--radius-ctl` | 8 px | 10 px | Controls: buttons (md and up), fields, choice cards, segmented controls |
+
+- Window: a 48 px title bar, then the rail and the panels straight on the window background (`--surface-0`, the gradient in Glass) with 8 px gaps. Every panel has a 1 px hairline and `--radius-panel`; the 8 px gap between two panels is the splitter (empty until pointed at, dragged or focused). Side panels paint `--surface-1`, reading panes paint `--surface-pane`, which is opaque in every skin.
+- Title bar: the Agent / Editor switch is a `SegmentedControl size="lg" variant="accent"` (the chosen mode is filled with the accent, the waiting count sits inside it), then the workspace switcher (32 px, bordered), the repo chips (26 px quiet capsules: colour dot, name, branch in mono, ahead/behind; what does not fit is listed under a dashed "N more" chip) and a field-shaped button "Search or run a command" with its shortcut, which opens the command palette.
+- Rail: 40 x 40 buttons with a 12 px radius; the open tool window has the `--accent-subtle` fill and the `--accent-text` icon; counts sit on the icon as a 15 px badge. Every button has an `aria-label` and a tooltip.
+- Runs list: a 15 px title with the primary New run button, filter chips (`Chip` with `pressed` and `count`) above the role and repository selects, section headers in small caps (11 px, 600, 0.04em), run cards with a status dot and the title, one line in the status colour that says what the run does or asks, and a quiet meta row (role, repository, cost, enforcement mark, time). The open run has the accent border on `--surface-2`.
+- Run view: the header has a role tile (30 px, initials), the run's title as the heading (16 px, up to two lines), a status pill, the action buttons (32 px, bordered; other modules add theirs through the `header` run slot) and a row of 24 px quiet chips with tokens and cost at the end. The conversation column is 800 px wide and centred, 14 px text with 1.55 leading; the person's messages are right-aligned bubbles (`--accent-subtle`, 16 px radius with one 4 px corner), the agent's prose is plain, tool calls are compact cards (icon, name, mono target, +/- counts, duration, status) with the diff or the output in a `--surface-inset` block, permission and question cards have an icon tile, a 15 px title with one line under it, the command or path in a mono row and 36 px buttons with Deny first. The composer is one 16 px card (field, attach, saved prompts, send hint, Send or Stop). Run details on the right are stacked cards, one per Inspector panel.
+- The transcript, the run log, their rows and the panes around them take no `backdrop-filter`, `will-change`, `content-visibility`, `contain: paint` or `filter` (`theme/transcript-guard.test.ts`): they are plain opaque surfaces.
+
 ## Glass skin (`theme/glass.css`, `theme/skin.ts`)
 A second look on its own axis: `data-skin="glass"` on `<html>`, independent of `data-theme` (light, dark) and `data-accent`, so every theme and accent combination works with both skins. The style is chosen in Settings > Appearance > Style (Standard or Glass) and stored in settings.json (`appearance.skin`, mirrored in `localStorage` for the first paint). `?skin=standard|glass` shows a skin for screenshots without storing it.
 
@@ -53,7 +69,7 @@ Default: Glass for new installs only. A profile with no `intely.*` key in `local
 
 What Glass changes:
 - Backdrop: a soft gradient on `<html>` (light: blue, lilac, peach; dark: deep indigo, violet, teal) over an opaque base colour, so the page background stays opaque for checks such as `assertTheme` in `scripts/e2e/shots-lib.js`. `body`, `.shell` and `.ui-theme-scope` turn transparent.
-- Panes float as rounded sheets (`--radius-card` 18 px, hairline `--glass-border`, inset `--glass-highlight`, soft `--card-shadow`): the tool window, the centre, the dock and the Agent mode panes. Each pane paints one tint (`--glass-panel`); `--surface-1` is transparent in Glass, so nested panels never stack their tints. The rail, title bar and status bar sit on the gradient with the light `--surface-0` tint.
+- Panes float as rounded sheets (`--radius-panel` 16 px, hairline `--glass-border`, inset `--glass-highlight`, soft `--card-shadow`; the gaps, the hairline and the radius are the same rule as in Standard, see Shape and layout): the tool window, the centre, the dock and the Agent mode panes. Each pane paints one tint (`--glass-panel`); `--surface-1` is transparent in Glass, so nested panels never stack their tints. The rail, title bar and status bar sit on the gradient with the light `--surface-0` tint.
 - `--surface-2` (raised: cards, fields, pills), `--surface-3` (overlays) and `--surface-4` (controls) are translucent tints. Popovers, menus, dialogs, toasts and tooltips are frosted (`backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate))`); `class="glass-frost"` gives custom floating UI the same, `class="glass-panel"` the pane tint. The module popups and sheets that paint a raised surface above the content (`.composer__pop`, `.hc-mention-list`, `.results-sheet`, `.msg__copy`, `.run-log__follow`, `.pi__style`, `.att-overlay__pill`, `.att-lightbox__bar`) are listed in the frosted-overlay selectors of `glass.css` (blur plus `--glass-bg`); `glass.test.ts` checks each one. A new floating element that uses `--surface-3`/`--surface-4` goes into that list or takes `glass-frost`: the 86-90 % tint alone lets text behind it show through.
 - Editors, the diff and the terminal stay solid: inside `.cm-editor`, `.diff-view`, `.term-host` and `.xterm` the surfaces resolve to the opaque `--pane-1..4`. Code that paints from tokens (xterm, the lane graph canvas) reads `--pane-*`, never a translucent surface, and repaints on `appearanceLook()` (theme + skin + transparency), not only on `resolvedTheme()`.
 - Shape (also when opaque): capsule pills and badges (`--radius-full`), `--radius-3` 10 px, `--radius-4` 16 px, larger rail buttons and tree row highlights. Selected rows in a focused tree, the palette and the Settings list get a solid accent fill with the on-accent ink for every text level (any mix with the fill would drop below 4.5:1); a checked box on such a row turns into an on-accent box with an accent tick.
@@ -70,12 +86,14 @@ All props are typed; see the source for the full list.
 
 | Component | Use it for | Notes |
 |---|---|---|
-| `Button` | Actions with a text label | `variant` primary / secondary / ghost / danger, `size` sm / md / lg, `loading` (keeps width and focus), `icon`, `iconRight`. One primary per surface. |
+| `Button` | Actions with a text label | `variant` primary / secondary / ghost / danger, `size` sm / md / lg / xl (24 / 28 / 32 / 36 px; xl for dialog footers and permission cards), `class="ui-btn__kbd"` on a span inside for a shortcut hint, `loading` (keeps width and focus), `icon`, `iconRight`. One primary per surface. |
 | `IconButton` | Toolbar and row actions | `label` required (aria-label and tooltip), `shortcut` shows Kbd chips, `pressed` for toggles, `disabled` uses `aria-disabled` so the tooltip can explain why ("Graph (soon)"). |
 | `SplitButton` | Primary action + alternatives | "Commit" with "Commit and Push..." in the menu. |
 | `Checkbox` | Selection | `checked: boolean \| "mixed"`; clicking mixed selects all. Derive the parent state with `deriveCheckState(checked, total)`, never store it. Native input underneath (Space works); click does not bubble to the row. |
 | `Switch` | Immediate on/off settings | `role="switch"`. Use a Checkbox for form-like choices. |
-| `SegmentedControl` | 2-4 mutually exclusive views | Radio-group semantics, arrow keys, sliding thumb. A disabled option can carry a tooltip. |
+| `SegmentedControl` | 2-5 mutually exclusive choices | Radio-group semantics, arrow keys, sliding thumb. `size` sm / md / lg (24 / 28 / 34 px; lg has 28 px items), `fullWidth` shares the width equally, `variant="accent"` is the capsule with an accent-filled choice (the mode switch). A disabled option can carry a tooltip. |
+| `Chip` | A small capsule button: a filter with a count, a saved prompt, an overflow entry | `size` md 28 px / sm 26 px, `pressed` makes it a toggle (`aria-pressed`, accent tint when on; put a group of them in a `role="group"` with a label), `count`, `dashed` for "All ..." and "N more", `icon`. |
+| `ChoiceCard` | A bordered card around a native tick box, radio or switch | `type` checkbox / radio / switch (the switch sits at the end), `title`, `description` (`mono` for a branch or path), `end` slot, `name` for a radio group. The whole card is the label; the chosen one has the accent border and tint; the native input keeps the keyboard behaviour. |
 | `Badge`, `Pill`, `StatusDot`, `StatusLetter` | Counts and tags (Badge), compound repo status (Pill, button when `onClick`), state (StatusDot with `label`), change kind (StatusLetter) | Tones neutral / accent / ok / warn / danger / info. |
 | `RepoBadge`, `BranchPill`, `AheadBehind` | Repo identity, branch, ahead/behind | `RepoBadge` takes any `#rrggbb`; `AheadBehind` renders nothing when in sync. `BranchPill` keeps the end of a long name (middle ellipsis, 52 px floor) and its tooltip carries the full name plus `upstream`; in repo rows the repo name shortens before the pill does. `REPO_PALETTE` and `pickRepoColor` for pickers. |
 | `Kbd` | Shortcuts | `keys={["⌘","⇧","K"]}`; Tooltip and Menu render it for you. |
@@ -85,14 +103,14 @@ All props are typed; see the source for the full list.
 | `Toaster` + `toast` | Transient results | `toast.success/error/warn/info/show`, pause on hover/focus, errors use `role="alert"`. Mount one `<Toaster />`. |
 | `Splitter` | Resizable panes | Pointer, arrow keys (Shift = 64 px), Home/End, double-click or Enter resets. `storageKey` persists the size (try/catch). `primary` picks which pane has the pixel size. |
 | `Card` | Grouped content on dashboards and summaries | `title` (names the region), `subtitle`, `actions`, `padding` none / sm / md. Rounded `--radius-card`, translucent in Glass. |
-| `KpiTile` | One number on a dashboard | `label`, `value` (formatted), `unit`, `delta` (`{ value, direction: up/down/flat, upIsGood }`: green when good, red when bad, spoken as "up 12%"), `hint`, `sparkline` slot. |
+| `KpiTile` | One number on a dashboard (the number tile) | `label`, `value` (formatted, 30 px), `unit`, `tone` warn / danger / ok (the border of a tile that wants attention), `hintTone` (the reason line in that colour), `meter` 0-100 with `meterLabel` and `meterTone` (a bar under the number), `delta` (`{ value, direction: up/down/flat, upIsGood }`: green when good, red when bad, spoken as "up 12%"), `hint`, `sparkline` slot. |
 | `Sparkline` | A small trend | Inline SVG, no chart library: `values`, `tone`, `area` (soft fill), `width`/`height` (scales to its box, the stroke stays crisp). `role="img"`, named "Trend: first to last" unless `title` is given. `sparkGeometry()` is the pure maths. |
 | `Tabs` | Switching panels in place | WAI-ARIA tabs with one tab stop, arrows/Home/End select, disabled tabs skipped; panels are yours (`panelId` sets `aria-controls`). Underline in Standard, capsule segments in Glass. |
-| `Skeleton`, `EmptyState`, `Spinner`, `ProgressBar` | Loading, empty, error, progress | EmptyState: an icon and one clear sentence, `tone="danger"` for errors. |
+| `Skeleton`, `EmptyState`, `Spinner`, `ProgressBar` | Loading, empty, error, progress and shares of a limit | EmptyState: an icon and one clear sentence, `tone="danger"` for errors. ProgressBar is also the bar: 5 px on `--track`, tones accent / ok / warn / danger, `size="sm"` 2 px, always with an `aria-label`. |
 | `Input`, `TextArea` | Text entry | Focus ring on the whole field, `invalid`, `leading`/`trailing` slots. TextArea grows between `minRows` and `maxRows`. |
 | `ScrollArea` | Scroll containers | Thin scrollbars, edge hairline + shadow when content continues; `ref` gives the viewport (virtualisers). |
 | `Tree`, `TreeRow` | Trees and lists | 24 px rows (`compact` = 22 px), indent guides, `expanded` (undefined = leaf), `selected`, `cursor`, `tabbable`, `leading` / `trailing` / `actions` (hover and focus) slots, `aria-level/expanded/selected`. Keyboard handling stays with the feature. Selected rows tint with the accent only while the tree has focus. |
-| `TitleBar` | Overlay title bar | `data-tauri-drag-region` on the bar, spacer and slots; 78 px traffic-light spacer; `left`, `center`, `right`. Interactive children stay clickable. |
+| `TitleBar` | Overlay title bar | 48 px; `data-tauri-drag-region` on the bar, spacer and slots; 78 px traffic-light room on macOS (the lights are centred on the bar by `traffic_light_position` in `src-tauri/src/lib.rs`); `left`, `center`, `right`. Interactive children stay clickable. |
 | `VisuallyHidden`, `LiveRegion`, `Announcer`, `announce()` | Screen-reader output | Mount `<Announcer />` once, call `announce("3 repos committed")`. |
 | `BrandMark`, `BrandButton` | The IntelyIDE logo | See Brand below. |
 | `Icon` | Every icon | lucide-solid at 12/14/16 px with consistent stroke; decorative unless `label` is set. Add new icons to `ui-kit/icons.ts`. |
